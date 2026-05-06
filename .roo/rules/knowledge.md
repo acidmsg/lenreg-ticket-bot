@@ -1,0 +1,2 @@
+- Сохранять все CURL, структуры JSON и ответы API в отдельные заметки в `docs/knowledge/`.
+- Поддерживать актуальность `docs/knowledge/_INDEX.md`.
