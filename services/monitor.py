@@ -135,12 +135,31 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                         display_slots.append(f"✨ [NEW] {s}")
                                     else:
                                         display_slots.append(s)
-                            else:
-                                continue
+                            else: # Если номерки были и до этого, проверяем на изменения
+                                old_slots_count = len(old_slots_data) if isinstance(old_slots_data, list) else 0
+                                new_slots_count = len(slots)
+                                # Проверяем гибридное пороговое значение
+                                should_notify_decrease = False
+                                if new_slots_count < old_slots_count:
+                                    # Абсолютное уменьшение
+                                    if new_slots_count < settings.SLOT_THRESHOLD_ABSOLUTE:
+                                        should_notify_decrease = True
+                                    # Процентное уменьшение (избегаем деления на ноль)
+                                    elif old_slots_count > 0:
+                                        percentage_decrease = (old_slots_count - new_slots_count) / old_slots_count
+                                        if percentage_decrease >= settings.SLOT_THRESHOLD_PERCENTAGE:
+                                            should_notify_decrease = True
+
+                                if should_notify_decrease:
+                                    header = f"⚠️ **Количество номерков уменьшилось до {new_slots_count} (было {old_slots_count})**"
+                                    display_slots = slots
+                                else:
+                                    continue
 
                         if old_slots_data != slots:
                             last_seen_cache[cache_key] = slots
                             await _save_cache(last_seen_cache, cache_path)
+
 
                         p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
                         spec_text = f"[{d_spec}]\n" if d_spec else ""

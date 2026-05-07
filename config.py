@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Таймаут запросов к API
     API_TIMEOUT: float = 10.0
 
+    # Пороги для уведомлений об уменьшении номерков
+    SLOT_THRESHOLD_ABSOLUTE: int = 5
+    SLOT_THRESHOLD_PERCENTAGE: float = 0.25
+
     class Config:
         env_file = ".env"
 
