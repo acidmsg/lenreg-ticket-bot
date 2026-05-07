@@ -9,7 +9,7 @@ from keyboards.inline import get_main_menu, get_patient_selection, get_doctor_se
 from database.manager import DatabaseManager
 from api.zdrav_client import ZdravClient
 from config import settings
-from utils.cache import spam_cache, load_monitoring_cache, save_monitoring_cache, update_cache_key, delete_cache_key
+from utils.cache import spam_cache, update_cache_key, delete_cache_key
 
 router = Router()
 logger = logging.getLogger(__name__)

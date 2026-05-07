@@ -5,7 +5,7 @@ from aiogram import Bot
 from api.zdrav_client import ZdravClient
 from database.manager import DatabaseManager
 from config import settings
-from utils.cache import load_monitoring_cache, save_monitoring_cache
+from utils.cache import read_cache_key, update_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,6 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
     while True:
         try:
-            last_seen_cache = await load_monitoring_cache()
             users_data = db.data.copy()
 
             for uid, u_info in users_data.items():
@@ -111,7 +110,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                             continue
 
                         cache_key = f"{uid}_{p_id}_{d_id}"
-                        old_slots_data = last_seen_cache.get(cache_key)
+
+                        # Read current cache value fresh (avoids stale snapshot problem)
+                        old_slots_data = await read_cache_key(cache_key)
 
                         # Защита от ложных пустых ответов (3 подряд)
                         if not slots:
@@ -124,11 +125,10 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         result = _classify_slot_change(slots, old_slots_data)
 
-                        # Обновляем кэш
+                        # Atomically update only this key in the cache
                         new_cache_value = slots if slots else "NONE"
                         if old_slots_data != new_cache_value:
-                            last_seen_cache[cache_key] = new_cache_value
-                            await save_monitoring_cache(last_seen_cache)
+                            await update_cache_key(cache_key, new_cache_value)
 
                         if result is None:
                             continue

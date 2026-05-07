@@ -46,16 +46,53 @@ async def save_monitoring_cache(data: Dict[str, Any]) -> None:
         logger.error(f"Ошибка сохранения кэша мониторинга: {e}")
 
 
-async def update_cache_key(key: str, value: Any) -> None:
-    """Обновляет одно значение в кэше."""
+async def read_cache_key(key: str) -> Any:
+    """Читает одно значение из кэша (возвращает None если ключ отсутствует)."""
     cache = await load_monitoring_cache()
-    cache[key] = value
-    await save_monitoring_cache(cache)
+    return cache.get(key)
+
+
+async def update_cache_key(key: str, value: Any) -> None:
+    """Атомарно обновляет одно значение в кэше (read-modify-write под единым lock)."""
+    path = settings.CACHE_PATH
+    temp_path = path + ".tmp"
+    try:
+        async with _cache_lock:
+            # Read
+            cache: Dict[str, Any] = {}
+            if os.path.exists(path):
+                async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+                    content = await f.read()
+                    cache = json.loads(content) if content else {}
+            # Modify
+            cache[key] = value
+            # Write
+            async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
+            os.replace(temp_path, path)
+    except Exception as e:
+        logger.error(f"Ошибка атомарного обновления кэша [{key}]: {e}")
 
 
 async def delete_cache_key(key: str) -> None:
-    """Удаляет ключ из кэша."""
-    cache = await load_monitoring_cache()
-    if key in cache:
-        del cache[key]
-        await save_monitoring_cache(cache)
+    """Атомарно удаляет ключ из кэша (read-modify-write под единым lock)."""
+    path = settings.CACHE_PATH
+    temp_path = path + ".tmp"
+    try:
+        async with _cache_lock:
+            # Read
+            if not os.path.exists(path):
+                return
+            async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                cache = json.loads(content) if content else {}
+            # Modify
+            if key not in cache:
+                return
+            del cache[key]
+            # Write
+            async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
+            os.replace(temp_path, path)
+    except Exception as e:
+        logger.error(f"Ошибка атомарного удаления из кэша [{key}]: {e}")
