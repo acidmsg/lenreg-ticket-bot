@@ -5,7 +5,7 @@ from aiogram import Bot
 from api.zdrav_client import ZdravClient
 from database.manager import DatabaseManager
 from config import settings
-from utils.cache import read_cache_key, update_cache_key
+from utils.cache import swap_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -111,9 +111,6 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         cache_key = f"{uid}_{p_id}_{d_id}"
 
-                        # Read current cache value fresh (avoids stale snapshot problem)
-                        old_slots_data = await read_cache_key(cache_key)
-
                         # Защита от ложных пустых ответов (3 подряд)
                         if not slots:
                             empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
@@ -123,12 +120,14 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         else:
                             empty_counts[cache_key] = 0
 
-                        result = _classify_slot_change(slots, old_slots_data)
-
-                        # Atomically update only this key in the cache
+                        # Atomically read old value and write new value under a single
+                        # lock acquisition.  This closes the TOCTOU window where a
+                        # handler's update_cache_key / delete_cache_key could slip in
+                        # between a separate read and write.
                         new_cache_value = slots if slots else "NONE"
-                        if old_slots_data != new_cache_value:
-                            await update_cache_key(cache_key, new_cache_value)
+                        old_slots_data = await swap_cache_key(cache_key, new_cache_value)
+
+                        result = _classify_slot_change(slots, old_slots_data)
 
                         if result is None:
                             continue
