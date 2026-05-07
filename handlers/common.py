@@ -178,11 +178,17 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     monitored = user_data["monitoring"].get(p_id, {})
 
     # Отправляем новое сообщение вместо редактирования текущего
+    p_info = user_data.get("patients", {}).get(p_id, {})
+    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
     d_spec = doc_info.get("specialty", "")
     spec_text = f"[{d_spec}]\n" if d_spec else ""
-    status_text = "есть номерки!" if slots else "пока номерков нет 🤷‍♂️"
-    link = f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
-    text = f"{spec_text}🧑‍⚕️{d_name}:\n{status_text}\n\n" + ("\n".join(slots) if slots else "Как только они появятся, я сразу дам знать!") + link
+
+    has_slots = bool(slots)
+    status_text = "есть номерки!" if has_slots else "пока номерков нет 🤷‍♂️"
+    slots_display = "\n".join(slots) if has_slots else "Как только они появятся, я сразу дам знать!"
+    link = f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+
+    text = f"{spec_text}🧑‍⚕️{d_name}:\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
 
     # Новое сообщение
     new_msg = await call.message.answer(text)

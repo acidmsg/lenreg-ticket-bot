@@ -100,7 +100,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 await _save_cache(last_seen_cache, cache_path)
 
                                 p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
-                                msg = f"📭 **Номерков в данный момент нет**\n👤 {p_label}\n👨‍⚕️ {d_name}\n\nМы уведомим вас, когда они появятся."
+                                msg = f"📭 **Номерков в данный момент нет**\n🧑‍⚕️ {d_name}\n👤 {p_label}\n\nМы уведомим вас, когда они появятся."
                                 await _send_notification(bot, uid, msg, db, p_id, d_id)
                             # В случае, если old_slots_data был None, это означает, что запись только что добавлена в мониторинг
                             # и первое уведомление уже отправлено в handlers/common.py.
@@ -163,8 +163,17 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
                         spec_text = f"[{d_spec}]\n" if d_spec else ""
-                        link = f"\n\n� [Записаться](https://zdrav.lenreg.ru/signup/free/)"
-                        msg = f"{spec_text}🧑‍⚕️{d_name}:\n{header}\n\n" + "\n".join(display_slots) + link
+                        has_slots = bool(slots)
+                        # Ссылка на запись только при наличии номерков.
+                        link = f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+                        msg = f"{spec_text}🧑‍⚕️{d_name}:\n👤 {p_label}\n{header}\n\n" + "\n".join(display_slots) + link
+
+
+
+
+
+
+
                         await _send_notification(bot, uid, msg, db, p_id, d_id)
 
             jitter = random.uniform(42, 85)
