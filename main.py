@@ -1,20 +1,21 @@
 import asyncio
 import logging
+import os
 import sys
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp_socks import ProxyConnector
 
 from config import settings
 from database.manager import DatabaseManager
+from database.doctor_manager import DoctorManager
 from api.zdrav_client import ZdravClient
 from handlers import common, registration
 from services.monitor import monitor_loop
+from services.doctor_discovery import discovery_loop
 
 async def main():
     # Настройка логирования
-    import os
     if not os.path.exists('logs'):
         os.makedirs('logs')
 
@@ -47,34 +48,44 @@ async def main():
     dp.include_router(common.router)
     dp.include_router(registration.router)
 
+    # Список фоновых задач для graceful shutdown
+    background_tasks = []
+
     # Запуск фонового мониторинга
-    asyncio.create_task(monitor_loop(bot, api, db))
+    background_tasks.append(asyncio.create_task(monitor_loop(bot, api, db)))
 
     # Запуск фонового discovery для всех поликлиник
-    from services.doctor_discovery import discovery_loop
-    from database.doctor_manager import DoctorManager
-
     doc_manager = DoctorManager(settings.DOCTORS_PATH)
     await doc_manager.load()
 
-    # Запуск фонового discovery для всех поликлиник
-    # Используем разных пациентов для разных типов клиник для корректного получения специальностей
-    patient_id_adult = "2343192"
-    patient_id_child = "2509768"
-
     for clinic_id in settings.CLINICS:
-        asyncio.create_task(discovery_loop(api, doc_manager, str(clinic_id), patient_id_adult, patient_id_child))
+        task = asyncio.create_task(
+            discovery_loop(
+                api, doc_manager, str(clinic_id),
+                settings.DISCOVERY_PATIENT_ID_ADULT,
+                settings.DISCOVERY_PATIENT_ID_CHILD
+            )
+        )
+        background_tasks.append(task)
 
-    logger.info("Бот запущен и готов помогать! 🚀")
+    logger.info("Бот запущен и готов помогать!")
 
     try:
         await dp.start_polling(bot, db=db, api=api)
     finally:
+        logger.info("Остановка фоновых задач...")
+        for task in background_tasks:
+            task.cancel()
+        await asyncio.gather(*background_tasks, return_exceptions=True)
+
+        await api.close()
+
         if bot.session:
             await bot.session.close()
+        logger.info("Бот остановлен.")
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logging.info("Бот остановлен. До скорой встречи! 👋")
+        logging.info("Бот остановлен.")

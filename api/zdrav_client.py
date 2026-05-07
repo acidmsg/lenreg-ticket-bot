@@ -19,6 +19,7 @@ class ZdravClient:
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
         ]
+        self._client: Optional[httpx.AsyncClient] = None
 
     def _get_headers(self):
         return {
@@ -27,6 +28,18 @@ class ZdravClient:
             'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         }
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Возвращает переиспользуемый httpx-клиент (создает при первом вызове)."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=settings.API_TIMEOUT)
+        return self._client
+
+    async def close(self):
+        """Закрывает HTTP-клиент. Вызывать при остановке бота."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def fetch_patient_id(self, fio: str, bday_date: datetime.date, clinic_id: str) -> Tuple[Optional[str], Optional[str]]:
         parts = [p.strip() for p in fio.split() if p.strip()]
@@ -46,21 +59,25 @@ class ZdravClient:
         }
 
         async with self.limiter:
-            async with httpx.AsyncClient(headers=self._get_headers(), timeout=settings.API_TIMEOUT) as client:
-                try:
-                    res = await client.post(f"{self.base_url}/check_patient/", data=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        p_id = data.get('response', {}).get('patient_id')
-                        if p_id:
-                            return str(p_id), None
-                        return None, "Пациент не найден в базе поликлиники. Проверьте правильность введенных данных."
-                    elif res.status_code in [403, 429]:
-                        return None, "Портал временно недоступен (защита от ботов). Попробуйте позже."
-                    return None, f"Портал временно недоступен ({res.status_code})"
-                except Exception as e:
-                    logger.error(f"Ошибка API (fetch_patient_id): {e}")
-                    return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
+            client = await self._get_client()
+            try:
+                res = await client.post(
+                    f"{self.base_url}/check_patient/",
+                    data=payload,
+                    headers=self._get_headers()
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    p_id = data.get('response', {}).get('patient_id')
+                    if p_id:
+                        return str(p_id), None
+                    return None, "Пациент не найден в базе поликлиники. Проверьте правильность введенных данных."
+                elif res.status_code in [403, 429]:
+                    return None, "Портал временно недоступен (защита от ботов). Попробуйте позже."
+                return None, f"Портал временно недоступен ({res.status_code})"
+            except Exception as e:
+                logger.error(f"Ошибка API (fetch_patient_id): {e}")
+                return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
 
     async def check_affiliation(self, patient_id: str, clinic_id: str) -> bool:
         payload = {
@@ -70,16 +87,20 @@ class ZdravClient:
         }
 
         async with self.limiter:
-            async with httpx.AsyncClient(headers=self._get_headers(), timeout=settings.API_TIMEOUT) as client:
-                try:
-                    res = await client.post(f"{self.base_url}/speciality_list/", data=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        return data.get("success", False)
-                    return False
-                except Exception as e:
-                    logger.error(f"Ошибка проверки прикрепления: {e}")
-                    return False
+            client = await self._get_client()
+            try:
+                res = await client.post(
+                    f"{self.base_url}/speciality_list/",
+                    data=payload,
+                    headers=self._get_headers()
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    return data.get("success", False)
+                return False
+            except Exception as e:
+                logger.error(f"Ошибка проверки прикрепления: {e}")
+                return False
 
     async def fetch_speciality_list(self, patient_id: str, clinic_id: str) -> List[dict]:
         payload = {
@@ -88,17 +109,21 @@ class ZdravClient:
             "clinic_form-patient_id": patient_id
         }
         async with self.limiter:
-            async with httpx.AsyncClient(headers=self._get_headers(), timeout=settings.API_TIMEOUT) as client:
-                try:
-                    res = await client.post(f"{self.base_url}/speciality_list/", data=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        if data.get("success"):
-                            return data.get("response", [])
-                    return []
-                except Exception as e:
-                    logger.error(f"Ошибка API (fetch_speciality_list): {e}")
-                    return []
+            client = await self._get_client()
+            try:
+                res = await client.post(
+                    f"{self.base_url}/speciality_list/",
+                    data=payload,
+                    headers=self._get_headers()
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("success"):
+                        return data.get("response", [])
+                return []
+            except Exception as e:
+                logger.error(f"Ошибка API (fetch_speciality_list): {e}")
+                return []
 
     async def check_slots(self, doc_id: str, patient_id: str, clinic_id: str) -> Optional[List[str]]:
         payload = {
@@ -107,33 +132,37 @@ class ZdravClient:
             "doctor_form-patient_id": patient_id
         }
         async with self.limiter:
-            async with httpx.AsyncClient(headers=self._get_headers(), timeout=settings.API_TIMEOUT) as client:
-                for i in range(3):
-                    try:
-                        res = await client.post(f"{self.base_url}/appointment_list/", data=payload)
-                        if res.status_code == 200:
-                            data = res.json().get('response', {})
-                            logger.info(f"API response for {doc_id}: {data}")
-                            slots = []
-                            if isinstance(data, dict):
-                                for date, items in data.items():
-                                    if isinstance(items, list):
-                                        for s in items:
-                                            t = s.get('date_start', {}).get('time')
-                                            if t:
-                                                slots.append(f"{date} в {t}")
-                            if not slots:
-                                logger.info(f"API returned 200 but no slots for {doc_id}")
-                            return slots
-                        elif res.status_code in [403, 429]:
-                             logger.warning(f"Заблокировано API (check_slots): {res.status_code}")
-                             return None
-                        elif res.status_code >= 500:
-                            await asyncio.sleep(2)
-                            continue
-                    except Exception as e:
-                        logger.error(f"Ошибка API (check_slots), попытка {i+1}: {e}")
+            client = await self._get_client()
+            for i in range(3):
+                try:
+                    res = await client.post(
+                        f"{self.base_url}/appointment_list/",
+                        data=payload,
+                        headers=self._get_headers()
+                    )
+                    if res.status_code == 200:
+                        data = res.json().get('response', {})
+                        logger.info(f"API response for {doc_id}: {data}")
+                        slots = []
+                        if isinstance(data, dict):
+                            for date, items in data.items():
+                                if isinstance(items, list):
+                                    for s in items:
+                                        t = s.get('date_start', {}).get('time')
+                                        if t:
+                                            slots.append(f"{date} в {t}")
+                        if not slots:
+                            logger.info(f"API returned 200 but no slots for {doc_id}")
+                        return slots
+                    elif res.status_code in [403, 429]:
+                         logger.warning(f"Заблокировано API (check_slots): {res.status_code}")
+                         return None
+                    elif res.status_code >= 500:
                         await asyncio.sleep(2)
+                        continue
+                except Exception as e:
+                    logger.error(f"Ошибка API (check_slots), попытка {i+1}: {e}")
+                    await asyncio.sleep(2)
         return None
 
     async def fetch_all_doctors(self, specialty_id: str, patient_id: str, clinic_id: str) -> List[dict]:
@@ -144,18 +173,22 @@ class ZdravClient:
             "speciality_form-history_id": ""
         }
         async with self.limiter:
-            async with httpx.AsyncClient(headers=self._get_headers(), timeout=settings.API_TIMEOUT) as client:
-                for i in range(3):
-                    try:
-                        res = await client.post(f"{self.base_url}/doctor_list/", data=payload)
-                        if res.status_code == 200:
-                            data = res.json()
-                            if data.get("success"):
-                                return data.get("response", [])
-                        elif res.status_code >= 500:
-                            await asyncio.sleep(2)
-                            continue
-                    except Exception as e:
-                        logger.error(f"Ошибка API (fetch_all_doctors), попытка {i+1}: {e}")
+            client = await self._get_client()
+            for i in range(3):
+                try:
+                    res = await client.post(
+                        f"{self.base_url}/doctor_list/",
+                        data=payload,
+                        headers=self._get_headers()
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        if data.get("success"):
+                            return data.get("response", [])
+                    elif res.status_code >= 500:
                         await asyncio.sleep(2)
+                        continue
+                except Exception as e:
+                    logger.error(f"Ошибка API (fetch_all_doctors), попытка {i+1}: {e}")
+                    await asyncio.sleep(2)
         return []

@@ -1,2 +1,7 @@
-httpx
-aiolimiter
+aiogram>=3.7,<4.0
+pydantic-settings>=2.0,<3.0
+httpx>=0.27,<1.0
+aiohttp-socks>=0.9,<1.0
+aiofiles>=24.0,<25.0
+aiolimiter>=1.1,<2.0
+cachetools>=5.3,<6.0

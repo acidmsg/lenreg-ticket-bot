@@ -3,6 +3,21 @@ from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional
 
+class ClinicInfo:
+    """Информация о поликлинике."""
+    def __init__(self, name: str, clinic_type: str):
+        self.name = name
+        self.type = clinic_type
+
+
+# Единый справочник клиник -- используется везде в проекте
+CLINICS_REGISTRY: dict[str, ClinicInfo] = {
+    "272": ClinicInfo(name="Стоматологическая", clinic_type="all"),
+    "271": ClinicInfo(name="Взрослая", clinic_type="adult"),
+    "161": ClinicInfo(name="Детская", clinic_type="child"),
+}
+
+
 class Settings(BaseSettings):
     BOT_TOKEN: str = "MUST_BE_OVERRIDDEN_IN_ENV"
     DB_PATH: str = "data/users_config.json"
@@ -23,6 +38,10 @@ class Settings(BaseSettings):
     # Пороги для уведомлений об уменьшении номерков
     SLOT_THRESHOLD_ABSOLUTE: int = 5
     SLOT_THRESHOLD_PERCENTAGE: float = 0.25
+
+    # ID пациентов для discovery (используются для получения списка специальностей)
+    DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
+    DISCOVERY_PATIENT_ID_CHILD: str = "2509768"
 
     class Config:
         env_file = ".env"

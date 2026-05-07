@@ -51,6 +51,9 @@ async def discovery_loop(api: ZdravClient, doctor_manager: DoctorManager, clinic
 
             jitter = random.uniform(0.8, 1.2)
             await asyncio.sleep(settings.DISCOVERY_INTERVAL * jitter)
+        except asyncio.CancelledError:
+            logger.info(f"Цикл discovery для {clinic_id} остановлен (cancelled)")
+            break
         except Exception as e:
             logger.error(f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True)
             await asyncio.sleep(300)
