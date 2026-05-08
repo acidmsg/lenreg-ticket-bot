@@ -92,7 +92,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
     while True:
         try:
-            users_data = db.data.copy()
+            users_data = db.data
 
             for uid, u_info in users_data.items():
                 monitoring = u_info.get("monitoring", {})

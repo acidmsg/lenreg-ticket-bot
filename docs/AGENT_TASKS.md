@@ -9,7 +9,7 @@
 
 ---
 
-## Завершённые задачи (2026-05-07)
+## Завершённые задачи (2026-05-07 / 2026-05-08)
 
 ### Тесты
 
@@ -36,6 +36,19 @@
 | 14 | Интегрировать метрики в monitor_loop | ✅ | Обновление `metrics.monitor_loop_alive` |
 | 15 | Зарегистрировать discovery-задачи в метриках | ✅ | `metrics.discovery_tasks_alive` |
 
+### SQLite-миграция (ночная сессия 2026-05-07)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| D2 | Переход с JSON на SQLite | ✅ | `database/database.py`, миграция из JSON |
+| 23 | Создать `database/database.py` — единый SQLite-движок | ✅ | Таблицы users, clinics, doctors |
+| 24 | Переписать `DatabaseManager` на SQLite (адаптер) | ✅ | Полная обратная совместимость |
+| 25 | Переписать `DoctorManager` на SQLite (адаптер) | ✅ | Загрузка из SQLite в кэш |
+| 26 | Исправить `reportOptionalMemberAccess` в database.py | ✅ | `assert c is not None` во всех методах |
+| 27 | Обновить `config.py` (DB_PATH → bot.db) | ✅ | `data/bot.db` |
+| 28 | Обновить `main.py` (новая инициализация + миграция) | ✅ | `run_migration=True` |
+| 29 | Обновить тесты под SQLite (conftest, manager, doctor) | ✅ | 64 теста, все проходят |
+
 ### Исправления
 
 | # | Задача | Статус | Примечание |
@@ -53,6 +66,19 @@
 | 21 | Исправить `reportArgumentType` в test_zdrav_client.py:24 | ✅ | Аннотация `dict = None` → `dict \| None = None` |
 | 22 | Настроить Pylance на `.venv` | ✅ | Создан `pyrightconfig.json`, установлены пакеты в `.venv` |
 
+### Ревью SQLite (вечерняя сессия 2026-05-08)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 30 | Анализ SQLite-реализации (код + тесты) | ✅ | 64 теста, найдено 8 проблем |
+| 31 | P1 — единая транзакция в `update_user()` | ✅ | BEGIN / COMMIT / ROLLBACK |
+| 32 | P2 — whitelist полей в `update_user_field()` | ✅ | `_ALLOWED_FIELDS` frozenset |
+| 33 | P3 — `data` → deepcopy | ✅ | Защита от мутации кэша |
+| 34 | P5 — убран shallow copy в `monitor_loop()` | ✅ | Deepcopy уже делает `db.data` |
+| 35 | P7 — все `assert c is not None` → `raise RuntimeError` | ✅ | Production-безопасность |
+| 36 | P8 — удалён закомментированный import | ✅ | Чистота кода |
+| 37 | P9 — упрощён INSERT в `ensure_user()` | ✅ | 1 параметр, 1 плейсхолдер |
+
 ### Документация
 
 | # | Задача | Статус | Примечание |
@@ -64,6 +90,7 @@
 | 23 | Восстановить лог сессии 2026-05-04 | ✅ | `docs/SESSION_2026-05-04.md` (из DEVELOPMENT_HISTORY.md) |
 | 24 | Восстановить лог сессии 2026-05-05 | ✅ | `docs/SESSION_2026-05-05.md` (из DEVELOPMENT_HISTORY.md) |
 | 25 | Восстановить лог сессии 2026-05-06 | ✅ | `docs/SESSION_2026-05-06.md` (из SESSION_LOG.md) |
+| 26 | Создать лог сессии 2026-05-08 | ✅ | `docs/SESSION_2026-05-08.md` |
 
 ---
 
@@ -84,7 +111,7 @@
 | # | Задача | Приоритет | Примечание |
 |---|---|---|---|
 | D1 | Docker-контейнеризация (Dockerfile + docker-compose.yml) | 🟡 Средний | Упростит развёртывание |
-| D2 | Переход с JSON на SQLite/PostgreSQL | 🟠 Высокий | Масштабирование, консистентность |
+| D2 | Переход с JSON на SQLite/PostgreSQL | ✅ | `database/database.py` |
 | D3 | Healthcheck endpoint через Telegram | 🟢 Низкий | Уже реализована команда /status |
 | D4 | Добавить миграции данных | 🟡 Средний | При смене структуры JSON/SQL |
 
@@ -131,6 +158,23 @@ python -m pytest tests/ -v --tb=short
 | `pytest.ini` | Конфигурация pytest (asyncio_mode = auto) |
 | `requirements.txt` | Зависимости (prod + dev) |
 
+### SQLite (database.py)
+
+```python
+from database.database import Database
+from database.manager import DatabaseManager
+
+# Инициализация
+database = Database("data/bot.db")
+db = DatabaseManager(database)
+await db.load(run_migration=True)  # миграция из JSON при первом запуске
+
+# Доступные таблицы
+# users: uid TEXT PK, patients JSON, monitoring JSON, last_messages JSON, extra JSON
+# clinics: clinic_id TEXT PK, name TEXT
+# doctors: clinic_id TEXT, doctor_id TEXT, name TEXT, specialty TEXT
+```
+
 ### Глобальный healthcheck-объект
 
 ```python
@@ -145,12 +189,20 @@ metrics.healthcheck_loop_alive  # Жив ли healthcheck_loop
 metrics.discovery_tasks_alive   # Количество discovery-задач
 ```
 
+### Как запустить миграцию из JSON
+
+```bash
+# Автоматически выполняется при bot.db не существует
+# или когда таблица users пуста.
+# Пути к JSON: settings.USERS_JSON_PATH, settings.DOCTORS_JSON_PATH
+```
+
 ### Структура тестов
 
 ```
 tests/
-├── conftest.py                    # Фикстуры (временные файлы, моки)
-├── test_database_manager.py       # DatabaseManager (14 тестов)
+├── conftest.py                    # Фикстуры (SQLite, временные файлы, моки)
+├── test_database_manager.py       # DatabaseManager (15 тестов)
 ├── test_doctor_manager.py         # DoctorManager (7 тестов)
 ├── test_cache.py                  # utils/cache (12 тестов)
 ├── test_monitor_classify.py       # _classify_slot_change (12 тестов)

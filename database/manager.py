@@ -3,6 +3,8 @@ DatabaseManager — адаптер поверх Database (SQLite).
 Сохраняет обратную совместимость с существующими хендлерами и сервисами.
 """
 
+import copy
+import json
 import logging
 from typing import Any, Dict
 
@@ -21,8 +23,8 @@ class DatabaseManager:
 
     @property
     def data(self) -> Dict[str, Any]:
-        """Возвращает кэшированную копию данных пользователей (read-only)."""
-        return self._data_cache
+        """Возвращает deepcopy кэша (защита от случайной мутации)."""
+        return copy.deepcopy(self._data_cache)
 
     async def refresh_cache(self):
         """Перечитать всех пользователей из SQLite в кэш data."""
@@ -69,28 +71,48 @@ class DatabaseManager:
             self._data_cache[uid] = user
         user_data = self.get_user_data(uid)
         user_data.update(update_dict)
-        # Сохраняем все известные JSON-поля
-        await self._db.update_user_field(uid, "patients", user_data.get("patients", {}))
-        await self._db.update_user_field(
-            uid, "monitoring", user_data.get("monitoring", {})
-        )
-        await self._db.update_user_field(
-            uid, "last_messages", user_data.get("last_messages", {})
-        )
-        if "last_notification_id" in update_dict:
-            await self._db.set_last_notification_id(
-                uid, update_dict["last_notification_id"]
+        # Единая транзакция: все поля пишутся атомарно
+        c = self._db._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute("BEGIN")
+        try:
+            await c.execute(
+                "UPDATE users SET patients = ? WHERE uid = ?",
+                (json.dumps(user_data.get("patients", {}), ensure_ascii=False), uid),
             )
-        # Произвольные поля сохраняем в extra
-        known_fields = {
-            "patients",
-            "monitoring",
-            "last_messages",
-            "last_notification_id",
-        }
-        extra_fields = {k: v for k, v in update_dict.items() if k not in known_fields}
-        if extra_fields:
-            await self._db.update_extra(uid, extra_fields)
+            await c.execute(
+                "UPDATE users SET monitoring = ? WHERE uid = ?",
+                (json.dumps(user_data.get("monitoring", {}), ensure_ascii=False), uid),
+            )
+            await c.execute(
+                "UPDATE users SET last_messages = ? WHERE uid = ?",
+                (
+                    json.dumps(user_data.get("last_messages", {}), ensure_ascii=False),
+                    uid,
+                ),
+            )
+            if "last_notification_id" in update_dict:
+                await c.execute(
+                    "UPDATE users SET last_notification_id = ? WHERE uid = ?",
+                    (update_dict["last_notification_id"], uid),
+                )
+            # Произвольные поля сохраняем в extra
+            known_fields = {
+                "patients",
+                "monitoring",
+                "last_messages",
+                "last_notification_id",
+            }
+            extra_fields = {
+                k: v for k, v in update_dict.items() if k not in known_fields
+            }
+            if extra_fields:
+                await self._db.update_extra(uid, extra_fields)
+            await c.commit()
+        except Exception:
+            await c.rollback()
+            raise
         # Обновляем кэш после записи
         updated_user = await self._db.get_user(uid)
         if updated_user:

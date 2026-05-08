@@ -10,8 +10,6 @@
 import json
 import logging
 import os
-
-# import sqlite3 # Удален, так как теперь полагаемся только на aiosqlite для инициализации
 from typing import Any, Dict, Optional
 
 import aiosqlite
@@ -48,7 +46,8 @@ class Database:
             self._conn = await aiosqlite.connect(self.db_path)
             # noinspection PyTypeChecker
             c = self._conn
-            assert c is not None
+            if c is None:
+                raise RuntimeError("Database connection not initialized")
 
             logger.info(f"Соединение с базой данных '{self.db_path}' установлено.")
 
@@ -90,14 +89,16 @@ class Database:
 
     async def _enable_wal(self):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.execute("PRAGMA journal_mode=WAL")
         await c.execute("PRAGMA busy_timeout=5000")
         await c.execute("PRAGMA foreign_keys=ON")
 
     async def _create_tables(self):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.executescript("""
 CREATE TABLE IF NOT EXISTS users (
 uid                 TEXT PRIMARY KEY,
@@ -122,7 +123,6 @@ CREATE TABLE IF NOT EXISTS schema_version (
 version             INTEGER PRIMARY KEY
 );
 """)
-        assert c is not None
         await c.commit()
 
     # ── Миграция из JSON ────────────────────────────────────
@@ -136,7 +136,8 @@ version             INTEGER PRIMARY KEY
         Безопасно: проверяет, есть ли уже данные в базе.
         """
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute("SELECT COUNT(*) FROM users")
         row = await cursor.fetchone()
         if row and row[0] > 0:
@@ -195,7 +196,8 @@ version             INTEGER PRIMARY KEY
     # ── Пользователи ────────────────────────────────────────
     async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute("SELECT * FROM users WHERE uid = ?", (uid,))
         row = await cursor.fetchone()
         if row is None:
@@ -217,11 +219,10 @@ version             INTEGER PRIMARY KEY
         if user is not None:
             return user
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.execute(
-            """INSERT OR IGNORE INTO users
-            (uid, patients, monitoring, last_messages)
-            VALUES (?, '{}', '{}', '{}')""",
+            "INSERT OR IGNORE INTO users (uid) VALUES (?)",
             (uid,),
         )
         await c.commit()
@@ -234,7 +235,8 @@ version             INTEGER PRIMARY KEY
 
     async def update_extra(self, uid: str, extra: Dict[str, Any]):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         current_extra = {}
         cursor = await c.execute("SELECT extra FROM users WHERE uid = ?", (uid,))
         row = await cursor.fetchone()
@@ -247,18 +249,32 @@ version             INTEGER PRIMARY KEY
         )
         await c.commit()
 
+    _ALLOWED_FIELDS = frozenset(
+        {
+            "patients",
+            "monitoring",
+            "last_messages",
+            "last_notification_id",
+            "extra",
+        }
+    )
+
     async def update_user_field(self, uid: str, field: str, value: Any):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        if field not in self._ALLOWED_FIELDS:
+            raise ValueError(f"Field '{field}' is not allowed for direct update")
         await c.execute(
-            f"UPDATE users SET {field} = ? WHERE uid = ?",
+            f"UPDATE users SET [{field}] = ? WHERE uid = ?",
             (json.dumps(value, ensure_ascii=False), uid),
         )
         await c.commit()
 
     async def set_last_notification_id(self, uid: str, msg_id: int):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.execute(
             "UPDATE users SET last_notification_id = ? WHERE uid = ?",
             (msg_id, uid),
@@ -267,7 +283,8 @@ version             INTEGER PRIMARY KEY
 
     async def get_all_user_ids(self) -> list[str]:
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute("SELECT uid FROM users")
         rows = await cursor.fetchall()
         return [row["uid"] for row in rows]
@@ -275,7 +292,8 @@ version             INTEGER PRIMARY KEY
     # ── Врачи ───────────────────────────────────────────────
     async def get_clinic_doctors(self, clinic_id: str) -> Dict[str, Dict[str, str]]:
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute(
             "SELECT doctor_id, name, specialty FROM doctors WHERE clinic_id = ?",
             (clinic_id,),
@@ -290,7 +308,8 @@ version             INTEGER PRIMARY KEY
         self, clinic_id: str, doctor_id: str, name: str, specialty: str
     ):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.execute(
             """INSERT OR REPLACE INTO doctors
             (clinic_id, doctor_id, name, specialty)
@@ -301,7 +320,8 @@ version             INTEGER PRIMARY KEY
 
     async def upsert_clinic(self, clinic_id: str, name: str):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await c.execute(
             "INSERT OR REPLACE INTO clinics (clinic_id, name) VALUES (?, ?)",
             (clinic_id, name),
@@ -310,7 +330,8 @@ version             INTEGER PRIMARY KEY
 
     async def merge_doctors(self, clinic_id: str, doctors: list[Dict]):
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         await self.upsert_clinic(str(clinic_id), "Unknown")
         for doc in doctors:
             raw_id = doc.get("IdDoc")
@@ -325,14 +346,16 @@ version             INTEGER PRIMARY KEY
 
     async def get_all_clinic_ids(self) -> list[str]:
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute("SELECT clinic_id FROM clinics")
         rows = await cursor.fetchall()
         return [row["clinic_id"] for row in rows]
 
     async def get_clinic_name(self, clinic_id: str) -> Optional[str]:
         c = self._conn
-        assert c is not None
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
         cursor = await c.execute(
             "SELECT name FROM clinics WHERE clinic_id = ?", (clinic_id,)
         )
