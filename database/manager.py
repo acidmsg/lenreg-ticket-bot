@@ -202,11 +202,9 @@ class DatabaseManager:
         """Инициализация: подключение к SQLite и загрузка кэша."""
         await self._db.connect()
         if run_migration:
-            from config import settings
-
             await self._db.migrate_from_json(
-                settings.USERS_JSON_PATH,
-                settings.DOCTORS_JSON_PATH,
+                "data/users_config.json",
+                "data/doctors.json",
             )
         await self.refresh_cache()
 

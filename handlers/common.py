@@ -60,14 +60,6 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
         )
 
 
-def get_doctors_for_clinic(clinic_id: str):
-    if not os.path.exists(settings.DOCTORS_PATH):
-        return {}
-    with open(settings.DOCTORS_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        return data.get(str(clinic_id), {}).get("doctors", {})
-
-
 @router.callback_query(F.data.startswith("sel_p_"))
 async def select_patient(call: CallbackQuery, db: DatabaseManager):
     if not call.message or not call.from_user or not call.data:
@@ -114,7 +106,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
             return
         await db.add_confirmed_clinic(uid, p_id, int(clinic_id))
 
-    doctors_list = get_doctors_for_clinic(clinic_id)
+    doctors_list = await db.get_doctors_for_clinic(clinic_id)
     monitored = user_data["monitoring"].get(p_id, {})
 
     try:
@@ -144,7 +136,7 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     uid = str(call.from_user.id)
 
     user_data = db.get_user_data(uid)
-    doctors_list = get_doctors_for_clinic(clinic_id)
+    doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_info = doctors_list.get(d_id, {})
     d_name = doc_info.get("name", "Врач")
     d_spec = doc_info.get("specialty", "")
