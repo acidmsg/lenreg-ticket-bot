@@ -1,44 +1,38 @@
-import json
-import aiofiles
-import os
-import asyncio
-from typing import Dict, Any
+"""
+DoctorManager — адаптер поверх Database (SQLite).
+Сохраняет обратную совместимость с существующим кодом.
+"""
+
+import logging
+from typing import Any, Dict
+
+from database.database import Database
+
+logger = logging.getLogger(__name__)
+
 
 class DoctorManager:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
+    """Обёртка над Database для работы со справочником врачей."""
+
+    def __init__(self, db: Database):
+        self._db = db
         self.data: Dict[str, Any] = {}
-        self._lock = asyncio.Lock()
 
     async def load(self):
-        if os.path.exists(self.file_path):
-            async with aiofiles.open(self.file_path, mode='r', encoding='utf-8') as f:
-                content = await f.read()
-                if content:
-                    self.data = json.loads(content)
-        else:
-            self.data = {}
+        """Загрузить всех врачей из SQLite в кэш data (для обратной совместимости)."""
+        self.data = {}
+        clinic_ids = await self._db.get_all_clinic_ids()
+        for cid in clinic_ids:
+            clinic_name = await self._db.get_clinic_name(cid)
+            doctors = await self._db.get_clinic_doctors(cid)
+            self.data[cid] = {
+                "name": clinic_name or "Unknown",
+                "doctors": doctors,
+            }
 
     async def save(self):
-        async with self._lock:
-            async with aiofiles.open(self.file_path, mode='w', encoding='utf-8') as f:
-                await f.write(json.dumps(self.data, ensure_ascii=False, indent=4))
+        """Совместимость — данные уже в SQLite."""
+        pass
 
     async def merge_doctors(self, clinic_id: str, doctors: list):
-        if clinic_id not in self.data:
-            self.data[clinic_id] = {"name": "Unknown", "doctors": {}}
-
-        # Merge logic
-        for doc in doctors:
-            doc_id = str(doc.get("IdDoc"))
-            doc_name = doc.get("Name")
-            specialty = doc.get("SpesialityName", "")
-
-            if doc_name and doc_id:
-                # Сохраняем расширенную информацию
-                self.data[clinic_id]["doctors"][doc_id] = {
-                    "name": doc_name,
-                    "specialty": specialty
-                }
-
-        await self.save()
+        return await self._db.merge_doctors(str(clinic_id), doctors)

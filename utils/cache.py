@@ -25,7 +25,7 @@ async def load_monitoring_cache() -> Dict[str, Any]:
         return {}
     try:
         async with _cache_lock:
-            async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+            async with aiofiles.open(path, "r", encoding="utf-8") as f:
                 content = await f.read()
                 return json.loads(content) if content else {}
     except Exception as e:
@@ -39,7 +39,7 @@ async def save_monitoring_cache(data: Dict[str, Any]) -> None:
     temp_path = path + ".tmp"
     try:
         async with _cache_lock:
-            async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+            async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(data, ensure_ascii=False, indent=4))
             os.replace(temp_path, path)
     except Exception as e:
@@ -61,13 +61,13 @@ async def update_cache_key(key: str, value: Any) -> None:
             # Read
             cache: Dict[str, Any] = {}
             if os.path.exists(path):
-                async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+                async with aiofiles.open(path, "r", encoding="utf-8") as f:
                     content = await f.read()
                     cache = json.loads(content) if content else {}
             # Modify
             cache[key] = value
             # Write
-            async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+            async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
             os.replace(temp_path, path)
     except Exception as e:
@@ -87,14 +87,14 @@ async def swap_cache_key(key: str, new_value: Any) -> Any:
             # Read
             cache: Dict[str, Any] = {}
             if os.path.exists(path):
-                async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+                async with aiofiles.open(path, "r", encoding="utf-8") as f:
                     content = await f.read()
                     cache = json.loads(content) if content else {}
             old_value = cache.get(key)
             # Write only if changed
             if old_value != new_value:
                 cache[key] = new_value
-                async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+                async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                     await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
                 os.replace(temp_path, path)
             return old_value
@@ -112,7 +112,7 @@ async def delete_cache_key(key: str) -> None:
             # Read
             if not os.path.exists(path):
                 return
-            async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+            async with aiofiles.open(path, "r", encoding="utf-8") as f:
                 content = await f.read()
                 cache = json.loads(content) if content else {}
             # Modify
@@ -120,7 +120,7 @@ async def delete_cache_key(key: str) -> None:
                 return
             del cache[key]
             # Write
-            async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+            async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
             os.replace(temp_path, path)
     except Exception as e:

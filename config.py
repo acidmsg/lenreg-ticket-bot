@@ -1,10 +1,13 @@
 import os
-from pydantic_settings import BaseSettings
-from pydantic import Field
 from typing import Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class ClinicInfo:
     """Информация о поликлинике."""
+
     def __init__(self, name: str, clinic_type: str):
         self.name = name
         self.type = clinic_type
@@ -20,9 +23,12 @@ CLINICS_REGISTRY: dict[str, ClinicInfo] = {
 
 class Settings(BaseSettings):
     BOT_TOKEN: str = "MUST_BE_OVERRIDDEN_IN_ENV"
-    DB_PATH: str = "data/users_config.json"
+    SQLITE_DB_PATH: str = "data/bot.db"
     DOCTORS_PATH: str = "data/doctors.json"
     CACHE_PATH: str = "data/monitoring_cache.json"
+    # Путь к старому JSON для миграции
+    USERS_JSON_PATH: str = "data/users_config.json"
+    DOCTORS_JSON_PATH: str = "data/doctors.json"
 
     # Прокси для Telegram
     PROXY_URL: Optional[str] = None
@@ -43,7 +49,7 @@ class Settings(BaseSettings):
     DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
     DISCOVERY_PATIENT_ID_CHILD: str = "2509768"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
+
 
 settings = Settings()

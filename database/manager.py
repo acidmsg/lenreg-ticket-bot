@@ -1,51 +1,113 @@
-import json
-import aiofiles
-import os
-import asyncio
-from typing import Dict, Any, Optional
+"""
+DatabaseManager — адаптер поверх Database (SQLite).
+Сохраняет обратную совместимость с существующими хендлерами и сервисами.
+"""
+
+import logging
+from typing import Any, Dict
+
+from database.database import Database
+
+logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        self.data: Dict[str, Any] = {}
-        self._lock = asyncio.Lock()
+    """Обёртка над Database с API, совместимым со старым JSON-менеджером."""
 
-    async def load(self):
-        if os.path.exists(self.file_path):
-            async with aiofiles.open(self.file_path, mode='r', encoding='utf-8') as f:
-                content = await f.read()
-                if content:
-                    self.data = json.loads(content)
-        else:
-            self.data = {}
+    def __init__(self, db: Database):
+        self._db = db
+        # data — прокси-свойство для обратной совместимости с monitor.py / healthcheck.py
+        self._data_cache: Dict[str, Any] = {}
 
-    async def save(self):
-        async with self._lock:
-            async with aiofiles.open(self.file_path, mode='w', encoding='utf-8') as f:
-                await f.write(json.dumps(self.data, ensure_ascii=False, indent=4))
+    @property
+    def data(self) -> Dict[str, Any]:
+        """Возвращает кэшированную копию данных пользователей (read-only)."""
+        return self._data_cache
+
+    async def refresh_cache(self):
+        """Перечитать всех пользователей из SQLite в кэш data."""
+        self._data_cache = {}
+        uids = await self._db.get_all_user_ids()
+        for uid in uids:
+            user = await self._db.get_user(uid)
+            if user is not None:
+                self._data_cache[uid] = user
+
+    # ── Пользователи ────────────────────────────────────────
 
     def get_user_data(self, uid: str) -> Dict[str, Any]:
+        """
+        Синхронный метод для обратной совместимости.
+        Возвращает данные из кэша, создаёт запись по умолчанию если нет.
+        """
         uid = str(uid)
-        if uid not in self.data:
-            self.data[uid] = {"patients": {}, "monitoring": {}, "last_messages": {}}
-        elif "last_messages" not in self.data[uid]:
-            self.data[uid]["last_messages"] = {}
-        return self.data[uid]
+        if uid not in self._data_cache:
+            # Создаём структуру по умолчанию
+            self._data_cache[uid] = {
+                "patients": {},
+                "monitoring": {},
+                "last_messages": {},
+                "last_notification_id": None,
+            }
+        elif "last_messages" not in self._data_cache[uid]:
+            self._data_cache[uid]["last_messages"] = {}
+        return self._data_cache[uid]
+
+    async def _ensure_user_in_db(self, uid: str):
+        """Гарантирует, что пользователь есть в SQLite."""
+        user = await self._db.get_user(str(uid))
+        if user is None:
+            await self._db.ensure_user(str(uid))
 
     async def update_user(self, uid: str, update_dict: Dict[str, Any]):
+        """Обновить данные пользователя (сохраняет в SQLite и обновляет кэш)."""
         uid = str(uid)
+        await self._ensure_user_in_db(uid)
+        # Перечитываем пользователя из SQLite в кэш
+        user = await self._db.get_user(uid)
+        if user:
+            self._data_cache[uid] = user
         user_data = self.get_user_data(uid)
         user_data.update(update_dict)
-        await self.save()
+        # Сохраняем все известные JSON-поля
+        await self._db.update_user_field(uid, "patients", user_data.get("patients", {}))
+        await self._db.update_user_field(
+            uid, "monitoring", user_data.get("monitoring", {})
+        )
+        await self._db.update_user_field(
+            uid, "last_messages", user_data.get("last_messages", {})
+        )
+        if "last_notification_id" in update_dict:
+            await self._db.set_last_notification_id(
+                uid, update_dict["last_notification_id"]
+            )
+        # Произвольные поля сохраняем в extra
+        known_fields = {
+            "patients",
+            "monitoring",
+            "last_messages",
+            "last_notification_id",
+        }
+        extra_fields = {k: v for k, v in update_dict.items() if k not in known_fields}
+        if extra_fields:
+            await self._db.update_extra(uid, extra_fields)
+        # Обновляем кэш после записи
+        updated_user = await self._db.get_user(uid)
+        if updated_user:
+            self._data_cache[uid] = updated_user
 
-    async def set_last_message_id(self, uid: str, p_id: str, d_id: str, message_id: int):
+    async def set_last_message_id(
+        self, uid: str, p_id: str, d_id: str, message_id: int
+    ):
         uid = str(uid)
         user_data = self.get_user_data(uid)
         key = f"{p_id}_{d_id}"
         user_data["last_messages"][key] = message_id
-        await self.save()
+        await self._db.update_user_field(
+            uid, "last_messages", user_data["last_messages"]
+        )
 
-    def get_last_message_id(self, uid: str, p_id: str, d_id: str) -> Optional[int]:
+    def get_last_message_id(self, uid: str, p_id: str, d_id: str) -> int | None:
         uid = str(uid)
         user_data = self.get_user_data(uid)
         key = f"{p_id}_{d_id}"
@@ -56,7 +118,7 @@ class DatabaseManager:
         user_data = self.get_user_data(uid)
         p_info["confirmed_clinics"] = p_info.get("confirmed_clinics", [])
         user_data["patients"][p_id] = p_info
-        await self.save()
+        await self._db.update_user_field(uid, "patients", user_data["patients"])
 
     async def add_confirmed_clinic(self, uid: str, p_id: str, clinic_id: int):
         uid = str(uid)
@@ -67,9 +129,11 @@ class DatabaseManager:
 
             if clinic_id not in user_data["patients"][p_id]["confirmed_clinics"]:
                 user_data["patients"][p_id]["confirmed_clinics"].append(clinic_id)
-                await self.save()
+                await self._db.update_user_field(uid, "patients", user_data["patients"])
 
-    async def toggle_monitoring(self, uid: str, p_id: str, d_id: str, d_name: str, clinic_id: str, d_spec: str):
+    async def toggle_monitoring(
+        self, uid: str, p_id: str, d_id: str, d_name: str, clinic_id: str, d_spec: str
+    ):
         uid = str(uid)
         user_data = self.get_user_data(uid)
         if p_id not in user_data["monitoring"]:
@@ -78,14 +142,18 @@ class DatabaseManager:
         if d_id in user_data["monitoring"][p_id]:
             del user_data["monitoring"][p_id][d_id]
         else:
-            user_data["monitoring"][p_id][d_id] = {"name": d_name, "clinic_id": clinic_id, "specialty": d_spec}
-        await self.save()
+            user_data["monitoring"][p_id][d_id] = {
+                "name": d_name,
+                "clinic_id": clinic_id,
+                "specialty": d_spec,
+            }
+        await self._db.update_user_field(uid, "monitoring", user_data["monitoring"])
 
     async def stop_all_monitoring(self, uid: str):
         uid = str(uid)
-        if uid in self.data:
-            self.data[uid]["monitoring"] = {}
-            await self.save()
+        if uid in self._data_cache:
+            self._data_cache[uid]["monitoring"] = {}
+            await self._db.update_user_field(uid, "monitoring", {})
 
     async def delete_patient(self, uid: str, p_id: str):
         uid = str(uid)
@@ -94,4 +162,33 @@ class DatabaseManager:
             del user_data["patients"][p_id]
         if p_id in user_data["monitoring"]:
             del user_data["monitoring"][p_id]
-        await self.save()
+        await self._db.update_user_field(uid, "patients", user_data["patients"])
+        await self._db.update_user_field(uid, "monitoring", user_data["monitoring"])
+
+    # ── Врачи (делегирование в Database) ────────────────────
+
+    async def get_doctors_for_clinic(self, clinic_id: str) -> dict:
+        """Возвращает {doctor_id: {name, specialty}} для указанной клиники."""
+        return await self._db.get_clinic_doctors(str(clinic_id))
+
+    async def merge_doctors(self, clinic_id: str, doctors: list):
+        return await self._db.merge_doctors(str(clinic_id), doctors)
+
+    # ── Управление подключением ─────────────────────────────
+
+    async def load(self, run_migration: bool = False):
+        """Инициализация: подключение к SQLite и загрузка кэша."""
+        await self._db.connect()
+        if run_migration:
+            from config import settings
+
+            await self._db.migrate_from_json(
+                settings.USERS_JSON_PATH,
+                settings.DOCTORS_JSON_PATH,
+            )
+        await self.refresh_cache()
+
+    async def save(self):
+        """Синхронизировать кэш с SQLite (вызывается при изменении данных)."""
+        # Данные уже сохраняются в каждом методе, этот метод оставлен для совместимости
+        pass

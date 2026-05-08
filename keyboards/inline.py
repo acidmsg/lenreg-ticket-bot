@@ -1,7 +1,10 @@
 from datetime import datetime
+
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+
 from config import CLINICS_REGISTRY
+
 
 def get_main_menu():
     builder = ReplyKeyboardBuilder()
@@ -9,6 +12,7 @@ def get_main_menu():
     builder.button(text="Стоп все")
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
+
 
 def get_patient_selection(patients: dict, monitoring: dict):
     builder = InlineKeyboardBuilder()
@@ -25,23 +29,24 @@ def get_patient_selection(patients: dict, monitoring: dict):
     builder.adjust(*adjustments)
     return builder.as_markup()
 
-def get_doctor_selection(p_id: str, clinic_id: str, doctors_list: dict, monitored: dict):
+
+def get_doctor_selection(
+    p_id: str, clinic_id: str, doctors_list: dict, monitored: dict
+):
     builder = InlineKeyboardBuilder()
 
     docs_to_sort = []
     for d_id, info in doctors_list.items():
         if isinstance(info, dict):
-            docs_to_sort.append({
-                "id": d_id,
-                "name": info.get("name", "Unknown"),
-                "specialty": info.get("specialty", "Врач")
-            })
+            docs_to_sort.append(
+                {
+                    "id": d_id,
+                    "name": info.get("name", "Unknown"),
+                    "specialty": info.get("specialty", "Врач"),
+                }
+            )
         else:
-            docs_to_sort.append({
-                "id": info,
-                "name": d_id,
-                "specialty": "Врач"
-            })
+            docs_to_sort.append({"id": info, "name": d_id, "specialty": "Врач"})
 
     docs_to_sort.sort(key=lambda x: x["specialty"])
 
@@ -55,12 +60,14 @@ def get_doctor_selection(p_id: str, clinic_id: str, doctors_list: dict, monitore
     builder.adjust(1)
     return builder.as_markup()
 
+
 def get_confirm_deletion(p_id: str):
     builder = InlineKeyboardBuilder()
     builder.button(text="Да, удалить", callback_data=f"del_p_yes_{p_id}")
     builder.button(text="Нет", callback_data=f"sel_p_{p_id}")
     builder.adjust(2)
     return builder.as_markup()
+
 
 def get_clinic_selection(p_id: str, bday_str: str):
     builder = InlineKeyboardBuilder()
@@ -83,6 +90,7 @@ def get_clinic_selection(p_id: str, bday_str: str):
     builder.button(text="<< Назад к списку", callback_data="back_to_main")
     builder.adjust(1)
     return builder.as_markup()
+
 
 def get_skip_alias_keyboard():
     builder = InlineKeyboardBuilder()

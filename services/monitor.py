@@ -1,16 +1,20 @@
 import asyncio
 import logging
 import random
+
 from aiogram import Bot
+
 from api.zdrav_client import ZdravClient
-from database.manager import DatabaseManager
 from config import settings
+from database.manager import DatabaseManager
 from utils.cache import swap_cache_key
 
 logger = logging.getLogger(__name__)
 
 
-async def _send_notification(bot: Bot, uid: str, text: str, db: DatabaseManager, p_id: str, d_id: str):
+async def _send_notification(
+    bot: Bot, uid: str, text: str, db: DatabaseManager, p_id: str, d_id: str
+):
     try:
         # Для "приклеивания" (удаления старого сообщения) нужно хранить message_id
         last_msg_id = db.get_last_message_id(uid, p_id, d_id)
@@ -70,13 +74,18 @@ def _classify_slot_change(slots, old_slots_data):
                 should_notify = True
 
         if should_notify:
-            header = f"**Количество номерков уменьшилось до {new_count} (было {old_count})**"
+            header = (
+                f"**Количество номерков уменьшилось до {new_count} (было {old_count})**"
+            )
             return header, slots
 
     return None  # Нет значимых изменений
 
 
 async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
+    from services.healthcheck import metrics as hc_metrics
+
+    hc_metrics.monitor_loop_alive = True
     logger.info("Цикл мониторинга запущен")
 
     empty_counts = {}
@@ -93,12 +102,16 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         if isinstance(d_info, dict):
                             d_name = d_info.get("name", "Врач")
                             d_spec = d_info.get("specialty", "")
-                            clinic_id = d_info.get("clinic_id", p_info.get("clinic_id", "272"))
+                            clinic_id = d_info.get(
+                                "clinic_id", p_info.get("clinic_id", "272")
+                            )
                         else:
                             d_name = d_info
                             d_spec = ""
                             clinic_id = p_info.get("clinic_id", "272")
-                        logger.info(f"Monitor checking slots: d_id={d_id}, p_id={p_id}, clinic_id={clinic_id}")
+                        logger.info(
+                            f"Monitor checking slots: d_id={d_id}, p_id={p_id}, clinic_id={clinic_id}"
+                        )
 
                         await asyncio.sleep(random.uniform(1.0, 3.0))
 
@@ -115,7 +128,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         if not slots:
                             empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
                             if empty_counts[cache_key] < 3:
-                                logger.info(f"Empty slots for {d_id}, {p_id}. Retry {empty_counts[cache_key]}/3")
+                                logger.info(
+                                    f"Empty slots for {d_id}, {p_id}. Retry {empty_counts[cache_key]}/3"
+                                )
                                 continue
                         else:
                             empty_counts[cache_key] = 0
@@ -125,7 +140,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         # handler's update_cache_key / delete_cache_key could slip in
                         # between a separate read and write.
                         new_cache_value = slots if slots else "NONE"
-                        old_slots_data = await swap_cache_key(cache_key, new_cache_value)
+                        old_slots_data = await swap_cache_key(
+                            cache_key, new_cache_value
+                        )
 
                         result = _classify_slot_change(slots, old_slots_data)
 
@@ -137,13 +154,21 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
                         spec_text = f"[{d_spec}]\n" if d_spec else ""
                         has_slots = bool(slots)
-                        link = f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+                        link = (
+                            f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)"
+                            if has_slots
+                            else ""
+                        )
 
                         if display_slots is None:
                             # Номерки исчезли
                             msg = f"{spec_text}{d_name}:\n{p_label}\n{header}\n\nМы уведомим вас, когда они появятся."
                         else:
-                            msg = f"{spec_text}{d_name}:\n{p_label}\n{header}\n\n" + "\n".join(display_slots) + link
+                            msg = (
+                                f"{spec_text}{d_name}:\n{p_label}\n{header}\n\n"
+                                + "\n".join(display_slots)
+                                + link
+                            )
 
                         await _send_notification(bot, uid, msg, db, p_id, d_id)
 
