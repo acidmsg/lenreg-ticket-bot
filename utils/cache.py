@@ -103,6 +103,32 @@ async def swap_cache_key(key: str, new_value: Any) -> Any:
         return None
 
 
+async def delete_cache_keys_by_prefix(prefix: str) -> int:
+    """Удаляет все ключи, начинающиеся с prefix. Возвращает количество удалённых."""
+    path = settings.CACHE_PATH
+    temp_path = path + ".tmp"
+    deleted = 0
+    try:
+        async with _cache_lock:
+            if not os.path.exists(path):
+                return 0
+            async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                content = await f.read()
+                cache = json.loads(content) if content else {}
+            keys_to_delete = [k for k in cache if k.startswith(prefix)]
+            for k in keys_to_delete:
+                del cache[k]
+                deleted += 1
+            if deleted:
+                async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
+                    await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
+                os.replace(temp_path, path)
+        return deleted
+    except Exception as e:
+        logger.error(f"Ошибка удаления ключей по префиксу [{prefix}]: {e}")
+        return 0
+
+
 async def delete_cache_key(key: str) -> None:
     """Атомарно удаляет ключ из кэша (read-modify-write под единым lock)."""
     path = settings.CACHE_PATH

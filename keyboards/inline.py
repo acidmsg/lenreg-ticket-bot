@@ -3,6 +3,8 @@ from datetime import datetime
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from utils.helpers import is_cabinet, shorten_fio, shorten_specialty
+
 
 def get_main_menu():
     builder = ReplyKeyboardBuilder()
@@ -23,7 +25,9 @@ def get_patient_selection(patients: dict, monitoring: dict):
         builder.button(text="🗑", callback_data=f"del_p_ask_{p_id}")
 
     builder.button(text="➕ Добавить пациента", callback_data="start_add_p")
-    adjustments = [2] * len(patients) + [1]
+    # Кнопка сброса всего мониторинга — всегда внизу
+    builder.button(text="🛑 Сбросить весь мониторинг", callback_data="stop_all")
+    adjustments = [2] * len(patients) + [1, 1]
     builder.adjust(*adjustments)
     return builder.as_markup()
 
@@ -33,29 +37,58 @@ def get_doctor_selection(
 ):
     builder = InlineKeyboardBuilder()
 
-    docs_to_sort = []
+    doctors_humans = []
+    doctors_cabinets = []
+
     for d_id, info in doctors_list.items():
         if isinstance(info, dict):
-            docs_to_sort.append(
+            raw_name = info.get("name", "Unknown")
+            raw_spec = info.get("specialty", "")
+        else:
+            raw_name = d_id
+            raw_spec = ""
+
+        if is_cabinet(raw_name):
+            doctors_cabinets.append(
                 {
                     "id": d_id,
-                    "name": info.get("name", "Unknown"),
-                    "specialty": info.get("specialty", "Врач"),
+                    "name": raw_name,
                 }
             )
         else:
-            docs_to_sort.append({"id": info, "name": d_id, "specialty": "Врач"})
+            doctors_humans.append(
+                {
+                    "id": d_id,
+                    "name": shorten_fio(raw_name),
+                    "specialty": shorten_specialty(raw_spec),
+                }
+            )
 
-    docs_to_sort.sort(key=lambda x: x["specialty"])
+    # Сортируем врачей по специальности, затем по фамилии
+    doctors_humans.sort(key=lambda x: (x["specialty"], x["name"]))
+    # Кабинеты — в алфавитном порядке по name
+    doctors_cabinets.sort(key=lambda x: x["name"])
 
-    for doc in docs_to_sort:
+    # Кнопки врачей
+    for doc in doctors_humans:
         d_id = doc["id"]
         status = "✅ " if d_id in monitored else "▫️ "
         label = f"{status}[{doc['specialty']}] {doc['name']}"
         builder.button(text=label, callback_data=f"tgl_{p_id}_{clinic_id}_{d_id}")
 
+    # Кнопки кабинетов (без разделителя)
+    for doc in doctors_cabinets:
+        d_id = doc["id"]
+        status = "✅ " if d_id in monitored else "▫️ "
+        label = f"{status}{doc['name']}"
+        builder.button(text=label, callback_data=f"tgl_{p_id}_{clinic_id}_{d_id}")
+
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
-    builder.adjust(1)
+    builder.button(
+        text="🛑 Сбросить мониторинг этой клиники",
+        callback_data=f"stop_clinic_{p_id}_{clinic_id}",
+    )
+    builder.adjust(1, 1)
     return builder.as_markup()
 
 
@@ -67,7 +100,7 @@ def get_confirm_deletion(p_id: str):
     return builder.as_markup()
 
 
-def get_clinic_selection(p_id: str, bday_str: str):
+def get_clinic_selection(p_id: str, bday_str: str, monitoring: dict | None = None):
     builder = InlineKeyboardBuilder()
 
     # Расчет возраста
@@ -76,6 +109,8 @@ def get_clinic_selection(p_id: str, bday_str: str):
         age = (datetime.now() - bday).days // 365
     except:
         age = 18
+
+    p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
 
     clinics = {
         "272": {"name": "Стоматологическая", "type": "all"},
@@ -89,9 +124,17 @@ def get_clinic_selection(p_id: str, bday_str: str):
         if info["type"] == "adult" and age < 18:
             continue
 
-        builder.button(text=info["name"], callback_data=f"sel_c_{p_id}_{c_id}")
+        # Считаем сколько врачей мониторится в этой клинике
+        count = sum(1 for doc in p_monitoring.values() if doc.get("clinic_id") == c_id)
+        label = f"{info['name']} ({count})" if count > 0 else info["name"]
+        builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}")
 
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
+    # Кнопка сброса мониторинга этого пациента (всех его клиник)
+    builder.button(
+        text="🛑 Сбросить мониторинг этого пациента",
+        callback_data=f"stop_patient_{p_id}",
+    )
     builder.adjust(1)
     return builder.as_markup()
 

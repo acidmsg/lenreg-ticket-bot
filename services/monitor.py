@@ -8,6 +8,7 @@ from api.zdrav_client import ZdravClient
 from config import settings
 from database.manager import DatabaseManager
 from utils.cache import swap_cache_key
+from utils.helpers import shorten_fio, shorten_specialty
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         header, display_slots = result
 
                         p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
-                        spec_text = f"[{d_spec}]\n" if d_spec else ""
+                        d_name_display = shorten_fio(d_name)
+                        d_spec_display = shorten_specialty(d_spec)
+                        spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
                         has_slots = bool(slots)
                         link = (
                             f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)"
@@ -162,10 +165,10 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         if display_slots is None:
                             # Номерки исчезли
-                            msg = f"{spec_text}{d_name}:\n{p_label}\n{header}\n\nМы уведомим вас, когда они появятся."
+                            msg = f"{spec_text}{d_name_display}:\n{p_label}\n{header}\n\nМы уведомим вас, когда они появятся."
                         else:
                             msg = (
-                                f"{spec_text}{d_name}:\n{p_label}\n{header}\n\n"
+                                f"{spec_text}{d_name_display}:\n{p_label}\n{header}\n\n"
                                 + "\n".join(display_slots)
                                 + link
                             )
