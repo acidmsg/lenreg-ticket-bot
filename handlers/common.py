@@ -1,33 +1,25 @@
-import logging
 import asyncio
-import json
-import aiofiles
-from aiogram import Router, F
+import logging
+
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
-from keyboards.inline import get_main_menu, get_patient_selection, get_doctor_selection, get_confirm_deletion, get_clinic_selection
-from database.manager import DatabaseManager
+from aiogram.types import CallbackQuery, Message
+
 from api.zdrav_client import ZdravClient
 from config import settings
-from utils.cache import spam_cache, update_cache_key, delete_cache_key
+from database.manager import DatabaseManager
+from keyboards.inline import (
+    get_clinic_selection,
+    get_confirm_deletion,
+    get_doctor_selection,
+    get_main_menu,
+    get_patient_selection,
+)
+from services.healthcheck import format_status_report, metrics
+from utils.cache import delete_cache_key, spam_cache, update_cache_key
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-
-async def get_doctors_for_clinic(clinic_id: str) -> dict:
-    """Загружает справочник врачей для клиники (async)."""
-    import os
-    if not os.path.exists(settings.DOCTORS_PATH):
-        return {}
-    try:
-        async with aiofiles.open(settings.DOCTORS_PATH, "r", encoding="utf-8") as f:
-            content = await f.read()
-            data = json.loads(content)
-            return data.get(str(clinic_id), {}).get("doctors", {})
-    except Exception as e:
-        logger.error(f"Ошибка чтения справочника врачей: {e}")
-        return {}
 
 
 @router.message(Command("start"))
@@ -39,14 +31,17 @@ async def cmd_start(message: Message, db: DatabaseManager):
         await message.answer(
             "Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
             "У тебя пока нет добавленных пациентов. Давай добавим первого!",
-            reply_markup=get_patient_selection({}, {})
+            reply_markup=get_patient_selection({}, {}),
         )
     else:
         await message.answer(
             "**Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
-            reply_markup=get_patient_selection(user_data["patients"], user_data["monitoring"]),
-            parse_mode="Markdown"
+            reply_markup=get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            ),
+            parse_mode="Markdown",
         )
+
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(call: CallbackQuery, db: DatabaseManager):
@@ -58,8 +53,10 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
         try:
             await call.message.edit_text(
                 "**Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
-                reply_markup=get_patient_selection(user_data["patients"], user_data["monitoring"]),
-                parse_mode="Markdown"
+                reply_markup=get_patient_selection(
+                    user_data["patients"], user_data["monitoring"]
+                ),
+                parse_mode="Markdown",
             )
         except Exception as e:
             logger.warning(f"Не удалось обновить сообщение (back_to_main): {e}")
@@ -78,10 +75,13 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
         if isinstance(call.message, Message):
             await call.message.edit_text(
                 "Выберите поликлинику:",
-                reply_markup=get_clinic_selection(p_id, p_info.get("bday", "1990-01-01"))
+                reply_markup=get_clinic_selection(
+                    p_id, p_info.get("bday", "1990-01-01")
+                ),
             )
     except Exception as e:
         logger.warning(f"Не удалось обновить сообщение (select_patient): {e}")
+
 
 @router.callback_query(F.data.startswith("sel_c_"))
 async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClient):
@@ -101,21 +101,27 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     if int(clinic_id) not in confirmed:
         is_affiliated = await api.check_affiliation(p_id, clinic_id)
         if not is_affiliated:
-            await call.answer("Вы не прикреплены к этой поликлинике. Пожалуйста, выберите другое отделение.", show_alert=True)
+            await call.answer(
+                "Вы не прикреплены к этой поликлинике. Пожалуйста, выберите другое отделение.",
+                show_alert=True,
+            )
             return
         await db.add_confirmed_clinic(uid, p_id, int(clinic_id))
 
-    doctors_list = await get_doctors_for_clinic(clinic_id)
+    doctors_list = await db.get_doctors_for_clinic(clinic_id)
     monitored = user_data["monitoring"].get(p_id, {})
 
     try:
         if isinstance(call.message, Message):
             await call.message.edit_text(
                 "Выберите врачей для мониторинга:",
-                reply_markup=get_doctor_selection(p_id, clinic_id, doctors_list, monitored)
+                reply_markup=get_doctor_selection(
+                    p_id, clinic_id, doctors_list, monitored
+                ),
             )
     except Exception as e:
         logger.warning(f"Не удалось обновить сообщение (select_clinic): {e}")
+
 
 @router.callback_query(F.data.startswith("tgl_"))
 async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClient):
@@ -138,7 +144,7 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     uid = str(call.from_user.id)
 
     user_data = db.get_user_data(uid)
-    doctors_list = await get_doctors_for_clinic(clinic_id)
+    doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_info = doctors_list.get(d_id, {})
     d_name = doc_info.get("name", "Врач")
     d_spec = doc_info.get("specialty", "")
@@ -158,7 +164,9 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
             if isinstance(call.message, Message):
                 await call.message.edit_text(
                     f"Мониторинг для {d_name} отключен.",
-                    reply_markup=get_doctor_selection(p_id, clinic_id, doctors_list, monitored)
+                    reply_markup=get_doctor_selection(
+                        p_id, clinic_id, doctors_list, monitored
+                    ),
                 )
         except Exception as e:
             logger.warning(f"Не удалось обновить сообщение (toggle off): {e}")
@@ -183,8 +191,12 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     has_slots = bool(slots)
     status_text = "есть номерки!" if has_slots else "пока номерков нет"
-    slots_display = "\n".join(slots) if has_slots else "Как только они появятся, я сразу дам знать!"
-    link = f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+    slots_display = (
+        "\n".join(slots) if has_slots else "Как только они появятся, я сразу дам знать!"
+    )
+    link = (
+        f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+    )
 
     text = f"{spec_text}{d_name}:\n{p_label}\n{status_text}\n\n{slots_display}{link}"
 
@@ -196,6 +208,13 @@ async def toggle_doctor(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     # Ответ на callback
     await call.answer("Готово!")
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message, db: DatabaseManager, api: ZdravClient):
+    """Отображает статус бота."""
+    report = format_status_report(api, db)
+    await message.answer(report, parse_mode="Markdown")
 
 
 @router.callback_query(F.data.startswith("del_p_"))
@@ -213,13 +232,15 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
     if action == "ask" and isinstance(call.message, Message):
         await call.message.edit_text(
             "Вы уверены, что хотите удалить этого пациента?",
-            reply_markup=get_confirm_deletion(p_id)
+            reply_markup=get_confirm_deletion(p_id),
         )
     elif action == "yes" and isinstance(call.message, Message):
         await db.delete_patient(uid, p_id)
         user_data = db.get_user_data(uid)
         await call.message.edit_text(
             "**Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
-            reply_markup=get_patient_selection(user_data["patients"], user_data["monitoring"]),
-            parse_mode="Markdown"
+            reply_markup=get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            ),
+            parse_mode="Markdown",
         )

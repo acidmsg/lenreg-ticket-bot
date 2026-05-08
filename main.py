@@ -2,36 +2,45 @@ import asyncio
 import logging
 import os
 import sys
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.session.aiohttp import AiohttpSession
 
-from config import settings
-from database.manager import DatabaseManager
-from database.doctor_manager import DoctorManager
+from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.fsm.storage.memory import MemoryStorage
+
 from api.zdrav_client import ZdravClient
+from config import settings
+from database.database import Database
+from database.doctor_manager import DoctorManager
+from database.manager import DatabaseManager
 from handlers import common, registration
-from services.monitor import monitor_loop
 from services.doctor_discovery import discovery_loop
+from services.healthcheck import healthcheck_loop, metrics
+from services.monitor import monitor_loop
+
 
 async def main():
     # Настройка логирования
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         handlers=[
-            logging.FileHandler("logs/error.log", encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ]
+            logging.FileHandler("logs/error.log", encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
     )
     logger = logging.getLogger(__name__)
 
-    # Инициализация базы данных
-    db = DatabaseManager(settings.DB_PATH)
-    await db.load()
+    # Убедимся, что каталог 'data' существует
+    data_dir = os.path.dirname(settings.SQLITE_DB_PATH)
+    if data_dir and not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    # Инициализация SQLite
+    database = Database(settings.SQLITE_DB_PATH)
+    db = DatabaseManager(database)
+    await db.load(run_migration=True)
 
     # Инициализация API клиента
     api = ZdravClient()
@@ -55,18 +64,24 @@ async def main():
     background_tasks.append(asyncio.create_task(monitor_loop(bot, api, db)))
 
     # Запуск фонового discovery для всех поликлиник
-    doc_manager = DoctorManager(settings.DOCTORS_PATH)
+    doc_manager = DoctorManager(database)
     await doc_manager.load()
 
     for clinic_id in settings.CLINICS:
         task = asyncio.create_task(
             discovery_loop(
-                api, doc_manager, str(clinic_id),
+                api,
+                doc_manager,
+                str(clinic_id),
                 settings.DISCOVERY_PATIENT_ID_ADULT,
-                settings.DISCOVERY_PATIENT_ID_CHILD
+                settings.DISCOVERY_PATIENT_ID_CHILD,
             )
         )
         background_tasks.append(task)
+        metrics.discovery_tasks_alive += 1
+
+    # Запуск фонового healthcheck
+    background_tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))
 
     logger.info("Бот запущен и готов помогать!")
 
@@ -83,6 +98,7 @@ async def main():
         if bot.session:
             await bot.session.close()
         logger.info("Бот остановлен.")
+
 
 if __name__ == "__main__":
     try:
