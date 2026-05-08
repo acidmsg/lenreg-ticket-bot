@@ -18,7 +18,7 @@ from keyboards.inline import (
     get_patient_selection,
 )
 from utils.cache import delete_cache_keys_by_prefix, spam_cache
-from utils.helpers import shorten_fio, shorten_specialty
+from utils.helpers import is_child, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -117,7 +117,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
             await call.message.edit_text(
                 "⚙️ Выберите врачей для мониторинга:",
                 reply_markup=get_doctor_selection(
-                    p_id, clinic_id, doctors_list, monitored
+                    p_id, clinic_id, doctors_list, monitored, p_info.get("bday", "")
                 ),
             )
     except Exception:
@@ -156,6 +156,8 @@ async def toggle_doctor(
     )
     await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec)
 
+    p_info = user_data.get("patients", {}).get(p_id, {})
+
     if already_monitored:
         user_data = db.get_user_data(uid)
         monitored = user_data["monitoring"].get(p_id, {})
@@ -188,7 +190,7 @@ async def toggle_doctor(
                 await call.message.edit_text(
                     f"⚙️ Мониторинг для {d_name_display} отключен.",
                     reply_markup=get_doctor_selection(
-                        p_id, clinic_id, doctors_list, monitored
+                        p_id, clinic_id, doctors_list, monitored, p_info.get("bday", "")
                     ),
                 )
         except Exception:
@@ -218,7 +220,6 @@ async def toggle_doctor(
     monitored = user_data["monitoring"].get(p_id, {})
 
     # Отправляем новое сообщение вместо редактирования текущего
-    p_info = user_data.get("patients", {}).get(p_id, {})
     p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
     d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
@@ -339,10 +340,11 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
 
     if isinstance(call.message, Message):
         doctors_list = await db.get_doctors_for_clinic(clinic_id)
+        p_info = user_data.get("patients", {}).get(p_id, {})
         await call.message.edit_text(
             "✅ Мониторинг для клиники сброшен.",
             reply_markup=get_doctor_selection(
-                p_id, clinic_id, doctors_list, p_monitoring
+                p_id, clinic_id, doctors_list, p_monitoring, p_info.get("bday", "")
             ),
         )
 

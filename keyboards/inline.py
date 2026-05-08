@@ -3,7 +3,7 @@ from datetime import datetime
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-from utils.helpers import is_cabinet, shorten_fio, shorten_specialty
+from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 
 def get_main_menu():
@@ -33,12 +33,16 @@ def get_patient_selection(patients: dict, monitoring: dict):
 
 
 def get_doctor_selection(
-    p_id: str, clinic_id: str, doctors_list: dict, monitored: dict
+    p_id: str, clinic_id: str, doctors_list: dict, monitored: dict, bday_str: str = ""
 ):
     builder = InlineKeyboardBuilder()
 
     doctors_humans = []
     doctors_cabinets = []
+
+    # Определяем, нужно ли фильтровать по детским специальностям в стоматологии
+    is_dental = clinic_id == "272"
+    patient_is_child = is_child(bday_str) if is_dental and bday_str else None
 
     for d_id, info in doctors_list.items():
         if isinstance(info, dict):
@@ -47,6 +51,18 @@ def get_doctor_selection(
         else:
             raw_name = d_id
             raw_spec = ""
+
+        # Фильтрация для стоматологии (клиника 272):
+        # - Для детей — только специальности с "детск" в названии
+        #   (Детская стоматология, Детский профилактический осмотр и т.п.)
+        # - Для взрослых — все, кроме специальностей с "детск" в названии
+        if is_dental and patient_is_child is not None:
+            spec_lower = raw_spec.lower() if raw_spec else ""
+            is_pediatric = "детск" in spec_lower if spec_lower else False
+            if patient_is_child and not is_pediatric:
+                continue  # ребёнку показываем только детские специальности
+            if not patient_is_child and is_pediatric:
+                continue  # взрослому не показываем детские специальности
 
         if is_cabinet(raw_name):
             doctors_cabinets.append(

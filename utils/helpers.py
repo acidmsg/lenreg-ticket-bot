@@ -3,6 +3,22 @@
 """
 
 import re
+from datetime import datetime
+
+
+def is_child(bday_str: str) -> bool:
+    """
+    Определяет, является ли пациент ребёнком (< 18 лет).
+    Принимает дату рождения в формате '%Y-%m-%d'.
+    При ошибке парсинга или отсутствии даты считает взрослым.
+    """
+    try:
+        bday = datetime.strptime(bday_str, "%Y-%m-%d")
+        age = (datetime.now() - bday).days // 365
+        return age < 18
+    except (ValueError, TypeError):
+        return False
+
 
 # ── Маппинг специальностей: полное название → короткое ──────────
 SPECIALTY_ALIASES = {
