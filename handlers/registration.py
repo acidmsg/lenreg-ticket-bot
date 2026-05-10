@@ -101,7 +101,9 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
     uid = str(message.from_user.id) if message.from_user else "unknown"
     p_id = data["p_id"]
 
-    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": message.text}
+    # Если псевдоним не введён — оставляем None (отобразится ФИО)
+    alias = message.text if message.text else None
+    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": alias}
     await db.add_patient(uid, p_id, p_info)
     await state.clear()
 
@@ -113,6 +115,31 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
         ),
         parse_mode="Markdown",
     )
+
+
+@router.callback_query(F.data == "skip_alias", Registration.wait_alias)
+async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager):
+    """Пропустить ввод псевдонима — alias остаётся None, отобразится ФИО."""
+    if not call.from_user or not call.message:
+        return
+    data = await state.get_data()
+    uid = str(call.from_user.id)
+    p_id = data["p_id"]
+
+    # При пропуске псевдоним не сохраняем (None) — отобразится ФИО через fallback
+    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": None}
+    await db.add_patient(uid, p_id, p_info)
+    await state.clear()
+
+    user_data = db.get_user_data(uid)
+    if isinstance(call.message, Message):
+        await call.message.edit_text(
+            "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+            reply_markup=get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            ),
+            parse_mode="Markdown",
+        )
 
 
 @router.callback_query(F.data == "cancel_registration")

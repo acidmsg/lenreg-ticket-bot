@@ -8,7 +8,14 @@ from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 def get_patient_selection(patients: dict, monitoring: dict):
     builder = InlineKeyboardBuilder()
-    for p_id, p_info in patients.items():
+
+    # Сортируем пациентов по имени (псевдониму или ФИО) в алфавитном порядке
+    sorted_patients = sorted(
+        patients.items(),
+        key=lambda x: (x[1].get("alias") or x[1].get("fio", "")).lower(),
+    )
+
+    for p_id, p_info in sorted_patients:
         name = p_info.get("alias") or p_info.get("fio")
         count = len(monitoring.get(p_id, {}))
         label = f"👤 {name} ({count})" if count > 0 else f"👤 {name}"
@@ -17,9 +24,14 @@ def get_patient_selection(patients: dict, monitoring: dict):
         builder.button(text="🗑", callback_data=f"del_p_ask_{p_id}")
 
     builder.button(text="➕ Добавить пациента", callback_data="start_add_p")
-    if patients:
-        # Кнопка сброса всего мониторинга — только если есть пациенты
+
+    # Определяем, есть ли хоть один активный мониторинг
+    has_active_monitoring = any(len(docs) > 0 for docs in monitoring.values())
+
+    if has_active_monitoring:
+        # Кнопка сброса всего мониторинга — только если есть активный мониторинг
         builder.button(text="🛑 Сбросить весь мониторинг", callback_data="stop_all")
+
     adjustments = [2] * len(patients) + [1]
     builder.adjust(*adjustments)
     return builder.as_markup()
