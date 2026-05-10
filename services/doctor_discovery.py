@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from api.zdrav_client import ZdravClient
 from config import CLINICS_REGISTRY, settings
+from database.database import Database
 from database.doctor_manager import DoctorManager
 
 logger = logging.getLogger(__name__)
@@ -101,3 +102,26 @@ async def discovery_loop(
                 f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
             )
             await asyncio.sleep(300)
+
+
+async def sync_clinic_names(api: ZdravClient, database: Database):
+    """Получает список клиник из API и сохраняет названия в БД."""
+    try:
+        clinics_data = await api.fetch_clinic_list()
+        if not clinics_data:
+            logger.warning("Не удалось получить список клиник из API")
+            return
+
+        updated = 0
+        for clinic in clinics_data:
+            clinic_id = str(clinic.get("IdLPU"))
+            clinic_name = clinic.get("LpuName") or clinic.get("LPUShortName", "")
+            if clinic_id and clinic_name:
+                await database.upsert_clinic(clinic_id, clinic_name)
+                updated += 1
+
+        logger.info(
+            f"Синхронизировано названий клиник: {updated} из {len(clinics_data)}"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка синхронизации названий клиник: {e}", exc_info=True)

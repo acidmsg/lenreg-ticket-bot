@@ -229,6 +229,12 @@ class DatabaseManager:
     async def merge_doctors(self, clinic_id: str, doctors: list):
         return await self._db.merge_doctors(str(clinic_id), doctors)
 
+    async def get_clinic_name(self, clinic_id: str) -> str | None:
+        return await self._db.get_clinic_name(str(clinic_id))
+
+    async def get_all_clinic_names(self) -> dict[str, str]:
+        return await self._db.get_all_clinic_names()
+
     # ── Управление подключением ─────────────────────────────
 
     async def load(self):

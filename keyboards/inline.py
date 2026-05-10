@@ -109,8 +109,34 @@ def get_confirm_deletion(p_id: str):
     return builder.as_markup()
 
 
-def get_clinic_selection(p_id: str, bday_str: str, monitoring: dict | None = None):
+def _short_clinic_label(clinic_name: str, count: int) -> str:
+    """Сокращает длинное название клиники до читаемого вида."""
+    count_str = f" ({count})" if count > 0 else ""
+
+    # Пробуем выделить тип отделения после последней кавычки " — самое информативное
+    last_quote = clinic_name.rfind('"')
+    if last_quote > 0 and last_quote < len(clinic_name) - 1:
+        dept_part = clinic_name[last_quote + 1 :].strip()
+        if dept_part:
+            return f"{dept_part}{count_str}"
+
+    # Если кавычек нет, берём последнее слово или сокращаем до ~50 символов
+    if len(clinic_name) > 50:
+        return f"{clinic_name[:50]}...{count_str}"
+    return f"{clinic_name}{count_str}"
+
+
+def get_clinic_selection(
+    p_id: str,
+    bday_str: str,
+    monitoring: dict | None = None,
+    clinic_names: dict[str, str] | None = None,
+):
     builder = InlineKeyboardBuilder()
+
+    # Если названия из БД не переданы, используем пустой словарь
+    if clinic_names is None:
+        clinic_names = {}
 
     # Расчет возраста
     try:
@@ -129,7 +155,9 @@ def get_clinic_selection(p_id: str, bday_str: str, monitoring: dict | None = Non
 
         # Считаем сколько врачей мониторится в этой клинике
         count = sum(1 for doc in p_monitoring.values() if doc.get("clinic_id") == c_id)
-        label = f"{info.name} ({count})" if count > 0 else info.name
+        # Берём название из БД (из API), если есть, иначе из CLINICS_REGISTRY
+        display_name = clinic_names.get(c_id) or info.name
+        label = _short_clinic_label(display_name, count)
         builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}")
 
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")

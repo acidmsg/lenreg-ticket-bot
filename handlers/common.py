@@ -135,6 +135,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
     uid = str(call.from_user.id)
     user_data = db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
+    clinic_names = await db.get_all_clinic_names()
 
     try:
         if isinstance(call.message, Message):
@@ -144,6 +145,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
                     p_id,
                     p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                     monitoring=user_data.get("monitoring"),
+                    clinic_names=clinic_names,
                 ),
             )
     except Exception:
@@ -177,11 +179,13 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     monitored = user_data["monitoring"].get(p_id, {})
+    clinic_name = await db.get_clinic_name(clinic_id)
 
     try:
         if isinstance(call.message, Message):
+            clinic_line = f"\n{clinic_name}" if clinic_name else ""
             await call.message.edit_text(
-                "⚙️ Выберите врачей для мониторинга:",
+                f"⚙️ Выберите врачей для мониторинга:{clinic_line}",
                 reply_markup=get_doctor_selection(
                     p_id, clinic_id, doctors_list, monitored, p_info.get("bday", "")
                 ),
@@ -340,6 +344,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     await delete_cache_keys_by_prefix(f"{uid}_{p_id}_")
 
     if isinstance(call.message, Message):
+        clinic_names = await db.get_all_clinic_names()
         await call.message.edit_text(
             "✅ Мониторинг для пациента сброшен.",
             reply_markup=get_clinic_selection(
@@ -348,6 +353,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                 .get(p_id, {})
                 .get("bday", settings.DEFAULT_BIRTHDAY),
                 monitoring=user_data.get("monitoring"),
+                clinic_names=clinic_names,
             ),
         )
 

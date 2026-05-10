@@ -219,3 +219,28 @@ class ZdravClient:
                     logger.error(f"Ошибка API (fetch_all_doctors), попытка {i+1}: {e}")
                     await asyncio.sleep(2)
         return []
+
+    async def fetch_clinic_list(self, district_id: str = "4") -> list[dict]:
+        """Получает список клиник для указанного района через /clinic_list/."""
+        payload = {
+            "district_form-district_id": district_id,
+        }
+        async with self.limiter:
+            client = await self._get_client()
+            try:
+                res = await client.post(
+                    f"{self.base_url}/clinic_list/",
+                    data=payload,
+                    headers=self._get_headers(),
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("success"):
+                        return data.get("response", [])
+                logger.warning(
+                    f"clinic_list вернул {res.status_code} для района {district_id}"
+                )
+                return []
+            except Exception as e:
+                logger.error(f"Ошибка API (fetch_clinic_list): {e}")
+                return []

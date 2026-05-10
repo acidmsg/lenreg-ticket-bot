@@ -14,7 +14,7 @@ from database.doctor_manager import DoctorManager
 from database.manager import DatabaseManager
 from handlers import common, registration
 from services.cleanup import cleanup_loop
-from services.doctor_discovery import discovery_loop
+from services.doctor_discovery import discovery_loop, sync_clinic_names
 from services.healthcheck import healthcheck_loop, metrics
 from services.monitor import monitor_loop
 
@@ -45,6 +45,9 @@ async def main():
 
     # Инициализация API клиента
     api = ZdravClient()
+
+    # Синхронизация названий клиник из API
+    await sync_clinic_names(api, database)
 
     # Инициализация бота и диспетчера
     session = None

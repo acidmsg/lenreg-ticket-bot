@@ -9,6 +9,8 @@ from typing import Any, Dict, Optional
 
 import aiosqlite
 
+from config import CLINICS_REGISTRY
+
 logger = logging.getLogger(__name__)
 
 
@@ -384,7 +386,12 @@ version             INTEGER PRIMARY KEY
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
-        await self.upsert_clinic(str(clinic_id), "Unknown")
+        # Не перезаписываем название клиники, если оно уже установлено (из API)
+        existing_name = await self.get_clinic_name(str(clinic_id))
+        if existing_name is None:
+            clinic_info = CLINICS_REGISTRY.get(str(clinic_id))
+            clinic_name = clinic_info.name if clinic_info else "Unknown"
+            await self.upsert_clinic(str(clinic_id), clinic_name)
         for doc in doctors:
             raw_id = doc.get("IdDoc")
             if not raw_id:
@@ -413,3 +420,11 @@ version             INTEGER PRIMARY KEY
         )
         row = await cursor.fetchone()
         return row["name"] if row else None
+
+    async def get_all_clinic_names(self) -> dict[str, str]:
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute("SELECT clinic_id, name FROM clinics")
+        rows = await cursor.fetchall()
+        return {row["clinic_id"]: row["name"] for row in rows}
