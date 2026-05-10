@@ -1,18 +1,9 @@
 from datetime import datetime
 
-from aiogram import types
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import CLINICS_REGISTRY
 from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
-
-
-def get_main_menu():
-    builder = ReplyKeyboardBuilder()
-    builder.button(text="🔍 Настроить поиск")
-    builder.button(text="🛑 Стоп все")
-    builder.adjust(2)
-    return builder.as_markup(resize_keyboard=True)
 
 
 def get_patient_selection(patients: dict, monitoring: dict):

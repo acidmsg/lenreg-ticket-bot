@@ -146,6 +146,15 @@
 | 70 | Тесты пройдены (64/64) | ✅ | |
 | 71 | Обновлён лог сессии docs/SESSION_2026-05-09.md | ✅ | |
 
+### Аудит и оптимизация inline-клавиатур (сессия 2026-05-10)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 72 | Проверка `keyboards/inline.py` на неактуальные строки | ✅ | Найдено: `get_main_menu()`, `from aiogram import types`, `ReplyKeyboardBuilder` |
+| 73 | Удалён мёртвый код: `get_main_menu()`, `types`, `ReplyKeyboardBuilder` | ✅ | 3 неактуальных конструкции |
+| 74 | Исправлен импорт в `handlers/common.py` | ✅ | Убран `get_main_menu` из импорта |
+| 75 | Создан отчёт `docs/inline_review_report.md` | ✅ | Полный анализ callback_data и функций |
+
 ## Задачи в бэклоге
 
 ### Тесты

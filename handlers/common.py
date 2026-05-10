@@ -14,7 +14,6 @@ from keyboards.inline import (
     get_clinic_selection,
     get_confirm_deletion,
     get_doctor_selection,
-    get_main_menu,
     get_patient_selection,
 )
 from utils.cache import delete_cache_keys_by_prefix, spam_cache
