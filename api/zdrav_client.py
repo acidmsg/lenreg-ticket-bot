@@ -35,9 +35,12 @@ class ZdravClient:
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Возвращает переиспользуемый httpx-клиент (создает при первом вызове)."""
+        """Возвращает переиспользуемый httpx-клиент (создает при первом вызове).
+        Явно отключаем прокси, т.к. httpx подхватывает HTTP_PROXY из окружения,
+        который может содержать socks4:// — неподдерживаемую httpx схему.
+        """
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=settings.API_TIMEOUT)
+            self._client = httpx.AsyncClient(timeout=settings.API_TIMEOUT, proxy=None)
         return self._client
 
     async def close(self):
