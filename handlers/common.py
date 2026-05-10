@@ -29,7 +29,8 @@ async def cmd_status(message: Message, db: DatabaseManager):
     """Команда /status — отчёт о состоянии бота (только для администраторов)."""
     if not message.from_user:
         return
-    if message.from_user.id not in settings.ADMIN_IDS:
+    admin_ids = [int(x.strip()) for x in settings.ADMIN_IDS.split(",") if x.strip()]
+    if message.from_user.id not in admin_ids:
         await message.answer("❌ Доступ запрещён. Команда только для администраторов.")
         return
 
