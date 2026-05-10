@@ -3,6 +3,7 @@ from datetime import datetime
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from config import CLINICS_REGISTRY
 from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 
@@ -128,21 +129,15 @@ def get_clinic_selection(p_id: str, bday_str: str, monitoring: dict | None = Non
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
 
-    clinics = {
-        "272": {"name": "Стоматологическая", "type": "all"},
-        "271": {"name": "Взрослая", "type": "adult"},
-        "161": {"name": "Детская", "type": "child"},
-    }
-
-    for c_id, info in clinics.items():
-        if info["type"] == "child" and age >= 18:
+    for c_id, info in CLINICS_REGISTRY.items():
+        if info.type == "child" and age >= 18:
             continue
-        if info["type"] == "adult" and age < 18:
+        if info.type == "adult" and age < 18:
             continue
 
         # Считаем сколько врачей мониторится в этой клинике
         count = sum(1 for doc in p_monitoring.values() if doc.get("clinic_id") == c_id)
-        label = f"{info['name']} ({count})" if count > 0 else info["name"]
+        label = f"{info.name} ({count})" if count > 0 else info.name
         builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}")
 
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")

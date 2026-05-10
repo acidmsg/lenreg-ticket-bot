@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ZdravClient:
     def __init__(self):
-        self.base_url = "https://zdrav.lenreg.ru/api"
+        self.base_url = settings.API_BASE_URL
         self.limiter = aiolimiter.AsyncLimiter(
             max_rate=10, time_period=60
         )  # 10 запросов в минуту
@@ -29,7 +29,7 @@ class ZdravClient:
     def _get_headers(self):
         return {
             "User-Agent": random.choice(self.user_agents),
-            "Referer": "https://zdrav.lenreg.ru/signup/free/",
+            "Referer": settings.REFERER_URL,
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         }
@@ -62,7 +62,7 @@ class ZdravClient:
             "patient_form-insurance_number": "",
             "patient_form-birthday": iso_bday,
             "patient_form-clinic_id": clinic_id,
-            "csrfmiddlewaretoken": "NOTPROVIDED",
+            "csrfmiddlewaretoken": settings.CSRF_TOKEN,
         }
 
         async with self.limiter:

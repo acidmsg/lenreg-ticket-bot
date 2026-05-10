@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
     DISCOVERY_PATIENT_ID_CHILD: str = "2509768"
 
+    # === Вынесенные хардкоды ===
+
+    # Базовый URL API zdrav.lenreg.ru
+    API_BASE_URL: str = "https://zdrav.lenreg.ru/api"
+
+    # Referer для HTTP-заголовков
+    REFERER_URL: str = "https://zdrav.lenreg.ru/signup/free/"
+
+    # CSRF-токен (технический, всегда одинаковый)
+    CSRF_TOKEN: str = "NOTPROVIDED"
+
+    # Клиника по умолчанию для первичного поиска пациента
+    DEFAULT_CLINIC_ID: str = "272"
+
+    # Дефолтная дата рождения для новых пациентов без даты
+    DEFAULT_BIRTHDAY: str = "1990-01-01"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

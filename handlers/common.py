@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from api.zdrav_client import ZdravClient
-from config import settings
+from config import CLINICS_REGISTRY, settings
 from database.manager import DatabaseManager
 from keyboards.inline import (
     get_clinic_selection,
@@ -76,7 +76,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
                 "🏥 Выберите поликлинику:",
                 reply_markup=get_clinic_selection(
                     p_id,
-                    p_info.get("bday", "1990-01-01"),
+                    p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                     monitoring=user_data.get("monitoring"),
                 ),
             )
@@ -293,7 +293,9 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
             "✅ Мониторинг для пациента сброшен.",
             reply_markup=get_clinic_selection(
                 p_id,
-                user_data["patients"].get(p_id, {}).get("bday", "1990-01-01"),
+                user_data["patients"]
+                .get(p_id, {})
+                .get("bday", settings.DEFAULT_BIRTHDAY),
                 monitoring=user_data.get("monitoring"),
             ),
         )
@@ -344,7 +346,11 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
         await call.message.edit_text(
             "✅ Мониторинг для клиники сброшен.",
             reply_markup=get_doctor_selection(
-                p_id, clinic_id, doctors_list, p_monitoring, p_info.get("bday", "")
+                p_id,
+                clinic_id,
+                doctors_list,
+                p_monitoring,
+                p_info.get("bday", settings.DEFAULT_BIRTHDAY),
             ),
         )
 

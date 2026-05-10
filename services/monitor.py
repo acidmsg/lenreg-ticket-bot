@@ -5,7 +5,7 @@ import random
 from aiogram import Bot
 
 from api.zdrav_client import ZdravClient
-from config import settings
+from config import CLINICS_REGISTRY, settings
 from database.manager import DatabaseManager
 from utils.cache import swap_cache_key
 from utils.helpers import shorten_fio, shorten_specialty
@@ -104,12 +104,15 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                             d_name = d_info.get("name", "Врач")
                             d_spec = d_info.get("specialty", "")
                             clinic_id = d_info.get(
-                                "clinic_id", p_info.get("clinic_id", "272")
+                                "clinic_id",
+                                p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID),
                             )
                         else:
                             d_name = d_info
                             d_spec = ""
-                            clinic_id = p_info.get("clinic_id", "272")
+                            clinic_id = p_info.get(
+                                "clinic_id", settings.DEFAULT_CLINIC_ID
+                            )
                         logger.info(
                             f"Monitor checking slots: d_id={d_id}, p_id={p_id}, clinic_id={clinic_id}"
                         )

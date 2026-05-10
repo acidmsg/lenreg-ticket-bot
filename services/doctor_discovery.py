@@ -4,7 +4,7 @@ import random
 from typing import Dict, List
 
 from api.zdrav_client import ZdravClient
-from config import settings
+from config import CLINICS_REGISTRY, settings
 from database.doctor_manager import DoctorManager
 
 logger = logging.getLogger(__name__)
@@ -45,32 +45,43 @@ async def discovery_loop(
         try:
             all_doctors_with_specialty = []
 
-            current_patient_id = patient_id_adult
-            if str(clinic_id) == "161":  # Детская
-                current_patient_id = patient_id_child
+            clinic_info = CLINICS_REGISTRY.get(str(clinic_id))
 
-            specialties_data = await fetch_specialties(
-                api, current_patient_id, clinic_id
-            )
+            # Определяем, какие patient_id использовать для данной клиники
+            if clinic_info and clinic_info.type == "child":
+                # Детская клиника — только детский patient_id
+                patient_ids = [patient_id_child]
+            elif clinic_info and clinic_info.type == "all":
+                # Стоматология (все возрасты) — оба patient_id,
+                # чтобы собрать и взрослые, и детские специальности
+                patient_ids = [patient_id_adult, patient_id_child]
+            else:
+                # Взрослая клиника — только взрослый patient_id
+                patient_ids = [patient_id_adult]
 
-            for specialty_info in specialties_data:
-                spec_id = specialty_info["IdSpesiality"]
-                spec_name = specialty_info["NameSpesiality"]
-
-                doctors = await api.fetch_all_doctors(
-                    specialty_id=spec_id,
-                    patient_id=current_patient_id,
-                    clinic_id=str(clinic_id),
+            for current_patient_id in patient_ids:
+                specialties_data = await fetch_specialties(
+                    api, current_patient_id, clinic_id
                 )
-                if doctors:
-                    for doc in doctors:
-                        doc["SpesialityName"] = (
-                            spec_name  # Добавляем имя специальности к каждому врачу
-                        )
-                    all_doctors_with_specialty.extend(doctors)
-                await asyncio.sleep(
-                    random.uniform(1.0, 3.0)
-                )  # Случайная пауза между запросами специальностей
+
+                for specialty_info in specialties_data:
+                    spec_id = specialty_info["IdSpesiality"]
+                    spec_name = specialty_info["NameSpesiality"]
+
+                    doctors = await api.fetch_all_doctors(
+                        specialty_id=spec_id,
+                        patient_id=current_patient_id,
+                        clinic_id=str(clinic_id),
+                    )
+                    if doctors:
+                        for doc in doctors:
+                            doc["SpesialityName"] = (
+                                spec_name  # Добавляем имя специальности к каждому врачу
+                            )
+                        all_doctors_with_specialty.extend(doctors)
+                    await asyncio.sleep(
+                        random.uniform(1.0, 3.0)
+                    )  # Случайная пауза между запросами специальностей
 
             if all_doctors_with_specialty:
                 await doctor_manager.merge_doctors(

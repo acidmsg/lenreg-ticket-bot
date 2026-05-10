@@ -130,6 +130,22 @@
 | 59 | Создан `utils/helpers.py` | ✅ | `is_cabinet`, `shorten_fio`, `shorten_specialty` |
 | 60 | Коммит и пуш | ✅ | |
 
+### Устранение хардкодов (сессия 2026-05-09, ч.2)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 61 | Аудит хардкодов по всему проекту | ✅ | Найдено 8 проблем |
+| 62 | `config.py` — новые настройки (API_BASE_URL, REFERER_URL, CSRF_TOKEN, DEFAULT_CLINIC_ID, DEFAULT_BIRTHDAY) | ✅ | |
+| 63 | `api/zdrav_client.py` — вынос URL, Referer, CSRF в settings | ✅ | |
+| 64 | `handlers/registration.py` — исправлена битая UTF-8 кодировка | ✅ | Были кракозябры вместо русского текста |
+| 65 | `handlers/registration.py` — clinic_id "272" → settings.DEFAULT_CLINIC_ID | ✅ | |
+| 66 | `services/doctor_discovery.py` — "161" → CLINICS_REGISTRY | ✅ | Двойной discovery для стоматологии (adult + child) |
+| 67 | `keyboards/inline.py` — дублирование clinics → import CLINICS_REGISTRY | ✅ | |
+| 68 | `handlers/common.py` — "1990-01-01" → settings.DEFAULT_BIRTHDAY (3 места) | ✅ | |
+| 69 | `services/monitor.py` — "272" → settings.DEFAULT_CLINIC_ID | ✅ | |
+| 70 | Тесты пройдены (64/64) | ✅ | |
+| 71 | Обновлён лог сессии docs/SESSION_2026-05-09.md | ✅ | |
+
 ## Задачи в бэклоге
 
 ### Тесты
