@@ -1,10 +1,5 @@
 """
 Единый SQLite-движок для хранения данных.
-Заменяет JSON-файлы (users_config.json, doctors.json).
-Обеспечивает:
-- атомарные транзакции
-- автоматическую миграцию из JSON при первом запуске
-- единый пул соединений
 """
 
 import json
@@ -18,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Database:
-    """SQLite-обёртка с автоматическим созданием таблиц и миграцией из JSON."""
+    """SQLite-обёртка с созданием таблиц."""
 
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -27,8 +22,6 @@ class Database:
     # ── Управление соединением ──────────────────────────────
     async def connect(self):
         """Открыть соединение и создать таблицы."""
-
-        # Убедимся, что каталог для файла базы данных существует
         data_dir = os.path.dirname(self.db_path)
         if data_dir and not os.path.exists(data_dir):
             try:
@@ -38,35 +31,13 @@ class Database:
                 logger.error(f"Не удалось создать каталог '{data_dir}': {e}")
                 raise
 
-        # Проверяем, существовал ли файл БД до попытки подключения.
-        # aiosqlite.connect() создаст его, если нет.
-        db_file_existed = os.path.exists(self.db_path)
-
         try:
             self._conn = await aiosqlite.connect(self.db_path)
-            # noinspection PyTypeChecker
             c = self._conn
             if c is None:
                 raise RuntimeError("Database connection not initialized")
 
             logger.info(f"Соединение с базой данных '{self.db_path}' установлено.")
-
-            # Если файл БД был только что создан, выполним минимальный запрос,
-            # чтобы убедиться, что он распознается как база данных.
-            if not db_file_existed:
-                try:
-                    await c.execute(
-                        "SELECT 1"
-                    )  # Простой запрос для инициализации заголовка БД
-                    await c.commit()
-                    logger.info(
-                        f"Новая база данных '{self.db_path}' успешно инициализирована простым запросом."
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Не удалось выполнить начальный запрос к новой базе данных '{self.db_path}': {e}"
-                    )
-                    raise
 
             c.row_factory = aiosqlite.Row
 
@@ -100,13 +71,13 @@ class Database:
         if c is None:
             raise RuntimeError("Database connection not initialized")
         await c.executescript("""
-CREATE TABLE IF NOT EXISTS users (
-uid                 TEXT PRIMARY KEY,
-patients            TEXT NOT NULL DEFAULT '{}',
-monitoring          TEXT NOT NULL DEFAULT '{}',
-last_messages       TEXT NOT NULL DEFAULT '{}',
-last_notification_id INTEGER,
-extra               TEXT NOT NULL DEFAULT '{}'
+CREATE TABLE IF NOT EXISTS user_last_messages (
+uid                 TEXT NOT NULL,
+p_id                TEXT NOT NULL,
+d_id                TEXT NOT NULL,
+msg_id              INTEGER NOT NULL,
+ts                  REAL NOT NULL DEFAULT 0,
+PRIMARY KEY (uid, p_id, d_id)
 );
 CREATE TABLE IF NOT EXISTS clinics (
 clinic_id           TEXT PRIMARY KEY,
@@ -119,177 +90,258 @@ name                TEXT NOT NULL,
 specialty           TEXT NOT NULL DEFAULT '',
 PRIMARY KEY (clinic_id, doctor_id)
 );
+CREATE TABLE IF NOT EXISTS user_patients (
+uid                 TEXT NOT NULL,
+p_id                TEXT NOT NULL,
+fio                 TEXT NOT NULL DEFAULT '',
+bday                TEXT NOT NULL DEFAULT '',
+alias               TEXT,
+confirmed_clinics   TEXT NOT NULL DEFAULT '[]',
+PRIMARY KEY (uid, p_id)
+);
+CREATE TABLE IF NOT EXISTS user_monitoring (
+uid                 TEXT NOT NULL,
+p_id                TEXT NOT NULL,
+d_id                TEXT NOT NULL,
+name                TEXT NOT NULL DEFAULT '',
+clinic_id           TEXT NOT NULL DEFAULT '',
+specialty           TEXT NOT NULL DEFAULT '',
+PRIMARY KEY (uid, p_id, d_id)
+);
 CREATE TABLE IF NOT EXISTS schema_version (
 version             INTEGER PRIMARY KEY
 );
 """)
         await c.commit()
 
-    # ── Миграция из JSON ────────────────────────────────────
-    async def migrate_from_json(
-        self,
-        users_json_path: str,
-        doctors_json_path: str,
-    ):
-        """
-        Перенести данные из JSON-файлов в SQLite.
-        Безопасно: проверяет, есть ли уже данные в базе.
-        """
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        cursor = await c.execute("SELECT COUNT(*) FROM users")
-        row = await cursor.fetchone()
-        if row and row[0] > 0:
-            logger.info("База данных уже содержит записи, миграция JSON пропущена")
-            return
-        logger.info("Запуск миграции из JSON в SQLite…")
-
-        # ── Пользователи ──
-        if os.path.exists(users_json_path):
-            with open(users_json_path, "r", encoding="utf-8") as f:
-                users_data: Dict = json.load(f)
-            for uid, payload in users_data.items():
-                patients = json.dumps(payload.get("patients", {}), ensure_ascii=False)
-                monitoring = json.dumps(
-                    payload.get("monitoring", {}), ensure_ascii=False
-                )
-                last_msgs = json.dumps(
-                    payload.get("last_messages", {}), ensure_ascii=False
-                )
-                notif_id = payload.get("last_notification_id")
-                await c.execute(
-                    """INSERT OR REPLACE INTO users
-                    (uid, patients, monitoring, last_messages, last_notification_id)
-                    VALUES (?, ?, ?, ?, ?)""",
-                    (uid, patients, monitoring, last_msgs, notif_id),
-                )
-            logger.info("Мигрировано пользователей: %d", len(users_data))
-
-        # ── Врачи ──
-        if os.path.exists(doctors_json_path):
-            with open(doctors_json_path, "r", encoding="utf-8") as f:
-                doctors_data: Dict = json.load(f)
-            for clinic_id, clinic_info in doctors_data.items():
-                clinic_name = clinic_info.get("name", "Unknown")
-                await c.execute(
-                    "INSERT OR REPLACE INTO clinics (clinic_id, name) VALUES (?, ?)",
-                    (clinic_id, clinic_name),
-                )
-                for doc_id, doc_info in clinic_info.get("doctors", {}).items():
-                    await c.execute(
-                        """INSERT OR REPLACE INTO doctors
-                        (clinic_id, doctor_id, name, specialty)
-                        VALUES (?, ?, ?, ?)""",
-                        (
-                            clinic_id,
-                            doc_id,
-                            doc_info.get("name", ""),
-                            doc_info.get("specialty", ""),
-                        ),
-                    )
-            logger.info("Мигрировано клиник: %d", len(doctors_data))
-        await c.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (1)")
-        await c.commit()
-        logger.info("Миграция из JSON завершена")
-
     # ── Пользователи ────────────────────────────────────────
     async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
-        cursor = await c.execute("SELECT * FROM users WHERE uid = ?", (uid,))
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        result = {
-            "patients": json.loads(row["patients"]),
-            "monitoring": json.loads(row["monitoring"]),
-            "last_messages": json.loads(row["last_messages"]),
-            "last_notification_id": row["last_notification_id"],
-        }
-        extra = (
-            json.loads(row["extra"]) if row["extra"] and row["extra"] != "{}" else {}
-        )
-        result.update(extra)
-        return result
 
-    async def ensure_user(self, uid: str) -> Dict[str, Any]:
-        user = await self.get_user(uid)
-        if user is not None:
-            return user
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        await c.execute(
-            "INSERT OR IGNORE INTO users (uid) VALUES (?)",
+        patients = await self.get_user_patients(uid)
+        monitoring = await self.get_user_monitoring(uid)
+        lm_cursor = await c.execute(
+            "SELECT p_id, d_id, msg_id, ts FROM user_last_messages WHERE uid = ?",
             (uid,),
         )
-        await c.commit()
+        lm_rows = await lm_cursor.fetchall()
+        last_messages = {}
+        for lmr in lm_rows:
+            key = f"{lmr['p_id']}_{lmr['d_id']}"
+            last_messages[key] = {"msg_id": lmr["msg_id"], "ts": lmr["ts"]}
+
+        if not patients and not monitoring and not last_messages:
+            return None
+
         return {
-            "patients": {},
-            "monitoring": {},
-            "last_messages": {},
-            "last_notification_id": None,
+            "patients": patients,
+            "monitoring": monitoring,
+            "last_messages": last_messages,
         }
-
-    async def update_extra(self, uid: str, extra: Dict[str, Any]):
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        current_extra = {}
-        cursor = await c.execute("SELECT extra FROM users WHERE uid = ?", (uid,))
-        row = await cursor.fetchone()
-        if row and row["extra"] and row["extra"] != "{}":
-            current_extra = json.loads(row["extra"])
-        current_extra.update(extra)
-        await c.execute(
-            "UPDATE users SET extra = ? WHERE uid = ?",
-            (json.dumps(current_extra, ensure_ascii=False), uid),
-        )
-        await c.commit()
-
-    _ALLOWED_FIELDS = frozenset(
-        {
-            "patients",
-            "monitoring",
-            "last_messages",
-            "last_notification_id",
-            "extra",
-        }
-    )
-
-    async def update_user_field(self, uid: str, field: str, value: Any):
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        if field not in self._ALLOWED_FIELDS:
-            raise ValueError(f"Field '{field}' is not allowed for direct update")
-        await c.execute(
-            f"UPDATE users SET [{field}] = ? WHERE uid = ?",
-            (json.dumps(value, ensure_ascii=False), uid),
-        )
-        await c.commit()
-
-    async def set_last_notification_id(self, uid: str, msg_id: int):
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        await c.execute(
-            "UPDATE users SET last_notification_id = ? WHERE uid = ?",
-            (msg_id, uid),
-        )
-        await c.commit()
 
     async def get_all_user_ids(self) -> list[str]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
-        cursor = await c.execute("SELECT uid FROM users")
+        cursor = await c.execute("""
+            SELECT DISTINCT uid FROM user_patients
+            UNION
+            SELECT DISTINCT uid FROM user_monitoring
+            UNION
+            SELECT DISTINCT uid FROM user_last_messages
+        """)
         rows = await cursor.fetchall()
         return [row["uid"] for row in rows]
 
+    # ── last_messages (user_last_messages) ───────────────────
+
+    async def set_last_message(
+        self, uid: str, p_id: str, d_id: str, msg_id: int, ts: float = 0
+    ):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "INSERT OR REPLACE INTO user_last_messages (uid, p_id, d_id, msg_id, ts) VALUES (?, ?, ?, ?, ?)",
+            (uid, p_id, d_id, msg_id, ts),
+        )
+        await c.commit()
+
+    async def get_last_message(
+        self, uid: str, p_id: str, d_id: str
+    ) -> Optional[Dict[str, Any]]:
+        c = self._conn
+        if c is None:
+            return None
+        cursor = await c.execute(
+            "SELECT msg_id, ts FROM user_last_messages WHERE uid = ? AND p_id = ? AND d_id = ?",
+            (uid, p_id, d_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return {"msg_id": row["msg_id"], "ts": row["ts"]}
+        return None
+
+    # ── Пациенты (user_patients) ────────────────────────────
+
+    async def get_user_patients(self, uid: str) -> Dict[str, Dict[str, Any]]:
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT p_id, fio, bday, alias, confirmed_clinics "
+            "FROM user_patients WHERE uid = ?",
+            (uid,),
+        )
+        rows = await cursor.fetchall()
+        result = {}
+        for row in rows:
+            confirmed = (
+                json.loads(row["confirmed_clinics"]) if row["confirmed_clinics"] else []
+            )
+            p_info = {
+                "fio": row["fio"],
+                "bday": row["bday"],
+                "alias": row["alias"],
+                "confirmed_clinics": confirmed,
+            }
+            if p_info["alias"] is None:
+                del p_info["alias"]
+            result[row["p_id"]] = p_info
+        return result
+
+    async def add_patient(
+        self,
+        uid: str,
+        p_id: str,
+        fio: str,
+        bday: str,
+        alias: str | None,
+        confirmed_clinics: list | None = None,
+    ):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        if confirmed_clinics is None:
+            confirmed_clinics = []
+        await c.execute(
+            """INSERT OR REPLACE INTO user_patients
+               (uid, p_id, fio, bday, alias, confirmed_clinics)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                uid,
+                p_id,
+                fio,
+                bday,
+                alias,
+                json.dumps(confirmed_clinics, ensure_ascii=False),
+            ),
+        )
+        await c.commit()
+
+    async def update_patient_confirmed_clinics(
+        self,
+        uid: str,
+        p_id: str,
+        confirmed_clinics: list,
+    ):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "UPDATE user_patients SET confirmed_clinics = ? WHERE uid = ? AND p_id = ?",
+            (json.dumps(confirmed_clinics, ensure_ascii=False), uid, p_id),
+        )
+        await c.commit()
+
+    async def delete_patient(self, uid: str, p_id: str):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "DELETE FROM user_patients WHERE uid = ? AND p_id = ?",
+            (uid, p_id),
+        )
+        await c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ? AND p_id = ?",
+            (uid, p_id),
+        )
+        await c.execute(
+            "DELETE FROM user_last_messages WHERE uid = ? AND p_id = ?",
+            (uid, p_id),
+        )
+        await c.commit()
+
+    # ── Мониторинг (user_monitoring) ────────────────────────
+
+    async def get_user_monitoring(
+        self, uid: str
+    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT p_id, d_id, name, clinic_id, specialty "
+            "FROM user_monitoring WHERE uid = ?",
+            (uid,),
+        )
+        rows = await cursor.fetchall()
+        result: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for row in rows:
+            p_id = row["p_id"]
+            if p_id not in result:
+                result[p_id] = {}
+            result[p_id][row["d_id"]] = {
+                "name": row["name"],
+                "clinic_id": row["clinic_id"],
+                "specialty": row["specialty"],
+            }
+        return result
+
+    async def add_monitoring_entry(
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        name: str,
+        clinic_id: str,
+        specialty: str,
+    ):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            """INSERT OR REPLACE INTO user_monitoring
+               (uid, p_id, d_id, name, clinic_id, specialty)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (uid, p_id, d_id, name, clinic_id, specialty),
+        )
+        await c.commit()
+
+    async def remove_monitoring_entry(self, uid: str, p_id: str, d_id: str):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ? AND p_id = ? AND d_id = ?",
+            (uid, p_id, d_id),
+        )
+        await c.commit()
+
+    async def clear_all_monitoring(self, uid: str):
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ?",
+            (uid,),
+        )
+        await c.commit()
+
     # ── Врачи ───────────────────────────────────────────────
+
     async def get_clinic_doctors(self, clinic_id: str) -> Dict[str, Dict[str, str]]:
         c = self._conn
         if c is None:

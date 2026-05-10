@@ -454,8 +454,17 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
             reply_markup=get_confirm_deletion(p_id),
         )
     elif action == "yes" and isinstance(call.message, Message):
-        await db.delete_patient(uid, p_id)
+        if call.bot is None:
+            return
+        # Удаляем сообщения из чата, связанные с пациентом
         user_data = db.get_user_data(uid)
+        await _delete_cleanup_msg_entries(
+            bot=call.bot,
+            uid=uid,
+            prefix_key=f"{p_id}_",
+            last_messages=user_data.get("last_messages", {}),
+        )
+        await db.delete_patient(uid, p_id)
         if not user_data.get("patients"):
             await call.message.edit_text(
                 "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"

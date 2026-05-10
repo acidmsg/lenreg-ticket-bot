@@ -1,0 +1,15 @@
+# Задачи
+
+## Сделано
+
+- [x] Нормализация полей patients и monitoring в отдельные таблицы user_patients и user_monitoring
+- [x] Удаление старых колонок patients/monitoring/last_messages из таблицы users (миграция v3)
+- [x] Нормализация last_messages в таблицу user_last_messages (миграция v3)
+- [x] Удаление last_notification_id и extra из таблицы users
+- [x] Удаление таблицы users (миграция v4)
+- [x] Адаптация Database/DatabaseManager под нормализованную структуру
+- [x] Адаптация handlers/common.py под новую структуру
+- [x] Удаление сообщений из чата при удалении пациента
+- [x] Удаление мёртвого кода: migrate_from_json, _run_migrations, ensure_user, delete_last_message, delete_last_messages_by_prefix, clear_all_last_messages, clear_patient_monitoring, save() (manager.py), test_normalization.py
+- [x] Обновление тестов
+- [x] Запуск всех 64 тестов — пройдены

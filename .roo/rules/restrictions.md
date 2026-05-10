@@ -1,2 +1,1 @@
-- Игнорировать папки .git, node_modules, dist, а также файлы *.log и monitoring_cache.json.
-- Запрещено читать файлы данных (например, doctors.json) целиком — только превью структуры.
+- Игнорировать папки .git, node_modules, dist

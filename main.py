@@ -41,7 +41,7 @@ async def main():
     # Инициализация SQLite
     database = Database(settings.SQLITE_DB_PATH)
     db = DatabaseManager(database)
-    await db.load(run_migration=True)
+    await db.load()
 
     # Инициализация API клиента
     api = ZdravClient()

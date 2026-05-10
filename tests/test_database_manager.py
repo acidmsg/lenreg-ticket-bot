@@ -29,9 +29,9 @@ class TestDatabaseManager:
 
     async def test_get_user_data_existing(self, db_manager):
         """get_user_data возвращает существующие данные."""
-        await db_manager.update_user("555", {"name": "test"})
+        await db_manager.add_patient("555", "p1", {"fio": "Иван", "bday": "1990-01-01"})
         data = db_manager.get_user_data("555")
-        assert data["name"] == "test"
+        assert data["patients"]["p1"]["fio"] == "Иван"
 
     async def test_get_user_data_migrates_last_messages(self, db_manager):
         """Если в данных нет 'last_messages', он добавляется."""
@@ -41,8 +41,10 @@ class TestDatabaseManager:
 
     async def test_update_user(self, db_manager):
         """update_user обновляет данные пользователя."""
-        await db_manager.update_user("123", {"name": "test"})
-        assert db_manager.data["123"]["name"] == "test"
+        await db_manager.update_user(
+            "123", {"patients": {"p1": {"fio": "Тест", "bday": "2000-01-01"}}}
+        )
+        assert db_manager.data["123"]["patients"]["p1"]["fio"] == "Тест"
 
     async def test_add_patient(self, db_manager):
         """add_patient добавляет пациента."""
@@ -117,12 +119,14 @@ class TestDatabaseManager:
         db1 = Database(temp_db_path)
         mgr1 = DatabaseManager(db1)
         await mgr1.load()
-        await mgr1.update_user("save_test", {"name": "persisted"})
+        await mgr1.add_patient(
+            "save_test", "p1", {"fio": "Иванов Иван", "bday": "1990-01-01"}
+        )
         await db1.close()
 
         # Второй экземпляр — проверяем что данные на месте
         db2 = Database(temp_db_path)
         mgr2 = DatabaseManager(db2)
         await mgr2.load()
-        assert mgr2.data["save_test"]["name"] == "persisted"
+        assert mgr2.data["save_test"]["patients"]["p1"]["fio"] == "Иванов Иван"
         await db2.close()
