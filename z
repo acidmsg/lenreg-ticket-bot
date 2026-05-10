@@ -1,15 +1,195 @@
-# Задачи
+# Task Tracker для агента
 
-## Сделано
+## Легенда
 
-- [x] Нормализация полей patients и monitoring в отдельные таблицы user_patients и user_monitoring
-- [x] Удаление старых колонок patients/monitoring/last_messages из таблицы users (миграция v3)
-- [x] Нормализация last_messages в таблицу user_last_messages (миграция v3)
-- [x] Удаление last_notification_id и extra из таблицы users
-- [x] Удаление таблицы users (миграция v4)
-- [x] Адаптация Database/DatabaseManager под нормализованную структуру
-- [x] Адаптация handlers/common.py под новую структуру
-- [x] Удаление сообщений из чата при удалении пациента
-- [x] Удаление мёртвого кода: migrate_from_json, _run_migrations, ensure_user, delete_last_message, delete_last_messages_by_prefix, clear_all_last_messages, clear_patient_monitoring, save() (manager.py), test_normalization.py
-- [x] Обновление тестов
-- [x] Запуск всех 64 тестов — пройдены
+- ✅ **Выполнено** — задача завершена
+- 🔄 **В процессе** — задача в работе
+- ⬜ **Не начато** — задача ещё не начата
+- 📌 **Бэклог** — запланировано на будущее
+
+---
+
+## Завершённые задачи
+
+### Тесты
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 1 | Создать тестовую инфраструктуру (conftest, фикстуры, моки) | ✅ | `tests/conftest.py` |
+| 2 | Unit-тесты для DatabaseManager | ✅ | 14 тестов, все проходят |
+| 3 | Unit-тесты для DoctorManager | ✅ | 7 тестов, все проходят |
+| 4 | Unit-тесты для utils/cache | ✅ | 12 тестов, все проходят |
+| 5 | Unit-тесты для `_classify_slot_change()` | ✅ | 12 тестов, все проходят |
+| 6 | Unit-тесты для ZdravClient (mocked HTTP) | ✅ | 20 тестов, все проходят |
+| 7 | Установить и настроить pytest + pytest-asyncio | ✅ | `pytest.ini`, `requirements.txt` |
+| T5 | Настроить CI (GitHub Actions) | ✅ | `.github/workflows/ci.yml` |
+
+### Healthcheck
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 8 | Создать модуль healthcheck | ✅ | `services/healthcheck.py` |
+| 9 | Реализовать `HealthMetrics` dataclass | ✅ | uptime, статистика API, ошибки |
+| 10 | Реализовать `healthcheck_loop()` | ✅ | Фоновый цикл проверки API |
+| 11 | Реализовать `format_status_report()` | ✅ | Форматирование отчёта |
+| 12 | Добавить команду `/status` | ✅ | `handlers/common.py` |
+| 13 | Интегрировать healthcheck в `main.py` | ✅ | Фоновая задача + graceful shutdown |
+| 14 | Интегрировать метрики в monitor_loop | ✅ | Обновление `metrics.monitor_loop_alive` |
+| 15 | Зарегистрировать discovery-задачи в метриках | ✅ | `metrics.discovery_tasks_alive` |
+
+### SQLite-миграция
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| D2 | Переход с JSON на SQLite | ✅ | `database/database.py` |
+| 23 | Создать `database/database.py` — единый SQLite-движок | ✅ | Таблицы users, clinics, doctors |
+| 24 | Переписать `DatabaseManager` на SQLite (адаптер) | ✅ | Полная обратная совместимость |
+| 25 | Переписать `DoctorManager` на SQLite (адаптер) | ✅ | Загрузка из SQLite в кэш |
+| 26 | Исправить `reportOptionalMemberAccess` в database.py | ✅ | `assert c is not None` во всех методах |
+| 27 | Обновить `config.py` (DB_PATH → bot.db) | ✅ | `data/bot.db` |
+| 28 | Обновить `main.py` (новая инициализация + миграция) | ✅ | `run_migration=True` |
+| 29 | Обновить тесты под SQLite (conftest, manager, doctor) | ✅ | 64 теста, все проходят |
+| 30 | P1 — единая транзакция в `update_user()` | ✅ | BEGIN / COMMIT / ROLLBACK |
+| 31 | P2 — whitelist полей в `update_user_field()` | ✅ | `_ALLOWED_FIELDS` frozenset |
+| 32 | P3 — `data` → deepcopy | ✅ | Защита от мутации кэша |
+| 33 | P5 — убран shallow copy в `monitor_loop()` | ✅ | Deepcopy уже делает `db.data` |
+| 34 | P7 — все `assert c is not None` → `raise RuntimeError` | ✅ | Production-безопасность |
+| 35 | P8 — удалён закомментированный import | ✅ | Чистота кода |
+| 36 | P9 — упрощён INSERT в `ensure_user()` | ✅ | 1 параметр, 1 плейсхолдер |
+
+### Нормализация БД
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| N1 | Вынести patients/monitoring в отдельные таблицы (user_patients, user_monitoring) | ✅ | Миграция v3 |
+| N2 | Вынести last_messages в user_last_messages | ✅ | Миграция v3 |
+| N3 | Удалить старые колонки из таблицы users | ✅ | + удаление last_notification_id, extra |
+| N4 | Удалить таблицу users (миграция v4) | ✅ | Больше не нужна |
+| N5 | Адаптировать Database/DatabaseManager под новую структуру | ✅ | |
+| N6 | Адаптировать handlers/common.py | ✅ | |
+| N7 | Удаление сообщений из чата при удалении пациента | ✅ | |
+| N8 | Очистка мёртвого кода | ✅ | migrate_from_json, save(), ensure_user и др. |
+| N9 | Все 64 теста пройдены | ✅ | |
+
+### UI/UX
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| UI1 | Счётчик врачей в кнопках клиник | ✅ | `get_clinic_selection()` |
+| UI2 | Кабинеты внизу списка без специальности | ✅ | `is_cabinet()` |
+| UI3 | Псевдонимы ФИО и специальностей | ✅ | `shorten_fio()`, `shorten_specialty()` |
+| UI4 | Убрать разделитель "Кабинеты" | ✅ | Кнопки идут подряд |
+| UI5 | Убрать alert при повторном нажатии | ✅ | spam_cache |
+| UI6 | Кнопка сброса всего мониторинга | ✅ | `stop_all` — только при активном мониторинге |
+| UI7 | Кнопка сброса мониторинга пациента | ✅ | `stop_patient_` |
+| UI8 | Кнопка сброса мониторинга клиники | ✅ | `stop_clinic_` |
+| UI9 | Удаление сообщений при отключении/сбросе | ✅ | `bot.delete_message()` |
+| UI10 | `delete_cache_keys_by_prefix()` | ✅ | `utils/cache.py` |
+| UI11 | Создан `utils/helpers.py` | ✅ | |
+| UI12 | Сортировка пациентов по алфавиту | ✅ | fallback на ФИО |
+| UI13 | Кнопка "Пропустить" при регистрации (skip_alias) | ✅ | alias=None при пропуске |
+| UI14 | Сокращения стоматологических специальностей | ✅ | |
+| UI15 | Возврат к списку пациентов при добавлении | ✅ | |
+| UI16 | Эмодзи в уведомлениях (🎉 ⚠️ 🤷‍♂️ 🔗) | ✅ | |
+| UI17 | Унификация вёрстки сообщений | ✅ | |
+
+### API-клиент
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| A1 | `fetch_clinic_list()` — получение названий клиник из API | ✅ | |
+| A2 | sync_clinic_names() при старте бота | ✅ | `services/doctor_discovery.py` |
+| A3 | `merge_doctors()` не перезаписывает названия клиник | ✅ | |
+| A4 | Названия клиник из API в кнопках | ✅ | 69 клиник |
+
+### Исправления Pylance
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 19 | `reportOperatorIssue` в test_monitor_classify.py:54 | ✅ | Добавлен assert |
+| 20 | `reportOptionalIterable` в test_monitor_classify.py:111 | ✅ | Добавлен assert |
+| 21 | `reportArgumentType` в test_zdrav_client.py:24 | ✅ | `dict \| None` |
+| 22 | Настроить Pylance на `.venv` | ✅ | `pyrightconfig.json` |
+| R4 | Pydantic deprecation (Config → ConfigDict) | ✅ | `config.py` |
+
+### Документация
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| D1 | Логи сессий (SESSION_2026-05-01 .. 08) | ✅ | `docs/` |
+| D2 | Task tracker (AGENT_TASKS.md) | ✅ | |
+
+---
+
+## Бэклог
+
+### Тесты
+
+| # | Задача | Приоритет | Примечание |
+|---|---|---|---|
+| T1 | Интеграционные тесты для хендлеров (mocked aiogram) | 🟡 Средний | Требует глубокого мокинга aiogram |
+| T2 | Тесты для `services/monitor.py` (весь цикл) | 🟡 Средний | Нужно мокать API + Bot |
+| T3 | Тесты для `services/doctor_discovery.py` | 🟢 Низкий | Менее критично |
+| T4 | Тесты для `keyboards/inline.py` | 🟢 Низкий | UI-логика |
+
+### Инфраструктура
+
+| # | Задача | Приоритет | Примечание |
+|---|---|---|---|
+| I1 | Docker-контейнеризация (Dockerfile + docker-compose.yml) | 🟡 Средний | Упростит развёртывание |
+| I2 | Healthcheck endpoint через Telegram | ✅ | Уже реализована команда /status |
+| I3 | Добавить миграции данных | 🟡 Средний | При смене структуры |
+
+### Мониторинг и алертинг
+
+| # | Задача | Приоритет | Примечание |
+|---|---|---|---|
+| M1 | Экспорт метрик в Prometheus | 🟢 Низкий | Для прод-окружения |
+| M2 | Интеграция с Sentry/NTFY для ошибок | 🟡 Средний | Уведомления об ошибках |
+| M3 | Rate limiting на уровне пользователя | 🟡 Средний | Сейчас только глобальный |
+
+### Улучшения кода
+
+| # | Задача | Приоритет | Примечание |
+|---|---|---|---|
+| R1 | Вынести discovery patient ID в .env или реестр клиник | 🟡 Средний | Сейчас жёстко закодированы |
+| R2 | Использовать Redis для кэша вместо JSON-файла | 🟡 Средний | Производительность |
+| R3 | Pre-commit hooks (форматтеры, линтеры) | 🟢 Низкий | Качество кода |
+
+### Новый функционал
+
+| # | Задача | Приоритет | Примечание |
+|---|---|---|---|
+| F1 | Поддержка выбора нескольких пациентов в одном сообщении | 🟢 Низкий | UX |
+| F2 | Возможность настроить интервал мониторинга для каждого врача | 🟢 Низкий | Гибкость |
+| F3 | Статистика "сколько раз слоты появлялись за период" | 🟢 Низкий | Аналитика |
+
+---
+
+## Примечания для агента
+
+### Как запустить тесты
+
+```bash
+python -m pytest tests/ -v --tb=short
+```
+
+### Ключевые конфигурационные файлы
+
+| Файл | Назначение |
+|---|---|
+| `config.py` | Настройки, реестр клиник |
+| `pytest.ini` | Конфигурация pytest (asyncio_mode = auto) |
+| `requirements.txt` | Зависимости (prod + dev) |
+
+### Структура тестов
+
+```
+tests/
+├── conftest.py                    # Фикстуры (SQLite, временные файлы, моки)
+├── test_database_manager.py       # DatabaseManager (15 тестов)
+├── test_doctor_manager.py         # DoctorManager (7 тестов)
+├── test_cache.py                  # utils/cache (12 тестов)
+├── test_monitor_classify.py       # _classify_slot_change (12 тестов)
+└── test_zdrav_client.py           # ZdravClient mocked HTTP (20 тестов)
+```
