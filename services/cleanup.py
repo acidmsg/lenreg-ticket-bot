@@ -1,0 +1,91 @@
+"""
+Фоновая задача автоудаления старых сообщений (TTL).
+Проверяет last_messages и удаляет сообщения, отправленные более MESSAGE_TTL_SECONDS назад.
+"""
+
+import asyncio
+import logging
+import time
+
+from aiogram import Bot
+
+from config import settings
+from database.manager import DatabaseManager
+from utils.helpers import extract_msg_id
+
+logger = logging.getLogger(__name__)
+
+
+async def cleanup_loop(bot: Bot, db: DatabaseManager):
+    """Фоновый цикл: проверяет last_messages и удаляет просроченные."""
+    logger.info(
+        "Цикл очистки старых сообщений запущен (TTL=%d с, интервал=%d с)",
+        settings.MESSAGE_TTL_SECONDS,
+        settings.CLEANUP_INTERVAL,
+    )
+
+    while True:
+        try:
+            await _cleanup_pass(bot, db)
+        except asyncio.CancelledError:
+            logger.info("Цикл очистки остановлен (cancelled)")
+            break
+        except Exception as e:
+            logger.error(f"Ошибка в цикле очистки: {e}", exc_info=True)
+
+        await asyncio.sleep(settings.CLEANUP_INTERVAL)
+
+
+async def _cleanup_pass(bot: Bot, db: DatabaseManager):
+    """Один проход очистки для всех пользователей."""
+    now = time.time()
+    ttl = settings.MESSAGE_TTL_SECONDS
+    total_deleted = 0
+
+    users_data = db.data
+
+    for uid, u_info in users_data.items():
+        last_messages = u_info.get("last_messages", {})
+        if not last_messages:
+            continue
+
+        changed = False
+
+        for key in list(last_messages.keys()):
+            value = last_messages[key]
+            msg_id = extract_msg_id(value)
+
+            if msg_id is None:
+                # Удаляем некорректные записи
+                del last_messages[key]
+                changed = True
+                continue
+
+            # Если значение не dict (старый формат, нет ts) — пропускаем,
+            # конвертируем при первом обновлении через set_last_message_id
+            ts = value.get("ts") if isinstance(value, dict) else None
+            if ts is None:
+                continue
+
+            age = now - ts
+            if age >= ttl:
+                try:
+                    await bot.delete_message(int(uid), msg_id)
+                except Exception:
+                    pass  # сообщение уже могло быть удалено
+                del last_messages[key]
+                changed = True
+                total_deleted += 1
+                logger.debug(
+                    "Удалено сообщение msg_id=%d для uid=%s (key=%s, возраст=%.1fч)",
+                    msg_id,
+                    uid,
+                    key,
+                    age / 3600,
+                )
+
+        if changed:
+            await db.update_user(uid, {"last_messages": last_messages})
+
+    if total_deleted:
+        logger.info("Очистка завершена: удалено %d сообщений", total_deleted)

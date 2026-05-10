@@ -121,10 +121,12 @@ class DatabaseManager:
     async def set_last_message_id(
         self, uid: str, p_id: str, d_id: str, message_id: int
     ):
+        import time
+
         uid = str(uid)
         user_data = self.get_user_data(uid)
         key = f"{p_id}_{d_id}"
-        user_data["last_messages"][key] = message_id
+        user_data["last_messages"][key] = {"msg_id": message_id, "ts": time.time()}
         await self._db.update_user_field(
             uid, "last_messages", user_data["last_messages"]
         )
@@ -133,7 +135,12 @@ class DatabaseManager:
         uid = str(uid)
         user_data = self.get_user_data(uid)
         key = f"{p_id}_{d_id}"
-        return user_data["last_messages"].get(key)
+        val = user_data["last_messages"].get(key)
+        if isinstance(val, dict):
+            return val.get("msg_id")
+        if isinstance(val, int):
+            return val
+        return None
 
     async def add_patient(self, uid: str, p_id: str, p_info: Dict[str, Any]):
         uid = str(uid)

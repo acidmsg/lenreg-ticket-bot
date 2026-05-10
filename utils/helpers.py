@@ -4,6 +4,7 @@
 
 import re
 from datetime import datetime
+from typing import Optional
 
 
 def is_child(bday_str: str) -> bool:
@@ -121,3 +122,15 @@ def shorten_specialty(specialty: str) -> str:
     if not specialty:
         return ""
     return SPECIALTY_ALIASES.get(specialty, specialty)
+
+
+def extract_msg_id(value) -> Optional[int]:
+    """
+    Извлекает message_id из значения last_messages.
+    Принимает как старый формат (int), так и новый (dict с msg_id/ts).
+    """
+    if isinstance(value, dict):
+        return value.get("msg_id")
+    if isinstance(value, int):
+        return value
+    return None

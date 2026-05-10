@@ -13,6 +13,7 @@ from database.database import Database
 from database.doctor_manager import DoctorManager
 from database.manager import DatabaseManager
 from handlers import common, registration
+from services.cleanup import cleanup_loop
 from services.doctor_discovery import discovery_loop
 from services.healthcheck import healthcheck_loop, metrics
 from services.monitor import monitor_loop
@@ -82,6 +83,9 @@ async def main():
 
     # Запуск фонового healthcheck
     background_tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))
+
+    # Запуск фоновой очистки старых сообщений
+    background_tasks.append(asyncio.create_task(cleanup_loop(bot, db)))
 
     logger.info("Бот запущен и готов помогать!")
 

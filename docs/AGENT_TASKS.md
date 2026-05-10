@@ -167,6 +167,22 @@
 | 81 | ADMIN_IDS: `list[int]` → `str` (строка с разделителями) | ✅ | В .env без квадратных скобок, единообразно с др. ID |
 | 82 | `.env.example` — все значения заменены на плейсхолдеры | ✅ | Без реальных данных пользователя |
 
+### Автоудаление сообщений TTL / единый механизм удаления (сессия 2026-05-10, ч.4)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 83 | `config.py` — MESSAGE_TTL_SECONDS=604800, CLEANUP_INTERVAL=3600 | ✅ | |
+| 84 | `services/cleanup.py` — фоновая задача очистки по TTL | ✅ | |
+| 85 | `database/manager.py` — set_last_message_id с timestamp, get_last_message_id для обоих форматов | ✅ | |
+| 86 | `utils/helpers.py` — extract_msg_id(); `handlers/common.py` — единые _delete_cleanup_msg_entry/_entries | ✅ | |
+| 87 | `main.py` — запуск cleanup_loop | ✅ | |
+
+### Проблема: SOCKS-прокси в httpx
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 88 | Исправить ошибку `Unknown scheme for proxy URL URL('socks4://...')` в doctor_discovery/zdrav_client | 🔄 В процессе | `httpx.AsyncClient` подхватывает HTTP_PROXY с socks4:// |
+
 ## Задачи в бэклоге
 
 ### Тесты

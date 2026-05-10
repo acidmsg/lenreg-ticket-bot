@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from typing import Optional
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
@@ -18,10 +19,54 @@ from keyboards.inline import (
 )
 from services.healthcheck import format_status_report, metrics
 from utils.cache import delete_cache_keys_by_prefix, spam_cache
-from utils.helpers import is_child, shorten_fio, shorten_specialty
+from utils.helpers import extract_msg_id, is_child, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+# ── Единый механизм удаления сообщений из last_messages ─────
+
+
+async def _delete_cleanup_msg_entry(
+    bot: Bot,
+    uid: str,
+    key: str,
+    last_messages: dict,
+) -> bool:
+    """
+    Удаляет одно сообщение из чата и из словаря last_messages.
+    Возвращает True, если сообщение было удалено.
+    """
+    value = last_messages.get(key)
+    if value is None:
+        return False
+
+    msg_id = extract_msg_id(value)
+    if msg_id:
+        try:
+            await bot.delete_message(uid, msg_id)
+        except Exception:
+            pass
+    del last_messages[key]
+    return True
+
+
+async def _delete_cleanup_msg_entries(
+    bot: Bot,
+    uid: str,
+    prefix_key: str,
+    last_messages: dict,
+) -> bool:
+    """
+    Удаляет все сообщения из чата, чьи ключи начинаются с prefix_key.
+    Возвращает True, если хотя бы одно сообщение было удалено.
+    """
+    changed = False
+    for key in list(last_messages.keys()):
+        if key.startswith(prefix_key):
+            changed |= await _delete_cleanup_msg_entry(bot, uid, key, last_messages)
+    return changed
 
 
 @router.message(Command("status"))
@@ -178,14 +223,8 @@ async def toggle_doctor(
 
         # Удаляем связанное сообщение из чата
         msg_key = f"{p_id}_{d_id}"
-        msg_id = user_data["last_messages"].get(msg_key)
-        if msg_id:
-            try:
-                await bot.delete_message(uid, msg_id)
-            except Exception:
-                pass
-            del user_data["last_messages"][msg_key]
-            await db.update_user(uid, {"last_messages": user_data["last_messages"]})
+        await _delete_cleanup_msg_entry(bot, uid, msg_key, user_data["last_messages"])
+        await db.update_user(uid, {"last_messages": user_data["last_messages"]})
 
         cache_key = f"{uid}_{p_id}_{d_id}"
         if os.path.exists(settings.CACHE_PATH):
@@ -265,16 +304,7 @@ async def _delete_monitoring_messages(
     bot: Bot, uid: str, prefix_key: str, last_messages: dict
 ):
     """Удаляет сообщения из чата по префиксу ключа last_messages (p_id_d_id или p_id)."""
-    to_delete = []
-    for key, msg_id in last_messages.items():
-        if key.startswith(prefix_key):
-            to_delete.append((key, msg_id))
-    for key, msg_id in to_delete:
-        try:
-            await bot.delete_message(uid, msg_id)
-        except Exception:
-            pass  # сообщение могло быть уже удалено
-        del last_messages[key]
+    await _delete_cleanup_msg_entries(bot, uid, prefix_key, last_messages)
 
 
 @router.callback_query(F.data.startswith("stop_patient_"))
@@ -378,13 +408,7 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
     user_data = db.get_user_data(uid)
 
     # Удаляем все сообщения мониторинга
-    for key in list(user_data["last_messages"].keys()):
-        msg_id = user_data["last_messages"][key]
-        try:
-            await bot.delete_message(uid, msg_id)
-        except Exception:
-            pass
-        del user_data["last_messages"][key]
+    await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
 
     await db.stop_all_monitoring(uid)
     await db.update_user(uid, {"last_messages": user_data["last_messages"]})

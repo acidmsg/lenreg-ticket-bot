@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # ID администраторов, имеющих доступ к команде /status (через запятую, например: 123456789 или 123456789,987654321)
     ADMIN_IDS: str = ""
 
+    # Автоудаление сообщений: TTL в секундах (7 дней по умолчанию)
+    MESSAGE_TTL_SECONDS: int = 604800
+    CLEANUP_INTERVAL: int = 3600  # Проверять каждые 1 час
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
