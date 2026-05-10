@@ -141,7 +141,10 @@ def get_clinic_selection(p_id: str, bday_str: str, monitoring: dict | None = Non
     return builder.as_markup()
 
 
-def get_skip_alias_keyboard():
+def get_registration_keyboard(step: str):
     builder = InlineKeyboardBuilder()
-    builder.button(text="Пропустить", callback_data="skip_alias")
+    if step == "alias":
+        builder.button(text="Пропустить", callback_data="skip_alias")
+    builder.button(text="❌ Отмена регистрации", callback_data="cancel_registration")
+    builder.adjust(1)
     return builder.as_markup()

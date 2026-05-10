@@ -8,7 +8,7 @@ from aiogram.types import CallbackQuery, Message
 from api.zdrav_client import ZdravClient
 from config import settings
 from database.manager import DatabaseManager
-from keyboards.inline import get_patient_selection, get_skip_alias_keyboard
+from keyboards.inline import get_patient_selection, get_registration_keyboard
 
 router = Router()
 
@@ -23,28 +23,38 @@ class Registration(StatesGroup):
 async def start_add_patient(call: CallbackQuery, state: FSMContext):
     await state.set_state(Registration.wait_fio)
     if isinstance(call.message, Message):
-        await call.message.edit_text("Введите ФИО (Фамилия Имя Отчество):")
+        await call.message.edit_text(
+            "Введите ФИО (Фамилия Имя Отчество):",
+            reply_markup=get_registration_keyboard(step="fio"),
+        )
 
 
 @router.message(Registration.wait_fio)
-async def process_fio(message: Message, state: FSMContext):
+async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
     if not message.text:
         return
 
     parts = message.text.split()
     if len(parts) != 3:
         await message.answer(
-            "Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество)."
+            "Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество).",
+            reply_markup=get_registration_keyboard(step="fio"),
         )
         return
 
     await state.update_data(fio=message.text)
     await state.set_state(Registration.wait_bday)
-    await message.answer("Введите дату рождения (дд.мм.гггг):")
+
+    await message.answer(
+        "Введите дату рождения (дд.мм.гггг):",
+        reply_markup=get_registration_keyboard(step="bday"),
+    )
 
 
 @router.message(Registration.wait_bday)
-async def process_bday(message: Message, state: FSMContext, api: ZdravClient):
+async def process_bday(
+    message: Message, state: FSMContext, api: ZdravClient, db: DatabaseManager
+):
     date_str = message.text or ""
     try:
         date = datetime.strptime(date_str, "%d.%m.%Y")
@@ -52,7 +62,8 @@ async def process_bday(message: Message, state: FSMContext, api: ZdravClient):
             raise ValueError("Вне диапазона")
     except ValueError:
         await message.answer(
-            "Неверная дата. Введите корректную дату в формате дд.мм.гггг (с 01.01.1900 по сегодня)."
+            "Неверная дата. Введите корректную дату в формате дд.мм.гггг (с 01.01.1900 по сегодня).",
+            reply_markup=get_registration_keyboard(step="bday"),
         )
         return
 
@@ -68,17 +79,22 @@ async def process_bday(message: Message, state: FSMContext, api: ZdravClient):
         await state.set_state(Registration.wait_alias)
         await message.answer(
             f"✅ Нашли в базе! Введите псевдоним (например, 'Мама', до 25 симв.) или пропустите:",
-            reply_markup=get_skip_alias_keyboard(),
+            reply_markup=get_registration_keyboard(step="alias"),
         )
     else:
-        await message.answer(f"❌ {err}")
+        await message.answer(
+            f"❌ {err}", reply_markup=get_registration_keyboard(step="fio")
+        )
         await state.clear()
 
 
 @router.message(Registration.wait_alias)
 async def process_alias(message: Message, state: FSMContext, db: DatabaseManager):
     if message.text and len(message.text) > 25:
-        await message.answer("Ошибка! Псевдоним не должен превышать 25 символов.")
+        await message.answer(
+            "Ошибка! Псевдоним не должен превышать 25 символов.",
+            reply_markup=get_registration_keyboard(step="alias"),
+        )
         return
 
     data = await state.get_data()
@@ -99,20 +115,16 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
     )
 
 
-@router.callback_query(F.data == "skip_alias", Registration.wait_alias)
-async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager):
-    data = await state.get_data()
-    uid = str(call.from_user.id) if call.from_user else "unknown"
-    p_id = data["p_id"]
-
-    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": None}
-    await db.add_patient(uid, p_id, p_info)
+@router.callback_query(F.data == "cancel_registration")
+async def cancel_registration(
+    call: CallbackQuery, state: FSMContext, db: DatabaseManager
+):
     await state.clear()
-
+    uid = str(call.from_user.id) if call.from_user else "unknown"
     user_data = db.get_user_data(uid)
     if isinstance(call.message, Message):
         await call.message.edit_text(
-            "📋 **Ваши пациенты:**",
+            "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
             reply_markup=get_patient_selection(
                 user_data["patients"], user_data["monitoring"]
             ),
