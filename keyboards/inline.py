@@ -17,9 +17,10 @@ def get_patient_selection(patients: dict, monitoring: dict):
         builder.button(text="🗑", callback_data=f"del_p_ask_{p_id}")
 
     builder.button(text="➕ Добавить пациента", callback_data="start_add_p")
-    # Кнопка сброса всего мониторинга — всегда внизу
-    builder.button(text="🛑 Сбросить весь мониторинг", callback_data="stop_all")
-    adjustments = [2] * len(patients) + [1, 1]
+    if patients:
+        # Кнопка сброса всего мониторинга — только если есть пациенты
+        builder.button(text="🛑 Сбросить весь мониторинг", callback_data="stop_all")
+    adjustments = [2] * len(patients) + [1]
     builder.adjust(*adjustments)
     return builder.as_markup()
 

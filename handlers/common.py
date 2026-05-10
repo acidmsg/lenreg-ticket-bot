@@ -111,13 +111,20 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
     uid = str(call.from_user.id)
     user_data = db.get_user_data(uid)
     if isinstance(call.message, Message):
-        await call.message.edit_text(
-            "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
-            parse_mode="Markdown",
-        )
+        if not user_data.get("patients"):
+            await call.message.edit_text(
+                "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
+                "У тебя пока нет добавленных пациентов. Давай добавим первого!",
+                reply_markup=get_patient_selection({}, {}),
+            )
+        else:
+            await call.message.edit_text(
+                "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
+                reply_markup=get_patient_selection(
+                    user_data["patients"], user_data["monitoring"]
+                ),
+                parse_mode="Markdown",
+            )
 
 
 @router.callback_query(F.data.startswith("sel_p_"))
@@ -449,10 +456,17 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
     elif action == "yes" and isinstance(call.message, Message):
         await db.delete_patient(uid, p_id)
         user_data = db.get_user_data(uid)
-        await call.message.edit_text(
-            "📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
-            parse_mode="Markdown",
-        )
+        if not user_data.get("patients"):
+            await call.message.edit_text(
+                "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
+                "У тебя пока нет добавленных пациентов. Давай добавим первого!",
+                reply_markup=get_patient_selection({}, {}),
+            )
+        else:
+            await call.message.edit_text(
+                "📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+                reply_markup=get_patient_selection(
+                    user_data["patients"], user_data["monitoring"]
+                ),
+                parse_mode="Markdown",
+            )
