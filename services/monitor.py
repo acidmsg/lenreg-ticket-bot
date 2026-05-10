@@ -41,12 +41,12 @@ def _classify_slot_change(slots, old_slots_data):
         if old_slots_data is None:
             # Первое обнаружение -- состояние синхронизировано через handlers/common.py
             return None
-        header = "**Номерков в данный момент нет**"
+        header = "**Номерков в данный момент нет** 🤷‍♂️"
         return header, None
 
     # Есть слоты
     if old_slots_data == "NONE" or old_slots_data is None:
-        return "**Появились свободные номерки!**", slots
+        return "🎉 **Появились свободные номерки!**", slots
 
     # Слоты были и раньше -- проверяем изменения
     old_list = old_slots_data if isinstance(old_slots_data, list) else []
@@ -59,7 +59,7 @@ def _classify_slot_change(slots, old_slots_data):
                 display_slots.append(f"[NEW] {s}")
             else:
                 display_slots.append(s)
-        return "**Появились НОВЫЕ номерки!**", display_slots
+        return "🎉 **Появились НОВЫЕ номерки!**", display_slots
 
     # Проверяем уменьшение
     old_count = len(old_list)
@@ -75,9 +75,7 @@ def _classify_slot_change(slots, old_slots_data):
                 should_notify = True
 
         if should_notify:
-            header = (
-                f"**Количество номерков уменьшилось до {new_count} (было {old_count})**"
-            )
+            header = f"⚠️ **Количество номерков уменьшилось до {new_count} (было {old_count})**"
             return header, slots
 
     return None  # Нет значимых изменений
@@ -161,17 +159,17 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
                         has_slots = bool(slots)
                         link = (
-                            f"\n\n[Записаться](https://zdrav.lenreg.ru/signup/free/)"
+                            f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
                             if has_slots
                             else ""
                         )
 
                         if display_slots is None:
                             # Номерки исчезли
-                            msg = f"{spec_text}{d_name_display}:\n{p_label}\n{header}\n\nМы уведомим вас, когда они появятся."
+                            msg = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{header}\n\nМы уведомим вас, когда появятся."
                         else:
                             msg = (
-                                f"{spec_text}{d_name_display}:\n{p_label}\n{header}\n\n"
+                                f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{header}\n\n"
                                 + "\n".join(display_slots)
                                 + link
                             )

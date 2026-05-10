@@ -285,9 +285,9 @@ async def toggle_doctor(
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
     has_slots = bool(slots)
-    status_text = "есть номерки!" if has_slots else "пока номерков нет 🤷‍♂️"
+    status_text = "✅ есть номерки!" if has_slots else "Пока номерков нет 🤷‍♂️"
     slots_display = (
-        "\n".join(slots) if has_slots else "Как только они появятся, я сразу дам знать!"
+        "\n".join(slots) if has_slots else "Как только появятся, я сразу дам знать!"
     )
     link = (
         f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
@@ -295,7 +295,7 @@ async def toggle_doctor(
         else ""
     )
 
-    text = f"{spec_text}🧑‍⚕️{d_name_display}:\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
+    text = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
 
     # Новое сообщение
     new_msg = await call.message.answer(text)
