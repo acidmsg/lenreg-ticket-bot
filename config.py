@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     # Дефолтная дата рождения для новых пациентов без даты
     DEFAULT_BIRTHDAY: str = "1990-01-01"
 
+    # ID администраторов, имеющих доступ к команде /status
+    ADMIN_IDS: list[int] = Field(
+        default_factory=lambda: [], description="Список Telegram ID администраторов"
+    )
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

@@ -16,11 +16,25 @@ from keyboards.inline import (
     get_doctor_selection,
     get_patient_selection,
 )
+from services.healthcheck import format_status_report, metrics
 from utils.cache import delete_cache_keys_by_prefix, spam_cache
 from utils.helpers import is_child, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message, db: DatabaseManager):
+    """Команда /status — отчёт о состоянии бота (только для администраторов)."""
+    if not message.from_user:
+        return
+    if message.from_user.id not in settings.ADMIN_IDS:
+        await message.answer("❌ Доступ запрещён. Команда только для администраторов.")
+        return
+
+    report = format_status_report(db)
+    await message.answer(report, parse_mode="Markdown")
 
 
 @router.message(Command("start"))

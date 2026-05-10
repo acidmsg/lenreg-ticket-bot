@@ -157,7 +157,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             await asyncio.sleep(60)
 
 
-def format_status_report(api: Optional[ZdravClient], db: DatabaseManager) -> str:
+def format_status_report(db: DatabaseManager) -> str:
     """Форматирует отчёт о состоянии бота для команды /status."""
     total_users = len(db.data)
     total_patients = sum(len(u_info.get("patients", {})) for u_info in db.data.values())

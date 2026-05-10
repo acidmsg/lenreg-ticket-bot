@@ -155,6 +155,16 @@
 | 74 | Исправлен импорт в `handlers/common.py` | ✅ | Убран `get_main_menu` из импорта |
 | 75 | Создан отчёт `docs/inline_review_report.md` | ✅ | Полный анализ callback_data и функций |
 
+### Исправление /status и проверка healthcheck.py (сессия 2026-05-10, ч.2)
+
+| # | Задача | Статус | Примечание |
+|---|---|---|---|
+| 76 | Диагностика: хэндлер `/status` отсутствовал в роутерах | ✅ | Функция `format_status_report()` была, но не было роутера |
+| 77 | Добавлен хэндлер `cmd_status` в `handlers/common.py` | ✅ | Проверка прав через `settings.ADMIN_IDS` |
+| 78 | Убран неиспользуемый параметр `api` из `format_status_report()` | ✅ | `services/healthcheck.py` |
+| 79 | Добавлена настройка `ADMIN_IDS` в `config.py` и `.env.example` | ✅ | Список Telegram ID администраторов |
+| 80 | Аудит `healthcheck.py` на актуальность | ✅ | Все импорты используются, мёртвого кода нет |
+
 ## Задачи в бэклоге
 
 ### Тесты
