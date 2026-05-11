@@ -157,6 +157,12 @@ class Database:
 
     async def close(self):
         if self._conn:
+            # Принудительный checkpoint WAL перед закрытием — освобождает память
+            # и усекает WAL-файл до 0 байт (предотвращает накопление при тестах).
+            try:
+                await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
             await self._conn.close()
             self._conn = None
 

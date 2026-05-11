@@ -135,7 +135,10 @@ async def sync_clinic_names(api: ZdravClient, database: Database):
 
         updated = 0
         for clinic in clinics_data:
-            clinic_id = str(clinic.get("IdLPU"))
+            raw_id = clinic.get("IdLPU")
+            if raw_id is None:
+                continue
+            clinic_id = str(raw_id)
             clinic_name = clinic.get("LpuName") or clinic.get("LPUShortName", "")
             if clinic_id and clinic_name:
                 await database.upsert_clinic(clinic_id, clinic_name)

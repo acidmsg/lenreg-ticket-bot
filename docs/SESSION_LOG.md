@@ -381,3 +381,101 @@
 - Удалены B1, B2 из таблицы «Критические баги»
 - Секция `## 🔴 Критические баги` удалена целиком (стала пустой)
 - Сверены оба файла — несоответствий больше нет
+
+---
+
+## 2026-05-11 (T4 — тесты клавиатур)
+
+### T4 — Тесты для `keyboards/inline.py`
+
+Создан [`tests/test_keyboards.py`](tests/test_keyboards.py) — 37 тестов, покрывающих все 6 функций-клавиатур и вспомогательную `_short_clinic_label`:
+
+| Класс тестов | Функция | Тестов |
+|---|---|---|
+| `TestRegistrationKeyboard` | `get_registration_keyboard` | 3 |
+| `TestConfirmDeletion` | `get_confirm_deletion` | 2 |
+| `TestShortClinicLabel` | `_short_clinic_label` | 5 |
+| `TestPatientSelection` | `get_patient_selection` | 6 |
+| `TestCitySelection` | `get_city_selection` | 5 |
+| `TestDoctorSelection` | `get_doctor_selection` | 8 |
+| `TestClinicSelection` | `get_clinic_selection` | 8 |
+
+**Проверяемые сценарии:**
+
+- Сортировка пациентов по alias/fio, счётчики мониторинга `(N)`, кнопка «Сбросить всё» при активном мониторинге
+- Кнопки подтверждения удаления с корректными callback_data
+- Сокращение длинных названий клиник: выделение части после кавычек `"`, fallback на 50 символов
+- Клавиатуры регистрации: шаг `alias` с кнопкой «Пропустить», все шаги с «Отмена регистрации»
+- Города с 1-based индексами, счётчики мониторинга на город, «Все города»
+- Врачи: сортировка по специальности→фамилии, кабинеты отдельно, статус ✅/▫️
+- Фильтр детских специальностей в стоматологии (клиника 272): дети видят только "детск", взрослые — наоборот
+- Фильтрация клиник по возрасту (adult/child/all) и городу
+- Навигационные кнопки («К выбору города», «Назад к списку»)
+- Передача `city_idx` в callback_data кнопки сброса
+
+**Результат:** 93/93 passed (56 базовых + 37 новых), 14.5 сек.
+
+**Файлы:**
+
+- [`tests/test_keyboards.py`](tests/test_keyboards.py) — новый файл, 37 тестов
+
+## 2026-05-11
+
+### Задача T3: Тесты для `services/doctor_discovery.py`
+
+- Изучен модуль [`services/doctor_discovery.py`](services/doctor_discovery.py) — 4 функции: `fetch_specialties`, `_get_clinic_type_from_db`, `discovery_loop`, `sync_clinic_names`
+- Создан [`tests/test_doctor_discovery.py`](tests/test_doctor_discovery.py) — 23 теста в 5 классах:
+
+| Класс | Тестируемая функция | Тестов |
+|---|---|---|
+| `TestFetchSpecialties` | `fetch_specialties` | 6 |
+| `TestGetClinicTypeFromDb` | `_get_clinic_type_from_db` | 4 |
+| `TestDiscoveryPatientSelection` | логика выбора patient_id в `discovery_loop` | 5 |
+| `TestSyncClinicNames` | `sync_clinic_names` | 8 |
+
+**Проверяемые сценарии:**
+
+- Успешный парсинг списка специальностей, пустой ответ, исключения API
+- Фильтрация специальностей без `IdSpesiality` / `NameSpesiality`
+- Приведение нестроковых значений к строке
+- Определение типа клиники из БД: найдено / `None` / пустая строка / исключение → `'adult'`
+- Выбор patient_id: adult-клиника → только взрослый, child-клиника → только детский, all → оба
+- Переопределение patient_id через `clinic_discovery_patients` (per-clinic override)
+- Успешная синхронизация названий клиник, пустой список, `None`, исключение API
+- Fallback на `LPUShortName` при отсутствии `LPUName`
+- Пропуск записей без ID / без имени, конвертация `int` ID → `str`
+
+**Попутно исправлен баг** в [`services/doctor_discovery.py:132-135`](services/doctor_discovery.py:132):
+
+- `str(None)` → `"None"` (truthy), из-за чего записи с `IdLPU = None` попадали в `upsert_clinic` как `("None", "Без ID")`
+- Добавлена проверка `if raw_id is None: continue` перед `str(raw_id)`
+
+**Результат:** 116/116 passed (93 базовых + 23 новых), 15.03 сек.
+
+**Файлы:**
+
+- [`tests/test_doctor_discovery.py`](tests/test_doctor_discovery.py) — новый файл, 23 теста
+- [`services/doctor_discovery.py`](services/doctor_discovery.py) — исправлен баг `str(None)` в `sync_clinic_names`
+
+### Оптимизация потребления памяти при тестах
+
+**Проблема:** python.exe потреблял >20 GB RAM при прогоне 116 тестов.
+
+**Выявленные причины (4):**
+
+| # | Причина | Механизм |
+|---|---------|----------|
+| 1 | SQLite WAL-файлы не усекались | `PRAGMA journal_mode=WAL` + 116 отдельных БД = накопление WAL без checkpoint |
+| 2 | `aiolimiter.AsyncLimiter` не освобождался | Каждый `ZdravClient` создавал limiter, привязанный к event loop |
+| 3 | `MagicMock` цепочки атрибутов | Бесконечная рекурсия `mock.anything.anything...` при assertion introspection |
+| 4 | Незавершённые `asyncio.Task` | `asyncio_mode=auto` + забытый `create_task` = висящие корутины |
+
+**Реализованные исправления:**
+
+- [`database/database.py:158-167`](database/database.py:163) — `PRAGMA wal_checkpoint(TRUNCATE)` в `Database.close()`: усекает WAL до 0 байт перед закрытием соединения
+- [`tests/conftest.py:51-52`](tests/conftest.py:52) — `gc.collect()` после `await db.close()` в фикстуре `database`
+- [`tests/conftest.py:30-42`](tests/conftest.py:30) — `gc.collect()` + 5 попыток удаления с задержкой 0.2s в `temp_db_path`
+- [`tests/test_zdrav_client.py:22-25`](tests/test_zdrav_client.py:22) — `await client.close()` + `gc.collect()` в фикстуре `mock_zdrav_client` (был `return`, стал `yield`)
+- [`tests/conftest.py:92-117`](tests/conftest.py:94) — опциональный `tracemalloc`-мониторинг: включается `PYTEST_MEMORY_PROFILE=1`, показывает топ-5 аллокаций >100 KB на тест
+
+**Результат:** 116/116 passed за 16.33 сек., `tests/test_data/` пуст после прогона (нет WAL/SHM-остатков).

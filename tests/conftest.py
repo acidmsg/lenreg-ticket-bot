@@ -2,6 +2,7 @@
 Фикстуры и моки для тестирования (SQLite версия).
 """
 
+import gc
 import os
 
 import pytest
@@ -26,13 +27,11 @@ async def temp_db_path(request):
     os.makedirs(TEST_DATA_DIR, exist_ok=True)
     path = os.path.join(TEST_DATA_DIR, f"test_bot_{request.node.name}.db")
     yield path
-    # Закрываем все соединения перед удалением
-    import gc
-
+    # Принудительная сборка мусора + WAL уже очищен в Database.close()
     gc.collect()
     for ext in ("", "-wal", "-shm"):
         full = path + ext
-        for _ in range(3):
+        for _ in range(5):  # увеличено до 5 попыток
             try:
                 if os.path.exists(full):
                     os.remove(full)
@@ -40,7 +39,7 @@ async def temp_db_path(request):
             except PermissionError:
                 import time
 
-                time.sleep(0.1)
+                time.sleep(0.2)  # увеличена задержка
 
 
 @pytest_asyncio.fixture
@@ -50,6 +49,7 @@ async def database(temp_db_path):
     await db.connect()
     yield db
     await db.close()
+    gc.collect()
 
 
 @pytest_asyncio.fixture
@@ -87,6 +87,34 @@ def clear_spam_cache():
     """Очищает spam_cache перед каждым тестом."""
     spam_cache.clear()
     yield
+
+
+# ── tracemalloc: диагностика утечек памяти ──────────────────────────────
+
+_MEMORY_PROFILE_ENABLED = os.environ.get("PYTEST_MEMORY_PROFILE", "0") == "1"
+
+if _MEMORY_PROFILE_ENABLED:
+    import tracemalloc
+
+    tracemalloc.start()
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_setup(item):
+        item._mem_snapshot = tracemalloc.take_snapshot()
+
+    @pytest.hookimpl(trylast=True)
+    def pytest_runtest_teardown(item):
+        snapshot_before = getattr(item, "_mem_snapshot", None)
+        if snapshot_before is None:
+            return
+        snapshot_after = tracemalloc.take_snapshot()
+        top_stats = snapshot_after.compare_to(snapshot_before, "lineno")
+        # Показываем только аллокации > 100 KB на тест
+        significant = [s for s in top_stats if s.size_diff > 102400]
+        if significant:
+            print(f"\n[MEM] {item.nodeid}:")
+            for stat in significant[:5]:
+                print(f"  +{stat.size_diff / 1024:.0f} KB: {stat}")
 
 
 # ── Очистка тестовых данных после сессии ──────────────────────────────
