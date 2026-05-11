@@ -12,7 +12,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 # TTL в 1 секунду, maxsize=1000 для защиты от переполнения
-spam_cache = TTLCache(maxsize=1000, ttl=1.0)
+spam_cache: TTLCache = TTLCache(maxsize=1000, ttl=1.0)
 
 # Единый lock для доступа к monitoring_cache.json из всех модулей
 _cache_lock = asyncio.Lock()

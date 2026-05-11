@@ -1,5 +1,40 @@
 # SESSION_LOG.md
 
+## 2026-05-11 (venv rebuild)
+
+### Пересоздание .venv ✅
+
+- Удалён старый `.venv` (содержал пути `d:\projects\bots\zdrav.lenreg` с прошлого диска)
+- Создан новый `.venv` с Python 3.14.4 и корректным путём `z:\_projects\_bots\zdrav.lenreg\.venv`
+- Установлены пакеты из [`requirements.txt`](requirements.txt:1)
+- Добавлены пропущенные зависимости: `pre-commit-hooks`, `types-aiofiles`, `types-cachetools`
+- Исправлена mypy-ошибка: добавлена аннотация типа для `spam_cache` в [`utils/cache.py`](utils/cache.py:15)
+
+### Очистка requirements.txt ✅
+
+- Удалены неиспользуемые пакеты:
+  - `pytest-mock` — нигде не используется (тесты на `unittest.mock`)
+  - `aioresponses` — нигде не используется (мокается `_get_client`)
+- `PySocks` **оставлен как wheel-файл** — обязательная зависимость pip на этом окружении (VPN-клиент требует socks-модуль для urllib3)
+- `.venv` пересоздан заново без лишних пакетов
+- **Все 10 pre-commit хуков проходят**
+- **Все 134 теста проходят** (pytest 9.0.3)
+
+### Структурирование requirements.txt ✅
+
+- Файл [`requirements.txt`](requirements.txt:1) реорганизован в логические секции:
+  - Core (aiogram), Configuration, HTTP & Networking, Proxy, Data & Storage, Rate Limiting, Error Notifications, Dev/Testing, Linting, Pre-commit
+- `aiohttp-socks` снабжён комментарием о роли в прокси
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| `.venv/` | Пересоздан |
+| [`requirements.txt`](requirements.txt:1) | Удалены `pytest-mock`, `aioresponses`; добавлены `pre-commit-hooks`, `types-aiofiles`, `types-cachetools`; реорганизован по секциям |
+| [`utils/cache.py`](utils/cache.py:15) | Добавлена аннотация `spam_cache: TTLCache` |
+| `PySocks-1.7.1-py3-none-any.whl` | Удалён из корня (лежит только в .venv как служебная зависимость pip) |
+
 ## 2026-05-11 (M2 + M3)
 
 ### M2 — Error notifications (Sentry + NTFY) ✅
