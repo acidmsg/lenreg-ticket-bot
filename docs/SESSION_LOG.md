@@ -598,3 +598,17 @@
 - **`database/database.py:237-254`** — Метод `_migrate_clinics_add_columns()` удалён (логика перенесена в `migrate_v2_clinics_columns`)
 
 **Результат:** 116/116 passed за 16.35 сек.
+
+## 2026-05-11 (T2)
+
+### T2 — Тесты для `services/monitor.py` (весь цикл) ✅
+
+- Создан [`tests/test_monitor_full.py`](tests/test_monitor_full.py:1) — 18 тестов (4 для `_send_notification`, 14 для `monitor_loop`)
+- Мок-стратегия: `monkeypatch` для `asyncio.sleep` (CancelledError для выхода из бесконечного цикла), `swap_cache_key`, `_safe_set` (healthcheck), `_send_notification`
+- `TestSendNotification`: отправка нового сообщения, удаление предыдущего + новое, устойчивость к ошибкам удаления и отправки
+- `TestMonitorLoop`: slots appeared/disappeared/no change, first discovery, empty-slots protection (3 consecutive), API errors, CancelledError, multiple doctors, legacy string doctor_info, patient alias, generic exception, new slots marked
+- Исправлено: monkeypatch-таргет `_safe_set` → `services.healthcheck._safe_set` (lazy import внутри monitor_loop)
+- Исправлено: `monitor_loop` ловит `CancelledError` внутри через `break` (не пробрасывает наружу)
+- Исправлено: `sleep_raises_on_call` для тестов с empty-slots protection (нужно 6 sleep-ов: per-doc×3 + jitter×3)
+
+**Результат:** 134/134 passed за 17.08 сек (все тесты проекта).
