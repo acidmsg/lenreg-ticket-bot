@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from aiogram import F, Router
@@ -9,6 +10,8 @@ from api.zdrav_client import ZdravClient
 from config import settings
 from database.manager import DatabaseManager
 from keyboards.inline import get_patient_selection, get_registration_keyboard
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -104,17 +107,25 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
     # Если псевдоним не введён — оставляем None (отобразится ФИО)
     alias = message.text if message.text else None
     p_info = {"fio": data["fio"], "bday": data["bday"], "alias": alias}
-    await db.add_patient(uid, p_id, p_info)
-    await state.clear()
+    try:
+        await db.add_patient(uid, p_id, p_info)
+        await state.clear()
 
-    user_data = await db.get_user_data(uid)
-    await message.answer(
-        "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
-        reply_markup=get_patient_selection(
-            user_data["patients"], user_data["monitoring"]
-        ),
-        parse_mode="Markdown",
-    )
+        user_data = await db.get_user_data(uid)
+        await message.answer(
+            "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+            reply_markup=get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            ),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.exception("Ошибка при добавлении пациента %s для uid=%s", p_id, uid)
+        await state.clear()
+        await message.answer(
+            "⚠️ Произошла ошибка при сохранении пациента. Попробуйте снова.",
+            reply_markup=get_registration_keyboard(step="fio"),
+        )
 
 
 @router.callback_query(F.data == "skip_alias", Registration.wait_alias)
@@ -128,18 +139,27 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
 
     # При пропуске псевдоним не сохраняем (None) — отобразится ФИО через fallback
     p_info = {"fio": data["fio"], "bday": data["bday"], "alias": None}
-    await db.add_patient(uid, p_id, p_info)
-    await state.clear()
+    try:
+        await db.add_patient(uid, p_id, p_info)
+        await state.clear()
 
-    user_data = await db.get_user_data(uid)
-    if isinstance(call.message, Message):
-        await call.message.edit_text(
-            "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
-            parse_mode="Markdown",
-        )
+        user_data = await db.get_user_data(uid)
+        if isinstance(call.message, Message):
+            await call.message.edit_text(
+                "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+                reply_markup=get_patient_selection(
+                    user_data["patients"], user_data["monitoring"]
+                ),
+                parse_mode="Markdown",
+            )
+    except Exception as e:
+        logger.exception("Ошибка при пропуске alias для p_id=%s uid=%s", p_id, uid)
+        await state.clear()
+        if isinstance(call.message, Message):
+            await call.message.edit_text(
+                "⚠️ Произошла ошибка при сохранении. Попробуйте снова.",
+                reply_markup=get_registration_keyboard(step="fio"),
+            )
 
 
 @router.callback_query(F.data == "cancel_registration")

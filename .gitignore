@@ -1,6 +1,5 @@
 __pycache__/
 .history/
-.vscode/
 *.log
 data/monitoring_cache.json
 .env
