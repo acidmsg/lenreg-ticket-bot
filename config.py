@@ -24,6 +24,10 @@ CONFIG_KEY_API_BASE_URL = "api_base_url"
 CONFIG_KEY_REFERER_URL = "referer_url"
 CONFIG_KEY_CSRF_TOKEN = "csrf_token"
 CONFIG_KEY_ADMIN_IDS = "admin_ids"
+CONFIG_KEY_ERROR_NOTIFY_ENABLED = "error_notify_enabled"
+CONFIG_KEY_ENVIRONMENT = "environment"
+CONFIG_KEY_USER_RATE_LIMIT_MAX = "user_rate_limit_max"
+CONFIG_KEY_USER_RATE_LIMIT_PERIOD = "user_rate_limit_period"
 
 
 class Settings(BaseSettings):
@@ -73,6 +77,24 @@ class Settings(BaseSettings):
     MESSAGE_TTL_SECONDS: int = 604800
     CLEANUP_INTERVAL: int = 3600  # Проверять каждые 1 час
 
+    # === Error notifications (M2) ===
+    # Enable/disable error notifications globally (synced to DB)
+    ERROR_NOTIFY_ENABLED: bool = True
+
+    # NTFY topic URL — SECRET, .env only (e.g. https://ntfy.sh/your-topic)
+    NTFY_TOPIC_URL: str = ""
+
+    # Sentry DSN — SECRET, .env only
+    SENTRY_DSN: str = ""
+
+    # Environment tag for Sentry (synced to DB)
+    ENVIRONMENT: str = "production"
+
+    # === Rate limiting (M3) ===
+    # Max messages per user per time period (handler-level, synced to DB)
+    USER_RATE_LIMIT_MAX: int = 30
+    USER_RATE_LIMIT_PERIOD: int = 60  # seconds
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -101,6 +123,13 @@ async def load_config_from_db(database):
             CONFIG_KEY_REFERER_URL: ("REFERER_URL", str),
             CONFIG_KEY_CSRF_TOKEN: ("CSRF_TOKEN", str),
             CONFIG_KEY_ADMIN_IDS: ("ADMIN_IDS", str),
+            CONFIG_KEY_ERROR_NOTIFY_ENABLED: (
+                "ERROR_NOTIFY_ENABLED",
+                lambda v: v.lower() in ("1", "true", "yes"),
+            ),
+            CONFIG_KEY_ENVIRONMENT: ("ENVIRONMENT", str),
+            CONFIG_KEY_USER_RATE_LIMIT_MAX: ("USER_RATE_LIMIT_MAX", int),
+            CONFIG_KEY_USER_RATE_LIMIT_PERIOD: ("USER_RATE_LIMIT_PERIOD", int),
         }
 
         all_config = await database.get_all_config()

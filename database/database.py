@@ -649,6 +649,10 @@ class Database:
                 "referer_url": s.REFERER_URL,
                 "csrf_token": s.CSRF_TOKEN,
                 "admin_ids": s.ADMIN_IDS,
+                "error_notify_enabled": str(s.ERROR_NOTIFY_ENABLED),
+                "environment": s.ENVIRONMENT,
+                "user_rate_limit_max": str(s.USER_RATE_LIMIT_MAX),
+                "user_rate_limit_period": str(s.USER_RATE_LIMIT_PERIOD),
             }
 
             for key, value in defaults.items():

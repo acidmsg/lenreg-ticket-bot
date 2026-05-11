@@ -90,8 +90,47 @@ async def migrate_v2_clinics_columns(db):
             pass  # колонка уже существует
 
 
+async def migrate_v5_seed_new_config_keys(db):
+    """Заполняет config дефолтными значениями из settings (INSERT OR IGNORE — безопасен для существующих БД)."""
+    c = db._conn
+    if c is None:
+        return
+    from config import settings as s
+
+    all_keys = {
+        "api_timeout": str(s.API_TIMEOUT),
+        "check_interval": str(s.CHECK_INTERVAL),
+        "discovery_interval": str(s.DISCOVERY_INTERVAL),
+        "message_ttl_seconds": str(s.MESSAGE_TTL_SECONDS),
+        "cleanup_interval": str(s.CLEANUP_INTERVAL),
+        "slot_threshold_absolute": str(s.SLOT_THRESHOLD_ABSOLUTE),
+        "slot_threshold_percentage": str(s.SLOT_THRESHOLD_PERCENTAGE),
+        "discovery_patient_adult": str(s.DISCOVERY_PATIENT_ID_ADULT),
+        "discovery_patient_child": str(s.DISCOVERY_PATIENT_ID_CHILD),
+        "default_clinic_id": str(s.DEFAULT_CLINIC_ID),
+        "default_birthday": str(s.DEFAULT_BIRTHDAY),
+        "api_base_url": s.API_BASE_URL,
+        "referer_url": s.REFERER_URL,
+        "csrf_token": s.CSRF_TOKEN,
+        "admin_ids": s.ADMIN_IDS,
+        "error_notify_enabled": str(s.ERROR_NOTIFY_ENABLED),
+        "environment": s.ENVIRONMENT,
+        "user_rate_limit_max": str(s.USER_RATE_LIMIT_MAX),
+        "user_rate_limit_period": str(s.USER_RATE_LIMIT_PERIOD),
+    }
+
+    for key, value in all_keys.items():
+        await c.execute(
+            "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+    await c.commit()
+    logger.info("Миграция v5: config заполнен дефолтными значениями")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
     (2, migrate_v2_clinics_columns),
+    (5, migrate_v5_seed_new_config_keys),
 ]

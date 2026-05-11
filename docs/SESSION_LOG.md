@@ -1,5 +1,56 @@
 # SESSION_LOG.md
 
+## 2026-05-11 (M2 + M3)
+
+### M2 — Error notifications (Sentry + NTFY) ✅
+
+- Создан [`services/error_notifier.py`](services/error_notifier.py:1) — централизованный диспетчер ошибок
+- NTFY: HTTP POST на конфигурируемый топик (заголовок, приоритет, traceback)
+- Sentry: опциональная интеграция через `sentry_sdk` (только при наличии `SENTRY_DSN`)
+- Интегрировано в [`main.py`](main.py:127) — `polling_crash` и [`main.py`](main.py:154) — `startup_crash`
+- Новые поля в [`config.py`](config.py:81): `ERROR_NOTIFY_ENABLED`, `NTFY_TOPIC_URL`, `SENTRY_DSN`, `ENVIRONMENT`
+- Добавлены в [`.env.example`](.env.example:18) с комментариями
+- `sentry-sdk>=2.0` добавлен в [`requirements.txt`](requirements.txt:11)
+
+### M3 — Per-user rate limiting ✅
+
+- Создан [`middleware/ratelimit.py`](middleware/ratelimit.py:1) — aiogram outer middleware
+- Sliding window на основе списков timestamps (сообщения и callback-запросы раздельно)
+- При превышении лимита: сообщения — silently dropped, callback — ответ «⏳ Слишком много запросов»
+- Зарегистрирован в [`main.py`](main.py:81) как `dp.update.outer_middleware(UserRateLimitMiddleware())`
+- Новые поля в [`config.py`](config.py:88): `USER_RATE_LIMIT_MAX` (30) и `USER_RATE_LIMIT_PERIOD` (60s)
+- Добавлены в [`.env.example`](.env.example:28)
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`services/error_notifier.py`](services/error_notifier.py:1) | Создан |
+| [`middleware/__init__.py`](middleware/__init__.py:1) | Создан |
+| [`middleware/ratelimit.py`](middleware/ratelimit.py:1) | Создан |
+| [`config.py`](config.py:1) | Добавлены поля M2/M3 |
+| [`.env.example`](.env.example:1) | Добавлены секции M2/M3 |
+| [`main.py`](main.py:1) | Импорты + middleware + error_notifier в except |
+| [`requirements.txt`](requirements.txt:1) | Добавлен `sentry-sdk` |
+| [`docs/AGENT_TASKS.md`](docs/AGENT_TASKS.md:1) | Удалены M2, M3 |
+| [`database/database.py`](database/database.py:652) | 4 поля в `seed_config_from_defaults()` |
+| [`.env.example`](.env.example:18) | NTFY_TOPIC_URL + SENTRY_DSN → плейсхолдеры |
+| [`database/migrations.py`](database/migrations.py:93) | Миграция v5: `migrate_v5_seed_new_config_keys` |
+
+### Config DB migration (M2/M3 follow-up)
+
+- 4 нечувствительных поля перенесены в БД-синхронизацию: `ERROR_NOTIFY_ENABLED`, `ENVIRONMENT`, `USER_RATE_LIMIT_MAX`, `USER_RATE_LIMIT_PERIOD`
+- 2 секретных поля остались только в `.env`: `NTFY_TOPIC_URL`, `SENTRY_DSN`
+- Добавлены `CONFIG_KEY_*` константы + entries в `mapping` ([`config.py`](config.py:104))
+- Добавлены defaults в `seed_config_from_defaults()` ([`database/database.py`](database/database.py:652))
+- `.env.example`: секреты заменены на `your_..._here` плейсхолдеры
+- Добавлена миграция v5 ([`database/migrations.py`](database/migrations.py:93)) — сидирование **всех** 19 config-ключей через `INSERT OR IGNORE` (безопасна для существующих БД)
+- Существующая `bot.db` обновлена: 4 новых ключа добавлены (19 total)
+
+### Результаты тестов: 116 passed, 0 failed, 604 warnings (Python 3.14 deprecation notices)
+
+---
+
 ## 2026-05-01
 
 - Создана базовая структура проекта — прототип бота для мониторинга талонов

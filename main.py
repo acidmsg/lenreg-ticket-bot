@@ -13,8 +13,10 @@ from database.database import Database
 from database.doctor_manager import DoctorManager
 from database.manager import DatabaseManager
 from handlers import common, registration
+from middleware.ratelimit import UserRateLimitMiddleware
 from services.cleanup import cleanup_loop
 from services.doctor_discovery import discovery_loop, sync_clinic_names
+from services.error_notifier import error_notifier
 from services.healthcheck import _safe_set, healthcheck_loop, metrics
 from services.monitor import monitor_loop
 
@@ -74,6 +76,10 @@ async def main():
     bot = Bot(token=settings.BOT_TOKEN, session=session)
     dp = Dispatcher(storage=MemoryStorage())
 
+    # Регистрация middleware (порядок важен: outer выполняется первым)
+    # 1. Per-user rate limiter (внешний слой — отсекает до обработчиков)
+    dp.update.outer_middleware(UserRateLimitMiddleware())
+
     # Регистрация роутеров
     dp.include_router(common.router)
     dp.include_router(registration.router)
@@ -116,6 +122,11 @@ async def main():
 
     try:
         await dp.start_polling(bot, db=db, api=api)
+    except asyncio.CancelledError:
+        logger.info("Поллинг остановлен (cancelled)")
+    except Exception as e:
+        logger.exception("Критическая ошибка в поллинге")
+        await error_notifier.notify(e, context="polling_crash")
     finally:
         logger.info("Остановка фоновых задач...")
         for task in background_tasks:
@@ -134,3 +145,12 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logging.info("Бот остановлен.")
+    except Exception as e:
+        logging.exception("Необработанная ошибка при запуске")
+        # Попытка отправить уведомление (может не сработать на старте)
+        try:
+            import asyncio as _asyncio
+
+            _asyncio.run(error_notifier.notify(e, context="startup_crash"))
+        except Exception:
+            pass
