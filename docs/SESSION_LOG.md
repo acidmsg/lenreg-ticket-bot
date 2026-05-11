@@ -479,3 +479,56 @@
 - [`tests/conftest.py:92-117`](tests/conftest.py:94) — опциональный `tracemalloc`-мониторинг: включается `PYTEST_MEMORY_PROFILE=1`, показывает топ-5 аллокаций >100 KB на тест
 
 **Результат:** 116/116 passed за 16.33 сек., `tests/test_data/` пуст после прогона (нет WAL/SHM-остатков).
+
+---
+
+## 2026-05-11 (R4, R5, R7)
+
+### R7 — Отдельные `AsyncLimiter` для monitor / discovery / healthcheck
+
+**Проблема:** Все 3 фоновых цикла использовали единственный `self.limiter = AsyncLimiter(max_rate=10, time_period=60)` — 10 запросов/мин на всех. Это создавало конкуренцию между мониторингом (частые запросы), discovery (массовые запросы) и healthcheck (низкая частота).
+
+**Решение:**
+
+- **`api/zdrav_client.py:25-37`** — Четыре лимитера:
+  - `limiter_monitor` (10/мин) — мониторинг слотов
+  - `limiter_discovery` (5/мин) — discovery врачей
+  - `limiter_healthcheck` (2/мин) — healthcheck
+  - `limiter` (10/мин) — пользовательские запросы (хендлеры)
+
+- **`api/zdrav_client.py:73-248`** — Во все 5 методов API добавлен опциональный параметр `limiter`. Дефолт: `self.limiter`. Вызывающий код передаёт свой.
+
+- **`services/monitor.py:133`** — `api.check_slots(...)` → `api.check_slots(..., limiter=api.limiter_monitor)`
+- **`services/doctor_discovery.py:14-28`** — `fetch_specialties` пробрасывает `limiter` в `fetch_speciality_list`
+- **`services/doctor_discovery.py:94-98`** — `api.fetch_all_doctors(..., limiter=api.limiter_discovery)`
+
+### R5 — Защита глобального `metrics` от гонок
+
+**Проблема:** Глобальный `metrics = HealthMetrics()` (строка 92) мутируется из трёх корутин (healthcheck_loop, monitor_loop, main), без блокировок. При конкурентном доступе возможны потерянные инкременты и разорванные чтения.
+
+**Решение:**
+
+- **`services/healthcheck.py:93`** — Добавлен `_metrics_lock = asyncio.Lock()`
+- **`services/healthcheck.py:96-106`** — `_safe_increment(attr, delta=1)` и `_safe_set(attr, value)` — атомарные хелперы под локом
+- **`services/healthcheck.py:113-161`** — Все мутации `metrics.*` в `healthcheck_loop` заменены на `_safe_increment` / `_safe_set`
+- **`services/healthcheck.py:165-167`** — Чтение `uptime_str()` и `api_health_str()` под локом (атомарный снапшот)
+- **`services/monitor.py:84-87`** — `metrics.monitor_loop_alive = True` → `await _safe_set("monitor_loop_alive", True)`
+- **`main.py:18,107`** — `metrics.discovery_tasks_alive += 1` → `await _safe_set("discovery_tasks_alive", ...)` через импорт `_safe_set`
+
+### R4 — Healthcheck проверять несколько клиник
+
+**Проблема:** `healthcheck_loop` проверял только `DEFAULT_CLINIC_ID` (строка 114-116), игнорируя остальные активные клиники.
+
+**Решение:**
+
+- **`services/healthcheck.py:127-131`** — Запрос `get_active_clinic_ids()` из БД. Фоллбэк на `DEFAULT_CLINIC_ID` если таблица пуста
+- **`services/healthcheck.py:134-156`** — Цикл по всем clinic_ids: для каждой определяется `patient_id` (adult/child по типу клиники), запрос через `api.limiter_healthcheck`
+- **`services/healthcheck.py:20`** — Импорт `Database` для доступа к `db._db`
+- **`services/healthcheck.py:122-124`** — Кэш `_patient_for_clinic` для избежания повторных запросов к БД
+- **`services/healthcheck.py:172`** — В лог добавлено `Clinics checked: {len(clinic_ids)}`
+
+### Тесты
+
+- **`tests/test_doctor_discovery.py:65`** — `assert_called_once_with` обновлён: добавлен `limiter=None`
+
+**Результат:** 116/116 passed за 16.47 сек.

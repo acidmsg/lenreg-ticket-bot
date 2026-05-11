@@ -17,6 +17,7 @@ from aiogram import Bot
 
 from api.zdrav_client import ZdravClient
 from config import settings
+from database.database import Database
 from database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,20 @@ class HealthMetrics:
 
 # Глобальный экземпляр метрик
 metrics = HealthMetrics()
+_metrics_lock = asyncio.Lock()
+
+
+async def _safe_increment(attr: str, delta: int = 1):
+    """Атомарный инкремент поля metrics (под локом)."""
+    async with _metrics_lock:
+        current = getattr(metrics, attr, 0)
+        setattr(metrics, attr, current + delta)
+
+
+async def _safe_set(attr: str, value):
+    """Атомарная установка поля metrics (под локом)."""
+    async with _metrics_lock:
+        setattr(metrics, attr, value)
 
 
 async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
@@ -97,37 +112,70 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
     Фоновый цикл проверки здоровья.
 
     Каждые CHECK_INTERVAL секунд:
-    1. Проверяет доступность API zdrav.lenreg.ru
+    1. Проверяет доступность API zdrav.lenreg.ru через все активные клиники
     2. Собирает статистику
     3. Логирует состояние
     """
-    metrics.healthcheck_loop_alive = True
+    await _safe_set("healthcheck_loop_alive", True)
     logger.info("Healthcheck-цикл запущен")
+
+    # Кэш clinic_id → patient_id для healthcheck (заполняется на первом цикле)
+    _patient_for_clinic: dict[str, str] = {}
 
     while True:
         try:
             await asyncio.sleep(settings.CHECK_INTERVAL)  # каждые 5 минут
 
-            # Проверяем доступность API через запрос специальностей
-            try:
-                metrics.api_checks_total += 1
-                specialties = await api.fetch_speciality_list(
-                    settings.DISCOVERY_PATIENT_ID_ADULT, settings.DEFAULT_CLINIC_ID
-                )
-                if specialties is not None:
-                    metrics.api_success_total += 1
-                else:
-                    metrics.api_errors_total += 1
-                    metrics.last_api_error_time = time.time()
-                    metrics.last_api_error_message = "API вернул None"
-                metrics.last_api_check_time = time.time()
-            except Exception as e:
-                metrics.api_errors_total += 1
-                metrics.last_api_error_time = time.time()
-                metrics.last_api_error_message = str(e)[:200]
-                logger.error(f"Healthcheck: ошибка API: {e}")
+            # Получаем список активных клиник из БД
+            database = db._db
+            clinic_ids = await database.get_active_clinic_ids()
+            if not clinic_ids:
+                # Фоллбэк на DEFAULT_CLINIC_ID, если таблица пуста
+                clinic_ids = [settings.DEFAULT_CLINIC_ID]
 
-            # Собираем статистику по БД
+            # Проверяем API для каждой активной клиники (R4)
+            for clinic_id in clinic_ids:
+                try:
+                    # Определяем patient_id для этой клиники
+                    if clinic_id not in _patient_for_clinic:
+                        ctype = await database.get_clinic_type(str(clinic_id))
+                        if ctype == "child":
+                            _patient_for_clinic[clinic_id] = (
+                                settings.DISCOVERY_PATIENT_ID_CHILD
+                            )
+                        else:
+                            _patient_for_clinic[clinic_id] = (
+                                settings.DISCOVERY_PATIENT_ID_ADULT
+                            )
+
+                    patient_id = _patient_for_clinic[clinic_id]
+
+                    await _safe_increment("api_checks_total")
+                    specialties = await api.fetch_speciality_list(
+                        patient_id,
+                        str(clinic_id),
+                        limiter=api.limiter_healthcheck,
+                    )
+                    if specialties is not None:
+                        await _safe_increment("api_success_total")
+                    else:
+                        await _safe_increment("api_errors_total")
+                        await _safe_set("last_api_error_time", time.time())
+                        await _safe_set("last_api_error_message", "API вернул None")
+                    await _safe_set("last_api_check_time", time.time())
+                except Exception as e:
+                    await _safe_increment("api_errors_total")
+                    await _safe_set("last_api_error_time", time.time())
+                    await _safe_set("last_api_error_message", str(e)[:200])
+                    logger.error(
+                        f"Healthcheck: ошибка API для клиники {clinic_id}: {e}"
+                    )
+
+            # Собираем статистику по БД (под локом для чтения metrics)
+            async with _metrics_lock:
+                uptime = metrics.uptime_str()
+                api_health = metrics.api_health_str()
+
             total_users = len(db.data)
             total_monitored_doctors = sum(
                 len(u_info.get("monitoring", {})) for u_info in db.data.values()
@@ -139,20 +187,21 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             # Логируем состояние
             logger.info(
                 f"Healthcheck | "
-                f"Uptime: {metrics.uptime_str()} | "
+                f"Uptime: {uptime} | "
+                f"Clinics checked: {len(clinic_ids)} | "
                 f"Users: {total_users} | "
                 f"Patients: {total_patients} | "
                 f"Monitored: {total_monitored_doctors} | "
-                f"API: {metrics.api_health_str()}"
+                f"API: {api_health}"
             )
 
         except asyncio.CancelledError:
-            metrics.healthcheck_loop_alive = False
+            await _safe_set("healthcheck_loop_alive", False)
             logger.info("Healthcheck-цикл остановлен (cancelled)")
             break
         except Exception as e:
-            metrics.last_error_time = time.time()
-            metrics.last_error_message = f"Healthcheck error: {e}"
+            await _safe_set("last_error_time", time.time())
+            await _safe_set("last_error_message", f"Healthcheck error: {e}")
             logger.error(f"Ошибка в healthcheck-цикле: {e}", exc_info=True)
             await asyncio.sleep(60)
 

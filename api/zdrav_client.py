@@ -22,9 +22,19 @@ logger = logging.getLogger(__name__)
 class ZdravClient:
     def __init__(self):
         self.base_url = settings.API_BASE_URL
+        # Отдельные лимитеры для разных фоновых задач (R7)
+        self.limiter_monitor = aiolimiter.AsyncLimiter(
+            max_rate=10, time_period=60
+        )  # мониторинг слотов
+        self.limiter_discovery = aiolimiter.AsyncLimiter(
+            max_rate=5, time_period=60
+        )  # discovery врачей
+        self.limiter_healthcheck = aiolimiter.AsyncLimiter(
+            max_rate=2, time_period=60
+        )  # healthcheck
         self.limiter = aiolimiter.AsyncLimiter(
             max_rate=10, time_period=60
-        )  # 10 запросов в минуту
+        )  # для хендлеров (пользовательские запросы)
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/121.0.0.0",
@@ -60,7 +70,11 @@ class ZdravClient:
             self._client = None
 
     async def fetch_patient_id(
-        self, fio: str, bday_date: datetime.date, clinic_id: str
+        self,
+        fio: str,
+        bday_date: datetime.date,
+        clinic_id: str,
+        limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         parts = [p.strip() for p in fio.split() if p.strip()]
         if len(parts) != 3:
@@ -78,7 +92,7 @@ class ZdravClient:
             "csrfmiddlewaretoken": settings.CSRF_TOKEN,
         }
 
-        async with self.limiter:
+        async with limiter or self.limiter:
             client = await self._get_client()
             try:
                 res = await client.post(
@@ -106,14 +120,17 @@ class ZdravClient:
                 return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
 
     async def fetch_speciality_list(
-        self, patient_id: str, clinic_id: str
+        self,
+        patient_id: str,
+        clinic_id: str,
+        limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> List[dict]:
         payload = {
             "clinic_form-clinic_id": clinic_id,
             "clinic_form-history_id": "",
             "clinic_form-patient_id": patient_id,
         }
-        async with self.limiter:
+        async with limiter or self.limiter:
             client = await self._get_client()
             try:
                 res = await client.post(
@@ -134,14 +151,18 @@ class ZdravClient:
                 return []
 
     async def check_slots(
-        self, doc_id: str, patient_id: str, clinic_id: str
+        self,
+        doc_id: str,
+        patient_id: str,
+        clinic_id: str,
+        limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> Optional[List[str]]:
         payload = {
             "doctor_form-doctor_id": doc_id,
             "doctor_form-clinic_id": clinic_id,
             "doctor_form-patient_id": patient_id,
         }
-        async with self.limiter:
+        async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
                 try:
@@ -176,7 +197,11 @@ class ZdravClient:
         return None
 
     async def fetch_all_doctors(
-        self, specialty_id: str, patient_id: str, clinic_id: str
+        self,
+        specialty_id: str,
+        patient_id: str,
+        clinic_id: str,
+        limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> List[dict]:
         payload = {
             "speciality_form-speciality_id": specialty_id,
@@ -184,7 +209,7 @@ class ZdravClient:
             "speciality_form-patient_id": patient_id,
             "speciality_form-history_id": "",
         }
-        async with self.limiter:
+        async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
                 try:
@@ -209,12 +234,16 @@ class ZdravClient:
                     await asyncio.sleep(2)
         return []
 
-    async def fetch_clinic_list(self, district_id: str = "4") -> list[dict]:
+    async def fetch_clinic_list(
+        self,
+        district_id: str = "4",
+        limiter: Optional[aiolimiter.AsyncLimiter] = None,
+    ) -> list[dict]:
         """Получает список клиник для указанного района через /clinic_list/."""
         payload = {
             "district_form-district_id": district_id,
         }
-        async with self.limiter:
+        async with limiter or self.limiter:
             client = await self._get_client()
             try:
                 res = await client.post(

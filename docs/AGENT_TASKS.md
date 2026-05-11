@@ -10,12 +10,6 @@
 
 ### Архитектура
 
-| # | Задача | Приоритет | Примечание |
-|---|---|---|---|
-| | R4 | Healthcheck — проверять несколько клиник вместо `CLINICS[0]` | 🟡 Средний | `services/healthcheck.py:114-116` |
-| | R5 | Защита глобального `metrics` от гонок (Singleton + `asyncio.Lock`) | 🟡 Средний | `services/healthcheck.py:92` |
-| | R7 | Отдельные `AsyncLimiter` для monitor / discovery / healthcheck | 🟡 Средний | `api/zdrav_client.py:18-20` |
-
 ### Тесты
 
 | # | Задача | Приоритет | Примечание |
@@ -52,9 +46,6 @@
 ## 📋 Чек-лист прогресса
 
 - [ ] B5 — import `metrics` вынести наверх (отложено — циклический импорт)
-- [ ] R4 — healthcheck несколько клиник
-- [ ] R5 — защита `metrics` lock'ом
-- [ ] R7 — отдельные limiters
 - [ ] T1‑T2 — тесты
 - [ ] D1 — Docker
 - [ ] D2 — миграции

@@ -15,7 +15,7 @@ from database.manager import DatabaseManager
 from handlers import common, registration
 from services.cleanup import cleanup_loop
 from services.doctor_discovery import discovery_loop, sync_clinic_names
-from services.healthcheck import healthcheck_loop, metrics
+from services.healthcheck import _safe_set, healthcheck_loop, metrics
 from services.monitor import monitor_loop
 
 
@@ -104,7 +104,7 @@ async def main():
             )
         )
         background_tasks.append(task)
-        metrics.discovery_tasks_alive += 1
+        await _safe_set("discovery_tasks_alive", metrics.discovery_tasks_alive + 1)
 
     # Запуск фонового healthcheck
     background_tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))

@@ -82,9 +82,9 @@ def _classify_slot_change(slots, old_slots_data):
 
 
 async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
-    from services.healthcheck import metrics as hc_metrics
+    from services.healthcheck import _safe_set
 
-    hc_metrics.monitor_loop_alive = True
+    await _safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
 
     empty_counts = {}
@@ -128,7 +128,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         await asyncio.sleep(random.uniform(1.0, 3.0))
 
-                        slots = await api.check_slots(d_id, p_id, clinic_id)
+                        slots = await api.check_slots(
+                            d_id, p_id, clinic_id, limiter=api.limiter_monitor
+                        )
                         logger.info(f"API result for {d_id}: {slots}")
 
                         if slots is None:

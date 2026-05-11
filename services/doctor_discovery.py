@@ -12,11 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 async def fetch_specialties(
-    api: ZdravClient, patient_id: str, clinic_id: str
+    api: ZdravClient, patient_id: str, clinic_id: str, limiter=None
 ) -> List[Dict[str, str]]:
     """Получает список специальностей (ID и имя) для данной клиники и пациента."""
     try:
-        response = await api.fetch_speciality_list(patient_id, clinic_id)
+        response = await api.fetch_speciality_list(
+            patient_id, clinic_id, limiter=limiter
+        )
         # Приводим к типу List[Dict[str, str]], гарантируя, что значения - строки
         return [
             {
@@ -83,7 +85,7 @@ async def discovery_loop(
 
             for current_patient_id in patient_ids:
                 specialties_data = await fetch_specialties(
-                    api, current_patient_id, clinic_id
+                    api, current_patient_id, clinic_id, limiter=api.limiter_discovery
                 )
 
                 for specialty_info in specialties_data:
@@ -94,6 +96,7 @@ async def discovery_loop(
                         specialty_id=spec_id,
                         patient_id=current_patient_id,
                         clinic_id=str(clinic_id),
+                        limiter=api.limiter_discovery,
                     )
                     if doctors:
                         for doc in doctors:
