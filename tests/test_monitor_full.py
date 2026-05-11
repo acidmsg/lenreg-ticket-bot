@@ -6,7 +6,6 @@ with mocked API, Bot, and DatabaseManager.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from services.monitor import _send_notification, monitor_loop
 
@@ -198,10 +197,9 @@ class TestMonitorLoop:
         swap_mock = AsyncMock(return_value=swap_cache_return)
         monkeypatch.setattr("services.monitor.swap_cache_key", swap_mock)
 
-        # Mock _safe_set from healthcheck (lazy import inside monitor_loop:
-        #   from services.healthcheck import _safe_set)
+        # Mock _safe_set (imported at module top in services.monitor)
         safe_set_mock = AsyncMock()
-        monkeypatch.setattr("services.healthcheck._safe_set", safe_set_mock)
+        monkeypatch.setattr("services.monitor._safe_set", safe_set_mock)
 
         # Mock _send_notification (same module) to avoid real bot calls
         notify_mock = AsyncMock()

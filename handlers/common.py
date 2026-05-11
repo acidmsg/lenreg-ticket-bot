@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
@@ -17,9 +16,9 @@ from keyboards.inline import (
     get_patient_selection,
 )
 from services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
-from services.healthcheck import format_status_report, metrics
+from services.healthcheck import format_status_report
 from utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_key
-from utils.helpers import extract_msg_id, is_child, shorten_fio, shorten_specialty
+from utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -211,7 +210,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
     p_id = call.data.replace("sel_p_", "")
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    p_info = user_data["patients"].get(p_id, {})
+    user_data["patients"].get(p_id, {})
 
     # Получаем города активных клиник
     cities = await db._db.get_distinct_cities()
@@ -437,9 +436,6 @@ async def toggle_doctor(
 
     already_monitored = d_id in user_data["monitoring"].get(p_id, {})
 
-    display_name = (
-        f"[{d_spec_display}] {d_name_display}" if d_spec_display else d_name_display
-    )
     await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec)
 
     p_info = user_data.get("patients", {}).get(p_id, {})
@@ -499,12 +495,10 @@ async def toggle_doctor(
     has_slots = bool(slots)
     status_text = "✅ есть номерки!" if has_slots else "Пока номерков нет 🤷‍♂️"
     slots_display = (
-        "\n".join(slots) if has_slots else "Как только появятся, я сразу дам знать!"
+        "\n".join(slots) if slots else "Как только появятся, я сразу дам знать!"
     )
     link = (
-        f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
-        if has_slots
-        else ""
+        "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
     )
 
     text = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
@@ -574,9 +568,6 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                 except (ValueError, IndexError):
                     pass
 
-            city_label = (
-                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
-            )
             await call.message.edit_text(
                 "✅ Мониторинг для пациента сброшен.",
                 reply_markup=get_clinic_selection(

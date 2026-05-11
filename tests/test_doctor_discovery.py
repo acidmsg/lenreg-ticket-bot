@@ -2,15 +2,11 @@
 Тесты для services/doctor_discovery.py.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-import pytest_asyncio
 
 from services.doctor_discovery import (
     _get_clinic_type_from_db,
-    discovery_loop,
     fetch_specialties,
     sync_clinic_names,
 )
@@ -172,7 +168,7 @@ class TestDiscoveryPatientSelection:
 
     async def test_adult_clinic_uses_only_adult_patient(self):
         """Для adult-клиники в patient_ids попадает только adult ID."""
-        api = _make_mock_api()
+        _make_mock_api()
         db = _make_mock_db()
         db.get_clinic_type.return_value = "adult"
         db.get_clinic_discovery_patients.return_value = ("", "")
@@ -180,9 +176,10 @@ class TestDiscoveryPatientSelection:
         clinic_type = await _get_clinic_type_from_db(db, "272")
         assert clinic_type == "adult"
 
-        clinic_patient_adult, clinic_patient_child = (
-            await db.get_clinic_discovery_patients("272")
-        )
+        (
+            clinic_patient_adult,
+            clinic_patient_child,
+        ) = await db.get_clinic_discovery_patients("272")
 
         adult_pid = "ADULT_GLOBAL"
         child_pid = "CHILD_GLOBAL"
@@ -210,9 +207,10 @@ class TestDiscoveryPatientSelection:
         clinic_type = await _get_clinic_type_from_db(db, "272")
         assert clinic_type == "child"
 
-        clinic_patient_adult, clinic_patient_child = (
-            await db.get_clinic_discovery_patients("272")
-        )
+        (
+            clinic_patient_adult,
+            clinic_patient_child,
+        ) = await db.get_clinic_discovery_patients("272")
 
         adult_pid = "ADULT_GLOBAL"
         child_pid = "CHILD_GLOBAL"
@@ -239,9 +237,10 @@ class TestDiscoveryPatientSelection:
         clinic_type = await _get_clinic_type_from_db(db, "272")
         assert clinic_type == "all"
 
-        clinic_patient_adult, clinic_patient_child = (
-            await db.get_clinic_discovery_patients("272")
-        )
+        (
+            clinic_patient_adult,
+            clinic_patient_child,
+        ) = await db.get_clinic_discovery_patients("272")
 
         adult_pid = "ADULT_GLOBAL"
         child_pid = "CHILD_GLOBAL"
@@ -266,9 +265,10 @@ class TestDiscoveryPatientSelection:
         db.get_clinic_discovery_patients.return_value = ("CLINIC_ADULT", "")
 
         clinic_type = await _get_clinic_type_from_db(db, "272")
-        clinic_patient_adult, clinic_patient_child = (
-            await db.get_clinic_discovery_patients("272")
-        )
+        (
+            clinic_patient_adult,
+            clinic_patient_child,
+        ) = await db.get_clinic_discovery_patients("272")
 
         adult_pid = "GLOBAL_ADULT"
         child_pid = "GLOBAL_CHILD"
@@ -297,9 +297,10 @@ class TestDiscoveryPatientSelection:
         )
 
         clinic_type = await _get_clinic_type_from_db(db, "272")
-        clinic_patient_adult, clinic_patient_child = (
-            await db.get_clinic_discovery_patients("272")
-        )
+        (
+            clinic_patient_adult,
+            clinic_patient_child,
+        ) = await db.get_clinic_discovery_patients("272")
 
         adult_pid = "GLOBAL_ADULT"
         child_pid = "GLOBAL_CHILD"

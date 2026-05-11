@@ -1,8 +1,6 @@
 import logging
-import os
-from typing import Optional
+from typing import Any, Callable, Optional
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -107,7 +105,7 @@ async def load_config_from_db(database):
     Вызывается при старте бота после инициализации БД.
     """
     try:
-        mapping = {
+        mapping: dict[str, tuple[str, Callable[[str], Any]]] = {
             CONFIG_KEY_API_TIMEOUT: ("API_TIMEOUT", float),
             CONFIG_KEY_CHECK_INTERVAL: ("CHECK_INTERVAL", int),
             CONFIG_KEY_DISCOVERY_INTERVAL: ("DISCOVERY_INTERVAL", int),

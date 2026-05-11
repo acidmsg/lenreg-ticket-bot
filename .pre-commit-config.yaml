@@ -1,0 +1,100 @@
+repos:
+  - repo: local
+    hooks:
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        entry: .venv/Scripts/trailing-whitespace-fixer.exe
+        language: system
+        types: [text]
+        exclude: ^\.venv/
+
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        entry: .venv/Scripts/end-of-file-fixer.exe
+        language: system
+        types: [text]
+        exclude: ^\.venv/
+
+      - id: check-yaml
+        name: check-yaml
+        entry: .venv/Scripts/check-yaml.exe
+        language: system
+        types: [yaml]
+        exclude: ^\.venv/
+
+      - id: check-added-large-files
+        name: check-added-large-files
+        entry: .venv/Scripts/check-added-large-files.exe
+        language: system
+        types: [file]
+        stages: [pre-commit]
+        exclude: ^\.venv/
+
+      - id: debug-statements
+        name: debug-statements
+        entry: .venv/Scripts/debug-statement-hook.exe
+        language: system
+        types: [python]
+        exclude: ^\.venv/
+
+      - id: detect-private-key
+        name: detect-private-key
+        entry: .venv/Scripts/detect-private-key.exe
+        language: system
+        types: [text]
+        exclude: ^\.venv/
+
+      - id: mixed-line-ending
+        name: mixed-line-ending
+        entry: .venv/Scripts/mixed-line-ending.exe
+        language: system
+        args: [--fix=lf]
+        types: [text]
+        exclude: ^\.venv/
+
+      - id: ruff-check
+        name: ruff (lint)
+        entry: .venv/Scripts/ruff.exe
+        language: system
+        args: [check, --fix, --exit-non-zero-on-fix]
+        types: [python]
+        exclude: ^\.venv/
+
+      - id: ruff-format
+        name: ruff (format)
+        entry: .venv/Scripts/ruff.exe
+        language: system
+        args: [format, --check]
+        types: [python]
+        exclude: ^\.venv/
+
+      - id: mypy
+        name: mypy
+        entry: .venv/Scripts/mypy.exe
+        language: system
+        args:
+          [
+            --ignore-missing-imports,
+            --check-untyped-defs,
+            --explicit-package-bases,
+            -p,
+            api,
+            -p,
+            config,
+            -p,
+            database,
+            -p,
+            handlers,
+            -p,
+            keyboards,
+            -p,
+            middleware,
+            -p,
+            scripts,
+            -p,
+            services,
+            -p,
+            utils,
+          ]
+        pass_filenames: false
+        always_run: true

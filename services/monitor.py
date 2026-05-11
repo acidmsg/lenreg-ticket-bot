@@ -7,6 +7,7 @@ from aiogram import Bot
 from api.zdrav_client import ZdravClient
 from config import settings
 from database.manager import DatabaseManager
+from services.healthcheck import _safe_set
 from utils.cache import swap_cache_key
 from utils.helpers import shorten_fio, shorten_specialty
 
@@ -82,12 +83,10 @@ def _classify_slot_change(slots, old_slots_data):
 
 
 async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
-    from services.healthcheck import _safe_set
-
     await _safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
 
-    empty_counts = {}
+    empty_counts: dict[str, int] = {}
 
     while True:
         try:
@@ -172,7 +171,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
                         has_slots = bool(slots)
                         link = (
-                            f"\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
+                            "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
                             if has_slots
                             else ""
                         )

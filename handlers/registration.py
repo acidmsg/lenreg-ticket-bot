@@ -81,7 +81,7 @@ async def process_bday(
         await state.update_data(p_id=p_id, bday=str(date.date()))
         await state.set_state(Registration.wait_alias)
         await message.answer(
-            f"✅ Нашли в базе! Введите псевдоним (например, 'Мама', до 25 симв.) или пропустите:",
+            "✅ Нашли в базе! Введите псевдоним (например, 'Мама', до 25 симв.) или пропустите:",
             reply_markup=get_registration_keyboard(step="alias"),
         )
     else:
@@ -119,7 +119,7 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
             ),
             parse_mode="Markdown",
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Ошибка при добавлении пациента %s для uid=%s", p_id, uid)
         await state.clear()
         await message.answer(
@@ -152,7 +152,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
                 ),
                 parse_mode="Markdown",
             )
-    except Exception as e:
+    except Exception:
         logger.exception("Ошибка при пропуске alias для p_id=%s uid=%s", p_id, uid)
         await state.clear()
         if isinstance(call.message, Message):

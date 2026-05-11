@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import logging
 import random
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import aiolimiter
 import httpx
@@ -192,7 +192,7 @@ class ZdravClient:
                         await asyncio.sleep(2)
                         continue
                 except Exception as e:
-                    logger.error(f"Ошибка API (check_slots), попытка {i+1}: {e}")
+                    logger.error(f"Ошибка API (check_slots), попытка {i + 1}: {e}")
                     await asyncio.sleep(2)
         return None
 
@@ -230,7 +230,9 @@ class ZdravClient:
                         await asyncio.sleep(2)
                         continue
                 except Exception as e:
-                    logger.error(f"Ошибка API (fetch_all_doctors), попытка {i+1}: {e}")
+                    logger.error(
+                        f"Ошибка API (fetch_all_doctors), попытка {i + 1}: {e}"
+                    )
                     await asyncio.sleep(2)
         return []
 

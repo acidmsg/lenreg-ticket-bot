@@ -5,7 +5,7 @@ Pydantic-модели для ответов API zdrav.lenreg.ru.
 на типизированный доступ с понятными сообщениями об ошибках.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 

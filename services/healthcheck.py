@@ -17,7 +17,6 @@ from aiogram import Bot
 
 from api.zdrav_client import ZdravClient
 from config import settings
-from database.database import Database
 from database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -223,29 +222,29 @@ def format_status_report(db: DatabaseManager) -> str:
     )
 
     lines = [
-        f"🤖 **lenreg_ticket_bot**",
-        f"———",
+        "🤖 **lenreg_ticket_bot**",
+        "———",
         f"⏱ **Аптайм:** {metrics.uptime_str()}",
-        f"",
+        "",
         f"📊 **Пользователи:** {total_users}",
         f"├ Пациентов: {total_patients}",
         f"├ В мониторинге: {active_monitorings}",
         f"└ Врачей под мониторингом: {total_monitored_doctors}",
-        f"",
-        f"🌐 **API zdrav.lenreg.ru:**",
+        "",
+        "🌐 **API zdrav.lenreg.ru:**",
         f"{metrics.api_health_str()}",
-        f"",
-        f"🔄 **Фоновые задачи:**",
+        "",
+        "🔄 **Фоновые задачи:**",
         f"├ Healthcheck: {'✅' if metrics.healthcheck_loop_alive else '❌'}",
         f"├ Monitor: {'✅' if metrics.monitor_loop_alive else '❌'}",
         f"└ Discovery: {metrics.discovery_tasks_alive} задач",
-        f"",
-        f"⚙️ **Настройки:**",
+        "",
+        "⚙️ **Настройки:**",
         f"├ Интервал проверки: {settings.CHECK_INTERVAL}с",
         f"├ Discovery: {settings.DISCOVERY_INTERVAL}с",
-        f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт / {settings.SLOT_THRESHOLD_PERCENTAGE*100:.0f}%",
+        f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт / {settings.SLOT_THRESHOLD_PERCENTAGE * 100:.0f}%",
         f"└ Клиника по умолчанию: {settings.DEFAULT_CLINIC_ID}",
-        f"",
+        "",
         f"⚠️ **Последняя ошибка:** {metrics.last_error_str()}",
     ]
 

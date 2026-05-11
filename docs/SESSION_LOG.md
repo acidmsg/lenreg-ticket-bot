@@ -612,3 +612,58 @@
 - Исправлено: `sleep_raises_on_call` для тестов с empty-slots protection (нужно 6 sleep-ов: per-doc×3 + jitter×3)
 
 **Результат:** 134/134 passed за 17.08 сек (все тесты проекта).
+
+## 2026-05-11 (B5 + F4)
+
+### B5 — Вынос `_safe_set` import наверх модуля ✅
+
+- [`services/monitor.py`](services/monitor.py:8) — `from services.healthcheck import _safe_set` перенесён из тела `monitor_loop()` в top-level imports
+- Причина «циклический импорт» оказалась ошибочной: `healthcheck.py` не импортирует `monitor.py`
+- [`tests/test_monitor_full.py`](tests/test_monitor_full.py:204) — monkeypatch target исправлен с `services.healthcheck._safe_set` → `services.monitor._safe_set`
+- **Результат:** 134/134 passed
+
+### F4 — Pre-commit hooks ✅
+
+- Создан [`.pre-commit-config.yaml`](.pre-commit-config.yaml:1) — 10 хуков (все `Passed`):
+  - `pre-commit-hooks` (trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files, debug-statements, detect-private-key, mixed-line-ending)
+  - `ruff check` (линтер, `--fix --exit-non-zero-on-fix`)
+  - `ruff format` (форматтер, `--check`)
+  - `mypy` (type checker, `--ignore-missing-imports --check-untyped-defs --explicit-package-bases`)
+- [`requirements.txt`](requirements.txt:20) — добавлены `pre-commit>=4.0`, `ruff>=0.14`, `mypy>=1.18` (Dev / Testing)
+- Установлен `pre-commit-hooks` пакет (через pip, SOCKS исправлен)
+- `.exe` wrappers скопированы из `d:\.venv` в `z:\.venv\Scripts` (venv создавался на d:)
+- Конфиг использует `repo: local` + `language: system` с абсолютными путями (устойчив к SOCKS proxy)
+
+### SOCKS proxy investigation (pip fix)
+
+- **Root cause:** В Windows Registry установлен `ProxyServer=socks=127.0.0.1:10808` (Clash/V2Ray для Telegram API из РФ)
+- pip обнаруживает SOCKS proxy → пытается использовать `SOCKSProxyManager` → требует `PySocks`
+- `PySocks` не установлен → pip не может соединиться → не может установить пакеты (chicken-and-egg)
+- **Fix:** Скачан `PySocks-1.7.1-py3-none-any.whl` через `Invoke-WebRequest` (минуя pip), установлен локально
+- Подтверждено: `pip install --dry-run pre-commit` работает через SOCKS
+
+### Попутные исправления кода
+
+- [`keyboards/inline.py`](keyboards/inline.py:240) — `except:` → `except (ValueError, TypeError):` (E722 bare except)
+- [`handlers/common.py`](handlers/common.py:498) — `"\n".join(slots)` → `"\n".join(slots) if slots else ...` (None-safety)
+- [`services/monitor.py`](services/monitor.py:89) — `empty_counts = {}` → `empty_counts: dict[str, int] = {}` (type annotation)
+- [`config.py`](config.py:2) — добавлены `Any, Callable` в imports; mapping аннотирован типом
+- [`handlers/common.py`](handlers/common.py:213,439,576) — удалены 3 unused variables (F841)
+- [`tests/test_doctor_discovery.py`](tests/test_doctor_discovery.py:171) — удалён unused `api` (F841)
+- ruff format исправил 7 файлов, mixed-line-ending — 54 файла
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`services/monitor.py`](services/monitor.py:8) | `_safe_set` import наверх; `empty_counts` аннотация |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py:204) | monkeypatch target исправлен |
+| [`.pre-commit-config.yaml`](.pre-commit-config.yaml:1) | Создан (local hooks, 10 хуков) |
+| [`requirements.txt`](requirements.txt:20) | Добавлены pre-commit, ruff, mypy |
+| [`keyboards/inline.py`](keyboards/inline.py:240) | bare except → конкретные типы |
+| [`handlers/common.py`](handlers/common.py:213) | unused variables удалены; None-safety |
+| [`config.py`](config.py:2) | typing imports; mapping аннотация |
+| [`docs/AGENT_TASKS.md`](docs/AGENT_TASKS.md:1) | Удалены B5, F4 |
+| [`docs/SESSION_LOG.md`](docs/SESSION_LOG.md:1) | Эта запись |
+
+**Результат:** 134/134 passed, 10/10 pre-commit hooks passed

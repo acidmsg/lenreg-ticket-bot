@@ -2,9 +2,6 @@
 Тесты для keyboards/inline.py — T4.
 """
 
-import pytest
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
 
 def _extract_buttons(markup):
     """Извлекает список (text, callback_data) из InlineKeyboardMarkup."""

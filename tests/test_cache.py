@@ -2,10 +2,7 @@
 Тесты для utils/cache.py.
 """
 
-import json
 import os
-
-import pytest
 
 
 class TestCache:

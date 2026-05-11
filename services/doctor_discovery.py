@@ -67,9 +67,10 @@ async def discovery_loop(
             # Сначала проверяем per-клиника discovery пациентов из БД
             clinic_patient_adult, clinic_patient_child = "", ""
             if db:
-                clinic_patient_adult, clinic_patient_child = (
-                    await db.get_clinic_discovery_patients(clinic_id)
-                )
+                (
+                    clinic_patient_adult,
+                    clinic_patient_child,
+                ) = await db.get_clinic_discovery_patients(clinic_id)
 
             # Определяем, какие patient_id использовать для данной клиники
             # Приоритет: per-клиника из БД > глобальные из settings
