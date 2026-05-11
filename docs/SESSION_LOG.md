@@ -702,3 +702,25 @@
 | [`docs/SESSION_LOG.md`](docs/SESSION_LOG.md:1) | Эта запись |
 
 **Результат:** 134/134 passed, 10/10 pre-commit hooks passed
+
+## 2026-05-12 (fix: ClinicListResponse IdLPU int→str coercion)
+
+### Анализ ошибок в error.log 🔍
+
+- В [`logs/error.log`](logs/error.log:3) обнаружена ошибка: `69 validation errors for ClinicListResponse`
+- **Root cause:** API `zdrav.lenreg.ru/api/clinic_list/` возвращает `IdLPU` как целые числа (int), а Pydantic-модель [`ClinicItem`](api/models.py:136) объявляла поле как `str`
+- **Последствия:** `fetch_clinic_list()` падал с исключением → `sync_clinic_names()` получал пустой список → названия клиник не синхронизировались в БД. Discovery-циклы всё равно запускались через fallback-список clinic IDs.
+
+### Исправление ✅
+
+- В [`api/models.py`](api/models.py:13) добавлена helper-функция `_coerce_str(v) → str` с `BeforeValidator` для приведения int/None к строке
+- Поле [`ClinicItem.IdLPU`](api/models.py:136) изменено на `Annotated[str, BeforeValidator(_coerce_str)]`
+- Потребитель в [`services/doctor_discovery.py`](services/doctor_discovery.py:145) уже делает `str(raw_id)` — совместимость сохранена
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`api/models.py`](api/models.py:13) | Добавлены `Annotated`, `BeforeValidator`, `_coerce_str`; `IdLPU` с валидатором |
+
+**Результат:** 38/38 tests passed (test_doctor_discovery.py + test_zdrav_client.py)

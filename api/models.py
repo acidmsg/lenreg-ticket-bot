@@ -5,9 +5,15 @@ Pydantic-модели для ответов API zdrav.lenreg.ru.
 на типизированный доступ с понятными сообщениями об ошибках.
 """
 
-from typing import Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
+
+
+def _coerce_str(v: Any) -> str:
+    """Приводит значение к строке (API иногда возвращает числа вместо строк)."""
+    return str(v) if v is not None else ""
+
 
 # ── Общие (shared) ────────────────────────────────────────────
 
@@ -127,7 +133,7 @@ class AppointmentListResponse(BaseModel):
 class ClinicItem(BaseModel):
     """Одна клиника из списка."""
 
-    IdLPU: str = ""
+    IdLPU: Annotated[str, BeforeValidator(_coerce_str)] = ""
     LpuName: str = ""
     LPUShortName: str = ""
 
