@@ -532,3 +532,18 @@
 - **`tests/test_doctor_discovery.py:65`** — `assert_called_once_with` обновлён: добавлен `limiter=None`
 
 **Результат:** 116/116 passed за 16.47 сек.
+
+## 2026-05-11
+
+### D2 — Ручные миграции (migrations.py + schema_version)
+
+**Проблема:** Схема БД задавалась через `CREATE TABLE IF NOT EXISTS` в `_create_tables()`. Ad-hoc миграция колонок — `_migrate_clinics_add_columns()` с `ALTER TABLE` в try/except. Таблица `schema_version` существовала, но не использовалась. Нет версионирования, нет истории изменений схемы.
+
+**Решение:**
+
+- **`database/migrations.py:1-95`** — Новый файл с упорядоченным списком `MIGRATIONS`. `migrate_v1_initial_schema` — создание всех таблиц (initial), `migrate_v2_clinics_columns` — `ALTER TABLE clinics ADD COLUMN` для `type`, `is_active`, `city`, `discovery_patient_adult`, `discovery_patient_child`
+- **`database/database.py:178-210`** — `_create_tables()` теперь создаёт только `schema_version`. `_run_migrations()` читает текущую версию из БД, применяет миграции с номером > текущего, обновляет `schema_version`
+- **`database/database.py:147`** — `_run_migrations()` вызывается в `connect()` после `_create_tables()`
+- **`database/database.py:237-254`** — Метод `_migrate_clinics_add_columns()` удалён (логика перенесена в `migrate_v2_clinics_columns`)
+
+**Результат:** 116/116 passed за 16.35 сек.

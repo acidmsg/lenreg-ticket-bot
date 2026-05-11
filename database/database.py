@@ -144,6 +144,7 @@ class Database:
             c.row_factory = aiosqlite.Row
 
             await self._create_tables()
+            await self._run_migrations()
             await self._enable_wal()
 
         except aiosqlite.Error as e:
@@ -175,83 +176,38 @@ class Database:
         await c.execute("PRAGMA foreign_keys=ON")
 
     async def _create_tables(self):
+        """Создаёт только таблицу schema_version — всё остальное через миграции."""
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
-        await c.executescript("""
-CREATE TABLE IF NOT EXISTS user_last_messages (
-uid                 TEXT NOT NULL,
-p_id                TEXT NOT NULL,
-d_id                TEXT NOT NULL,
-msg_id              INTEGER NOT NULL,
-ts                  REAL NOT NULL DEFAULT 0,
-PRIMARY KEY (uid, p_id, d_id)
-);
-CREATE TABLE IF NOT EXISTS clinics (
-clinic_id           TEXT PRIMARY KEY,
-name                TEXT NOT NULL DEFAULT 'Unknown',
-type                TEXT NOT NULL DEFAULT 'adult',
-is_active           INTEGER NOT NULL DEFAULT 1
-);
-CREATE TABLE IF NOT EXISTS doctors (
-clinic_id           TEXT NOT NULL,
-doctor_id           TEXT NOT NULL,
-name                TEXT NOT NULL,
-specialty           TEXT NOT NULL DEFAULT '',
-PRIMARY KEY (clinic_id, doctor_id)
-);
-CREATE TABLE IF NOT EXISTS user_patients (
-uid                 TEXT NOT NULL,
-p_id                TEXT NOT NULL,
-fio                 TEXT NOT NULL DEFAULT '',
-bday                TEXT NOT NULL DEFAULT '',
-alias               TEXT,
-confirmed_clinics   TEXT NOT NULL DEFAULT '[]',
-PRIMARY KEY (uid, p_id)
-);
-CREATE TABLE IF NOT EXISTS user_monitoring (
-uid                 TEXT NOT NULL,
-p_id                TEXT NOT NULL,
-d_id                TEXT NOT NULL,
-name                TEXT NOT NULL DEFAULT '',
-clinic_id           TEXT NOT NULL DEFAULT '',
-specialty           TEXT NOT NULL DEFAULT '',
-PRIMARY KEY (uid, p_id, d_id)
-);
-CREATE TABLE IF NOT EXISTS config (
-key                 TEXT PRIMARY KEY,
-value               TEXT NOT NULL DEFAULT ''
-);
-CREATE TABLE IF NOT EXISTS specialty_aliases (
-full_name           TEXT PRIMARY KEY,
-short_name          TEXT NOT NULL DEFAULT ''
-);
-CREATE TABLE IF NOT EXISTS schema_version (
-version             INTEGER PRIMARY KEY
-);
-""")
+        await c.execute(
+            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
+        )
         await c.commit()
-        # Миграция для существующих БД: добавить колонки, если их нет
-        await self._migrate_clinics_add_columns()
 
-    async def _migrate_clinics_add_columns(self):
-        """Добавляет недостающие колонки в таблицу clinics (для существующих БД)."""
+    async def _run_migrations(self):
+        """Применяет все миграции с версией > текущей schema_version."""
+        from database.migrations import MIGRATIONS
+
         c = self._conn
         if c is None:
-            return
-        for col, col_type, default in [
-            ("type", "TEXT", "'adult'"),
-            ("is_active", "INTEGER", "1"),
-            ("city", "TEXT", "''"),
-            ("discovery_patient_adult", "TEXT", "''"),
-            ("discovery_patient_child", "TEXT", "''"),
-        ]:
-            try:
+            raise RuntimeError("Database connection not initialized")
+
+        # Читаем текущую версию схемы
+        cursor = await c.execute("SELECT MAX(version) FROM schema_version")
+        row = await cursor.fetchone()
+        current = row[0] if (row and row[0] is not None) else 0
+
+        for version, migrate_fn in MIGRATIONS:
+            if version > current:
+                logger.info(f"Применяется миграция v{version}...")
+                await migrate_fn(self)
                 await c.execute(
-                    f"ALTER TABLE clinics ADD COLUMN {col} {col_type} NOT NULL DEFAULT {default}"
+                    "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                    (version,),
                 )
-            except Exception:
-                pass  # колонка уже существует
+                await c.commit()
+                logger.info(f"Миграция v{version} применена")
 
     # ── Пользователи ────────────────────────────────────────
     async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
