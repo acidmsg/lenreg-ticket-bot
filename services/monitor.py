@@ -5,7 +5,7 @@ import random
 from aiogram import Bot
 
 from api.zdrav_client import ZdravClient
-from config import CLINICS_REGISTRY, settings
+from config import settings
 from database.manager import DatabaseManager
 from utils.cache import swap_cache_key
 from utils.helpers import shorten_fio, shorten_specialty

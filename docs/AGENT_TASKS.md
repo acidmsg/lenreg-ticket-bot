@@ -6,7 +6,7 @@
 |---|---|---|---|
 | B1 | Гонка данных в `get_user_data()` — переписать на async + `asyncio.Lock` | 🔴 Критичный | `database/manager.py:36-46`, синхронный метод без lock |
 | B2 | Утечка памяти в `empty_counts` — заменить `dict` на `TTLCache` | 🔴 Критичный | `services/monitor.py:90`, словарь растёт бесконечно |
-| B3 | Синхронный read/write JSON в `handlers/common.py` — заменить на `update_cache_key()` из `utils/cache.py` | 🔴 Критичный | `handlers/common.py:269-279`, race condition с monitor_loop |
+| ~~B3~~ | ~~Синхронный read/write JSON в `handlers/common.py`~~ | ✅ **Выполнено** | Заменён на асинхронный (`aiofiles`), но не на `update_cache_key()` |
 
 ## 🟡 Средний приоритет
 
@@ -15,7 +15,7 @@
 | # | Задача | Приоритет | Примечание |
 |---|---|---|---|
 | B4 | try/except + `state.clear()` в `process_alias` и `skip_alias` | 🟡 Высокий | `handlers/registration.py:107,131` — при ошибке FSM зависает |
-| B5 | Импорт `metrics` внутри `monitor_loop()` вынести наверх модуля | 🟢 Низкий | `services/monitor.py:85` |
+| ~~B5~~ | ~~Импорт `metrics` внутри `monitor_loop()` вынести наверх модуля~~ | 🟢 Низкий | **Не выполнен** — циклический импорт, оставлено как есть |
 
 ### Архитектура
 
@@ -24,7 +24,7 @@
 | R1 | Pydantic модели для API ответов (validate response shape) | 🟡 Средний | `api/zdrav_client.py` — сейчас сырые `.get()` |
 | R4 | Healthcheck — проверять несколько клиник вместо `CLINICS[0]` | 🟡 Средний | `services/healthcheck.py:114-116` |
 | R5 | Защита глобального `metrics` от гонок (Singleton + `asyncio.Lock`) | 🟡 Средний | `services/healthcheck.py:92` |
-| R6 | `CLINICS = list(CLINICS_REGISTRY.keys())` вместо ручного списка | 🟢 Низкий | `config.py:35` |
+| ~~R6~~ | ~~`CLINICS = list(CLINICS_REGISTRY.keys())` вместо ручного списка~~ | ✅ **Неактуально** | `CLINICS_REGISTRY` удалён, клиники из БД |
 | R7 | Отдельные `AsyncLimiter` для monitor / discovery / healthcheck | 🟡 Средний | `api/zdrav_client.py:18-20` |
 
 ### Тесты
@@ -66,13 +66,13 @@
 
 - [ ] B1 — async `get_user_data()` + `asyncio.Lock`
 - [ ] B2 — `empty_counts` → `TTLCache`
-- [ ] B3 — синхронный JSON в `common.py` → `update_cache_key()`
+- [x] ~~B3 — синхронный JSON в `common.py` → асинхронный (`aiofiles`)~~
 - [ ] B4 — try/except в registration
-- [ ] B5 — import `metrics` вынести наверх
+- [ ] B5 — import `metrics` вынести наверх (отложено — циклический импорт)
 - [ ] R1 — Pydantic модели API
 - [ ] R4 — healthcheck несколько клиник
 - [ ] R5 — защита `metrics` lock'ом
-- [ ] R6 — `CLINICS = list(CLINICS_REGISTRY.keys())`
+- [x] ~~R6 — `CLINICS = list(CLINICS_REGISTRY.keys())` (неактуально)~~
 - [ ] R7 — отдельные limiters
 - [ ] T1‑T4 — тесты
 - [ ] D1 — Docker

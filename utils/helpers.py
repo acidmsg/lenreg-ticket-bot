@@ -6,6 +6,30 @@ import re
 from datetime import datetime
 from typing import Optional
 
+# ── Кэш псевдонимов специальностей, загружаемый из БД ────────
+_db_specialty_aliases: dict[str, str] = {}
+
+
+async def load_specialty_aliases_from_db(db):
+    """Загружает псевдонимы специальностей из БД в кэш."""
+    global _db_specialty_aliases
+    try:
+        aliases = await db.get_all_specialty_aliases()
+        if aliases:
+            _db_specialty_aliases = aliases
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            f"Не удалось загрузить псевдонимы из БД: {e}"
+        )
+
+
+def set_specialty_aliases(aliases: dict[str, str]):
+    """Устанавливает псевдонимы специальностей (для тестов)."""
+    global _db_specialty_aliases
+    _db_specialty_aliases = aliases
+
 
 def is_child(bday_str: str) -> bool:
     """
@@ -121,9 +145,14 @@ def shorten_specialty(specialty: str) -> str:
     """
     Возвращает короткий псевдоним специальности, если он есть в словаре,
     иначе — исходное название.
+    Сначала проверяет кэш из БД, затем хардкод SPECIALTY_ALIASES.
     """
     if not specialty:
         return ""
+    # Сначала проверяем кэш из БД (если загружен и не пуст)
+    if _db_specialty_aliases:
+        return _db_specialty_aliases.get(specialty, specialty)
+    # Fallback на хардкод
     return SPECIALTY_ALIASES.get(specialty, specialty)
 
 

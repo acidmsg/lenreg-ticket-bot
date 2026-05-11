@@ -1,0 +1,186 @@
+import os
+from typing import Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ClinicInfo:
+    """Информация о поликлинике."""
+
+    def __init__(self, name: str, clinic_type: str):
+        self.name = name
+        self.type = clinic_type
+
+
+# Единый справочник клиник -- используется как fallback, если БД не загружена
+# или при первом запуске до миграции
+CLINICS_REGISTRY: dict[str, ClinicInfo] = {
+    "272": ClinicInfo(name="Стоматологическая", clinic_type="all"),
+    "271": ClinicInfo(name="Взрослая", clinic_type="adult"),
+    "161": ClinicInfo(name="Детская", clinic_type="child"),
+}
+
+
+class Settings(BaseSettings):
+    BOT_TOKEN: str = "MUST_BE_OVERRIDDEN_IN_ENV"
+    SQLITE_DB_PATH: str = "data/bot.db"
+    CACHE_PATH: str = "data/monitoring_cache.json"
+
+    # Прокси для Telegram
+    PROXY_URL: Optional[str] = None
+
+    # Интервал проверки в секундах
+    CHECK_INTERVAL: int = 300
+    DISCOVERY_INTERVAL: int = 1800  # 30 минут
+    CLINICS: list = [272, 271, 161]
+
+    # Таймаут запросов к API
+    API_TIMEOUT: float = 10.0
+
+    # Пороги для уведомлений об уменьшении номерков
+    SLOT_THRESHOLD_ABSOLUTE: int = 5
+    SLOT_THRESHOLD_PERCENTAGE: float = 0.25
+
+    # ID пациентов для discovery (используются для получения списка специальностей)
+    DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
+    DISCOVERY_PATIENT_ID_CHILD: str = "2509768"
+
+    # === Вынесенные хардкоды ===
+
+    # Базовый URL API zdrav.lenreg.ru
+    API_BASE_URL: str = "https://zdrav.lenreg.ru/api"
+
+    # Referer для HTTP-заголовков
+    REFERER_URL: str = "https://zdrav.lenreg.ru/signup/free/"
+
+    # CSRF-токен (технический, всегда одинаковый)
+    CSRF_TOKEN: str = "NOTPROVIDED"
+
+    # Клиника по умолчанию для первичного поиска пациента
+    DEFAULT_CLINIC_ID: str = "272"
+
+    # Дефолтная дата рождения для новых пациентов без даты
+    DEFAULT_BIRTHDAY: str = "1990-01-01"
+
+    # ID администраторов, имеющих доступ к команде /status (через запятую, например: 123456789 или 123456789,987654321)
+    ADMIN_IDS: str = ""
+
+    # Автоудаление сообщений: TTL в секундах (7 дней по умолчанию)
+    MESSAGE_TTL_SECONDS: int = 604800
+    CLEANUP_INTERVAL: int = 3600  # Проверять каждые 1 час
+
+    model_config = SettingsConfigDict(env_file=".env")
+
+
+settings = Settings()
+
+
+# ── Кэш конфигов, загруженных из БД ──────────────────────────
+
+_db_config_cache: dict[str, str] = {}
+
+# Список ключей, которые переопределяются из БД
+DB_CONFIG_KEYS = [
+    "slot_threshold_absolute",
+    "slot_threshold_percentage",
+    "check_interval",
+    "discovery_interval",
+    "discovery_patient_id_adult",
+    "discovery_patient_id_child",
+    "default_clinic_id",
+    "default_birthday",
+    "message_ttl_seconds",
+    "cleanup_interval",
+    "api_base_url",
+    "referer_url",
+    "csrf_token",
+    "api_timeout",
+]
+
+
+async def load_config_from_db(db):
+    """Загружает конфиги из таблицы config в кэш."""
+    global _db_config_cache
+    try:
+        _db_config_cache = await db.get_all_config()
+        _apply_db_config()
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            f"Не удалось загрузить конфиги из БД: {e}. Используются значения по умолчанию."
+        )
+
+
+def get_db_config(key: str, default: str = "") -> str:
+    """Возвращает значение конфига из кэша БД или пустую строку."""
+    return _db_config_cache.get(key, default)
+
+
+def get_db_config_int(key: str, default: int = 0) -> int:
+    """Возвращает целочисленное значение конфига из кэша БД."""
+    val = _db_config_cache.get(key)
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def get_db_config_float(key: str, default: float = 0.0) -> float:
+    """Возвращает float-значение конфига из кэша БД."""
+    val = _db_config_cache.get(key)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _apply_db_config():
+    """Применяет загруженные из БД конфиги к объекту settings."""
+    global _db_config_cache
+    if not _db_config_cache:
+        return
+
+    int_keys = {
+        "slot_threshold_absolute": "SLOT_THRESHOLD_ABSOLUTE",
+        "check_interval": "CHECK_INTERVAL",
+        "discovery_interval": "DISCOVERY_INTERVAL",
+        "message_ttl_seconds": "MESSAGE_TTL_SECONDS",
+        "cleanup_interval": "CLEANUP_INTERVAL",
+        "api_timeout": "API_TIMEOUT",
+    }
+    str_keys = {
+        "discovery_patient_id_adult": "DISCOVERY_PATIENT_ID_ADULT",
+        "discovery_patient_id_child": "DISCOVERY_PATIENT_ID_CHILD",
+        "default_clinic_id": "DEFAULT_CLINIC_ID",
+        "default_birthday": "DEFAULT_BIRTHDAY",
+        "api_base_url": "API_BASE_URL",
+        "referer_url": "REFERER_URL",
+        "csrf_token": "CSRF_TOKEN",
+    }
+    float_keys = {
+        "slot_threshold_percentage": "SLOT_THRESHOLD_PERCENTAGE",
+    }
+
+    for db_key, attr_name in int_keys.items():
+        if db_key in _db_config_cache:
+            try:
+                setattr(settings, attr_name, int(_db_config_cache[db_key]))
+            except (ValueError, TypeError):
+                pass
+
+    for db_key, attr_name in str_keys.items():
+        if db_key in _db_config_cache:
+            setattr(settings, attr_name, _db_config_cache[db_key])
+
+    for db_key, attr_name in float_keys.items():
+        if db_key in _db_config_cache:
+            try:
+                setattr(settings, attr_name, float(_db_config_cache[db_key]))
+            except (ValueError, TypeError):
+                pass

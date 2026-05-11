@@ -16,7 +16,7 @@ from typing import Optional
 from aiogram import Bot
 
 from api.zdrav_client import ZdravClient
-from config import CLINICS_REGISTRY, settings
+from config import settings
 from database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             try:
                 metrics.api_checks_total += 1
                 specialties = await api.fetch_speciality_list(
-                    settings.DISCOVERY_PATIENT_ID_ADULT, str(settings.CLINICS[0])
+                    settings.DISCOVERY_PATIENT_ID_ADULT, settings.DEFAULT_CLINIC_ID
                 )
                 if specialties is not None:
                     metrics.api_success_total += 1
@@ -195,7 +195,7 @@ def format_status_report(db: DatabaseManager) -> str:
         f"├ Интервал проверки: {settings.CHECK_INTERVAL}с",
         f"├ Discovery: {settings.DISCOVERY_INTERVAL}с",
         f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт / {settings.SLOT_THRESHOLD_PERCENTAGE*100:.0f}%",
-        f"└ Клиники: {', '.join(f'{k} ({v.name})' for k, v in CLINICS_REGISTRY.items())}",
+        f"└ Клиника по умолчанию: {settings.DEFAULT_CLINIC_ID}",
         f"",
         f"⚠️ **Последняя ошибка:** {metrics.last_error_str()}",
     ]

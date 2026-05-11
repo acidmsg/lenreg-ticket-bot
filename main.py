@@ -46,8 +46,25 @@ async def main():
     # Инициализация API клиента
     api = ZdravClient()
 
-    # Синхронизация названий клиник из API
+    # Сидирование псевдонимов специальностей из fallback (если таблица пуста)
+    await database.seed_specialty_aliases_from_fallback()
+
+    # Сидирование конфигов из defaults settings (если таблица config пуста)
+    await database.seed_config_from_defaults()
+
+    # Синхронизация названий клиник из API (обновляет только имя)
     await sync_clinic_names(api, database)
+
+    # Загрузка конфигов из БД (переопределяет значения из settings)
+    try:
+        from config import load_config_from_db
+        from utils.helpers import load_specialty_aliases_from_db
+
+        await load_config_from_db(database)
+        await load_specialty_aliases_from_db(database)
+        logger.info("Конфиги и псевдонимы специальностей загружены из БД")
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить данные из БД: {e}")
 
     # Инициализация бота и диспетчера
     session = None
@@ -67,11 +84,16 @@ async def main():
     # Запуск фонового мониторинга
     background_tasks.append(asyncio.create_task(monitor_loop(bot, api, db)))
 
-    # Запуск фонового discovery для всех поликлиник
+    # Запуск фонового discovery для всех активных поликлиник
     doc_manager = DoctorManager(database)
     await doc_manager.load()
 
-    for clinic_id in settings.CLINICS:
+    # Получаем список активных клиник из БД
+    clinic_ids = await database.get_active_clinic_ids()
+    if not clinic_ids:
+        logger.warning("Таблица clinics пуста, фоновый discovery не запущен")
+
+    for clinic_id in clinic_ids:
         task = asyncio.create_task(
             discovery_loop(
                 api,

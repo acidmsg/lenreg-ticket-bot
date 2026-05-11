@@ -1,24 +1,29 @@
+import logging
 import os
 from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-class ClinicInfo:
-    """Информация о поликлинике."""
-
-    def __init__(self, name: str, clinic_type: str):
-        self.name = name
-        self.type = clinic_type
+logger = logging.getLogger(__name__)
 
 
-# Единый справочник клиник -- используется везде в проекте
-CLINICS_REGISTRY: dict[str, ClinicInfo] = {
-    "272": ClinicInfo(name="Стоматологическая", clinic_type="all"),
-    "271": ClinicInfo(name="Взрослая", clinic_type="adult"),
-    "161": ClinicInfo(name="Детская", clinic_type="child"),
-}
+# Ключи конфигов, которые можно хранить в таблице config
+CONFIG_KEY_API_TIMEOUT = "api_timeout"
+CONFIG_KEY_CHECK_INTERVAL = "check_interval"
+CONFIG_KEY_DISCOVERY_INTERVAL = "discovery_interval"
+CONFIG_KEY_MESSAGE_TTL_SECONDS = "message_ttl_seconds"
+CONFIG_KEY_CLEANUP_INTERVAL = "cleanup_interval"
+CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE = "slot_threshold_absolute"
+CONFIG_KEY_SLOT_THRESHOLD_PERCENTAGE = "slot_threshold_percentage"
+CONFIG_KEY_DISCOVERY_PATIENT_ADULT = "discovery_patient_adult"
+CONFIG_KEY_DISCOVERY_PATIENT_CHILD = "discovery_patient_child"
+CONFIG_KEY_DEFAULT_CLINIC_ID = "default_clinic_id"
+CONFIG_KEY_DEFAULT_BIRTHDAY = "default_birthday"
+CONFIG_KEY_API_BASE_URL = "api_base_url"
+CONFIG_KEY_REFERER_URL = "referer_url"
+CONFIG_KEY_CSRF_TOKEN = "csrf_token"
+CONFIG_KEY_ADMIN_IDS = "admin_ids"
 
 
 class Settings(BaseSettings):
@@ -32,7 +37,6 @@ class Settings(BaseSettings):
     # Интервал проверки в секундах
     CHECK_INTERVAL: int = 300
     DISCOVERY_INTERVAL: int = 1800  # 30 минут
-    CLINICS: list = [272, 271, 161]
 
     # Таймаут запросов к API
     API_TIMEOUT: float = 10.0
@@ -73,3 +77,46 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+async def load_config_from_db(database):
+    """
+    Загружает настройки из таблицы config БД и переопределяет значения settings.
+    Вызывается при старте бота после инициализации БД.
+    """
+    try:
+        mapping = {
+            CONFIG_KEY_API_TIMEOUT: ("API_TIMEOUT", float),
+            CONFIG_KEY_CHECK_INTERVAL: ("CHECK_INTERVAL", int),
+            CONFIG_KEY_DISCOVERY_INTERVAL: ("DISCOVERY_INTERVAL", int),
+            CONFIG_KEY_MESSAGE_TTL_SECONDS: ("MESSAGE_TTL_SECONDS", int),
+            CONFIG_KEY_CLEANUP_INTERVAL: ("CLEANUP_INTERVAL", int),
+            CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE: ("SLOT_THRESHOLD_ABSOLUTE", int),
+            CONFIG_KEY_SLOT_THRESHOLD_PERCENTAGE: ("SLOT_THRESHOLD_PERCENTAGE", float),
+            CONFIG_KEY_DISCOVERY_PATIENT_ADULT: ("DISCOVERY_PATIENT_ID_ADULT", str),
+            CONFIG_KEY_DISCOVERY_PATIENT_CHILD: ("DISCOVERY_PATIENT_ID_CHILD", str),
+            CONFIG_KEY_DEFAULT_CLINIC_ID: ("DEFAULT_CLINIC_ID", str),
+            CONFIG_KEY_DEFAULT_BIRTHDAY: ("DEFAULT_BIRTHDAY", str),
+            CONFIG_KEY_API_BASE_URL: ("API_BASE_URL", str),
+            CONFIG_KEY_REFERER_URL: ("REFERER_URL", str),
+            CONFIG_KEY_CSRF_TOKEN: ("CSRF_TOKEN", str),
+            CONFIG_KEY_ADMIN_IDS: ("ADMIN_IDS", str),
+        }
+
+        all_config = await database.get_all_config()
+        loaded = 0
+        for key, value in all_config.items():
+            if key in mapping:
+                attr_name, cast_type = mapping[key]
+                try:
+                    setattr(settings, attr_name, cast_type(value))
+                    loaded += 1
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Не удалось преобразовать config[{key}]='{value}' в {cast_type.__name__}"
+                    )
+
+        if loaded:
+            logger.info(f"Загружено {loaded} настроек из таблицы config")
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить настройки из config: {e}")

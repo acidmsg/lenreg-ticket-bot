@@ -4,7 +4,7 @@ import random
 from typing import Dict, List
 
 from api.zdrav_client import ZdravClient
-from config import CLINICS_REGISTRY, settings
+from config import settings
 from database.database import Database
 from database.doctor_manager import DoctorManager
 
@@ -33,6 +33,17 @@ async def fetch_specialties(
         return []
 
 
+async def _get_clinic_type_from_db(database, clinic_id: str) -> str:
+    """Получает тип клиники из БД. Если не найден — возвращает 'adult'."""
+    try:
+        clinic_type = await database.get_clinic_type(str(clinic_id))
+        if clinic_type:
+            return clinic_type
+    except Exception:
+        pass
+    return "adult"
+
+
 async def discovery_loop(
     api: ZdravClient,
     doctor_manager: DoctorManager,
@@ -46,19 +57,29 @@ async def discovery_loop(
         try:
             all_doctors_with_specialty = []
 
-            clinic_info = CLINICS_REGISTRY.get(str(clinic_id))
+            db = doctor_manager._db if hasattr(doctor_manager, "_db") else None
+
+            # Получаем тип клиники (из БД)
+            clinic_type = await _get_clinic_type_from_db(db, clinic_id)
+
+            # Сначала проверяем per-клиника discovery пациентов из БД
+            clinic_patient_adult, clinic_patient_child = "", ""
+            if db:
+                clinic_patient_adult, clinic_patient_child = (
+                    await db.get_clinic_discovery_patients(clinic_id)
+                )
 
             # Определяем, какие patient_id использовать для данной клиники
-            if clinic_info and clinic_info.type == "child":
-                # Детская клиника — только детский patient_id
-                patient_ids = [patient_id_child]
-            elif clinic_info and clinic_info.type == "all":
-                # Стоматология (все возрасты) — оба patient_id,
-                # чтобы собрать и взрослые, и детские специальности
-                patient_ids = [patient_id_adult, patient_id_child]
+            # Приоритет: per-клиника из БД > глобальные из settings
+            if clinic_type == "child":
+                patient_ids = [clinic_patient_child or patient_id_child]
+            elif clinic_type == "all":
+                patient_ids = [
+                    clinic_patient_adult or patient_id_adult,
+                    clinic_patient_child or patient_id_child,
+                ]
             else:
-                # Взрослая клиника — только взрослый patient_id
-                patient_ids = [patient_id_adult]
+                patient_ids = [clinic_patient_adult or patient_id_adult]
 
             for current_patient_id in patient_ids:
                 specialties_data = await fetch_specialties(

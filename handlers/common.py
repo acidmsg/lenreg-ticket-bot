@@ -4,25 +4,105 @@ import logging
 import os
 from typing import Optional
 
+import aiofiles
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from api.zdrav_client import ZdravClient
-from config import CLINICS_REGISTRY, settings
+from config import settings
 from database.manager import DatabaseManager
 from keyboards.inline import (
+    get_city_selection,
     get_clinic_selection,
     get_confirm_deletion,
     get_doctor_selection,
     get_patient_selection,
 )
+from services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from services.healthcheck import format_status_report, metrics
 from utils.cache import delete_cache_keys_by_prefix, spam_cache
 from utils.helpers import extract_msg_id, is_child, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+# Хранит city_idx последнего выбора клиники для каждого пользователя
+# (нужен для кнопки "Назад к клиникам" в списке врачей)
+_user_clinic_city_idx: dict[str, str] = {}  # key: f"{uid}_{p_id}_{clinic_id}"
+
+
+# ── On-demand discovery врачей (когда БД пуста для этой клиники) ──
+
+
+async def _discover_doctors_on_demand(
+    api: ZdravClient,
+    db: DatabaseManager,
+    clinic_id: str,
+    p_id: str,
+) -> dict:
+    """
+    Загружает врачей из API, сохраняет и возвращает словарь.
+    Сначала пробует patient_id пользователя (он прикреплён к этой клинике),
+    если не сработало — fallback на хардкодных discovery-пациентов.
+    """
+    try:
+        clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+        patient_id_adult = settings.DISCOVERY_PATIENT_ID_ADULT
+        patient_id_child = settings.DISCOVERY_PATIENT_ID_CHILD
+
+        # Приоритет: patient_id пользователя > типовой discovery
+        patient_candidates = [p_id]
+        if clinic_type == "child":
+            patient_candidates.append(patient_id_child)
+        elif clinic_type == "all":
+            patient_candidates.extend([patient_id_adult, patient_id_child])
+        else:
+            patient_candidates.append(patient_id_adult)
+
+        all_doctors = []
+        tried_patients = set()
+
+        for current_patient_id in patient_candidates:
+            if current_patient_id in tried_patients:
+                continue
+            tried_patients.add(current_patient_id)
+
+            specialties_data = await fetch_specialties(
+                api, current_patient_id, clinic_id
+            )
+            if not specialties_data:
+                continue  # пробуем следующего пациента
+
+            for spec_info in specialties_data:
+                spec_id = spec_info["IdSpesiality"]
+                spec_name = spec_info["NameSpesiality"]
+                doctors = await api.fetch_all_doctors(
+                    specialty_id=spec_id,
+                    patient_id=current_patient_id,
+                    clinic_id=clinic_id,
+                )
+                if doctors:
+                    for doc in doctors:
+                        doc["SpesialityName"] = spec_name
+                    all_doctors.extend(doctors)
+                await asyncio.sleep(0.3)
+
+            # Если нашли хотя бы одного врача — хватит
+            if all_doctors:
+                break
+
+        if all_doctors:
+            await db.merge_doctors(clinic_id, all_doctors)
+            logger.info(
+                f"On-demand discovery для {clinic_id}: {len(all_doctors)} врачей "
+                f"(patient={patient_candidates[0]})"
+            )
+
+        return await db.get_doctors_for_clinic(clinic_id)
+    except Exception as e:
+        logger.error(f"Ошибка on-demand discovery для {clinic_id}: {e}")
+        return {}
 
 
 # ── Единый механизм удаления сообщений из last_messages ─────
@@ -135,17 +215,145 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
     uid = str(call.from_user.id)
     user_data = db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
-    clinic_names = await db.get_all_clinic_names()
+
+    # Получаем города активных клиник
+    cities = await db._db.get_distinct_cities()
+    clinics_data = await db._db.get_active_clinics()
+    monitoring = user_data.get("monitoring")
 
     try:
         if isinstance(call.message, Message):
             await call.message.edit_text(
-                "🏥 Выберите поликлинику:",
+                "📍 Сначала выберите город/район:",
+                reply_markup=get_city_selection(
+                    p_id,
+                    cities=cities,
+                    monitoring=monitoring,
+                    clinics_data=clinics_data,
+                ),
+            )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("sel_cty_"))
+async def select_city(call: CallbackQuery, db: DatabaseManager):
+    if not call.message or not call.from_user or not call.data:
+        return
+    # Формат: sel_cty_{p_id}_{idx} где idx — 1-based индекс города или "all"
+    parts = call.data.split("_", 3)
+    if len(parts) < 4:
+        return
+    p_id = parts[2]
+    idx_or_all = parts[3]
+    uid = str(call.from_user.id)
+    user_data = db.get_user_data(uid)
+    p_info = user_data["patients"].get(p_id, {})
+
+    clinic_names = await db.get_all_clinic_names()
+    clinics_data = await db._db.get_active_clinics()
+    cities = await db._db.get_distinct_cities()
+
+    # Раскодируем индекс → название города
+    selected_city = None
+    if idx_or_all != "all":
+        try:
+            idx = int(idx_or_all)
+            if 1 <= idx <= len(cities):
+                selected_city = cities[idx - 1]
+        except (ValueError, IndexError):
+            pass
+
+    try:
+        if isinstance(call.message, Message):
+            city_label = (
+                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+            )
+            await call.message.edit_text(
+                city_label,
                 reply_markup=get_clinic_selection(
                     p_id,
                     p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                    selected_city=selected_city,
                     monitoring=user_data.get("monitoring"),
                     clinic_names=clinic_names,
+                    clinics_data=clinics_data,
+                    city_idx=idx_or_all,
+                ),
+            )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("back_to_cities_"))
+async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
+    """Возвращает к выбору города."""
+    if not call.message or not call.from_user or not call.data:
+        return
+    p_id = call.data.replace("back_to_cities_", "")
+    uid = str(call.from_user.id)
+    user_data = db.get_user_data(uid)
+    cities = await db._db.get_distinct_cities()
+    clinics_data = await db._db.get_active_clinics()
+    try:
+        if isinstance(call.message, Message):
+            await call.message.edit_text(
+                "📍 Сначала выберите город/район:",
+                reply_markup=get_city_selection(
+                    p_id,
+                    cities=cities,
+                    monitoring=user_data.get("monitoring"),
+                    clinics_data=clinics_data,
+                ),
+            )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("back_to_clinics_"))
+async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
+    """Возвращает к списку клиник (того же города или всех)."""
+    if not call.message or not call.from_user or not call.data:
+        return
+    # Формат: back_to_clinics_{p_id}_{city_idx}
+    parts = call.data.split("_")
+    if len(parts) < 5:
+        return
+    p_id = parts[3]
+    city_idx = parts[4]  # всегда есть, т.к. len >= 5
+    uid = str(call.from_user.id)
+    user_data = db.get_user_data(uid)
+    p_info = user_data["patients"].get(p_id, {})
+
+    clinic_names = await db.get_all_clinic_names()
+    clinics_data = await db._db.get_active_clinics()
+    cities = await db._db.get_distinct_cities()
+
+    # Раскодируем индекс → название города
+    selected_city = None
+    if city_idx != "all":
+        try:
+            idx = int(city_idx)
+            if 1 <= idx <= len(cities):
+                selected_city = cities[idx - 1]
+        except (ValueError, IndexError):
+            pass
+
+    try:
+        if isinstance(call.message, Message):
+            city_label = (
+                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+            )
+            await call.message.edit_text(
+                city_label,
+                reply_markup=get_clinic_selection(
+                    p_id,
+                    p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                    selected_city=selected_city,
+                    monitoring=user_data.get("monitoring"),
+                    clinic_names=clinic_names,
+                    clinics_data=clinics_data,
+                    city_idx=city_idx,
                 ),
             )
     except Exception:
@@ -162,24 +370,30 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
         return
 
     p_id, clinic_id = parts[2], parts[3]
+    # Формат: sel_c_{p_id}_{clinic_id}_{city_idx}
+    city_idx = parts[4] if len(parts) >= 5 else "all"
     uid = str(call.from_user.id)
     user_data = db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
     confirmed = p_info.get("confirmed_clinics", [])
 
+    # Добавляем клинику в confirmed, если её там ещё нет
+    # (проверка прикрепления убрана — если API не знает пациента,
+    # список врачей будет пуст, и это естественный барьер)
     if int(clinic_id) not in confirmed:
-        is_affiliated = await api.check_affiliation(p_id, clinic_id)
-        if not is_affiliated:
-            await call.answer(
-                "❌ Вы не прикреплены к этой поликлинике. Пожалуйста, выберите другое отделение.",
-                show_alert=True,
-            )
-            return
         await db.add_confirmed_clinic(uid, p_id, int(clinic_id))
 
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     monitored = user_data["monitoring"].get(p_id, {})
     clinic_name = await db.get_clinic_name(clinic_id)
+
+    # Сохраняем city_idx для кнопки "назад" в списке врачей
+    _user_clinic_city_idx[f"{uid}_{p_id}_{clinic_id}"] = city_idx
+
+    # Если врачей нет — делаем on-demand discovery
+    if not doctors_list:
+        await call.answer("⏳ Загружаю список врачей...", show_alert=False)
+        doctors_list = await _discover_doctors_on_demand(api, db, clinic_id, p_id)
 
     try:
         if isinstance(call.message, Message):
@@ -187,7 +401,12 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
             await call.message.edit_text(
                 f"⚙️ Выберите врачей для мониторинга:{clinic_line}",
                 reply_markup=get_doctor_selection(
-                    p_id, clinic_id, doctors_list, monitored, p_info.get("bday", "")
+                    p_id,
+                    clinic_id,
+                    doctors_list,
+                    monitored,
+                    p_info.get("bday", ""),
+                    city_idx,
                 ),
             )
     except Exception:
@@ -249,44 +468,64 @@ async def toggle_doctor(
             except Exception:
                 pass
 
+        # Получаем city_idx для кнопки "назад" (если есть)
+        city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
+
         try:
             if isinstance(call.message, Message):
                 await call.message.edit_text(
                     f"⚙️ Мониторинг для {d_name_display} отключен.",
                     reply_markup=get_doctor_selection(
-                        p_id, clinic_id, doctors_list, monitored, p_info.get("bday", "")
+                        p_id,
+                        clinic_id,
+                        doctors_list,
+                        monitored,
+                        p_info.get("bday", ""),
+                        city_idx,
                     ),
                 )
         except Exception:
             pass
         return
 
-    await call.answer("⏳ Ищу номерки...")
+    # Сразу отправляем "загрузочное" сообщение — пользователь видит, что бот работает
+    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
+    d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
+    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
+
+    loading_msg = await call.message.answer(
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n⏳ Проверяю наличие номерков..."
+    )
+
+    await call.answer()
     slots = await api.check_slots(d_id, p_id, clinic_id)
 
     # Сохраняем в кэш мониторинга, чтобы избежать дублирующих уведомлений
     if slots is not None:
         cache_key = f"{uid}_{p_id}_{d_id}"
         try:
-            current_cache = {}
-            if os.path.exists(settings.CACHE_PATH):
-                with open(settings.CACHE_PATH, "r", encoding="utf-8") as f:
-                    current_cache = json.load(f)
+            async with asyncio.Lock():
+                current_cache = {}
+                if os.path.exists(settings.CACHE_PATH):
+                    async with aiofiles.open(
+                        settings.CACHE_PATH, "r", encoding="utf-8"
+                    ) as f:
+                        content = await f.read()
+                        current_cache = json.loads(content) if content else {}
 
-            current_cache[cache_key] = slots if slots else "NONE"
+                current_cache[cache_key] = slots if slots else "NONE"
 
-            with open(settings.CACHE_PATH, "w", encoding="utf-8") as f:
-                json.dump(current_cache, f, ensure_ascii=False, indent=4)
+                async with aiofiles.open(
+                    settings.CACHE_PATH, "w", encoding="utf-8"
+                ) as f:
+                    await f.write(
+                        json.dumps(current_cache, ensure_ascii=False, indent=4)
+                    )
         except Exception as e:
             logger.error(f"Ошибка обновления кэша при включении: {e}")
 
     user_data = db.get_user_data(uid)
     monitored = user_data["monitoring"].get(p_id, {})
-
-    # Отправляем новое сообщение вместо редактирования текущего
-    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
-    d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
-    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
     has_slots = bool(slots)
     status_text = "✅ есть номерки!" if has_slots else "Пока номерков нет 🤷‍♂️"
@@ -301,13 +540,16 @@ async def toggle_doctor(
 
     text = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
 
-    # Новое сообщение
-    new_msg = await call.message.answer(text)
+    # Редактируем загрузочное сообщение финальным результатом
+    try:
+        await loading_msg.edit_text(text)
+    except Exception:
+        # Если не удалось отредактировать — шлём новое
+        loading_msg = await call.message.answer(text)
 
     # Сохраняем message_id в базу для будущих обновлений
-    await db.set_last_message_id(uid, p_id, d_id, new_msg.message_id)
+    await db.set_last_message_id(uid, p_id, d_id, loading_msg.message_id)
 
-    # Ответ на callback
     await call.answer("Готово!")
 
 
@@ -320,10 +562,20 @@ async def _delete_monitoring_messages(
 
 @router.callback_query(F.data.startswith("stop_patient_"))
 async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot):
-    """Сброс мониторинга для конкретного пациента (все клиники)."""
+    """
+    Сброс мониторинга для конкретного пациента.
+    Формат: stop_patient_{p_id}_city или stop_patient_{p_id}_clinic_{city_idx}
+    После сброса остаётся на том же контексте (города или клиники).
+    """
     if not call.data or not call.from_user or not call.message:
         return
-    p_id = call.data.replace("stop_patient_", "")
+    parts = call.data.split("_")
+    if len(parts) < 4:
+        return
+    p_id = parts[2]
+    context = parts[3] if len(parts) >= 4 else "city"  # city или clinic
+    city_idx = parts[4] if len(parts) >= 5 else "all"
+
     uid = str(call.from_user.id)
     user_data = db.get_user_data(uid)
 
@@ -344,18 +596,50 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     await delete_cache_keys_by_prefix(f"{uid}_{p_id}_")
 
     if isinstance(call.message, Message):
-        clinic_names = await db.get_all_clinic_names()
-        await call.message.edit_text(
-            "✅ Мониторинг для пациента сброшен.",
-            reply_markup=get_clinic_selection(
-                p_id,
-                user_data["patients"]
-                .get(p_id, {})
-                .get("bday", settings.DEFAULT_BIRTHDAY),
-                monitoring=user_data.get("monitoring"),
-                clinic_names=clinic_names,
-            ),
-        )
+        if context == "clinic":
+            # Остаёмся на списке клиник
+            clinic_names = await db.get_all_clinic_names()
+            clinics_data = await db._db.get_active_clinics()
+            cities = await db._db.get_distinct_cities()
+            p_info = user_data.get("patients", {}).get(p_id, {})
+
+            selected_city = None
+            if city_idx != "all":
+                try:
+                    idx = int(city_idx)
+                    if 1 <= idx <= len(cities):
+                        selected_city = cities[idx - 1]
+                except (ValueError, IndexError):
+                    pass
+
+            city_label = (
+                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+            )
+            await call.message.edit_text(
+                "✅ Мониторинг для пациента сброшен.",
+                reply_markup=get_clinic_selection(
+                    p_id,
+                    p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                    selected_city=selected_city,
+                    monitoring=user_data.get("monitoring"),
+                    clinic_names=clinic_names,
+                    clinics_data=clinics_data,
+                    city_idx=city_idx,
+                ),
+            )
+        else:
+            # Остаёмся на списке городов
+            cities = await db._db.get_distinct_cities()
+            clinics_data = await db._db.get_active_clinics()
+            await call.message.edit_text(
+                "✅ Мониторинг для пациента сброшен.",
+                reply_markup=get_city_selection(
+                    p_id,
+                    cities=cities,
+                    monitoring=user_data.get("monitoring"),
+                    clinics_data=clinics_data,
+                ),
+            )
 
 
 @router.callback_query(F.data.startswith("stop_clinic_"))
@@ -400,6 +684,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
     if isinstance(call.message, Message):
         doctors_list = await db.get_doctors_for_clinic(clinic_id)
         p_info = user_data.get("patients", {}).get(p_id, {})
+        city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
         await call.message.edit_text(
             "✅ Мониторинг для клиники сброшен.",
             reply_markup=get_doctor_selection(
@@ -408,6 +693,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
                 doctors_list,
                 p_monitoring,
                 p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                city_idx,
             ),
         )
 

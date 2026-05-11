@@ -5,13 +5,113 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 import aiosqlite
 
-from config import CLINICS_REGISTRY
-
 logger = logging.getLogger(__name__)
+
+
+def detect_clinic_type(name: str) -> str:
+    """
+    Определяет тип клиники по её названию.
+
+    Порядок проверки:
+    1. 'стоматолог' → 'all' (в стоматологии есть и взрослые, и дети).
+       Даже если в названии есть "детск" — стоматология всегда all.
+    2. 'детск' → 'child' (детская, детский и т.п.)
+    3. Иначе → 'adult'
+    """
+    if not name:
+        return "adult"
+    lower = name.lower()
+    # Стоматология — приоритетно all, даже если есть "детская" в названии
+    if re.search(r"стоматолог", lower):
+        return "all"
+    if re.search(r"детск", lower):
+        return "child"
+    return "adult"
+
+
+def detect_clinic_city(name: str) -> str:
+    """
+    Определяет город/район по полному названию клиники.
+
+    Приоритет: сначала ищем конкретный населённый пункт,
+    потом определяем по ЛПУ (часть в кавычках).
+    """
+    if not name:
+        return "Прочее"
+
+    lower = name.lower()
+
+    # Конкретные населённые пункты (приоритет — первое совпадение)
+    settlements = [
+        ("кудрово", "Кудрово"),
+        ("мурино", "Мурино"),
+        ("девяткино", "Девяткино"),
+        ("бугры", "Бугры"),
+        ("кузьмолово", "Кузьмолово"),
+        ("токсово", "Токсово"),
+        ("сертолово", "Сертолово"),
+        ("всеволожск", "Всеволожск"),
+        ("всеволож", "Всеволожск"),
+        ("павлово", "Павлово"),
+        ("разметелево", "Разметелево"),
+        ("рахья", "Рахья"),
+        ("романовка", "Романовка"),
+        ("щеглово", "Щеглово"),
+        ("заневский", "Заневский"),
+        ("дубровка", "Дубровка"),
+        ("кальтино", "Кальтино"),
+        ("краснозвездин", "Краснозвездинское"),
+        ("морозов", "им. Морозова"),
+        ("гарболово", "Гарболово"),
+        ("рапполово", "Рапполово"),
+        ("вартемяги", "Вартемяги"),
+        ("куйвози", "Куйвози"),
+        ("лесколово", "Лесколово"),
+        ("сте – клянный", "Стеклянный"),
+        ("пери", "Пери"),
+        ("лесное", "Лесное"),
+        ("юкки", "Юкки"),
+        ("хиттолово", "Хиттолово"),
+        ("ненимяки", "Ненимяки"),
+        ("лехтуси", "Лехтуси"),
+        ("васкелово", "Васкелово"),
+        ("лаврики", "Лаврики"),
+        ("воейково", "Воейково"),
+        ("каменка", "Каменка"),
+        ("грибное", "Грибное"),
+        ("ваганово", "Ваганово"),
+        ("новая пустошь", "Новая Пустошь"),
+        ("углово", "Углово"),
+        ("старая", "Старая"),
+        ("ясная", "Ясная"),
+    ]
+    for keyword, city in settlements:
+        if keyword in lower:
+            return city
+
+    # Определяем по ЛПУ (часть в кавычках)
+    lpu_match = re.search(r'"([^"]+)"', name)
+    lpu = lpu_match.group(1).lower() if lpu_match else lower
+
+    if "всеволож" in lpu:
+        return "Всеволожск"
+    if "сертолов" in lpu:
+        return "Сертолово"
+    if "токсов" in lpu:
+        return "Токсово"
+    if "лонд" in lpu.replace(" ", ""):
+        return "Наркология (ЛОНД)"
+    if "лоцпз" in lpu.replace(" ", ""):
+        return "Психиатрия (ЛОЦПЗ)"
+    if "медицентр" in lpu:
+        return "Медицентр"
+
+    return "Прочее"
 
 
 class Database:
@@ -83,7 +183,9 @@ PRIMARY KEY (uid, p_id, d_id)
 );
 CREATE TABLE IF NOT EXISTS clinics (
 clinic_id           TEXT PRIMARY KEY,
-name                TEXT NOT NULL DEFAULT 'Unknown'
+name                TEXT NOT NULL DEFAULT 'Unknown',
+type                TEXT NOT NULL DEFAULT 'adult',
+is_active           INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS doctors (
 clinic_id           TEXT NOT NULL,
@@ -110,11 +212,60 @@ clinic_id           TEXT NOT NULL DEFAULT '',
 specialty           TEXT NOT NULL DEFAULT '',
 PRIMARY KEY (uid, p_id, d_id)
 );
+CREATE TABLE IF NOT EXISTS config (
+key                 TEXT PRIMARY KEY,
+value               TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS specialty_aliases (
+full_name           TEXT PRIMARY KEY,
+short_name          TEXT NOT NULL DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS schema_version (
 version             INTEGER PRIMARY KEY
 );
 """)
         await c.commit()
+        # Миграция для существующих БД: добавить колонки, если их нет
+        await self._migrate_clinics_add_columns()
+        await self._migrate_add_tables()
+
+    async def _migrate_clinics_add_columns(self):
+        """Добавляет недостающие колонки в таблицу clinics (для существующих БД)."""
+        c = self._conn
+        if c is None:
+            return
+        for col, col_type, default in [
+            ("type", "TEXT", "'adult'"),
+            ("is_active", "INTEGER", "1"),
+            ("city", "TEXT", "''"),
+            ("discovery_patient_adult", "TEXT", "''"),
+            ("discovery_patient_child", "TEXT", "''"),
+        ]:
+            try:
+                await c.execute(
+                    f"ALTER TABLE clinics ADD COLUMN {col} {col_type} NOT NULL DEFAULT {default}"
+                )
+            except Exception:
+                pass  # колонка уже существует
+
+    async def _migrate_add_tables(self):
+        """Создаёт таблицы config и specialty_aliases, если их нет (для существующих БД)."""
+        c = self._conn
+        if c is None:
+            return
+        try:
+            await c.executescript("""
+CREATE TABLE IF NOT EXISTS config (
+key                 TEXT PRIMARY KEY,
+value               TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS specialty_aliases (
+full_name           TEXT PRIMARY KEY,
+short_name          TEXT NOT NULL DEFAULT ''
+);
+""")
+        except Exception:
+            pass
 
     # ── Пользователи ────────────────────────────────────────
     async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
@@ -373,12 +524,20 @@ version             INTEGER PRIMARY KEY
         await c.commit()
 
     async def upsert_clinic(self, clinic_id: str, name: str):
+        """
+        Обновляет только название клиники. Не затирает type/is_active/city.
+        Если клиники нет — вставляет с типом и городом, определёнными по названию.
+        """
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
+        clinic_type = detect_clinic_type(name)
+        city = detect_clinic_city(name)
         await c.execute(
-            "INSERT OR REPLACE INTO clinics (clinic_id, name) VALUES (?, ?)",
-            (clinic_id, name),
+            "INSERT INTO clinics (clinic_id, name, type, is_active, city) "
+            "VALUES (?, ?, ?, 1, ?) "
+            "ON CONFLICT(clinic_id) DO UPDATE SET name = excluded.name",
+            (clinic_id, name, clinic_type, city),
         )
         await c.commit()
 
@@ -386,12 +545,11 @@ version             INTEGER PRIMARY KEY
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
-        # Не перезаписываем название клиники, если оно уже установлено (из API)
+        # Создаём запись клиники, если её ещё нет (название будет "Unknown",
+        # потом sync_clinic_names обновит его из API)
         existing_name = await self.get_clinic_name(str(clinic_id))
         if existing_name is None:
-            clinic_info = CLINICS_REGISTRY.get(str(clinic_id))
-            clinic_name = clinic_info.name if clinic_info else "Unknown"
-            await self.upsert_clinic(str(clinic_id), clinic_name)
+            await self.upsert_clinic(str(clinic_id), "Unknown")
         for doc in doctors:
             raw_id = doc.get("IdDoc")
             if not raw_id:
@@ -428,3 +586,208 @@ version             INTEGER PRIMARY KEY
         cursor = await c.execute("SELECT clinic_id, name FROM clinics")
         rows = await cursor.fetchall()
         return {row["clinic_id"]: row["name"] for row in rows}
+
+    # ── Клиники: расширенные методы ─────────────────────────
+
+    async def upsert_clinic_full(
+        self, clinic_id: str, name: str, clinic_type: str = "adult", is_active: int = 1
+    ):
+        """Вставка или обновление клиники с полными данными."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "INSERT OR REPLACE INTO clinics (clinic_id, name, type, is_active) VALUES (?, ?, ?, ?)",
+            (clinic_id, name, clinic_type, is_active),
+        )
+        await c.commit()
+
+    async def get_clinic_type(self, clinic_id: str) -> Optional[str]:
+        """Возвращает тип клиники (adult/child/all)."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT type FROM clinics WHERE clinic_id = ?", (clinic_id,)
+        )
+        row = await cursor.fetchone()
+        return row["type"] if row else None
+
+    async def get_clinic_discovery_patients(self, clinic_id: str) -> tuple[str, str]:
+        """
+        Возвращает per-клиника discovery пациентов (adult, child).
+        Если для клиники не заданы свои пациенты — возвращает ('', '').
+        """
+        c = self._conn
+        if c is None:
+            return ("", "")
+        cursor = await c.execute(
+            "SELECT discovery_patient_adult, discovery_patient_child FROM clinics WHERE clinic_id = ?",
+            (clinic_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return (
+                row["discovery_patient_adult"] or "",
+                row["discovery_patient_child"] or "",
+            )
+        return ("", "")
+
+    async def get_active_clinics(self) -> list[dict]:
+        """Возвращает список активных клиник с полными данными (включая city)."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT clinic_id, name, type, is_active, city FROM clinics WHERE is_active = 1"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "clinic_id": row["clinic_id"],
+                "name": row["name"],
+                "type": row["type"],
+                "is_active": row["is_active"],
+                "city": row["city"] or "",
+            }
+            for row in rows
+        ]
+
+    async def get_distinct_cities(self) -> list[str]:
+        """Возвращает отсортированный список уникальных городов активных клиник."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT DISTINCT city FROM clinics WHERE is_active = 1 AND city != '' ORDER BY city"
+        )
+        rows = await cursor.fetchall()
+        return [row["city"] for row in rows]
+
+    # ── Сидирование данными из fallback-констант ────────────
+
+    async def seed_specialty_aliases_from_fallback(self):
+        """
+        Заполняет таблицу specialty_aliases из SPECIALTY_ALIASES, если она пуста.
+        """
+        c = self._conn
+        if c is None:
+            return
+        try:
+            cursor = await c.execute("SELECT COUNT(*) as cnt FROM specialty_aliases")
+            row = await cursor.fetchone()
+            if row and row["cnt"] > 0:
+                return  # уже есть данные
+
+            from utils.helpers import SPECIALTY_ALIASES
+
+            for full_name, short_name in SPECIALTY_ALIASES.items():
+                await self.upsert_specialty_alias(full_name, short_name)
+            logger.info(
+                f"Таблица specialty_aliases заполнена из SPECIALTY_ALIASES ({len(SPECIALTY_ALIASES)} записей)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось заполнить specialty_aliases из fallback: {e}")
+
+    async def seed_config_from_defaults(self):
+        """
+        Заполняет таблицу config дефолтными значениями из settings, если она пуста.
+        """
+        c = self._conn
+        if c is None:
+            return
+        try:
+            cursor = await c.execute("SELECT COUNT(*) as cnt FROM config")
+            row = await cursor.fetchone()
+            if row and row["cnt"] > 0:
+                return  # уже есть данные
+
+            from config import settings as s
+
+            defaults = {
+                "api_timeout": str(s.API_TIMEOUT),
+                "check_interval": str(s.CHECK_INTERVAL),
+                "discovery_interval": str(s.DISCOVERY_INTERVAL),
+                "message_ttl_seconds": str(s.MESSAGE_TTL_SECONDS),
+                "cleanup_interval": str(s.CLEANUP_INTERVAL),
+                "slot_threshold_absolute": str(s.SLOT_THRESHOLD_ABSOLUTE),
+                "slot_threshold_percentage": str(s.SLOT_THRESHOLD_PERCENTAGE),
+                "discovery_patient_adult": str(s.DISCOVERY_PATIENT_ID_ADULT),
+                "discovery_patient_child": str(s.DISCOVERY_PATIENT_ID_CHILD),
+                "default_clinic_id": str(s.DEFAULT_CLINIC_ID),
+                "default_birthday": str(s.DEFAULT_BIRTHDAY),
+                "api_base_url": s.API_BASE_URL,
+                "referer_url": s.REFERER_URL,
+                "csrf_token": s.CSRF_TOKEN,
+                "admin_ids": s.ADMIN_IDS,
+            }
+
+            for key, value in defaults.items():
+                await self.set_config(key, value)
+            logger.info(
+                f"Таблица config заполнена дефолтными значениями ({len(defaults)} записей)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось заполнить config из defaults: {e}")
+
+    async def get_active_clinic_ids(self) -> list[str]:
+        """Возвращает список clinic_id активных клиник (is_active = 1)."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute("SELECT clinic_id FROM clinics WHERE is_active = 1")
+        rows = await cursor.fetchall()
+        return [row["clinic_id"] for row in rows]
+
+    # ── Config (key-value) ──────────────────────────────────
+
+    async def get_config(self, key: str, default: str = "") -> str:
+        """Возвращает значение конфига по ключу."""
+        c = self._conn
+        if c is None:
+            return default
+        cursor = await c.execute("SELECT value FROM config WHERE key = ?", (key,))
+        row = await cursor.fetchone()
+        return row["value"] if row else default
+
+    async def set_config(self, key: str, value: str):
+        """Устанавливает значение конфига."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        await c.commit()
+
+    async def get_all_config(self) -> dict[str, str]:
+        """Возвращает все конфиги как dict."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute("SELECT key, value FROM config")
+        rows = await cursor.fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+    # ── Specialty Aliases ───────────────────────────────────
+
+    async def get_all_specialty_aliases(self) -> dict[str, str]:
+        """Возвращает все псевдонимы специальностей."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute("SELECT full_name, short_name FROM specialty_aliases")
+        rows = await cursor.fetchall()
+        return {row["full_name"]: row["short_name"] for row in rows}
+
+    async def upsert_specialty_alias(self, full_name: str, short_name: str):
+        """Добавляет или обновляет псевдоним специальности."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "INSERT OR REPLACE INTO specialty_aliases (full_name, short_name) VALUES (?, ?)",
+            (full_name, short_name),
+        )
+        await c.commit()

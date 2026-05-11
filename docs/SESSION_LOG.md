@@ -151,7 +151,9 @@
 - При удалении пациента — удаление всех связанных сообщений из чата
 - Все 64 теста пройдены
 
-## 2026-05-11
+## 2026-05-11 (раннее утро)
+
+### Динамические названия клиник из API
 
 - В базу данных добавлены названия клиник из API `/api/clinic_list/` — таблица `clinics` заполняется реальными названиями
 - Добавлен метод `fetch_clinic_list()` в `api/zdrav_client.py`
@@ -160,9 +162,6 @@
 - Добавлены методы `get_clinic_name()`, `get_all_clinic_names()` в `database/database.py` и `database/manager.py`
 - В кнопки выбора поликлиники подставляются сокращённые названия из API (только тип отделения)
 - В заголовок сообщения при выборе врачей добавлено полное название поликлиники из API
-
-## 2026-05-11 (2)
-
 - Добавлен обработчик `skip_alias` в `handlers/registration.py` — при пропуске alias=None (чистое хранение)
 - Добавлена сортировка пациентов по алфавиту в `keyboards/inline.py` (get_patient_selection, fallback на ФИО)
 - Кнопка "Сбросить весь мониторинг" показывается только при наличии активного мониторинга
@@ -170,3 +169,56 @@
   - "Стоматология детская" → "Дет. стоматология"
   - "Стоматология профилактическая" → "Стоматология проф."
   - "Стоматология (средний медперсонал)" → "Ср. медперсонал"
+
+## 2026-05-11 (основная сессия)
+
+### Полный вынос хардкода в БД
+
+- **Удалён `CLINICS_REGISTRY`** (хардкод трёх клиник: 161, 271, 272) из всех файлов:
+  - `config.py` — удалены константы CLINICS, CLINICS_REGISTRY
+  - `database/database.py` — удалён `seed_clinics_from_fallback()`, исправлен `merge_doctors()`
+  - `services/doctor_discovery.py` — убран CLINICS_REGISTRY из импорта и fallback
+  - `services/healthcheck.py` — убран CLINICS_REGISTRY из импорта и `format_status_report()`
+  - `services/monitor.py` — убран CLINICS_REGISTRY из импорта
+  - `handlers/common.py` — убран CLINICS_REGISTRY из импорта
+  - `main.py` — убран fallback на `settings.CLINICS` при пустой таблице clinics
+  - `keyboards/inline.py` — убрана ветка с CLINICS_REGISTRY в `get_clinic_selection()`
+- **Таблица `config`** — 15 параметров из `.env`/`settings` синхронизированы в БД:
+  - `api_timeout`, `check_interval`, `discovery_interval`, `message_ttl_seconds`, `cleanup_interval`
+  - `slot_threshold_absolute`, `slot_threshold_percentage`
+  - `discovery_patient_adult`, `discovery_patient_child`
+  - `default_clinic_id`, `default_birthday`, `api_base_url`, `referer_url`, `csrf_token`, `admin_ids`
+- **`seed_config_from_defaults()`** — автозаполнение таблицы config из settings при первом запуске
+- **`seed_specialty_aliases_from_fallback()`** — автозаполнение таблицы specialty_aliases
+- **`load_config_from_db()`** — переопределение settings значениями из БД
+- **`load_specialty_aliases_from_db()`** — загрузка псевдонимов из БД
+- **Per-клиника discovery пациенты** — колонки `discovery_patient_adult`/`discovery_patient_child` в `clinics`
+
+### Баги
+
+- **`back_to_clinics`** — неправильный парсинг `split("_", 3)` → `split("_")` без лимита. Был бонусный баг: условие `len(parts) >= 6` для `city_idx` не срабатывало на массиве из 5 элементов
+- **Кнопка "К выбору города"** — теперь всегда видна (убрано `if not show_all`)
+
+### Кнопки сброса (единый дизайн)
+
+- Счётчики мониторинга в кнопках городов: `📍 Всеволожск (3)`
+- **`stop_patient_{p_id}_city`** — сброс пациента из меню городов, остаётся на городах
+- **`stop_patient_{p_id}_clinic_{city_idx}`** — сброс пациента из меню клиник, остаётся на клиниках (с фильтром города)
+- **`stop_clinic_{p_id}_{clinic_id}`** — сброс клиники из меню врачей, остаётся на врачах
+- Все кнопки сброса **скрываются**, если мониторинг в данном контексте отсутствует
+- Все кнопки сброса **не перекидывают** в другое меню — обновляют текущее
+
+### UX: задержка при выборе врача
+
+- `toggle_doctor` теперь отправляет `"⏳ Проверяю наличие номерков..."` **до** HTTP-запроса
+- После ответа API — `loading_msg.edit_text(text)` (редактирование того же сообщения)
+- Добавлен `aiofiles` в импорты `handlers/common.py`
+- Кэш при включении пишется асинхронно (через `aiofiles`)
+- Пользователь видит мгновенную обратную связь вместо 1-10 сек ожидания
+
+### Обновление задач
+
+- `B3` — синхронный JSON заменён на асинхронный (`aiofiles`), но не на `update_cache_key()` из `utils/cache.py` (частично)
+- `B5` — импорт `metrics` внутри `monitor_loop()` остаётся из-за циклического импорта (не вынесен)
+- `R6` — `CLINICS_REGISTRY` удалён, задача неактуальна
+- `TASK.md` — план выноса параметров в БД выполнен

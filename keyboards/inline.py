@@ -2,7 +2,6 @@ from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import CLINICS_REGISTRY
 from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 
@@ -29,7 +28,6 @@ def get_patient_selection(patients: dict, monitoring: dict):
     has_active_monitoring = any(len(docs) > 0 for docs in monitoring.values())
 
     if has_active_monitoring:
-        # Кнопка сброса всего мониторинга — только если есть активный мониторинг
         builder.button(text="🛑 Сбросить весь мониторинг", callback_data="stop_all")
 
     adjustments = [2] * len(patients) + [1]
@@ -38,7 +36,12 @@ def get_patient_selection(patients: dict, monitoring: dict):
 
 
 def get_doctor_selection(
-    p_id: str, clinic_id: str, doctors_list: dict, monitored: dict, bday_str: str = ""
+    p_id: str,
+    clinic_id: str,
+    doctors_list: dict,
+    monitored: dict,
+    bday_str: str = "",
+    city_idx: str = "all",
 ):
     builder = InlineKeyboardBuilder()
 
@@ -104,11 +107,24 @@ def get_doctor_selection(
         label = f"{status}{doc['name']}"
         builder.button(text=label, callback_data=f"tgl_{p_id}_{clinic_id}_{d_id}")
 
-    builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
+    # Навигация
     builder.button(
-        text="🛑 Сбросить мониторинг этой клиники",
-        callback_data=f"stop_clinic_{p_id}_{clinic_id}",
+        text="⬅️ К выбору клиники",
+        callback_data=f"back_to_clinics_{p_id}_{city_idx}",
     )
+    builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
+
+    # Кнопка сброса мониторинга этой клиники — только если есть мониторинг в этой клинике
+    has_clinic_monitoring = any(
+        isinstance(d_info, dict) and d_info.get("clinic_id") == clinic_id
+        for d_info in monitored.values()
+    )
+    if has_clinic_monitoring:
+        builder.button(
+            text="🛑 Сбросить мониторинг этой клиники",
+            callback_data=f"stop_clinic_{p_id}_{clinic_id}",
+        )
+
     builder.adjust(1, 1)
     return builder.as_markup()
 
@@ -138,19 +154,85 @@ def _short_clinic_label(clinic_name: str, count: int) -> str:
     return f"{clinic_name}{count_str}"
 
 
+def get_city_selection(
+    p_id: str,
+    cities: list[str] | None = None,
+    monitoring: dict | None = None,
+    clinics_data: list[dict] | None = None,
+):
+    """
+    Клавиатура выбора города.
+    В callback_data передаём индекс города (1-based), чтобы избежать кириллицы.
+    monitoring — словарь мониторинга пользователя {p_id: {d_id: {clinic_id: ...}}}
+    clinics_data — список клиник с city для подсчёта мониторинга по городам.
+    """
+    builder = InlineKeyboardBuilder()
+
+    # Считаем количество мониторинга на город
+    p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
+    has_patient_monitoring = bool(p_monitoring)
+
+    # Карта clinic_id → city
+    clinic_city: dict[str, str] = {}
+    if clinics_data:
+        for cl in clinics_data:
+            clinic_city[cl["clinic_id"]] = cl.get("city", "")
+
+    # Считаем, сколько мониторингов в каждом городе
+    city_counts: dict[str, int] = {}
+    for d_id, d_info in p_monitoring.items():
+        if isinstance(d_info, dict):
+            c_id = d_info.get("clinic_id", "")
+            city = clinic_city.get(c_id, "Прочее")
+            city_counts[city] = city_counts.get(city, 0) + 1
+
+    if not cities:
+        total = sum(city_counts.values())
+        label = f"🏥 Все клиники ({total})" if total > 0 else "🏥 Все клиники"
+        builder.button(text=label, callback_data=f"sel_cty_{p_id}_all")
+    else:
+        for idx, city in enumerate(cities, start=1):
+            cnt = city_counts.get(city, 0)
+            label = f"📍 {city} ({cnt})" if cnt > 0 else f"📍 {city}"
+            builder.button(text=label, callback_data=f"sel_cty_{p_id}_{idx}")
+        # Кнопка "Все города"
+        total = sum(city_counts.values())
+        label = f"🏥 Все ({total})" if total > 0 else "🏥 Все"
+        builder.button(text=label, callback_data=f"sel_cty_{p_id}_all")
+
+    # Навигация и сброс
+    builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
+    if has_patient_monitoring:
+        builder.button(
+            text="🛑 Сбросить мониторинг этого пациента",
+            callback_data=f"stop_patient_{p_id}_city",
+        )
+
+    builder.adjust(2)
+    return builder.as_markup()
+
+
 def get_clinic_selection(
     p_id: str,
     bday_str: str,
+    selected_city: str | None = None,
     monitoring: dict | None = None,
     clinic_names: dict[str, str] | None = None,
+    clinics_data: list[dict] | None = None,
+    city_idx: str = "all",
 ):
+    """
+    Если selected_city задан — показывает только клиники этого города.
+    Если selected_city не задан или '__all' — все подходящие клиники.
+    clinics_data: список словарей с ключами clinic_id, name, type, city.
+    city_idx: индекс города из sel_cty_ (или "all"), передаётся в callback
+    для возможности возврата из списка врачей обратно к клиникам.
+    """
     builder = InlineKeyboardBuilder()
 
-    # Если названия из БД не переданы, используем пустой словарь
     if clinic_names is None:
         clinic_names = {}
 
-    # Расчет возраста
     try:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
         age = (datetime.now() - bday).days // 365
@@ -159,25 +241,47 @@ def get_clinic_selection(
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
 
-    for c_id, info in CLINICS_REGISTRY.items():
-        if info.type == "child" and age >= 18:
+    # clinics_data — обязательный параметр (получается из БД)
+    clinic_list = clinics_data if clinics_data else []
+
+    show_all = (not selected_city) or selected_city == "__all"
+
+    for clinic in clinic_list:
+        c_id = clinic["clinic_id"]
+        clinic_type = clinic.get("type", "adult")
+
+        # Фильтрация по возрасту
+        if clinic_type == "child" and age >= 18:
             continue
-        if info.type == "adult" and age < 18:
+        if clinic_type == "adult" and age < 18:
             continue
 
-        # Считаем сколько врачей мониторится в этой клинике
+        # Фильтрация по городу
+        if not show_all:
+            clinic_city = clinic.get("city", "")
+            if clinic_city != selected_city:
+                continue
+
         count = sum(1 for doc in p_monitoring.values() if doc.get("clinic_id") == c_id)
-        # Берём название из БД (из API), если есть, иначе из CLINICS_REGISTRY
-        display_name = clinic_names.get(c_id) or info.name
+        display_name = clinic_names.get(c_id) or clinic.get("name", "Unknown")
         label = _short_clinic_label(display_name, count)
-        builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}")
+        # В callback_data передаём city_idx для возможности возврата из врачей обратно к клиникам
+        builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}_{city_idx}")
 
-    builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
-    # Кнопка сброса мониторинга этого пациента (всех его клиник)
+    # Навигация
     builder.button(
-        text="🛑 Сбросить мониторинг этого пациента",
-        callback_data=f"stop_patient_{p_id}",
+        text="⬅️ К выбору города",
+        callback_data=f"back_to_cities_{p_id}",
     )
+    builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
+
+    # Кнопка сброса мониторинга этого пациента — только если есть хоть один мониторинг у пациента
+    if p_monitoring:
+        builder.button(
+            text="🛑 Сбросить мониторинг этого пациента",
+            callback_data=f"stop_patient_{p_id}_clinic_{city_idx}",
+        )
+
     builder.adjust(1)
     return builder.as_markup()
 
