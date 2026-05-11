@@ -98,29 +98,6 @@ class ZdravClient:
                 logger.error(f"Ошибка API (fetch_patient_id): {e}")
                 return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
 
-    async def check_affiliation(self, patient_id: str, clinic_id: str) -> bool:
-        payload = {
-            "clinic_form-clinic_id": clinic_id,
-            "clinic_form-history_id": "",
-            "clinic_form-patient_id": patient_id,
-        }
-
-        async with self.limiter:
-            client = await self._get_client()
-            try:
-                res = await client.post(
-                    f"{self.base_url}/speciality_list/",
-                    data=payload,
-                    headers=self._get_headers(),
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    return data.get("success", False)
-                return False
-            except Exception as e:
-                logger.error(f"Ошибка проверки прикрепления: {e}")
-                return False
-
     async def fetch_speciality_list(
         self, patient_id: str, clinic_id: str
     ) -> List[dict]:

@@ -227,7 +227,6 @@ version             INTEGER PRIMARY KEY
         await c.commit()
         # Миграция для существующих БД: добавить колонки, если их нет
         await self._migrate_clinics_add_columns()
-        await self._migrate_add_tables()
 
     async def _migrate_clinics_add_columns(self):
         """Добавляет недостающие колонки в таблицу clinics (для существующих БД)."""
@@ -247,25 +246,6 @@ version             INTEGER PRIMARY KEY
                 )
             except Exception:
                 pass  # колонка уже существует
-
-    async def _migrate_add_tables(self):
-        """Создаёт таблицы config и specialty_aliases, если их нет (для существующих БД)."""
-        c = self._conn
-        if c is None:
-            return
-        try:
-            await c.executescript("""
-CREATE TABLE IF NOT EXISTS config (
-key                 TEXT PRIMARY KEY,
-value               TEXT NOT NULL DEFAULT ''
-);
-CREATE TABLE IF NOT EXISTS specialty_aliases (
-full_name           TEXT PRIMARY KEY,
-short_name          TEXT NOT NULL DEFAULT ''
-);
-""")
-        except Exception:
-            pass
 
     # ── Пользователи ────────────────────────────────────────
     async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
@@ -588,19 +568,6 @@ short_name          TEXT NOT NULL DEFAULT ''
         return {row["clinic_id"]: row["name"] for row in rows}
 
     # ── Клиники: расширенные методы ─────────────────────────
-
-    async def upsert_clinic_full(
-        self, clinic_id: str, name: str, clinic_type: str = "adult", is_active: int = 1
-    ):
-        """Вставка или обновление клиники с полными данными."""
-        c = self._conn
-        if c is None:
-            raise RuntimeError("Database connection not initialized")
-        await c.execute(
-            "INSERT OR REPLACE INTO clinics (clinic_id, name, type, is_active) VALUES (?, ?, ?, ?)",
-            (clinic_id, name, clinic_type, is_active),
-        )
-        await c.commit()
 
     async def get_clinic_type(self, clinic_id: str) -> Optional[str]:
         """Возвращает тип клиники (adult/child/all)."""

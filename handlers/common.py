@@ -1,10 +1,7 @@
 import asyncio
-import json
 import logging
-import os
 from typing import Optional
 
-import aiofiles
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
@@ -21,7 +18,7 @@ from keyboards.inline import (
 )
 from services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from services.healthcheck import format_status_report, metrics
-from utils.cache import delete_cache_keys_by_prefix, spam_cache
+from utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_key
 from utils.helpers import extract_msg_id, is_child, shorten_fio, shorten_specialty
 
 router = Router()
@@ -457,16 +454,7 @@ async def toggle_doctor(
         await db.update_user(uid, {"last_messages": user_data["last_messages"]})
 
         cache_key = f"{uid}_{p_id}_{d_id}"
-        if os.path.exists(settings.CACHE_PATH):
-            try:
-                with open(settings.CACHE_PATH, "r", encoding="utf-8") as f:
-                    last_seen_cache = json.load(f)
-                if cache_key in last_seen_cache:
-                    del last_seen_cache[cache_key]
-                    with open(settings.CACHE_PATH, "w", encoding="utf-8") as f:
-                        json.dump(last_seen_cache, f, ensure_ascii=False, indent=4)
-            except Exception:
-                pass
+        await delete_cache_keys_by_prefix(cache_key)
 
         # Получаем city_idx для кнопки "назад" (если есть)
         city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
@@ -503,26 +491,7 @@ async def toggle_doctor(
     # Сохраняем в кэш мониторинга, чтобы избежать дублирующих уведомлений
     if slots is not None:
         cache_key = f"{uid}_{p_id}_{d_id}"
-        try:
-            async with asyncio.Lock():
-                current_cache = {}
-                if os.path.exists(settings.CACHE_PATH):
-                    async with aiofiles.open(
-                        settings.CACHE_PATH, "r", encoding="utf-8"
-                    ) as f:
-                        content = await f.read()
-                        current_cache = json.loads(content) if content else {}
-
-                current_cache[cache_key] = slots if slots else "NONE"
-
-                async with aiofiles.open(
-                    settings.CACHE_PATH, "w", encoding="utf-8"
-                ) as f:
-                    await f.write(
-                        json.dumps(current_cache, ensure_ascii=False, indent=4)
-                    )
-        except Exception as e:
-            logger.error(f"Ошибка обновления кэша при включении: {e}")
+        await swap_cache_key(cache_key, slots if slots else "NONE")
 
     user_data = db.get_user_data(uid)
     monitored = user_data["monitoring"].get(p_id, {})
@@ -553,13 +522,6 @@ async def toggle_doctor(
     await call.answer("Готово!")
 
 
-async def _delete_monitoring_messages(
-    bot: Bot, uid: str, prefix_key: str, last_messages: dict
-):
-    """Удаляет сообщения из чата по префиксу ключа last_messages (p_id_d_id или p_id)."""
-    await _delete_cleanup_msg_entries(bot, uid, prefix_key, last_messages)
-
-
 @router.callback_query(F.data.startswith("stop_patient_"))
 async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot):
     """
@@ -580,7 +542,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     user_data = db.get_user_data(uid)
 
     # Удаляем сообщения для этого пациента
-    await _delete_monitoring_messages(bot, uid, f"{p_id}_", user_data["last_messages"])
+    await _delete_cleanup_msg_entries(bot, uid, f"{p_id}_", user_data["last_messages"])
 
     if p_id in user_data["monitoring"]:
         del user_data["monitoring"][p_id]
@@ -667,7 +629,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
     if to_remove:
         # Удаляем сообщения для каждого отключаемого врача
         for d_id in to_remove:
-            await _delete_monitoring_messages(
+            await _delete_cleanup_msg_entries(
                 bot, uid, f"{p_id}_{d_id}", user_data["last_messages"]
             )
         await db.update_user(

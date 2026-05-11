@@ -30,9 +30,5 @@ class DoctorManager:
                 "doctors": doctors,
             }
 
-    async def save(self):
-        """Совместимость — данные уже в SQLite."""
-        pass
-
     async def merge_doctors(self, clinic_id: str, doctors: list):
         return await self._db.merge_doctors(str(clinic_id), doctors)

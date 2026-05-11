@@ -222,3 +222,61 @@
 - `B5` — импорт `metrics` внутри `monitor_loop()` остаётся из-за циклического импорта (не вынесен)
 - `R6` — `CLINICS_REGISTRY` удалён, задача неактуальна
 - `TASK.md` — план выноса параметров в БД выполнен
+
+## 2026-05-11
+
+- Проведён аудит кода на хардкод, мусорный, излишний и мёртвый код
+- Найдено 38 проблем:
+  - Хардкод — 15 (rate limits, retry counts, User-Agent, clinic_id "272", district_id "4", задержки)
+  - Мусорный код — 4 (баг + дубликат в apply_city_heuristic.py, нерабочий migrate_configs_to_db.py, дублирование CREATE TABLE, копипаста detect_clinic_city)
+  - Излишний код — 8 (неиспользуемый in-memory кэш в DoctorManager, пустой save(), обёртка _delete_monitoring_messages, невызываемая update_cache_key, устаревший комментарий в healthcheck)
+  - Мёртвый код — 11 (5 неиспользуемых функций в utils/cache.py, сломанный migrate_configs_to_db.py, баг-дубликат в apply_city_heuristic.py, 4 одноразовых скрипта, пустой utils/**init**.py)
+- Топ-5 критичных:
+  1. migrate_configs_to_db.py — импорт несуществующего CLINICS_REGISTRY (скрипт сломан)
+  2. apply_city_heuristic.py — баг `if city:` + дубликат кода после commit
+  3. keyboards/inline.py — хардкод clinic_id == "272" для фильтрации детских/взрослых
+  4. utils/cache.py — 5 функций (~100 строк) нигде не вызываются
+  5. database/doctor_manager.py — in-memory кэш self.data загружается, но не используется
+
+- Проведён второй аудит (18 файлов) после исправлений. Выявлен 21 дефект, все устранены.
+
+### Исправления (2026-05-11, вторая итерация)
+
+**Удалён мёртвый код (6):**
+
+- `_migrate_add_tables()` в database/database.py — таблицы уже создаются в `_create_tables()`
+- `save()` в database/doctor_manager.py — пустой no-op метод
+- `set_specialty_aliases()` в utils/helpers.py — не вызывалась
+- `check_affiliation()` в api/zdrav_client.py — проверка прикрепления убрана
+- `_delete_monitoring_messages()` в handlers/common.py — обёртка-прокладка, заменена на `_delete_cleanup_msg_entries`
+- `upsert_clinic_full()` в database/database.py — неполный дубликат `upsert_clinic()`
+
+**Убран излишний код (1):**
+
+- `hasattr(doctor_manager, "_db")` → `doctor_manager._db` в services/doctor_discovery.py
+
+**Хардкоды (2):**
+
+- `clinic_id == "272"` → `DENTAL_CLINIC_ID = "272"` в keyboards/inline.py
+- `DB_PATH = "data/bot.db"` → `settings.SQLITE_DB_PATH` в scripts/apply_city_heuristic.py и apply_heuristic_types.py
+
+**Дубликаты в скриптах (2):**
+
+- apply_city_heuristic.py: удалён дубликат `detect_clinic_city()`, заменён на `from database.database import detect_clinic_city`
+- apply_heuristic_types.py: удалён дубликат `detect_clinic_type()`, заменён на `from database.database import detect_clinic_type`
+
+**Гонка (1):**
+
+- handlers/common.py: прямое чтение/запись JSON-файла кэша заменено на `delete_cache_keys_by_prefix()` из utils/cache.py
+
+**Нерабочий скрипт (1):**
+
+- scripts/migrate_configs_to_db.py удалён (импортировал отсутствующий `CLINICS_REGISTRY`)
+
+**Тесты (1):**
+
+- tests/test_cache.py переписан: удалены импорты несуществующих функций, тесты используют реальные `swap_cache_key` / `delete_cache_keys_by_prefix`
+
+### Дополнительное исправление (2026-05-11, повторная верификация)
+
+- **Гонка в `toggle_doctor` (ветка ON)** — в handlers/common.py инлайн `asyncio.Lock()` (новый лок на каждый вызов = нет реальной блокировки) + прямое чтение/запись JSON-файла заменены на `await swap_cache_key()`. Попутно удалены неиспользуемые импорты `json`, `os`, `aiofiles`.

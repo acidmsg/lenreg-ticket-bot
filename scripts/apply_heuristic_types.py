@@ -3,24 +3,16 @@
 Запускать однократно после добавления эвристики.
 """
 
-import re
+import os
 import sqlite3
+import sys
 
-DB_PATH = "data/bot.db"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from config import settings
+from database.database import detect_clinic_type
 
-def detect_clinic_type(name: str) -> str:
-    if not name:
-        return "adult"
-    lower = name.lower()
-    if re.search(r"стоматолог", lower):
-        return "all"
-    if re.search(r"детск", lower):
-        return "child"
-    return "adult"
-
-
-conn = sqlite3.connect(DB_PATH)
+conn = sqlite3.connect(settings.SQLITE_DB_PATH)
 cur = conn.cursor()
 
 cur.execute("SELECT clinic_id, name, type FROM clinics")

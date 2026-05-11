@@ -25,12 +25,6 @@ async def load_specialty_aliases_from_db(db):
         )
 
 
-def set_specialty_aliases(aliases: dict[str, str]):
-    """Устанавливает псевдонимы специальностей (для тестов)."""
-    global _db_specialty_aliases
-    _db_specialty_aliases = aliases
-
-
 def is_child(bday_str: str) -> bool:
     """
     Определяет, является ли пациент ребёнком (< 18 лет).

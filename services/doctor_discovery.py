@@ -57,7 +57,7 @@ async def discovery_loop(
         try:
             all_doctors_with_specialty = []
 
-            db = doctor_manager._db if hasattr(doctor_manager, "_db") else None
+            db = doctor_manager._db
 
             # Получаем тип клиники (из БД)
             clinic_type = await _get_clinic_type_from_db(db, clinic_id)

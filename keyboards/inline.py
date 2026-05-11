@@ -49,7 +49,8 @@ def get_doctor_selection(
     doctors_cabinets = []
 
     # Определяем, нужно ли фильтровать по детским специальностям в стоматологии
-    is_dental = clinic_id == "272"
+    DENTAL_CLINIC_ID = "272"
+    is_dental = clinic_id == DENTAL_CLINIC_ID
     patient_is_child = is_child(bday_str) if is_dental and bday_str else None
 
     for d_id, info in doctors_list.items():
