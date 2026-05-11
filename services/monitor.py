@@ -93,6 +93,17 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
         try:
             users_data = db.data
 
+            # Очистка empty_counts от ключей, которых больше нет в активном мониторинге
+            active_keys = {
+                f"{uid}_{p_id}_{d_id}"
+                for uid, u_info in users_data.items()
+                for p_id, doctors in u_info.get("monitoring", {}).items()
+                for d_id in doctors
+            }
+            for stale in list(empty_counts.keys()):
+                if stale not in active_keys:
+                    del empty_counts[stale]
+
             for uid, u_info in users_data.items():
                 monitoring = u_info.get("monitoring", {})
                 for p_id, doctors in monitoring.items():

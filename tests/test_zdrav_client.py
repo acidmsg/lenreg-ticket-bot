@@ -92,32 +92,6 @@ class TestZdravClient:
         assert p_id is None
         assert "недоступен" in (err or "")
 
-    # ── check_affiliation ─────────────────────────────────────────────
-
-    async def test_check_affiliation_success(self, mock_zdrav_client):
-        """Проверка прикрепления — успех."""
-        mock_http = await mock_zdrav_client._get_client()
-        mock_http.post.return_value = _make_response(200, {"success": True})
-
-        result = await mock_zdrav_client.check_affiliation("123", "272")
-        assert result is True
-
-    async def test_check_affiliation_failure(self, mock_zdrav_client):
-        """Проверка прикрепления — отказ."""
-        mock_http = await mock_zdrav_client._get_client()
-        mock_http.post.return_value = _make_response(200, {"success": False})
-
-        result = await mock_zdrav_client.check_affiliation("123", "272")
-        assert result is False
-
-    async def test_check_affiliation_error(self, mock_zdrav_client):
-        """Проверка прикрепления — ошибка сети."""
-        mock_http = await mock_zdrav_client._get_client()
-        mock_http.post.side_effect = Exception("Network error")
-
-        result = await mock_zdrav_client.check_affiliation("123", "272")
-        assert result is False
-
     # ── fetch_speciality_list ─────────────────────────────────────────
 
     async def test_fetch_speciality_list_success(self, mock_zdrav_client):

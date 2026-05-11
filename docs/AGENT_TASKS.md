@@ -65,7 +65,7 @@
 ## 📋 Чек-лист прогресса
 
 - [x] B1 — async `get_user_data()` + `asyncio.Lock`
-- [ ] B2 — `empty_counts` → `TTLCache`
+- [x] B2 — `empty_counts` → очистка неактивных ключей (вместо `TTLCache`)
 - [x] ~~B3 — синхронный JSON в `common.py` → `swap_cache_key()` / `delete_cache_keys_by_prefix()`~~
 - [ ] B4 — try/except в registration
 - [ ] B5 — import `metrics` вынести наверх (отложено — циклический импорт)

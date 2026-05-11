@@ -299,3 +299,41 @@
 - `tests/test_database_manager.py` — 5 вызовов → `await`
 
 **Тесты:** 15/15 passed, полный suite: 56 passed, 3 failed (предсуществующие — `check_affiliation` удалён из `ZdravClient`)
+
+## 2026-05-11
+
+### B2 — Очистка `empty_counts` от неактивных ключей
+
+**Проблема:** `empty_counts = {}` в [`services/monitor.py`](services/monitor.py:90) — словарь рос бесконечно, ключи никогда не удалялись при отписке от врача или удалении пациента. Реальный риск был низким (типично 20–750 записей), но при долгоживущем процессе мог накапливаться.
+
+**Решение:** Добавлена очистка неактивных ключей в начале каждого цикла `while True` (`services/monitor.py:96-105`):
+
+- Собирается множество `active_keys` на основе текущих данных `db.data["monitoring"]`
+- Все ключи `empty_counts`, отсутствующие в `active_keys`, удаляются
+
+**Почему не `TTLCache`:** `TTLCache` сломал бы логику защиты от ложных пустых ответов (3 retry) — TTL сбрасывал бы счётчик при длительном отсутствии слотов, а `maxsize` мог вытеснить активные ключи.
+
+**Файлы:**
+
+- [`services/monitor.py`](services/monitor.py) — добавлена очистка `empty_counts` (строки 96-105)
+- [`docs/AGENT_TASKS.md`](docs/AGENT_TASKS.md) — B2 отмечен выполненным
+
+### Удаление тестов `check_affiliation`
+
+**Проблема:** 3 теста в [`tests/test_zdrav_client.py`](tests/test_zdrav_client.py:97-119) падали с `AttributeError: 'ZdravClient' object has no attribute 'check_affiliation'`. Метод был удалён из [`api/zdrav_client.py`](api/zdrav_client.py) ранее, но тесты остались.
+
+**Решение:** Удалены 3 теста (`test_check_affiliation_success`, `test_check_affiliation_failure`, `test_check_affiliation_error`). Поиск `check_affiliation` по проекту подтвердил: метод не используется нигде, кроме тестов.
+
+**Результат:** 56/56 passed.
+
+### `scripts/run_tests.py` — постоянный скрипт для запуска тестов
+
+**Проблема:** PowerShell-терминал искажает вывод pytest с кириллицей (баг кодировки pwsh + Python в Windows). Каждый раз приходилось создавать временный `_run_tests.py`.
+
+**Решение:** Создан постоянный скрипт [`scripts/run_tests.py`](scripts/run_tests.py), который:
+
+- Запускает pytest через `subprocess.run(capture_output=True)`, обходя проблемную консоль
+- Сохраняет полный вывод в `.pytest_output.txt` (добавлен в `.gitignore`)
+- Принимает аргументы: `python scripts/run_tests.py -v --tb=short` или `python scripts/run_tests.py -k test_cache`
+
+**Использование:** `.venv\Scripts\python.exe scripts\run_tests.py [аргументы pytest]`

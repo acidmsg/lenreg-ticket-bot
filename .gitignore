@@ -10,3 +10,4 @@ data/monitoring_cache.json
 *.db-wal
 .venv/
 .pytest_cache/
+.pytest_output.txt
