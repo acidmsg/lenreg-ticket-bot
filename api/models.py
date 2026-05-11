@@ -1,0 +1,140 @@
+"""
+Pydantic-модели для ответов API zdrav.lenreg.ru.
+
+Каждая модель валидирует форму ответа, заменяя сырые .get()-вызовы
+на типизированный доступ с понятными сообщениями об ошибках.
+"""
+
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
+# ── Общие (shared) ────────────────────────────────────────────
+
+
+class DateInfo(BaseModel):
+    """Вложенный объект даты (LastDate, NearestDate, date_start, date_end)."""
+
+    model_config = {"populate_by_name": True}
+
+    year: str = ""
+    day_verbose: str = Field(default="", alias="day_verbose")
+    month: str = ""
+    month_verbose: str = Field(default="", alias="month_verbose")
+    time: str = ""
+    iso: str = ""
+    day: str = ""
+
+
+class ApiError(BaseModel):
+    """Объект ошибки (пока не документирован, оставляем гибким)."""
+
+    model_config = {"extra": "allow"}
+
+
+# ── check_patient ─────────────────────────────────────────────
+
+
+class CheckPatientData(BaseModel):
+    """response.check_patient."""
+
+    history_id: Optional[str] = None
+    patient_id: Optional[str] = None
+
+
+class CheckPatientResponse(BaseModel):
+    """Ответ /api/check_patient/."""
+
+    response: CheckPatientData = Field(default_factory=CheckPatientData)
+    success: bool = False
+    error: ApiError = Field(default_factory=ApiError)
+
+
+# ── speciality_list ───────────────────────────────────────────
+
+
+class SpecialityItem(BaseModel):
+    """Один элемент списка специальностей."""
+
+    NameSpesiality: str = ""
+    FerIdSpesiality: str = ""
+    IdSpesiality: str = ""
+    CountFreeTicket: int = 0
+    LastDate: Optional[DateInfo] = None
+    NearestDate: Optional[DateInfo] = None
+    CountFreeParticipantIE: int = 0
+
+
+class SpecialityListResponse(BaseModel):
+    """Ответ /api/speciality_list/."""
+
+    response: List[SpecialityItem] = Field(default_factory=list)
+    success: bool = False
+    error: ApiError = Field(default_factory=ApiError)
+
+
+# ── doctor_list ───────────────────────────────────────────────
+
+
+class DoctorItem(BaseModel):
+    """Один врач из списка."""
+
+    AriaNumber: Optional[str] = None
+    Name: str = ""
+    IdDoc: str = ""
+    CountFreeTicket: int = 0
+    LastDate: Optional[DateInfo] = None
+    NearestDate: Optional[DateInfo] = None
+    CountFreeParticipantIE: int = 0
+    # Добавляется кодом, а не API:
+    SpesialityName: str = ""
+
+
+class DoctorListResponse(BaseModel):
+    """Ответ /api/doctor_list/."""
+
+    response: List[DoctorItem] = Field(default_factory=list)
+    success: bool = False
+    error: ApiError = Field(default_factory=ApiError)
+
+
+# ── appointment_list ──────────────────────────────────────────
+
+
+class AppointmentSlot(BaseModel):
+    """Один слот в списке записи."""
+
+    date_end: DateInfo = Field(default_factory=lambda: DateInfo())
+    date_start: DateInfo = Field(default_factory=lambda: DateInfo())
+    id: str = ""
+
+
+class AppointmentListResponse(BaseModel):
+    """Ответ /api/appointment_list/.
+
+    response — dict[дата, list[слотов]], например:
+    {"2026-05-19": [{...slot...}, ...]}
+    """
+
+    response: Dict[str, List[AppointmentSlot]] = Field(default_factory=dict)
+    success: Optional[bool] = None  # не всегда приходит в этом эндпоинте
+    error: ApiError = Field(default_factory=ApiError)
+
+
+# ── clinic_list ───────────────────────────────────────────────
+
+
+class ClinicItem(BaseModel):
+    """Одна клиника из списка."""
+
+    IdLPU: str = ""
+    LpuName: str = ""
+    LPUShortName: str = ""
+
+
+class ClinicListResponse(BaseModel):
+    """Ответ /api/clinic_list/."""
+
+    response: List[ClinicItem] = Field(default_factory=list)
+    success: bool = False
+    error: ApiError = Field(default_factory=ApiError)

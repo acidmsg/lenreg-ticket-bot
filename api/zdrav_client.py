@@ -7,6 +7,13 @@ from typing import Any, List, Optional, Tuple
 import aiolimiter
 import httpx
 
+from api.models import (
+    AppointmentListResponse,
+    CheckPatientResponse,
+    ClinicListResponse,
+    DoctorListResponse,
+    SpecialityListResponse,
+)
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -80,8 +87,8 @@ class ZdravClient:
                     headers=self._get_headers(),
                 )
                 if res.status_code == 200:
-                    data = res.json()
-                    p_id = data.get("response", {}).get("patient_id")
+                    model = CheckPatientResponse.model_validate(res.json())
+                    p_id = model.response.patient_id
                     if p_id:
                         return str(p_id), None
                     return (
@@ -115,9 +122,12 @@ class ZdravClient:
                     headers=self._get_headers(),
                 )
                 if res.status_code == 200:
-                    data = res.json()
-                    if data.get("success"):
-                        return data.get("response", [])
+                    model = SpecialityListResponse.model_validate(res.json())
+                    if model.success:
+                        # Обратная совместимость: возвращаем list[dict]
+                        return [
+                            item.model_dump(by_alias=True) for item in model.response
+                        ]
                 return []
             except Exception as e:
                 logger.error(f"Ошибка API (fetch_speciality_list): {e}")
@@ -141,16 +151,14 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        data = res.json().get("response", {})
-                        logger.info(f"API response for {doc_id}: {data}")
+                        model = AppointmentListResponse.model_validate(res.json())
+                        logger.info(f"API response for {doc_id}: {model.response}")
                         slots = []
-                        if isinstance(data, dict):
-                            for date, items in data.items():
-                                if isinstance(items, list):
-                                    for s in items:
-                                        t = s.get("date_start", {}).get("time")
-                                        if t:
-                                            slots.append(f"{date} в {t}")
+                        for date, items in model.response.items():
+                            for s in items:
+                                t = s.date_start.time
+                                if t:
+                                    slots.append(f"{date} в {t}")
                         if not slots:
                             logger.info(f"API returned 200 but no slots for {doc_id}")
                         return slots
@@ -186,9 +194,13 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        data = res.json()
-                        if data.get("success"):
-                            return data.get("response", [])
+                        model = DoctorListResponse.model_validate(res.json())
+                        if model.success:
+                            # Обратная совместимость: возвращаем list[dict]
+                            return [
+                                item.model_dump(by_alias=True)
+                                for item in model.response
+                            ]
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
@@ -211,9 +223,12 @@ class ZdravClient:
                     headers=self._get_headers(),
                 )
                 if res.status_code == 200:
-                    data = res.json()
-                    if data.get("success"):
-                        return data.get("response", [])
+                    model = ClinicListResponse.model_validate(res.json())
+                    if model.success:
+                        # Обратная совместимость: возвращаем list[dict]
+                        return [
+                            item.model_dump(by_alias=True) for item in model.response
+                        ]
                 logger.warning(
                     f"clinic_list вернул {res.status_code} для района {district_id}"
                 )

@@ -337,3 +337,47 @@
 - Принимает аргументы: `python scripts/run_tests.py -v --tb=short` или `python scripts/run_tests.py -k test_cache`
 
 **Использование:** `.venv\Scripts\python.exe scripts\run_tests.py [аргументы pytest]`
+
+---
+
+## 2026-05-11
+
+### R1 — Pydantic модели API ✅
+
+Создан [`api/models.py`](api/models.py) с 11 Pydantic-моделями для валидации ответов API zdrav.lenreg.ru:
+
+| Эндпоинт | Модель ответа | Модель элемента |
+|---|---|---|
+| `check_patient` | `CheckPatientResponse` | `CheckPatientData` |
+| `speciality_list` | `SpecialityListResponse` | `SpecialityItem` |
+| `doctor_list` | `DoctorListResponse` | `DoctorItem` |
+| `appointment_list` | `AppointmentListResponse` | `AppointmentSlot` |
+| `clinic_list` | `ClinicListResponse` | `ClinicItem` |
+
+Общие: `DateInfo` (с алиасами `day_verbose`/`month_verbose`), `ApiError` (`extra="allow"`).
+
+**Изменения в [`api/zdrav_client.py`](api/zdrav_client.py):**
+
+- Все 5 методов (`fetch_patient_id`, `fetch_speciality_list`, `check_slots`, `fetch_all_doctors`, `fetch_clinic_list`) валидируют ответ через `model_validate()` вместо сырых `.get()`.
+- Обратная совместимость полностью сохранена (возвращаемые типы не изменены).
+
+**Попутный фикс в [`config.py`](config.py:76):** Добавлен `extra="ignore"` в `SettingsConfigDict` — `PYTHONUTF8` из `.env` больше не ломает загрузку конфига.
+
+### B4 — проверка ✅
+
+Подтверждено: [`process_alias`](handlers/registration.py:95) и [`skip_alias`](handlers/registration.py:132) уже содержат `try/except` + `state.clear()` в обоих путях. Задача выполнена ранее.
+
+### Результаты тестов
+
+Все 56 тестов пройдены (0 предупреждений, 14.5 сек).
+
+---
+
+## 2026-05-11 (сверка)
+
+### Удаление B1, B2 из AGENT_TASKS.md
+
+- B1 и B2 были выполнены (SESSION_LOG.md строки 284-319), но оставались в таблице `AGENT_TASKS.md`
+- Удалены B1, B2 из таблицы «Критические баги»
+- Секция `## 🔴 Критические баги` удалена целиком (стала пустой)
+- Сверены оба файла — несоответствий больше нет

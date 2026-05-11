@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     MESSAGE_TTL_SECONDS: int = 604800
     CLEANUP_INTERVAL: int = 3600  # Проверять каждые 1 час
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()
