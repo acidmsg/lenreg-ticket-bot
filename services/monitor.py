@@ -18,7 +18,7 @@ async def _send_notification(
 ):
     try:
         # Для "приклеивания" (удаления старого сообщения) нужно хранить message_id
-        last_msg_id = db.get_last_message_id(uid, p_id, d_id)
+        last_msg_id = await db.get_last_message_id(uid, p_id, d_id)
 
         if last_msg_id:
             try:

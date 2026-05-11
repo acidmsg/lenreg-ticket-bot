@@ -20,7 +20,7 @@ class TestDatabaseManager:
 
     async def test_get_user_data_creates_default(self, db_manager):
         """get_user_data создаёт запись по умолчанию для нового пользователя."""
-        data = db_manager.get_user_data("999")
+        data = await db_manager.get_user_data("999")
         assert "patients" in data
         assert "monitoring" in data
         assert "last_messages" in data
@@ -30,12 +30,12 @@ class TestDatabaseManager:
     async def test_get_user_data_existing(self, db_manager):
         """get_user_data возвращает существующие данные."""
         await db_manager.add_patient("555", "p1", {"fio": "Иван", "bday": "1990-01-01"})
-        data = db_manager.get_user_data("555")
+        data = await db_manager.get_user_data("555")
         assert data["patients"]["p1"]["fio"] == "Иван"
 
     async def test_get_user_data_migrates_last_messages(self, db_manager):
         """Если в данных нет 'last_messages', он добавляется."""
-        data = db_manager.get_user_data("111")
+        data = await db_manager.get_user_data("111")
         # Новый пользователь всегда получает last_messages
         assert "last_messages" in data
 
@@ -102,12 +102,12 @@ class TestDatabaseManager:
     async def test_last_message_id(self, db_manager):
         """set_last_message_id и get_last_message_id работают корректно."""
         await db_manager.set_last_message_id("100", "p1", "d1", 123)
-        msg_id = db_manager.get_last_message_id("100", "p1", "d1")
+        msg_id = await db_manager.get_last_message_id("100", "p1", "d1")
         assert msg_id == 123
 
     async def test_get_last_message_id_none(self, db_manager):
         """get_last_message_id возвращает None для несуществующего ключа."""
-        msg_id = db_manager.get_last_message_id("999", "p1", "d1")
+        msg_id = await db_manager.get_last_message_id("999", "p1", "d1")
         assert msg_id is None
 
     async def test_save_persists_data(self, temp_db_path):

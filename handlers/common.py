@@ -163,7 +163,7 @@ async def cmd_status(message: Message, db: DatabaseManager):
 @router.message(Command("start"))
 async def cmd_start(message: Message, db: DatabaseManager):
     uid = str(message.from_user.id) if message.from_user else "unknown"
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
 
     if not user_data.get("patients"):
         await message.answer(
@@ -186,7 +186,7 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
     if not call.from_user or not call.message:
         return
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     if isinstance(call.message, Message):
         if not user_data.get("patients"):
             await call.message.edit_text(
@@ -210,7 +210,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
         return
     p_id = call.data.replace("sel_p_", "")
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
 
     # Получаем города активных клиник
@@ -244,7 +244,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
     p_id = parts[2]
     idx_or_all = parts[3]
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
 
     clinic_names = await db.get_all_clinic_names()
@@ -289,7 +289,7 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
         return
     p_id = call.data.replace("back_to_cities_", "")
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     cities = await db._db.get_distinct_cities()
     clinics_data = await db._db.get_active_clinics()
     try:
@@ -319,7 +319,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
     p_id = parts[3]
     city_idx = parts[4]  # всегда есть, т.к. len >= 5
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
 
     clinic_names = await db.get_all_clinic_names()
@@ -370,7 +370,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     # Формат: sel_c_{p_id}_{clinic_id}_{city_idx}
     city_idx = parts[4] if len(parts) >= 5 else "all"
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
     confirmed = p_info.get("confirmed_clinics", [])
 
@@ -425,7 +425,7 @@ async def toggle_doctor(
     _, p_id, clinic_id, d_id = call.data.split("_")
     uid = str(call.from_user.id)
 
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_info = doctors_list.get(d_id, {})
     d_name = doc_info.get("name", "Врач")
@@ -445,7 +445,7 @@ async def toggle_doctor(
     p_info = user_data.get("patients", {}).get(p_id, {})
 
     if already_monitored:
-        user_data = db.get_user_data(uid)
+        user_data = await db.get_user_data(uid)
         monitored = user_data["monitoring"].get(p_id, {})
 
         # Удаляем связанное сообщение из чата
@@ -493,7 +493,7 @@ async def toggle_doctor(
         cache_key = f"{uid}_{p_id}_{d_id}"
         await swap_cache_key(cache_key, slots if slots else "NONE")
 
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     monitored = user_data["monitoring"].get(p_id, {})
 
     has_slots = bool(slots)
@@ -539,7 +539,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     city_idx = parts[4] if len(parts) >= 5 else "all"
 
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
 
     # Удаляем сообщения для этого пациента
     await _delete_cleanup_msg_entries(bot, uid, f"{p_id}_", user_data["last_messages"])
@@ -614,7 +614,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
         return
     p_id, clinic_id = parts[2], parts[3]
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
 
     p_monitoring = user_data["monitoring"].get(p_id, {})
     # Удаляем всех врачей, принадлежащих этой клинике
@@ -666,7 +666,7 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
     if not call.from_user or not call.message:
         return
     uid = str(call.from_user.id)
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
 
     # Удаляем все сообщения мониторинга
     await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
@@ -677,7 +677,7 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
     # Очищаем кэш слотов для этого пользователя
     await delete_cache_keys_by_prefix(f"{uid}_")
 
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
 
     if isinstance(call.message, Message):
         await call.message.edit_text(
@@ -711,7 +711,7 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
         if call.bot is None:
             return
         # Удаляем сообщения из чата, связанные с пациентом
-        user_data = db.get_user_data(uid)
+        user_data = await db.get_user_data(uid)
         await _delete_cleanup_msg_entries(
             bot=call.bot,
             uid=uid,

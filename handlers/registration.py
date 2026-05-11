@@ -107,7 +107,7 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
     await db.add_patient(uid, p_id, p_info)
     await state.clear()
 
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     await message.answer(
         "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
         reply_markup=get_patient_selection(
@@ -131,7 +131,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
     await db.add_patient(uid, p_id, p_info)
     await state.clear()
 
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     if isinstance(call.message, Message):
         await call.message.edit_text(
             "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
@@ -148,7 +148,7 @@ async def cancel_registration(
 ):
     await state.clear()
     uid = str(call.from_user.id) if call.from_user else "unknown"
-    user_data = db.get_user_data(uid)
+    user_data = await db.get_user_data(uid)
     if isinstance(call.message, Message):
         await call.message.edit_text(
             "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",

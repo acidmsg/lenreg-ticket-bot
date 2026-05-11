@@ -6,7 +6,7 @@
 |---|---|---|---|
 | B1 | Гонка данных в `get_user_data()` — переписать на async + `asyncio.Lock` | 🔴 Критичный | `database/manager.py:36-46`, синхронный метод без lock |
 | B2 | Утечка памяти в `empty_counts` — заменить `dict` на `TTLCache` | 🔴 Критичный | `services/monitor.py:90`, словарь растёт бесконечно |
-| ~~B3~~ | ~~Синхронный read/write JSON в `handlers/common.py`~~ | ✅ **Выполнено** | Заменён на асинхронный (`aiofiles`), но не на `update_cache_key()` |
+| ~~B3~~ | ~~Синхронный read/write JSON в `handlers/common.py`~~ | ✅ **Выполнено** | Полностью заменён на `swap_cache_key()` / `delete_cache_keys_by_prefix()` |
 
 ## 🟡 Средний приоритет
 
@@ -64,9 +64,9 @@
 
 ## 📋 Чек-лист прогресса
 
-- [ ] B1 — async `get_user_data()` + `asyncio.Lock`
+- [x] B1 — async `get_user_data()` + `asyncio.Lock`
 - [ ] B2 — `empty_counts` → `TTLCache`
-- [x] ~~B3 — синхронный JSON в `common.py` → асинхронный (`aiofiles`)~~
+- [x] ~~B3 — синхронный JSON в `common.py` → `swap_cache_key()` / `delete_cache_keys_by_prefix()`~~
 - [ ] B4 — try/except в registration
 - [ ] B5 — import `metrics` вынести наверх (отложено — циклический импорт)
 - [ ] R1 — Pydantic модели API

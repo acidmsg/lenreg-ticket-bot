@@ -280,3 +280,22 @@
 ### Дополнительное исправление (2026-05-11, повторная верификация)
 
 - **Гонка в `toggle_doctor` (ветка ON)** — в handlers/common.py инлайн `asyncio.Lock()` (новый лок на каждый вызов = нет реальной блокировки) + прямое чтение/запись JSON-файла заменены на `await swap_cache_key()`. Попутно удалены неиспользуемые импорты `json`, `os`, `aiofiles`.
+
+### B1 — Async `get_user_data()` + `asyncio.Lock` (2026-05-11)
+
+**Изменённые файлы:**
+
+- `database/manager.py`:
+  - Добавлен `import asyncio`, `import time` наверх модуля
+  - В `__init__` добавлен `self._lock = asyncio.Lock()`
+  - `get_user_data()` переписан на `async def` — захватывает `self._lock`, делегирует приватному `_get_user_data_nolock()`
+  - `_get_user_data_nolock(uid)` — синхронный метод, вызывается **только** под локом
+  - `get_last_message_id()` сделан `async def` с захватом `self._lock`
+  - Все мутирующие кэш методы обёрнуты в `async with self._lock`: `update_user`, `set_last_message_id`, `add_patient`, `add_confirmed_clinic`, `toggle_monitoring`, `stop_all_monitoring`, `delete_patient`, `refresh_cache`
+
+- `handlers/common.py` — все 13 вызовов `db.get_user_data(uid)` → `await db.get_user_data(uid)`
+- `handlers/registration.py` — 3 вызова → `await`
+- `services/monitor.py` — `db.get_last_message_id(...)` → `await db.get_last_message_id(...)`
+- `tests/test_database_manager.py` — 5 вызовов → `await`
+
+**Тесты:** 15/15 passed, полный suite: 56 passed, 3 failed (предсуществующие — `check_affiliation` удалён из `ZdravClient`)
