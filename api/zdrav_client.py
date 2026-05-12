@@ -36,10 +36,14 @@ class ZdravClient:
             max_rate=10, time_period=60
         )  # для хендлеров (пользовательские запросы)
         self.user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/121.0.0.0",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/121.0.0.0",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) "
+            "Gecko/20100101 Firefox/123.0",
         ]
         self._client: Optional[httpx.AsyncClient] = None
 
@@ -49,6 +53,9 @@ class ZdravClient:
             "Referer": settings.REFERER_URL,
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-CSRFToken": settings.CSRF_TOKEN,
+            "Cookie": f"csrftoken={settings.CSRF_TOKEN}",
+            "Origin": "https://zdrav.lenreg.ru",
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -107,16 +114,19 @@ class ZdravClient:
                         return str(p_id), None
                     return (
                         None,
-                        "Пациент не найден в базе поликлиники. Проверьте правильность введенных данных.",
+                        "Пациент не найден в базе поликлиники. "
+                        "Проверьте правильность введенных данных.",
                     )
                 elif res.status_code in [403, 429]:
                     return (
                         None,
-                        "Портал временно недоступен (защита от ботов). Попробуйте позже.",
+                        "Портал временно недоступен (защита от ботов). "
+                        "Попробуйте позже.",
                     )
                 return None, f"Портал временно недоступен ({res.status_code})"
             except Exception as e:
-                logger.error(f"Ошибка API (fetch_patient_id): {e}")
+                exc_repr = repr(e) if not str(e) else str(e)
+                logger.error(f"Ошибка API (fetch_patient_id): {exc_repr}")
                 return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
 
     async def fetch_speciality_list(
@@ -132,23 +142,34 @@ class ZdravClient:
         }
         async with limiter or self.limiter:
             client = await self._get_client()
-            try:
-                res = await client.post(
-                    f"{self.base_url}/speciality_list/",
-                    data=payload,
-                    headers=self._get_headers(),
-                )
-                if res.status_code == 200:
-                    model = SpecialityListResponse.model_validate(res.json())
-                    if model.success:
-                        # Обратная совместимость: возвращаем list[dict]
-                        return [
-                            item.model_dump(by_alias=True) for item in model.response
-                        ]
-                return []
-            except Exception as e:
-                logger.error(f"Ошибка API (fetch_speciality_list): {e}")
-                return []
+            for i in range(3):
+                try:
+                    res = await client.post(
+                        f"{self.base_url}/speciality_list/",
+                        data=payload,
+                        headers=self._get_headers(),
+                    )
+                    if res.status_code == 200:
+                        model = SpecialityListResponse.model_validate(res.json())
+                        if model.success:
+                            # Обратная совместимость: возвращаем list[dict]
+                            return [
+                                item.model_dump(by_alias=True)
+                                for item in model.response
+                            ]
+                    elif res.status_code >= 500:
+                        await asyncio.sleep(2)
+                        continue
+                    return []
+                except Exception as e:
+                    exc_repr = repr(e) if not str(e) else str(e)
+                    logger.error(
+                        "Ошибка API (fetch_speciality_list), "
+                        f"попытка {i + 1}: {exc_repr}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+            return []
 
     async def check_slots(
         self,
@@ -192,7 +213,10 @@ class ZdravClient:
                         await asyncio.sleep(2)
                         continue
                 except Exception as e:
-                    logger.error(f"Ошибка API (check_slots), попытка {i + 1}: {e}")
+                    exc_repr = repr(e) if not str(e) else str(e)
+                    logger.error(
+                        f"Ошибка API (check_slots), попытка {i + 1}: {exc_repr}"
+                    )
                     await asyncio.sleep(2)
         return None
 
@@ -230,8 +254,9 @@ class ZdravClient:
                         await asyncio.sleep(2)
                         continue
                 except Exception as e:
+                    exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
-                        f"Ошибка API (fetch_all_doctors), попытка {i + 1}: {e}"
+                        f"Ошибка API (fetch_all_doctors), попытка {i + 1}: {exc_repr}"
                     )
                     await asyncio.sleep(2)
         return []
@@ -247,23 +272,33 @@ class ZdravClient:
         }
         async with limiter or self.limiter:
             client = await self._get_client()
-            try:
-                res = await client.post(
-                    f"{self.base_url}/clinic_list/",
-                    data=payload,
-                    headers=self._get_headers(),
-                )
-                if res.status_code == 200:
-                    model = ClinicListResponse.model_validate(res.json())
-                    if model.success:
-                        # Обратная совместимость: возвращаем list[dict]
-                        return [
-                            item.model_dump(by_alias=True) for item in model.response
-                        ]
-                logger.warning(
-                    f"clinic_list вернул {res.status_code} для района {district_id}"
-                )
-                return []
-            except Exception as e:
-                logger.error(f"Ошибка API (fetch_clinic_list): {e}")
-                return []
+            for i in range(3):
+                try:
+                    res = await client.post(
+                        f"{self.base_url}/clinic_list/",
+                        data=payload,
+                        headers=self._get_headers(),
+                    )
+                    if res.status_code == 200:
+                        model = ClinicListResponse.model_validate(res.json())
+                        if model.success:
+                            # Обратная совместимость: возвращаем list[dict]
+                            return [
+                                item.model_dump(by_alias=True)
+                                for item in model.response
+                            ]
+                    elif res.status_code >= 500:
+                        await asyncio.sleep(2)
+                        continue
+                    logger.warning(
+                        f"clinic_list вернул {res.status_code} для района {district_id}"
+                    )
+                    return []
+                except Exception as e:
+                    exc_repr = repr(e) if not str(e) else str(e)
+                    logger.error(
+                        f"Ошибка API (fetch_clinic_list), попытка {i + 1}: {exc_repr}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+            return []

@@ -62,9 +62,9 @@ class CheckPatientResponse(BaseModel):
 class SpecialityItem(BaseModel):
     """Один элемент списка специальностей."""
 
-    NameSpesiality: str = ""
-    FerIdSpesiality: str = ""
-    IdSpesiality: str = ""
+    NameSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
+    FerIdSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
+    IdSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
     CountFreeTicket: int = 0
     LastDate: Optional[DateInfo] = None
     NearestDate: Optional[DateInfo] = None
@@ -86,8 +86,8 @@ class DoctorItem(BaseModel):
     """Один врач из списка."""
 
     AriaNumber: Optional[str] = None
-    Name: str = ""
-    IdDoc: str = ""
+    Name: Annotated[str, BeforeValidator(_coerce_str)] = ""
+    IdDoc: Annotated[str, BeforeValidator(_coerce_str)] = ""
     CountFreeTicket: int = 0
     LastDate: Optional[DateInfo] = None
     NearestDate: Optional[DateInfo] = None

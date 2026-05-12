@@ -1,5 +1,78 @@
 # SESSION_LOG.md
 
+## 2026-05-12 (project cleanup)
+
+### Очистка мусорных и временных файлов ✅
+
+**Аудит структуры проекта** выявил несколько проблем:
+
+| # | Файл | Статус |
+|---|------|--------|
+| 1 | [`$null`](file://$null) | Артефакт терминала/VSCode — **удалён** |
+| 2 | [`PySocks-1.7.1-py3-none-any.whl`](file://PySocks-1.7.1-py3-none-any.whl) | Бинарный wheel в git — **удалён из git и с диска** |
+| 3 | [`.mypy_cache/`](file://.mypy_cache), [`.ruff_cache/`](file://.ruff_cache) | Не были в `.gitignore` — **добавлены** |
+| 4 | [`*.whl`](file://.gitignore) | Не было правила в `.gitignore` — **добавлено** |
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`$null`](file://$null) | Удалён |
+| [`PySocks-1.7.1-py3-none-any.whl`](file://PySocks-1.7.1-py3-none-any.whl) | Удалён (`git rm --cached` + `del`) |
+| [`.gitignore`](file://.gitignore:1) | Добавлены `.mypy_cache/`, `.ruff_cache/`, `*.whl`; `data/monitoring_cache.json` + `*.db*` заменены на `data/`; структурирован по секциям |
+
+### Дополнительно выявлено (не требует действий)
+
+- Stale VSCode табы (7 шт.) — файлы на диске отсутствуют, нужно закрыть вручную в редакторе.
+- [`pyproject.toml`](file://pyproject.toml) — есть на диске, но не закоммичен.
+
+---
+
+## 2026-05-12 (zdrav API retry + logging fix)
+
+### Добавлен retry и улучшено логирование в ZdravClient ✅
+
+**Диагностика:** В логе [`logs/error.log:6813`](logs/error.log:6813) зафиксирован шквал ошибок API zdrav.lenreg.ru (15 ошибок за 1.5 мин) при старте бота в 10:13. При этом сервер zdrav.lenreg.ru был доступен (тестовые скрипты подтвердили 200 OK), а сообщения ошибок в логе были пустыми: `Ошибка API (fetch_speciality_list): `.
+
+**Корневые причины (2 бага):**
+
+1. **Отсутствие retry** в методах `fetch_speciality_list` и `fetch_clinic_list`. При 69 одновременных Discovery-циклах на старте один таймаут/сбой сети приводил к потере данных без повторных попыток. Методы `check_slots` и `fetch_all_doctors` уже имели retry — неконсистентность.
+
+2. **Битое логирование:** httpx исключения могут иметь пустой `str()` (например `ConnectError('')` → `str()` = `''`). Все 5 методов использовали `f"...: {e}"`, что давало невидимые ошибки.
+
+**Исправления в [`api/zdrav_client.py`](api/zdrav_client.py):**
+
+| Метод | Строки | Изменения |
+|-------|--------|-----------|
+| `fetch_speciality_list` | [136-162](api/zdrav_client.py:136) | Добавлен retry (3 попытки, sleep 2s для 5xx/exception) |
+| `fetch_clinic_list` | [265-294](api/zdrav_client.py:265) | Добавлен retry (3 попытки, sleep 2s для 5xx/exception) |
+| Все 5 методов | [119](api/zdrav_client.py:119), [156](api/zdrav_client.py:156), [206](api/zdrav_client.py:206), [247](api/zdrav_client.py:247), [288](api/zdrav_client.py:288) | `{e}` → `{repr(e) if not str(e) else str(e)}` — логирование всегда показывает тип/текст ошибки |
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`api/zdrav_client.py`](api/zdrav_client.py:136) | Retry + фикс логирования в 5 методах |
+
+---
+
+## 2026-05-12 (ci.yml cleanup)
+
+### Удалён лишний BOT_TOKEN из CI ✅
+
+- **Причина:** предупреждение VS Code "Context access might be invalid: BOT_TOKEN" в [`.github/workflows/ci.yml`](.github/workflows/ci.yml:28)
+- **Анализ:** `BOT_TOKEN` не используется ни в одном тесте (поиск по `tests/` — 0 упоминаний). В [`config.py:32`](config.py:32) есть fallback `"MUST_BE_OVERRIDDEN_IN_ENV"` — CI не требует этого секрета.
+- **История:** строка была добавлена при создании CI-файла 2026-05-07 «на всякий случай».
+- **Решение:** удалены строки 28-29 (`env:` + `BOT_TOKEN: ${{ secrets.BOT_TOKEN }}`) из [`ci.yml`](.github/workflows/ci.yml:26).
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml:26) | Удалены лишние строки `env`/`BOT_TOKEN` |
+
+---
+
 ## 2026-05-11 (venv rebuild)
 
 ### Пересоздание .venv ✅
@@ -724,3 +797,55 @@
 | [`api/models.py`](api/models.py:13) | Добавлены `Annotated`, `BeforeValidator`, `_coerce_str`; `IdLPU` с валидатором |
 
 **Результат:** 38/38 tests passed (test_doctor_discovery.py + test_zdrav_client.py)
+
+---
+
+## 2026-05-12 (Pydantic + HTTP fix)
+
+### Анализ лога ошибок ✅
+
+Прочитан [`logs/error.log`](logs/error.log) (7074 строки, 2026-05-12 00:18–11:41). Выявлено **1425 ERROR**, **234 WARNING**:
+
+| # | Категория | Кол-во | Суть |
+|---|-----------|--------|------|
+| 1 | Pydantic `SpecialityListResponse` validation | ~453 | `NameSpesiality`, `FerIdSpesiality`, `IdSpesiality` = `None` |
+| 2 | ProxyConnectionError | ~232 | Прокси 192.168.31.47:10808 периодически отваливался |
+| 3 | `fetch_all_doctors` + `fetch_speciality_list` пустые | ~584 | Ошибка без текста после двоеточия |
+| 4 | TelegramNetworkError / ServerDisconnectedError | несколько | Сетевые разрывы WinError 64 |
+
+### Исправление Pydantic-валидации ✅
+
+**Причина:** API `zdrav.lenreg.ru` иногда возвращает `null` в строковых полях `SpecialityItem`. Pydantic в режиме `model_validate` не применяет дефолт `""` к ключу со значением `None`.
+
+**Решение:** применён `Annotated[str, BeforeValidator(_coerce_str)]`:
+- [`SpecialityItem`](api/models.py:65): `NameSpesiality`, `FerIdSpesiality`, `IdSpesiality`
+- [`DoctorItem`](api/models.py:89): `Name`, `IdDoc`
+
+### Добавление HTTP-заголовков ✅
+
+В [`_get_headers()`](api/zdrav_client.py:46) добавлены:
+- `X-CSRFToken: NOTPROVIDED`
+- `Cookie: csrftoken=NOTPROVIDED`
+- `Origin: https://zdrav.lenreg.ru`
+
+### Изменённые файлы
+
+| Файл | Действие |
+|------|----------|
+| [`api/models.py`](api/models.py:62) | `SpecialityItem` строковые поля → `BeforeValidator(_coerce_str)` |
+| [`api/models.py`](api/models.py:85) | `DoctorItem` поля `Name`, `IdDoc` → `BeforeValidator(_coerce_str)` |
+| [`api/zdrav_client.py`](api/zdrav_client.py:46) | `_get_headers()`: +`X-CSRFToken`, `Cookie`, `Origin` |
+
+### Очистка мусорных лог-файлов ✅
+
+Удалены артефакты, не используемые проектом:
+- `logs/_error_lines.txt` — временный результат grep из этой же сессии
+- `logs/stdout.log` — артефакт ручного запуска (`python main.py > logs/stdout.log`)
+Проект использует только [`FileHandler("logs/error.log")`](main.py:32).
+
+| Файл | Действие |
+|------|----------|
+| `logs/_error_lines.txt` | Удалён |
+| `logs/stdout.log` | Удалён |
+
+**Результат:** 15/15 tests passed (test_zdrav_client.py)
