@@ -975,3 +975,16 @@
 | [`tests/test_monitor_full.py`](tests/test_monitor_full.py:197) | 6 monkeypatch-путей → `src.services.xxx` |
 | [`tests/test_zdrav_client.py`](tests/test_zdrav_client.py:16) | 1 inline-импорт → `src.api.zdrav_client` |
 | [`tests/test_doctor_manager.py`](tests/test_doctor_manager.py:75) | 1 inline-импорт → `src.database.doctor_manager` |
+
+### Pre-commit хуки и автофиксы ✅
+
+- `pre-commit run --all-files`: `mixed-line-ending` перевёл 55 файлов CRLF→LF, `ruff` убрал лишнюю пустую строку в [`tests/conftest.py`](tests/conftest.py:8)
+- Pre-existing failures (не исправлялись): `ruff-lint` (~30 E501/ASYNC240/ASYNC251), `mypy` (4 type-annotation)
+- Автофиксы закоммичены в `main` как `3e0546a`, запушены в `origin/main`
+
+### Изменённые файлы
+
+| Файл | Изменение |
+|------|-----------|
+| [`tests/conftest.py`](tests/conftest.py:8) | Убрана лишняя пустая строка (ruff) |
+| 54 файла | CRLF → LF line endings (mixed-line-ending) |
