@@ -125,9 +125,9 @@ class Database:
     async def connect(self):
         """Открыть соединение и создать таблицы."""
         data_dir = os.path.dirname(self.db_path)
-        if data_dir and not os.path.exists(data_dir):
+        if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
             try:
-                os.makedirs(data_dir)
+                os.makedirs(data_dir)  # noqa: ASYNC240
                 logger.info(f"Каталог '{data_dir}' создан для базы данных.")
             except OSError as e:
                 logger.error(f"Не удалось создать каталог '{data_dir}': {e}")
@@ -259,7 +259,8 @@ class Database:
         if c is None:
             raise RuntimeError("Database connection not initialized")
         await c.execute(
-            "INSERT OR REPLACE INTO user_last_messages (uid, p_id, d_id, msg_id, ts) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO user_last_messages "
+            "(uid, p_id, d_id, msg_id, ts) VALUES (?, ?, ?, ?, ?)",
             (uid, p_id, d_id, msg_id, ts),
         )
         await c.commit()
@@ -271,7 +272,8 @@ class Database:
         if c is None:
             return None
         cursor = await c.execute(
-            "SELECT msg_id, ts FROM user_last_messages WHERE uid = ? AND p_id = ? AND d_id = ?",
+            "SELECT msg_id, ts FROM user_last_messages "
+            "WHERE uid = ? AND p_id = ? AND d_id = ?",
             (uid, p_id, d_id),
         )
         row = await cursor.fetchone()
@@ -551,7 +553,8 @@ class Database:
         if c is None:
             return ("", "")
         cursor = await c.execute(
-            "SELECT discovery_patient_adult, discovery_patient_child FROM clinics WHERE clinic_id = ?",
+            "SELECT discovery_patient_adult, discovery_patient_child "
+            "FROM clinics WHERE clinic_id = ?",
             (clinic_id,),
         )
         row = await cursor.fetchone()
@@ -568,7 +571,8 @@ class Database:
         if c is None:
             raise RuntimeError("Database connection not initialized")
         cursor = await c.execute(
-            "SELECT clinic_id, name, type, is_active, city FROM clinics WHERE is_active = 1"
+            "SELECT clinic_id, name, type, is_active, city "
+            "FROM clinics WHERE is_active = 1"
         )
         rows = await cursor.fetchall()
         return [
@@ -588,7 +592,8 @@ class Database:
         if c is None:
             raise RuntimeError("Database connection not initialized")
         cursor = await c.execute(
-            "SELECT DISTINCT city FROM clinics WHERE is_active = 1 AND city != '' ORDER BY city"
+            "SELECT DISTINCT city FROM clinics "
+            "WHERE is_active = 1 AND city != '' ORDER BY city"
         )
         rows = await cursor.fetchall()
         return [row["city"] for row in rows]
@@ -613,7 +618,8 @@ class Database:
             for full_name, short_name in SPECIALTY_ALIASES.items():
                 await self.upsert_specialty_alias(full_name, short_name)
             logger.info(
-                f"Таблица specialty_aliases заполнена из SPECIALTY_ALIASES ({len(SPECIALTY_ALIASES)} записей)"
+                "Таблица specialty_aliases заполнена из SPECIALTY_ALIASES (%s записей)",
+                len(SPECIALTY_ALIASES),
             )
         except Exception as e:
             logger.warning(f"Не удалось заполнить specialty_aliases из fallback: {e}")
@@ -658,7 +664,8 @@ class Database:
             for key, value in defaults.items():
                 await self.set_config(key, value)
             logger.info(
-                f"Таблица config заполнена дефолтными значениями ({len(defaults)} записей)"
+                "Таблица config заполнена дефолтными значениями (%s записей)",
+                len(defaults),
             )
         except Exception as e:
             logger.warning(f"Не удалось заполнить config из defaults: {e}")
@@ -720,7 +727,8 @@ class Database:
         if c is None:
             raise RuntimeError("Database connection not initialized")
         await c.execute(
-            "INSERT OR REPLACE INTO specialty_aliases (full_name, short_name) VALUES (?, ?)",
+            "INSERT OR REPLACE INTO specialty_aliases "
+            "(full_name, short_name) VALUES (?, ?)",
             (full_name, short_name),
         )
         await c.commit()

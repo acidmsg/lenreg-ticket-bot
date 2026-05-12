@@ -77,9 +77,17 @@ class HealthMetrics:
         if success_rate == 100:
             return f"✅ {success_rate:.0f}% успешных (всего {self.api_checks_total})"
         elif success_rate >= 80:
-            return f"⚠️ {success_rate:.0f}% успешных ({self.api_errors_total} ошибок из {self.api_checks_total})"
+            return (
+                f"⚠️ {success_rate:.0f}% успешных"
+                f" ({self.api_errors_total} ошибок"
+                f" из {self.api_checks_total})"
+            )
         else:
-            return f"❌ {success_rate:.0f}% успешных ({self.api_errors_total} ошибок из {self.api_checks_total})"
+            return (
+                f"❌ {success_rate:.0f}% успешных"
+                f" ({self.api_errors_total} ошибок"
+                f" из {self.api_checks_total})"
+            )
 
     def last_error_str(self) -> str:
         if not self.last_error_message:
@@ -242,7 +250,10 @@ def format_status_report(db: DatabaseManager) -> str:
         "⚙️ **Настройки:**",
         f"├ Интервал проверки: {settings.CHECK_INTERVAL}с",
         f"├ Discovery: {settings.DISCOVERY_INTERVAL}с",
-        f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт / {settings.SLOT_THRESHOLD_PERCENTAGE * 100:.0f}%",
+        (
+            f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт"
+            f" / {settings.SLOT_THRESHOLD_PERCENTAGE * 100:.0f}%"
+        ),
         f"└ Клиника по умолчанию: {settings.DEFAULT_CLINIC_ID}",
         "",
         f"⚠️ **Последняя ошибка:** {metrics.last_error_str()}",

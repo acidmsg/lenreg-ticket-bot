@@ -2,6 +2,7 @@
 Фикстуры и моки для тестирования (SQLite версия).
 """
 
+import asyncio
 import gc
 import os
 
@@ -32,13 +33,11 @@ async def temp_db_path(request):
         full = path + ext
         for _ in range(5):  # увеличено до 5 попыток
             try:
-                if os.path.exists(full):
-                    os.remove(full)
+                if os.path.exists(full):  # noqa: ASYNC240
+                    os.remove(full)  # noqa: ASYNC240
                 break
             except PermissionError:
-                import time
-
-                time.sleep(0.2)  # увеличена задержка
+                await asyncio.sleep(0.2)  # увеличена задержка
 
 
 @pytest_asyncio.fixture
@@ -74,8 +73,8 @@ async def temp_cache_path(monkeypatch):
     path = os.path.join(TEST_DATA_DIR, "test_monitoring_cache.json")
     monkeypatch.setattr("src.utils.cache.settings.CACHE_PATH", path)
     yield path
-    if os.path.exists(path):
-        os.remove(path)
+    if os.path.exists(path):  # noqa: ASYNC240
+        os.remove(path)  # noqa: ASYNC240
 
 
 # ── Фикстура для очистки spam_cache ───────────────────────────────────

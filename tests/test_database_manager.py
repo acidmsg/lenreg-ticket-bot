@@ -48,7 +48,7 @@ class TestDatabaseManager:
 
     async def test_add_patient(self, db_manager):
         """add_patient добавляет пациента."""
-        p_info = {
+        p_info: dict[str, object] = {
             "fio": "Иванов Иван",
             "bday": "1990-01-01",
             "alias": None,

@@ -84,14 +84,18 @@ async def migrate_v2_clinics_columns(db):
     ]:
         try:
             await c.execute(
-                f"ALTER TABLE clinics ADD COLUMN {col} {col_type} NOT NULL DEFAULT {default}"
+                "ALTER TABLE clinics ADD COLUMN "
+                f"{col} {col_type} NOT NULL DEFAULT {default}"
             )
         except Exception:
             pass  # колонка уже существует
 
 
 async def migrate_v5_seed_new_config_keys(db):
-    """Заполняет config дефолтными значениями из settings (INSERT OR IGNORE — безопасен для существующих БД)."""
+    """Заполняет config дефолтными значениями из settings.
+
+    INSERT OR IGNORE — безопасен для существующих БД.
+    """
     c = db._conn
     if c is None:
         return

@@ -47,7 +47,7 @@ class TestCache:
 
         await swap_cache_key("atomic", "test")
         temp_path = temp_cache_path + ".tmp"
-        assert not os.path.exists(temp_path)
+        assert not os.path.exists(temp_path)  # noqa: ASYNC240
 
     async def test_multiple_keys(self, temp_cache_path):
         """Несколько ключей корректно сохраняются."""

@@ -195,7 +195,8 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
             )
         else:
             await call.message.edit_text(
-                "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
+                "📋 **Ваши пациенты:**\n---\n"
+                "Выберите пациента для настройки мониторинга",
                 reply_markup=get_patient_selection(
                     user_data["patients"], user_data["monitoring"]
                 ),
@@ -257,7 +258,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
             idx = int(idx_or_all)
             if 1 <= idx <= len(cities):
                 selected_city = cities[idx - 1]
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             pass
 
     try:
@@ -332,7 +333,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
             idx = int(city_idx)
             if 1 <= idx <= len(cities):
                 selected_city = cities[idx - 1]
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             pass
 
     try:
@@ -478,7 +479,8 @@ async def toggle_doctor(
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
     loading_msg = await call.message.answer(
-        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n⏳ Проверяю наличие номерков..."
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n"
+        f"👤 {p_label}\n⏳ Проверяю наличие номерков..."
     )
 
     await call.answer()
@@ -501,7 +503,10 @@ async def toggle_doctor(
         "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
     )
 
-    text = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
+    text = (
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n"
+        f"👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
+    )
 
     # Редактируем загрузочное сообщение финальным результатом
     try:
@@ -565,7 +570,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                     idx = int(city_idx)
                     if 1 <= idx <= len(cities):
                         selected_city = cities[idx - 1]
-                except (ValueError, IndexError):
+                except ValueError, IndexError:
                     pass
 
             await call.message.edit_text(
@@ -718,7 +723,8 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
             )
         else:
             await call.message.edit_text(
-                "📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+                "📋 **Список пациентов:**\n---\n"
+                "Выберите пациента\nдля настройки мониторинга",
                 reply_markup=get_patient_selection(
                     user_data["patients"], user_data["monitoring"]
                 ),

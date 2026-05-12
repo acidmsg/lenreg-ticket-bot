@@ -23,8 +23,8 @@ from src.services.monitor import monitor_loop
 
 async def main():
     # Настройка логирования
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
+    if not os.path.exists("logs"):  # noqa: ASYNC240
+        os.makedirs("logs")  # noqa: ASYNC240
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -37,8 +37,8 @@ async def main():
 
     # Убедимся, что каталог 'data' существует
     data_dir = os.path.dirname(settings.SQLITE_DB_PATH)
-    if data_dir and not os.path.exists(data_dir):
-        os.makedirs(data_dir)
+    if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
+        os.makedirs(data_dir)  # noqa: ASYNC240
 
     # Инициализация SQLite
     database = Database(settings.SQLITE_DB_PATH)
@@ -143,7 +143,7 @@ async def main():
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt, SystemExit:
         logging.info("Бот остановлен.")
     except Exception as e:
         logging.exception("Необработанная ошибка при запуске")

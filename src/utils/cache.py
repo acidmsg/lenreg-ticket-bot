@@ -29,7 +29,7 @@ async def swap_cache_key(key: str, new_value: Any) -> Any:
     try:
         async with _cache_lock:
             cache: dict[str, Any] = {}
-            if os.path.exists(path):
+            if os.path.exists(path):  # noqa: ASYNC240
                 async with aiofiles.open(path, "r", encoding="utf-8") as f:
                     content = await f.read()
                     cache = json.loads(content) if content else {}
@@ -52,7 +52,7 @@ async def delete_cache_keys_by_prefix(prefix: str) -> int:
     deleted = 0
     try:
         async with _cache_lock:
-            if not os.path.exists(path):
+            if not os.path.exists(path):  # noqa: ASYNC240
                 return 0
             async with aiofiles.open(path, "r", encoding="utf-8") as f:
                 content = await f.read()

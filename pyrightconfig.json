@@ -1,5 +1,9 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "rootPath": "."
+  "rootPath": ".",
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "basic",
+  "include": ["src", "scripts", "tests"],
+  "exclude": ["**/.venv", "**/data", "**/logs"]
 }

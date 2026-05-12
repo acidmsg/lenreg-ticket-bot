@@ -1,6 +1,7 @@
 """
 Фоновая задача автоудаления старых сообщений (TTL).
-Проверяет last_messages и удаляет сообщения, отправленные более MESSAGE_TTL_SECONDS назад.
+Проверяет last_messages и удаляет сообщения,
+отправленные более MESSAGE_TTL_SECONDS назад.
 """
 
 import asyncio

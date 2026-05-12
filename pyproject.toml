@@ -1,7 +1,12 @@
 [tool.ruff]
 src = ["src"]
+target-version = "py314"
+exclude = [".venv", "data", "logs"]
 
 [tool.ruff.lint]
 # Те самые правила, которые вы хотели: ошибки, импорты, асинхронность, именование
 select = ["E", "F", "I", "W", "ASYNC", "N"]
-fixable = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -18,7 +18,7 @@ async def mock_zdrav_client():
     client = ZdravClient()
     mock_http = AsyncMock()
     # Подменяем _get_client, чтобы он возвращал наш мок
-    client._get_client = AsyncMock(return_value=mock_http)
+    client._get_client = AsyncMock(return_value=mock_http)  # type: ignore[method-assign]
     yield client
     # Явно закрываем клиент (освобождает limiter + httpx)
     import gc

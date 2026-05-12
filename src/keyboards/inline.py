@@ -49,8 +49,8 @@ def get_doctor_selection(
     doctors_cabinets = []
 
     # Определяем, нужно ли фильтровать по детским специальностям в стоматологии
-    DENTAL_CLINIC_ID = "272"
-    is_dental = clinic_id == DENTAL_CLINIC_ID
+    _dental_clinic_id = "272"
+    is_dental = clinic_id == _dental_clinic_id
     patient_is_child = is_child(bday_str) if is_dental and bday_str else None
 
     for d_id, info in doctors_list.items():
@@ -115,7 +115,8 @@ def get_doctor_selection(
     )
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
 
-    # Кнопка сброса мониторинга этой клиники — только если есть мониторинг в этой клинике
+    # Кнопка сброса мониторинга этой клиники —
+    # только если есть мониторинг в этой клинике
     has_clinic_monitoring = any(
         isinstance(d_info, dict) and d_info.get("clinic_id") == clinic_id
         for d_info in monitored.values()
@@ -237,7 +238,7 @@ def get_clinic_selection(
     try:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
         age = (datetime.now() - bday).days // 365
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         age = 18
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
@@ -266,7 +267,8 @@ def get_clinic_selection(
         count = sum(1 for doc in p_monitoring.values() if doc.get("clinic_id") == c_id)
         display_name = clinic_names.get(c_id) or clinic.get("name", "Unknown")
         label = _short_clinic_label(display_name, count)
-        # В callback_data передаём city_idx для возможности возврата из врачей обратно к клиникам
+        # В callback_data передаём city_idx
+        # для возможности возврата из врачей обратно к клиникам
         builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}_{city_idx}")
 
     # Навигация
@@ -276,7 +278,8 @@ def get_clinic_selection(
     )
     builder.button(text="⬅️ Назад к списку", callback_data="back_to_main")
 
-    # Кнопка сброса мониторинга этого пациента — только если есть хоть один мониторинг у пациента
+    # Кнопка сброса мониторинга этого пациента —
+    # только если есть хоть один мониторинг у пациента
     if p_monitoring:
         builder.button(
             text="🛑 Сбросить мониторинг этого пациента",

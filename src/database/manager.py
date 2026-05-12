@@ -118,7 +118,9 @@ class DatabaseManager:
                             ts = val.get("ts", 0) if isinstance(val, dict) else 0
                             if msg_id is not None:
                                 await c.execute(
-                                    "INSERT INTO user_last_messages (uid, p_id, d_id, msg_id, ts) VALUES (?, ?, ?, ?, ?)",
+                                    "INSERT INTO user_last_messages "
+                                    "(uid, p_id, d_id, msg_id, ts) "
+                                    "VALUES (?, ?, ?, ?, ?)",
                                     (uid, p_id, d_id, int(msg_id), float(ts)),
                                 )
                 await c.commit()

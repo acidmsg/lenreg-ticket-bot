@@ -35,7 +35,7 @@ def is_child(bday_str: str) -> bool:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
         age = (datetime.now() - bday).days // 365
         return age < 18
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
 
 

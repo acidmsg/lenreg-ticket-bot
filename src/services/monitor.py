@@ -34,7 +34,10 @@ async def _send_notification(
 
 
 def _classify_slot_change(slots, old_slots_data):
-    """Определяет тип изменения слотов и возвращает (header, display_slots) или None если уведомлять не нужно."""
+    """Классификация изменений слотов.
+
+    Возвращает (header, display_slots) или None если уведомлять не нужно.
+    """
     if not slots:
         # Номерки исчезли
         if old_slots_data == "NONE":
@@ -76,7 +79,10 @@ def _classify_slot_change(slots, old_slots_data):
                 should_notify = True
 
         if should_notify:
-            header = f"⚠️ **Количество номерков уменьшилось до {new_count} (было {old_count})**"
+            header = (
+                f"⚠️ **Количество номерков уменьшилось до {new_count}"
+                f" (было {old_count})**"
+            )
             return header, slots
 
     return None  # Нет значимых изменений
@@ -122,7 +128,10 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 "clinic_id", settings.DEFAULT_CLINIC_ID
                             )
                         logger.info(
-                            f"Monitor checking slots: d_id={d_id}, p_id={p_id}, clinic_id={clinic_id}"
+                            "Monitor checking slots: d_id=%s, p_id=%s, clinic_id=%s",
+                            d_id,
+                            p_id,
+                            clinic_id,
                         )
 
                         await asyncio.sleep(random.uniform(1.0, 3.0))
@@ -143,7 +152,10 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                             empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
                             if empty_counts[cache_key] < 3:
                                 logger.info(
-                                    f"Empty slots for {d_id}, {p_id}. Retry {empty_counts[cache_key]}/3"
+                                    "Empty slots for %s, %s. Retry %s/3",
+                                    d_id,
+                                    p_id,
+                                    empty_counts[cache_key],
                                 )
                                 continue
                         else:
@@ -178,10 +190,15 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         if display_slots is None:
                             # Номерки исчезли
-                            msg = f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{header}\n\nМы уведомим вас, когда появятся."
+                            msg = (
+                                f"{spec_text}🧑‍⚕️ {d_name_display}\n"
+                                f"👤 {p_label}\n{header}\n\n"
+                                "Мы уведомим вас, когда появятся."
+                            )
                         else:
                             msg = (
-                                f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{header}\n\n"
+                                f"{spec_text}🧑‍⚕️ {d_name_display}\n"
+                                f"👤 {p_label}\n{header}\n\n"
                                 + "\n".join(display_slots)
                                 + link
                             )

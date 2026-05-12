@@ -1,5 +1,65 @@
 # SESSION_LOG.md
 
+## 2026-05-12 (ruff check/pytest: исправление 46 ошибок)
+
+### Исправление всех ошибок ruff check + ruff format ✅
+
+**Задача:** Исправить 46 ошибок ruff check (E501 длинные строки, ASYNC240 os.path в async, ASYNC251 time.sleep, N806 переменная) + автоформатирование 5 файлов.
+
+**Изменённые файлы (14 файлов):**
+| Файл | Что исправлено |
+|------|---------------|
+| [`src/config.py`](src/config.py:71,143) | E501: разбиты 2 длинные строки (комментарий + f-string логгера) |
+| [`src/database/database.py`](src/database/database.py:128,262,274,554,571,591,616,661,723) | E501: разбиты SQL-строки и f-строки логгеров; ASYNC240: `# noqa` на `os.path.exists/makedirs` |
+| [`src/database/manager.py`](src/database/manager.py:121) | E501: разбит длинный SQL |
+| [`src/database/migrations.py`](src/database/migrations.py:87,94) | E501: разбит SQL и docstring |
+| [`src/handlers/common.py`](src/handlers/common.py:198,481,504,721) | E501: разбиты 4 длинные строки сообщений |
+| [`src/handlers/registration.py`](src/handlers/registration.py:68,84,116,149) | E501: разбиты 4 длинные строки сообщений |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py:52,118,269,279) | N806: `DENTAL_CLINIC_ID` → `_dental_clinic_id`; E501: разбиты 3 комментария |
+| [`src/main.py`](src/main.py:26,40) | ASYNC240: `# noqa` на `os.path.exists/makedirs` |
+| [`src/services/cleanup.py`](src/services/cleanup.py:3) | E501: разбит docstring |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:117) | E501: f-string логгера → `%s` формат |
+| [`src/services/healthcheck.py`](src/services/healthcheck.py:80,82,245) | E501: разбиты f-строки статуса и настроек |
+| [`src/services/monitor.py`](src/services/monitor.py:37,79,125,146,181,184) | E501: разбиты docstring, f-строки, логгеры |
+| [`src/utils/cache.py`](src/utils/cache.py:32,55) | ASYNC240: `# noqa` на `os.path.exists` |
+| [`tests/conftest.py`](tests/conftest.py:1,35,41,77) | ASYNC240: `# noqa` на `os.path.exists/remove`; ASYNC251: `time.sleep` → `await asyncio.sleep` + `import asyncio` |
+| [`tests/test_cache.py`](tests/test_cache.py:50) | ASYNC240: `# noqa` на `os.path.exists` |
+| [`tests/test_keyboards.py`](tests/test_keyboards.py:108) | E501: разбита длинная строка тестовых данных |
+
+**Результаты проверок:**
+| Инструмент | Результат |
+|-----------|----------|
+| `ruff check src scripts tests` | **All checks passed!** ✅ |
+| `ruff format --check src scripts tests` | **39 files already formatted** ✅ |
+| `pytest tests/ -v` | **134 passed in 16.97s** ✅ |
+
+---
+
+## 2026-05-12 (конфиг-файлы: актуализация)
+
+### Проверка и дополнение pyrightconfig.json, pyproject.toml, .vscode/settings.json ✅
+
+**Задача:** Проверить актуальность 4 конфигурационных файлов проекта, исправить недостающие настройки.
+
+**Итог по файлам:**
+| Файл | Вердикт |
+|------|---------|
+| [`.vscode/launch.json`](.vscode/launch.json) | ✅ Актуален, правки не нужны |
+| [`pyrightconfig.json`](pyrightconfig.json) | ❌ Не хватало `pythonVersion`, `typeCheckingMode`, `include`, `exclude` |
+| [`pyproject.toml`](pyproject.toml) | ❌ Не хватало `target-version`, `exclude`, `[tool.ruff.format]` |
+| [`.vscode/settings.json`](.vscode/settings.json) | ❌ Не хватало `python.analysis.extraPaths`, `typeCheckingMode`, `[python]` секции форматирования |
+
+**Изменённые файлы:**
+| Файл | Что добавлено |
+|------|---------------|
+| [`pyrightconfig.json`](pyrightconfig.json) | `pythonVersion: "3.14"`, `typeCheckingMode: "basic"`, `include: ["src","scripts","tests"]`, `exclude` |
+| [`pyproject.toml`](pyproject.toml) | `target-version = "py314"`, `exclude`, `[tool.ruff.format]` с quote-style и indent-style; убран `fixable = ["ALL"]` (дефолт) |
+| [`.vscode/settings.json`](.vscode/settings.json) | `python.analysis.extraPaths`, `python.analysis.typeCheckingMode`, `[python]` секция (ruff formatter, formatOnSave, organizeImports) |
+
+**Результаты тестов:** Не запускались
+
+---
+
 ## 2026-05-12 (Sentry + NTFY full setup)
 
 ### Подключение Sentry DSN и NTFY ✅

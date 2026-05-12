@@ -65,7 +65,8 @@ async def process_bday(
             raise ValueError("Вне диапазона")
     except ValueError:
         await message.answer(
-            "Неверная дата. Введите корректную дату в формате дд.мм.гггг (с 01.01.1900 по сегодня).",
+            "Неверная дата. Введите корректную дату "
+            "в формате дд.мм.гггг (с 01.01.1900 по сегодня).",
             reply_markup=get_registration_keyboard(step="bday"),
         )
         return
@@ -81,7 +82,8 @@ async def process_bday(
         await state.update_data(p_id=p_id, bday=str(date.date()))
         await state.set_state(Registration.wait_alias)
         await message.answer(
-            "✅ Нашли в базе! Введите псевдоним (например, 'Мама', до 25 симв.) или пропустите:",
+            "✅ Нашли в базе! Введите псевдоним "
+            "(например, 'Мама', до 25 симв.) или пропустите:",
             reply_markup=get_registration_keyboard(step="alias"),
         )
     else:
@@ -113,7 +115,9 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
 
         user_data = await db.get_user_data(uid)
         await message.answer(
-            "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+            "✅ Пациент успешно добавлен!\n\n"
+            "📋 **Список пациентов:**\n---\n"
+            "Выберите пациента\nдля настройки мониторинга",
             reply_markup=get_patient_selection(
                 user_data["patients"], user_data["monitoring"]
             ),
@@ -146,7 +150,9 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
         user_data = await db.get_user_data(uid)
         if isinstance(call.message, Message):
             await call.message.edit_text(
-                "✅ Пациент успешно добавлен!\n\n📋 **Список пациентов:**\n---\nВыберите пациента\nдля настройки мониторинга",
+                "✅ Пациент успешно добавлен!\n\n"
+                "📋 **Список пациентов:**\n---\n"
+                "Выберите пациента\nдля настройки мониторинга",
                 reply_markup=get_patient_selection(
                     user_data["patients"], user_data["monitoring"]
                 ),

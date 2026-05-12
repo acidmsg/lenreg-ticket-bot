@@ -105,7 +105,10 @@ class TestShortClinicLabel:
     def test_no_quote_fallback_long(self):
         from src.keyboards.inline import _short_clinic_label
 
-        name = "Очень длинное название поликлиники которое превышает пятьдесят символов точно"
+        name = (
+            "Очень длинное название поликлиники "
+            "которое превышает пятьдесят символов точно"
+        )
         result = _short_clinic_label(name, 0)
         assert result == name[:50] + "..."
 
@@ -158,7 +161,10 @@ class TestPatientSelection:
     def test_monitoring_count_shown(self):
         from src.keyboards.inline import get_patient_selection
 
-        monitoring = {"p1": {"d1": {}, "d2": {}}, "p3": {"d3": {}}}
+        monitoring: dict[str, dict[str, dict]] = {
+            "p1": {"d1": {}, "d2": {}},
+            "p3": {"d3": {}},
+        }
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
         buttons = _extract_buttons(mk)
         assert buttons[0] == ("👤 Мама (2)", "sel_p_p1")
@@ -168,7 +174,7 @@ class TestPatientSelection:
     def test_stop_all_button_when_active_monitoring(self):
         from src.keyboards.inline import get_patient_selection
 
-        monitoring = {"p1": {"d1": {}}}
+        monitoring: dict[str, dict[str, dict]] = {"p1": {"d1": {}}}
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
         buttons = _extract_buttons(mk)
         assert ("🛑 Сбросить весь мониторинг", "stop_all") in buttons

@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     # Дефолтная дата рождения для новых пациентов без даты
     DEFAULT_BIRTHDAY: str = "1990-01-01"
 
-    # ID администраторов, имеющих доступ к команде /status (через запятую, например: 123456789 или 123456789,987654321)
+    # ID админов с доступом к /status (через запятую, напр.: 123456789,987654321)
     ADMIN_IDS: str = ""
 
     # Автоудаление сообщений: TTL в секундах (7 дней по умолчанию)
@@ -138,9 +138,12 @@ async def load_config_from_db(database):
                 try:
                     setattr(settings, attr_name, cast_type(value))
                     loaded += 1
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     logger.warning(
-                        f"Не удалось преобразовать config[{key}]='{value}' в {cast_type.__name__}"
+                        "Не удалось преобразовать config[%s]='%s' в %s",
+                        key,
+                        value,
+                        cast_type.__name__,
                     )
 
         if loaded:

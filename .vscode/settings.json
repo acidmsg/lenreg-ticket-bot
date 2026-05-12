@@ -7,14 +7,24 @@
     "**/__pycache__": true,
     "**/.pre-commit-config.yaml": true,
     "**/.ruff_cache": true,
-    "pytest.ini": true,
-    "requirements.txt": true
+    "pytest.ini": true
   },
   "python-envs.defaultEnvManager": "ms-python.python:venv",
   "Lingma.aI Chat.mcpToolsInAgentMode": true,
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
   "python.terminal.activateEnvironment": false,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src"
+  ],
+  "python.analysis.typeCheckingMode": "basic",
   "terminal.integrated.env.windows": {
     "PYTHONUTF8": "1"
+  },
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
   }
 }

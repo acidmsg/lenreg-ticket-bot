@@ -114,7 +114,9 @@ async def discovery_loop(
                     str(clinic_id), all_doctors_with_specialty
                 )
                 logger.info(
-                    f"Обновлен список врачей для {clinic_id}: всего {len(all_doctors_with_specialty)} записей"
+                    "Обновлен список врачей для %s: всего %s записей",
+                    clinic_id,
+                    len(all_doctors_with_specialty),
                 )
 
             jitter = random.uniform(0.8, 1.2)
