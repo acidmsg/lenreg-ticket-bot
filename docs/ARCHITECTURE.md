@@ -2,7 +2,7 @@
 
 ## Дерево директорий
 
-```
+```text
 zdrav.lenreg/                          # Корень проекта (только конфигурационные файлы)
 ├── src/                               # Весь исходный код приложения
 │   ├── __init__.py
@@ -39,7 +39,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │       ├── __init__.py
 │       ├── cache.py                  # Кэш мониторинга (файловый JSON) + spam_cache
 │       └── helpers.py                # Форматирование ФИО, специальностей, extract_msg_id, is_child, is_cabinet
-├── tests/                             # Тесты (структура не менялась)
+├── tests/                             # Тесты
 │   ├── conftest.py
 │   ├── test_cache.py
 │   ├── test_database_manager.py
@@ -49,19 +49,32 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── test_monitor_classify.py
 │   ├── test_monitor_full.py
 │   └── test_zdrav_client.py
-├── scripts/                           # Утилитарные скрипты (не менялись)
+├── scripts/                           # Утилитарные скрипты
 │   ├── apply_city_heuristic.py
 │   ├── apply_heuristic_types.py
 │   └── run_tests.py
-├── docs/                              # Документация и база знаний
-│   ├── AGENT_TASKS.md
-│   ├── SESSION_LOG.md
+├── docs/                              # Документация
+│   ├── GEMINI.md                      # Agent-agnostic bridge (инструкции для AI-агентов)
+│   ├── agents/                        # Агентские файлы
+│   │   ├── AGENT_TASKS.md             # Бэклог задач
+│   │   ├── SESSION_LOG.md             # Лог сессий (шаблон)
+│   │   ├── CODE_REVIEW.md             # Отчёт код-ревью (2026-05-11)
+│   │   └── formatting_experiments.md  # Эксперименты с оформлением сообщений
 │   └── knowledge/                     # База знаний API
 │       ├── _INDEX.md
 │       ├── appointment_list.md
 │       ├── check_patient.md
 │       ├── doctor_list.md
 │       └── speciality_list.md
+├── .roo/                              # Правила AI-агентов
+│   └── rules/
+│       ├── system_standards.md        # CRITICAL: стандарты Python + Markdown
+│       ├── coding.md                  # Стандарты кодирования
+│       ├── env.md                     # Правила .env / .env.example
+│       ├── ignore.md                  # Игнорируемые файлы и директории
+│       ├── knowledge.md               # Правила базы знаний
+│       ├── logging.md                 # Правила логирования сессий
+│       └── restrictions.md            # Ограничения
 ├── pyproject.toml                     # ruff config
 ├── pytest.ini                         # pytest config
 ├── pyrightconfig.json                 # pyright config
@@ -75,17 +88,17 @@ zdrav.lenreg/                          # Корень проекта (тольк
 
 ## Зоны ответственности
 
-| Пакет | Зона ответственности |
-|---|---|
-| `src/config.py` | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table). |
-| `src/main.py` | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown. |
-| `src/api/` | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx. |
-| `src/database/` | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей. |
-| `src/handlers/` | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента. |
-| `src/keyboards/` | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация. |
-| `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache. |
-| `src/services/` | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry. |
-| `src/utils/` | `cache.py` — атомарный файловый кэш слотов (swap_cache_key) и spam_cache для защиты от двойных нажатий. `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. |
+| Пакет             | Зона ответственности                                                                                                                                                                                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config.py`   | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                           |
+| `src/main.py`     | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                 |
+| `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                       |
+| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей.                                                   |
+| `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                       |
+| `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                |
+| `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache.                                                                                                                                                                                                       |
+| `src/services/`   | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry. |
+| `src/utils/`      | `cache.py` — атомарный файловый кэш слотов (swap_cache_key) и spam_cache для защиты от двойных нажатий. `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей.                                                                        |
 
 ## Граф зависимостей (Mermaid)
 
@@ -204,12 +217,12 @@ graph TD
 
 ## Конфигурационные файлы
 
-| Файл | Назначение |
-|---|---|
-| `.env` | Реальные секреты и настройки (в `.gitignore`) |
-| `.env.example` | Шаблон с публичными значениями и плейсхолдерами |
-| `pyproject.toml` | Конфигурация ruff: линтинг + форматирование, `src = ["src"]` |
-| `pytest.ini` | `asyncio_mode = auto`, `pythonpath = .` |
-| `pyrightconfig.json` | `venvPath: "."`, `venv: ".venv"`, `rootPath: "."` |
+| Файл                      | Назначение                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `.env`                    | Реальные секреты и настройки (в `.gitignore`)                                     |
+| `.env.example`            | Шаблон с публичными значениями и плейсхолдерами                                   |
+| `pyproject.toml`          | Конфигурация ruff: линтинг + форматирование, `src = ["src"]`                      |
+| `pytest.ini`              | `asyncio_mode = auto`, `pythonpath = .`                                           |
+| `pyrightconfig.json`      | `venvPath: "."`, `venv: ".venv"`, `rootPath: "."`                                 |
 | `.pre-commit-config.yaml` | Хуки: trailing-whitespace, end-of-file, ruff, mypy (`-p src -p scripts -p tests`) |
-| `requirements.txt` | Зависимости проекта |
+| `requirements.txt`        | Зависимости проекта                                                               |

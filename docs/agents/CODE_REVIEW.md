@@ -320,28 +320,28 @@
 
 ### 🔴 Критические
 
-| # | Файл | Проблема |
-|---|------|----------|
-| 1 | `database/manager.py` | Прямой доступ к `db._db._conn` (нарушение инкапсуляции) |
-| 2 | `main.py:58-65` | `load_config_from_db()` вызывается после `sync_clinic_names()` — баг с API_BASE_URL |
-| 3 | `services/monitor.py` | Первое обнаружение после перезапуска может вызвать спам-уведомления |
-| 4 | `services/doctor_discovery.py:69` | Бесполезная проверка `if db:` |
-| 5 | `services/healthcheck.py:181` | Неправильный подсчёт мониторингов (`len` на dict clinic → doctors) |
+| #   | Файл                              | Проблема                                                                            |
+| --- | --------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | `database/manager.py`             | Прямой доступ к `db._db._conn` (нарушение инкапсуляции)                             |
+| 2   | `main.py:58-65`                   | `load_config_from_db()` вызывается после `sync_clinic_names()` — баг с API_BASE_URL |
+| 3   | `services/monitor.py`             | Первое обнаружение после перезапуска может вызвать спам-уведомления                 |
+| 4   | `services/doctor_discovery.py:69` | Бесполезная проверка `if db:`                                                       |
+| 5   | `services/healthcheck.py:181`     | Неправильный подсчёт мониторингов (`len` на dict clinic → doctors)                  |
 
 ### ⚠️ Важные
 
-| # | Файл | Проблема |
-|---|------|----------|
-| 1 | `config.py` | CSRF_TOKEN захардкожен в коде |
-| 2 | `config.py:68` | DEFAULT_CLINIC_ID захардкожен |
-| 3 | `database/migrations.py` | Пропущены номера миграций 3-4 |
-| 4 | `database/migrations.py` + `database.py` | Дублирование сидирования конфигов |
-| 5 | `keyboards/inline.py:52` | DENTAL_CLINIC_ID захардкожен |
-| 6 | `utils/cache.py` | Файловый кэш на каждый запрос (может быть медленным) |
-| 7 | `utils/cache.py` | spam_cache maxsize=1000, ttl=1 не из конфига |
-| 8 | `handlers/common.py:29` | `_user_clinic_city_idx` — неограниченный рост |
-| 9 | `handlers/registration.py:42` | Строгая валидация "3 слова" для ФИО |
-| 10 | `README.md` | Очень короткий, нет документации |
+| #   | Файл                                     | Проблема                                             |
+| --- | ---------------------------------------- | ---------------------------------------------------- |
+| 1   | `config.py`                              | CSRF_TOKEN захардкожен в коде                        |
+| 2   | `config.py:68`                           | DEFAULT_CLINIC_ID захардкожен                        |
+| 3   | `database/migrations.py`                 | Пропущены номера миграций 3-4                        |
+| 4   | `database/migrations.py` + `database.py` | Дублирование сидирования конфигов                    |
+| 5   | `keyboards/inline.py:52`                 | DENTAL_CLINIC_ID захардкожен                         |
+| 6   | `utils/cache.py`                         | Файловый кэш на каждый запрос (может быть медленным) |
+| 7   | `utils/cache.py`                         | spam_cache maxsize=1000, ttl=1 не из конфига         |
+| 8   | `handlers/common.py:29`                  | `_user_clinic_city_idx` — неограниченный рост        |
+| 9   | `handlers/registration.py:42`            | Строгая валидация "3 слова" для ФИО                  |
+| 10  | `README.md`                              | Очень короткий, нет документации                     |
 
 ### 📝 Замечания (minor)
 

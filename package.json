@@ -1,0 +1,28 @@
+{
+  "name": "zdrav.lenreg",
+  "version": "1.0.0",
+  "description": "Telegram-бот для мониторинга доступных талонов (слотов) на портале zdrav.lenreg.ru.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acidmsg/lenreg_ticket_bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/acidmsg/lenreg_ticket_bot/issues"
+  },
+  "homepage": "https://github.com/acidmsg/lenreg_ticket_bot#readme",
+  "devDependencies": {
+    "markdownlint-cli": "^0.48.0"
+  }
+}

@@ -1,38 +1,31 @@
-# Project Instructions (GEMINI.md)
+# Project Instructions
 
-This file contains foundational instructions, architecture rules, and workflows for the `zdrav.lenreg` project.
+This file contains foundational instructions, architecture rules, and workflows for the `zdrav.lenreg` project. All Python and Markdown standards are defined in `.roo/rules/system_standards.md`.
 
-## Knowledge Management
+## Architecture
 
-- **API Documentation:** Save all CURL commands, JSON structures, and API responses as separate markdown files in `docs/knowledge/`.
-- **Index:** Always maintain and update `docs/knowledge/_INDEX.md` when adding new API documentation.
+- **Entry point:** [`src/main.py`](src/main.py) — сборка бота aiogram, запуск фоновых задач, graceful shutdown.
+- **Configuration:** [`src/config.py`](src/config.py) — pydantic-settings из `.env` + переопределение из БД (таблица `config`).
+- **API client:** [`src/api/zdrav_client.py`](src/api/zdrav_client.py) — httpx-клиент с rate limiting, retry, ротацией User-Agent.
+- **Database:** SQLite (WAL-режим) через `aiosqlite`. [`src/database/database.py`](src/database/database.py) — ядро, [`src/database/manager.py`](src/database/manager.py) — in-memory кэш, [`src/database/doctor_manager.py`](src/database/doctor_manager.py) — кэш врачей.
+- **Conventions:** абсолютные импорты с префиксом `src.`, все стандарты — в [`.roo/rules/`](.roo/rules/).
 
-## Session Workflow
+## Agent Rules
 
-- **Logging:** Record the results and key changes of every session in `SESSION_LOG.md` before concluding. Use the existing format: a list of bullet points under a date header.
-- **Development History:** Maintain `DEVELOPMENT_HISTORY.md` for high-level changes, milestones, and technical debt tracking.
+- **Перед анализом структуры проекта** — прочитать [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- **Перед завершением сессии** — обновить [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md) и [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- **API-данные** сохранять в [`docs/knowledge/`](docs/knowledge/), поддерживать актуальность [`docs/knowledge/_INDEX.md`](docs/knowledge/_INDEX.md).
+- **Игнорировать:** `.venv/`, `__pycache__/`, `.history/`, `.vscode/`, `logs/`, `data/`, `.pytest_cache/`, `.git/`.
+- **Конфиденциальные данные** — только в `.env`.
 
-## File Restrictions & Security
+## Key Files
 
-- **Ignore Patterns:** Do not process or analyze the following:
-  - `.git/`, `node_modules/`, `dist/`
-  - `*.log` files
-  - `data/monitoring_cache.json`
-- **Data Privacy:** Never read large data files (e.g., `data/doctors.json`, `data/users_config.json`) in their entirety. Use structure previews or specific targeted reads if necessary.
-- **Secrets:** Ensure `.env` is used for sensitive configuration. Never hardcode tokens or proxy URLs.
-
-## Architecture & Conventions
-
-- **Data Storage:** All JSON configuration and data files must reside in the `data/` directory.
-- **API Clients:** The primary API interaction logic must be in `api/zdrav_client.py`.
-- **Database:** Use `database/manager.py` for general data management and `database/doctor_manager.py` for doctor-specific logic.
-- **Handlers:** Telegram bot handlers are located in the `handlers/` directory. Use `handlers/common.py` for general logic and `handlers/registration.py` for patient registration.
-- **Services:** Background tasks (e.g., monitoring) and discovery logic reside in `services/`.
-- **Utilities:** Shared utility functions (caching, etc.) should be in `utils/`.
-
-## Coding Standards
-
-- **Error Handling:** Use explicit checks for `None` types (e.g., `call.message`, `call.from_user`) to satisfy Pylance and ensure runtime stability.
-- **API Interaction:** Ensure all API requests include necessary headers like `X-Requested-With`, `Content-Type`, and CSRF cookies where applicable.
-- **Concurrency:** Use `asyncio.Lock` and `aiofiles` for atomic file operations, especially in `services/monitor.py`.
-- **Rate Limiting:** Respect API limits using `aiolimiter` in the API client.
+| File                                                               | Purpose                        |
+| ------------------------------------------------------------------ | ------------------------------ |
+| [`.roo/rules/system_standards.md`](.roo/rules/system_standards.md) | Python + Markdown standards    |
+| [`.roo/rules/coding.md`](.roo/rules/coding.md)                     | Coding conventions             |
+| [`.roo/rules/env.md`](.roo/rules/env.md)                           | `.env` / `.env.example` rules  |
+| [`.roo/rules/logging.md`](.roo/rules/logging.md)                   | Session logging rules          |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                     | Project tree, dependency graph |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Task backlog                   |
+| [`docs/knowledge/_INDEX.md`](docs/knowledge/_INDEX.md)             | API knowledge base index       |

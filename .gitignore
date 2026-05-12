@@ -25,3 +25,10 @@ logs/
 # === Tests ===
 .pytest_cache/
 .pytest_output.txt
+
+# === Node / npm ===
+node_modules/
+package-lock.json
+
+# === Editor ===
+.vscode/
