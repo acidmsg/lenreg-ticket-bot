@@ -27,7 +27,7 @@ class TestRegistrationKeyboard:
     """Тесты get_registration_keyboard."""
 
     def test_alias_step_has_skip_button(self):
-        from keyboards.inline import get_registration_keyboard
+        from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="alias")
         buttons = _extract_buttons(mk)
@@ -35,7 +35,7 @@ class TestRegistrationKeyboard:
         assert ("❌ Отмена регистрации", "cancel_registration") in buttons
 
     def test_fio_step_no_skip_button(self):
-        from keyboards.inline import get_registration_keyboard
+        from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="fio")
         buttons = _extract_buttons(mk)
@@ -43,7 +43,7 @@ class TestRegistrationKeyboard:
         assert ("❌ Отмена регистрации", "cancel_registration") in buttons
 
     def test_bday_step_no_skip_button(self):
-        from keyboards.inline import get_registration_keyboard
+        from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="bday")
         buttons = _extract_buttons(mk)
@@ -58,7 +58,7 @@ class TestConfirmDeletion:
     """Тесты get_confirm_deletion."""
 
     def test_buttons_present(self):
-        from keyboards.inline import get_confirm_deletion
+        from src.keyboards.inline import get_confirm_deletion
 
         mk = get_confirm_deletion("patient_123")
         buttons = _extract_buttons(mk)
@@ -66,7 +66,7 @@ class TestConfirmDeletion:
         assert ("❌ Нет", "sel_p_patient_123") in buttons
 
     def test_returns_markup(self):
-        from keyboards.inline import get_confirm_deletion
+        from src.keyboards.inline import get_confirm_deletion
 
         mk = get_confirm_deletion("abc")
         # Две кнопки в одном ряду (adjust(2))
@@ -82,35 +82,35 @@ class TestShortClinicLabel:
     """Тесты _short_clinic_label — вспомогательная функция."""
 
     def test_extracts_after_quote(self):
-        from keyboards.inline import _short_clinic_label
+        from src.keyboards.inline import _short_clinic_label
 
         name = 'ГБУЗ "Городская поликлиника №1" Детское отделение'
         result = _short_clinic_label(name, 0)
         assert result == "Детское отделение"
 
     def test_extracts_after_quote_with_count(self):
-        from keyboards.inline import _short_clinic_label
+        from src.keyboards.inline import _short_clinic_label
 
         name = 'ГБУЗ "Поликлиника №2" Взрослое отделение'
         result = _short_clinic_label(name, 3)
         assert result == "Взрослое отделение (3)"
 
     def test_no_quote_fallback_short(self):
-        from keyboards.inline import _short_clinic_label
+        from src.keyboards.inline import _short_clinic_label
 
         name = "Короткое название"
         result = _short_clinic_label(name, 0)
         assert result == "Короткое название"
 
     def test_no_quote_fallback_long(self):
-        from keyboards.inline import _short_clinic_label
+        from src.keyboards.inline import _short_clinic_label
 
         name = "Очень длинное название поликлиники которое превышает пятьдесят символов точно"
         result = _short_clinic_label(name, 0)
         assert result == name[:50] + "..."
 
     def test_empty_quote_content(self):
-        from keyboards.inline import _short_clinic_label
+        from src.keyboards.inline import _short_clinic_label
 
         name = 'ГБУЗ ""'
         result = _short_clinic_label(name, 1)
@@ -131,7 +131,7 @@ class TestPatientSelection:
     }
 
     def test_no_patients_only_add_button(self):
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection({}, {})
         buttons = _extract_buttons(mk)
@@ -140,7 +140,7 @@ class TestPatientSelection:
 
     def test_patients_sorted_by_display_name(self):
         """Сортировка по alias (если есть) или fio, алфавитно."""
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         buttons = _extract_buttons(mk)
@@ -156,7 +156,7 @@ class TestPatientSelection:
         assert buttons[6] == ("➕ Добавить пациента", "start_add_p")
 
     def test_monitoring_count_shown(self):
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         monitoring = {"p1": {"d1": {}, "d2": {}}, "p3": {"d3": {}}}
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
@@ -166,7 +166,7 @@ class TestPatientSelection:
         assert buttons[4] == ("👤 Сын (1)", "sel_p_p3")
 
     def test_stop_all_button_when_active_monitoring(self):
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         monitoring = {"p1": {"d1": {}}}
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
@@ -174,7 +174,7 @@ class TestPatientSelection:
         assert ("🛑 Сбросить весь мониторинг", "stop_all") in buttons
 
     def test_no_stop_all_when_no_monitoring(self):
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         buttons = _extract_buttons(mk)
@@ -182,7 +182,7 @@ class TestPatientSelection:
 
     def test_row_structure_patients_in_pairs(self):
         """Каждый пациент — 2 кнопки в ряду, затем 1 кнопка добавить."""
-        from keyboards.inline import get_patient_selection
+        from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         rows = _extract_rows(mk)
@@ -200,7 +200,7 @@ class TestCitySelection:
     """Тесты get_city_selection."""
 
     def test_cities_with_indices(self):
-        from keyboards.inline import get_city_selection
+        from src.keyboards.inline import get_city_selection
 
         mk = get_city_selection(
             p_id="p1",
@@ -217,7 +217,7 @@ class TestCitySelection:
         assert ("⬅️ Назад к списку", "back_to_main") in buttons
 
     def test_monitoring_counts_per_city(self):
-        from keyboards.inline import get_city_selection
+        from src.keyboards.inline import get_city_selection
 
         monitoring = {
             "p1": {
@@ -242,7 +242,7 @@ class TestCitySelection:
         assert ("🏥 Все (3)", "sel_cty_p1_all") in buttons
 
     def test_stop_patient_button_when_monitoring(self):
-        from keyboards.inline import get_city_selection
+        from src.keyboards.inline import get_city_selection
 
         monitoring = {"p1": {"d1": {"clinic_id": "271"}}}
         clinics_data = [{"clinic_id": "271", "city": "Москва"}]
@@ -259,7 +259,7 @@ class TestCitySelection:
         ) in buttons
 
     def test_no_stop_button_when_no_monitoring(self):
-        from keyboards.inline import get_city_selection
+        from src.keyboards.inline import get_city_selection
 
         mk = get_city_selection(p_id="p1", cities=["Москва"])
         buttons = _extract_buttons(mk)
@@ -269,7 +269,7 @@ class TestCitySelection:
         ) not in buttons
 
     def test_no_cities_all_button_only(self):
-        from keyboards.inline import get_city_selection
+        from src.keyboards.inline import get_city_selection
 
         mk = get_city_selection(p_id="p1")
         buttons = _extract_buttons(mk)
@@ -291,7 +291,7 @@ class TestDoctorSelection:
     }
 
     def test_doctors_sorted_by_specialty_then_name(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         mk = get_doctor_selection("p1", "271", self.DOCTORS, {})
         buttons = _extract_buttons(mk)
@@ -308,7 +308,7 @@ class TestDoctorSelection:
         assert buttons[4][0] == "▫️ Процедурный кабинет"
 
     def test_monitored_doctor_has_checkmark(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         monitored = {"d1": {"name": "Иванов И.И.", "clinic_id": "271"}}
         mk = get_doctor_selection("p1", "271", self.DOCTORS, monitored)
@@ -316,14 +316,14 @@ class TestDoctorSelection:
         assert buttons[0][0] == "✅ [Терапевт] Иванов И. И."
 
     def test_callback_data_format(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         mk = get_doctor_selection("p_abc", "300", self.DOCTORS, {})
         buttons = _extract_buttons(mk)
         assert buttons[0][1] == "tgl_p_abc_300_d1"
 
     def test_navigation_buttons(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         mk = get_doctor_selection("p1", "271", self.DOCTORS, {}, city_idx="2")
         buttons = _extract_buttons(mk)
@@ -331,7 +331,7 @@ class TestDoctorSelection:
         assert ("⬅️ Назад к списку", "back_to_main") in buttons
 
     def test_stop_clinic_button_when_monitoring_in_clinic(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         monitored = {
             "d1": {"name": "X", "clinic_id": "271"},
@@ -343,7 +343,7 @@ class TestDoctorSelection:
         assert ("🛑 Сбросить мониторинг этой клиники", "stop_clinic_p1_271") in buttons
 
     def test_no_stop_clinic_when_no_monitoring_in_that_clinic(self):
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         monitored = {"d9": {"name": "Y", "clinic_id": "999"}}  # другая клиника
         mk = get_doctor_selection("p1", "271", self.DOCTORS, monitored)
@@ -355,7 +355,7 @@ class TestDoctorSelection:
 
     def test_dental_clinic_filters_child_specialties(self):
         """Клиника 272: для детей — только 'детск' специальности."""
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         doctors = {
             "d1": {
@@ -375,7 +375,7 @@ class TestDoctorSelection:
 
     def test_dental_clinic_filters_adult_specialties(self):
         """Клиника 272: для взрослых — исключаем 'детск'."""
-        from keyboards.inline import get_doctor_selection
+        from src.keyboards.inline import get_doctor_selection
 
         doctors = {
             "d1": {
@@ -434,7 +434,7 @@ class TestClinicSelection:
 
     def test_adult_sees_adult_and_all_clinics(self):
         """Возраст >= 18 — видны adult и all, не видны child."""
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
@@ -451,7 +451,7 @@ class TestClinicSelection:
 
     def test_child_sees_child_and_all_clinics(self):
         """Возраст < 18 — видны child и all, не видны adult."""
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
@@ -467,7 +467,7 @@ class TestClinicSelection:
         assert "sel_c_p1_300_all" not in callbacks  # adult — не видна
 
     def test_city_filter(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
@@ -484,7 +484,7 @@ class TestClinicSelection:
         assert "sel_c_p1_272_all" not in callbacks
 
     def test_monitoring_counts(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         monitoring = {
             "p1": {
@@ -508,7 +508,7 @@ class TestClinicSelection:
         assert ("Стоматология №1", "sel_c_p1_272_all") in buttons
 
     def test_navigation_buttons(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
@@ -521,7 +521,7 @@ class TestClinicSelection:
         assert ("⬅️ Назад к списку", "back_to_main") in buttons
 
     def test_stop_patient_button_when_monitoring(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         monitoring = {"p1": {"d1": {"clinic_id": "271"}}}
         mk = get_clinic_selection(
@@ -538,7 +538,7 @@ class TestClinicSelection:
         ) in buttons
 
     def test_no_stop_button_when_no_monitoring(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
@@ -553,7 +553,7 @@ class TestClinicSelection:
         ) not in buttons
 
     def test_city_idx_passed_to_callback(self):
-        from keyboards.inline import get_clinic_selection
+        from src.keyboards.inline import get_clinic_selection
 
         monitoring = {"p1": {"d1": {"clinic_id": "271"}}}
         mk = get_clinic_selection(

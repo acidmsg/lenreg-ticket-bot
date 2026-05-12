@@ -887,3 +887,91 @@
 | `logs/stdout.log` | Удалён |
 
 **Результат:** 15/15 tests passed (test_zdrav_client.py)
+
+---
+
+## 2026-05-12 (Архитектурный рефакторинг: src/ директория)
+
+### Миграция исходного кода в src/ ✅
+
+**Задача:** Устранение плоской иерархии в корне проекта — перенос всех модулей исходного кода в выделенную директорию `src/`, рефакторинг всех импортов на абсолютные `src.xxx`, генерация [`ARCHITECTURE.md`](ARCHITECTURE.md:1).
+
+**Изменённые файлы:**
+
+| Файл | Действие |
+|------|----------|
+| [`src/`](src/__init__.py:1) | Создана директория с `__init__.py` и подпакетами `api/`, `database/`, `handlers/`, `keyboards/`, `middleware/`, `services/`, `utils/` |
+| [`src/config.py`](src/config.py:1) | Перенесён из `config.py` |
+| [`src/main.py`](src/main.py:1) | Перенесён из `main.py`, все импорты → `src.xxx` |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py:1) | Импорты: `api.models` → `src.api.models`, `config` → `src.config` |
+| [`src/database/database.py`](src/database/database.py:1) | Импорты: `database.migrations` → `src.database.migrations`, `utils.helpers` → `src.utils.helpers`, `config` → `src.config` |
+| [`src/database/manager.py`](src/database/manager.py:1) | Импорт: `database.database` → `src.database.database` |
+| [`src/database/doctor_manager.py`](src/database/doctor_manager.py:1) | Импорт: `database.database` → `src.database.database` |
+| [`src/database/migrations.py`](src/database/migrations.py:1) | Импорт: `config` → `src.config` |
+| [`src/handlers/common.py`](src/handlers/common.py:1) | Все импорты → `src.xxx` (api, config, database, keyboards, services, utils) |
+| [`src/handlers/registration.py`](src/handlers/registration.py:1) | Все импорты → `src.xxx` |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py:1) | Импорт: `utils.helpers` → `src.utils.helpers` |
+| [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:1) | Импорт: `config` → `src.config` |
+| [`src/services/cleanup.py`](src/services/cleanup.py:1) | Все импорты → `src.xxx` |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:1) | Все импорты → `src.xxx` |
+| [`src/services/error_notifier.py`](src/services/error_notifier.py:1) | Импорт: `config` → `src.config` |
+| [`src/services/healthcheck.py`](src/services/healthcheck.py:1) | Все импорты → `src.xxx` |
+| [`src/services/monitor.py`](src/services/monitor.py:1) | Все импорты → `src.xxx` |
+| [`src/utils/cache.py`](src/utils/cache.py:1) | Импорт: `config` → `src.config` |
+| [`tests/conftest.py`](tests/conftest.py:11) | Импорты → `src.xxx`, monkeypatch path → `src.utils.cache.settings.CACHE_PATH` |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py:9) | Импорт: `services.monitor` → `src.services.monitor` |
+| [`tests/test_doctor_discovery.py`](tests/test_doctor_discovery.py:8) | Импорт: `services.doctor_discovery` → `src.services.doctor_discovery` |
+| [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py:5) | Импорт: `services.monitor` → `src.services.monitor` |
+| [`scripts/apply_city_heuristic.py`](scripts/apply_city_heuristic.py:12) | Импорты → `src.xxx` |
+| [`scripts/apply_heuristic_types.py`](scripts/apply_heuristic_types.py:12) | Импорты → `src.xxx` |
+| [`pyproject.toml`](pyproject.toml:1) | Добавлен `[tool.ruff] src = ["src"]` |
+| [`pytest.ini`](pytest.ini:1) | Добавлен `pythonpath = .` |
+| [`pyrightconfig.json`](pyrightconfig.json:1) | Добавлен `rootPath: "."` |
+| [`.pre-commit-config.yaml`](.pre-commit-config.yaml:75) | mypy args: заменены 9× `-p` на `-p src -p scripts -p tests` |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md:1) | Создан: дерево директорий, зоны ответственности, граф зависимостей, ключевые решения |
+| [`.roo/rules/knowledge.md`](.roo/rules/knowledge.md:1) | Добавлен приоритет чтения `ARCHITECTURE.md` при анализе структуры проекта |
+
+**Удалены:** Старые корневые директории `api/`, `database/`, `handlers/`, `keyboards/`, `middleware/`, `services/`, `utils/`, файлы `config.py`, `main.py` (теперь в `src/`).
+
+---
+
+### Верификация рефакторинга ✅
+
+**Дата:** 2026-05-12
+
+**Задача:** Проверить работоспособность бота после миграции в `src/`.
+
+**Результаты тестов:** **134 passed, 0 failed, 0 errors** (Python 3.14.4, pytest 9.0.3)
+
+| Группа тестов | Кол-во | Результат |
+|---------------|--------|-----------|
+| [`tests/test_cache.py`](tests/test_cache.py:1) | 7 | ✅ Все прошли |
+| [`tests/test_database_manager.py`](tests/test_database_manager.py:1) | 14 | ✅ Все прошли |
+| [`tests/test_doctor_discovery.py`](tests/test_doctor_discovery.py:1) | 15 | ✅ Все прошли |
+| [`tests/test_doctor_manager.py`](tests/test_doctor_manager.py:1) | 11 | ✅ Все прошли |
+| [`tests/test_keyboards.py`](tests/test_keyboards.py:1) | 39 | ✅ Все прошли |
+| [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py:1) | 12 | ✅ Все прошли |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py:1) | 21 | ✅ Все прошли |
+| [`tests/test_zdrav_client.py`](tests/test_zdrav_client.py:1) | 15 | ✅ Все прошли |
+
+**Исправленные проблемы после первого запуска тестов (63 failed → 0 failed):**
+
+1. [`tests/test_cache.py`](tests/test_cache.py:13) — 7 inline-импортов `from utils.cache import` → `from src.utils.cache import`
+2. [`tests/test_database_manager.py`](tests/test_database_manager.py:11) — 2 inline-импорта `from database.xxx import` → `from src.database.xxx import`
+3. [`tests/test_keyboards.py`](tests/test_keyboards.py:30) — 39 inline-импортов `from keyboards.inline import` → `from src.keyboards.inline import`
+4. [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py:74) — 2 inline-импорта `import config` → `import src.config as config`
+5. [`tests/test_monitor_full.py`](tests/test_monitor_full.py:197) — 6 monkeypatch-путей `"services.monitor.xxx"` → `"src.services.monitor.xxx"` и `"services.healthcheck._safe_set"` → `"src.services.healthcheck._safe_set"`
+6. [`tests/test_zdrav_client.py`](tests/test_zdrav_client.py:16) — 1 inline-импорт `from api.zdrav_client import` → `from src.api.zdrav_client import`
+7. [`tests/test_doctor_manager.py`](tests/test_doctor_manager.py:75) — 1 inline-импорт `from database.doctor_manager import` → `from src.database.doctor_manager import`
+
+**Изменённые файлы (верификация):**
+
+| Файл | Изменения |
+|------|-----------|
+| [`tests/test_cache.py`](tests/test_cache.py:13) | 7 inline-импортов → `src.utils.cache` |
+| [`tests/test_database_manager.py`](tests/test_database_manager.py:11) | 2 inline-импорта → `src.database.xxx` |
+| [`tests/test_keyboards.py`](tests/test_keyboards.py:30) | 39 inline-импортов → `src.keyboards.inline` |
+| [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py:74) | 2 inline-импорта → `import src.config as config` |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py:197) | 6 monkeypatch-путей → `src.services.xxx` |
+| [`tests/test_zdrav_client.py`](tests/test_zdrav_client.py:16) | 1 inline-импорт → `src.api.zdrav_client` |
+| [`tests/test_doctor_manager.py`](tests/test_doctor_manager.py:75) | 1 inline-импорт → `src.database.doctor_manager` |

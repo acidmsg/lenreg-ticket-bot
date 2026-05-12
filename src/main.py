@@ -7,18 +7,18 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.database import Database
-from database.doctor_manager import DoctorManager
-from database.manager import DatabaseManager
-from handlers import common, registration
-from middleware.ratelimit import UserRateLimitMiddleware
-from services.cleanup import cleanup_loop
-from services.doctor_discovery import discovery_loop, sync_clinic_names
-from services.error_notifier import error_notifier
-from services.healthcheck import _safe_set, healthcheck_loop, metrics
-from services.monitor import monitor_loop
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.database import Database
+from src.database.doctor_manager import DoctorManager
+from src.database.manager import DatabaseManager
+from src.handlers import common, registration
+from src.middleware.ratelimit import UserRateLimitMiddleware
+from src.services.cleanup import cleanup_loop
+from src.services.doctor_discovery import discovery_loop, sync_clinic_names
+from src.services.error_notifier import error_notifier
+from src.services.healthcheck import _safe_set, healthcheck_loop, metrics
+from src.services.monitor import monitor_loop
 
 
 async def main():
@@ -59,8 +59,8 @@ async def main():
 
     # Загрузка конфигов из БД (переопределяет значения из settings)
     try:
-        from config import load_config_from_db
-        from utils.helpers import load_specialty_aliases_from_db
+        from src.config import load_config_from_db
+        from src.utils.helpers import load_specialty_aliases_from_db
 
         await load_config_from_db(database)
         await load_specialty_aliases_from_db(database)

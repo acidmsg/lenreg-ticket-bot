@@ -9,9 +9,9 @@ import time
 
 from aiogram import Bot
 
-from config import settings
-from database.manager import DatabaseManager
-from utils.helpers import extract_msg_id
+from src.config import settings
+from src.database.manager import DatabaseManager
+from src.utils.helpers import extract_msg_id
 
 logger = logging.getLogger(__name__)
 

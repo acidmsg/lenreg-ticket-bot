@@ -6,8 +6,7 @@ with mocked API, Bot, and DatabaseManager.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-
-from services.monitor import _send_notification, monitor_loop
+from src.services.monitor import _send_notification, monitor_loop
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -195,15 +194,15 @@ class TestMonitorLoop:
 
         # Mock swap_cache_key
         swap_mock = AsyncMock(return_value=swap_cache_return)
-        monkeypatch.setattr("services.monitor.swap_cache_key", swap_mock)
+        monkeypatch.setattr("src.services.monitor.swap_cache_key", swap_mock)
 
-        # Mock _safe_set (imported at module top in services.monitor)
+        # Mock _safe_set (imported at module top in src.services.monitor)
         safe_set_mock = AsyncMock()
-        monkeypatch.setattr("services.monitor._safe_set", safe_set_mock)
+        monkeypatch.setattr("src.services.monitor._safe_set", safe_set_mock)
 
         # Mock _send_notification (same module) to avoid real bot calls
         notify_mock = AsyncMock()
-        monkeypatch.setattr("services.monitor._send_notification", notify_mock)
+        monkeypatch.setattr("src.services.monitor._send_notification", notify_mock)
 
         return bot, api, db, swap_mock, safe_set_mock, notify_mock
 
@@ -503,11 +502,11 @@ class TestMonitorLoop:
         monkeypatch.setattr(asyncio, "sleep", mock_sleep)
         monkeypatch.setattr("random.uniform", lambda a, b: 0.01)
         swap_mock = AsyncMock(return_value=None)
-        monkeypatch.setattr("services.monitor.swap_cache_key", swap_mock)
+        monkeypatch.setattr("src.services.monitor.swap_cache_key", swap_mock)
         safe_set_mock = AsyncMock()
-        monkeypatch.setattr("services.healthcheck._safe_set", safe_set_mock)
+        monkeypatch.setattr("src.services.healthcheck._safe_set", safe_set_mock)
         notify_mock = AsyncMock()
-        monkeypatch.setattr("services.monitor._send_notification", notify_mock)
+        monkeypatch.setattr("src.services.monitor._send_notification", notify_mock)
 
         # Should complete without raising
         await monitor_loop(bot, api, db)

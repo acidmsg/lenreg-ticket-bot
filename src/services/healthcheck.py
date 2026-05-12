@@ -15,9 +15,9 @@ from typing import Optional
 
 from aiogram import Bot
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.manager import DatabaseManager
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

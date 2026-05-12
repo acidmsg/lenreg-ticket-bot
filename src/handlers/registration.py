@@ -6,10 +6,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.manager import DatabaseManager
-from keyboards.inline import get_patient_selection, get_registration_keyboard
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.manager import DatabaseManager
+from src.keyboards.inline import get_patient_selection, get_registration_keyboard
 
 logger = logging.getLogger(__name__)
 

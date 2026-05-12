@@ -187,7 +187,7 @@ class Database:
 
     async def _run_migrations(self):
         """Применяет все миграции с версией > текущей schema_version."""
-        from database.migrations import MIGRATIONS
+        from src.database.migrations import MIGRATIONS
 
         c = self._conn
         if c is None:
@@ -608,7 +608,7 @@ class Database:
             if row and row["cnt"] > 0:
                 return  # уже есть данные
 
-            from utils.helpers import SPECIALTY_ALIASES
+            from src.utils.helpers import SPECIALTY_ALIASES
 
             for full_name, short_name in SPECIALTY_ALIASES.items():
                 await self.upsert_specialty_alias(full_name, short_name)
@@ -631,7 +631,7 @@ class Database:
             if row and row["cnt"] > 0:
                 return  # уже есть данные
 
-            from config import settings as s
+            from src.config import settings as s
 
             defaults = {
                 "api_timeout": str(s.API_TIMEOUT),

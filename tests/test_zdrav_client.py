@@ -13,7 +13,7 @@ async def mock_zdrav_client():
     """
     ZdravClient с мокированным _get_client, возвращающим AsyncMock.
     """
-    from api.zdrav_client import ZdravClient
+    from src.api.zdrav_client import ZdravClient
 
     client = ZdravClient()
     mock_http = AsyncMock()

@@ -3,14 +3,14 @@
 когда city ещё не проставлен (или пуст).
 """
 
+import os
 import sqlite3
 import sys
-import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from config import settings
-from database.database import detect_clinic_city
+from src.config import settings
+from src.database.database import detect_clinic_city
 
 conn = sqlite3.connect(settings.SQLITE_DB_PATH)
 cur = conn.cursor()

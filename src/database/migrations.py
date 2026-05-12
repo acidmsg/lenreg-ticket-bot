@@ -95,7 +95,7 @@ async def migrate_v5_seed_new_config_keys(db):
     c = db._conn
     if c is None:
         return
-    from config import settings as s
+    from src.config import settings as s
 
     all_keys = {
         "api_timeout": str(s.API_TIMEOUT),

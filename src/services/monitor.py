@@ -4,12 +4,12 @@ import random
 
 from aiogram import Bot
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.manager import DatabaseManager
-from services.healthcheck import _safe_set
-from utils.cache import swap_cache_key
-from utils.helpers import shorten_fio, shorten_specialty
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.manager import DatabaseManager
+from src.services.healthcheck import _safe_set
+from src.utils.cache import swap_cache_key
+from src.utils.helpers import shorten_fio, shorten_specialty
 
 logger = logging.getLogger(__name__)
 

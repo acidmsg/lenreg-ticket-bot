@@ -1,4 +1,14 @@
 {
+  "files.exclude": {
+    "**/.git": true,
+    "**/.venv": true,
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
+    "**/.pre-commit-config.yaml": true,
+    "pytest.ini": true,
+    "requirements.txt": true
+  },
   "python-envs.defaultEnvManager": "ms-python.python:venv",
   "Lingma.aI Chat.mcpToolsInAgentMode": true,
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",

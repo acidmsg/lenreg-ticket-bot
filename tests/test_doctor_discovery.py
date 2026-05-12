@@ -4,8 +4,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-
-from services.doctor_discovery import (
+from src.services.doctor_discovery import (
     _get_clinic_type_from_db,
     fetch_specialties,
     sync_clinic_names,

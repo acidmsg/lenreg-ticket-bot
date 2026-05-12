@@ -5,7 +5,7 @@
       "name": "🚀 Запуск бота (main.py)",
       "type": "debugpy",
       "request": "launch",
-      "module": "main",
+      "module": "src.main",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "envFile": "${workspaceFolder}/.env",

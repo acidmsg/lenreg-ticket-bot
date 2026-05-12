@@ -72,7 +72,7 @@ class TestDoctorManager:
 
     async def test_save_persists_data(self, database):
         """Данные сохраняются в SQLite и восстанавливаются."""
-        from database.doctor_manager import DoctorManager
+        from src.database.doctor_manager import DoctorManager
 
         mgr1 = DoctorManager(database)
         await mgr1.load()

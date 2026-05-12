@@ -9,8 +9,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from config import settings
-from database.database import detect_clinic_type
+from src.config import settings
+from src.database.database import detect_clinic_type
 
 conn = sqlite3.connect(settings.SQLITE_DB_PATH)
 cur = conn.cursor()

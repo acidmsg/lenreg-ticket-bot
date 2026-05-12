@@ -7,7 +7,7 @@ from typing import Any
 import aiofiles
 from cachetools import TTLCache
 
-from config import settings
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 

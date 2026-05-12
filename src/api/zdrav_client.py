@@ -7,14 +7,14 @@ from typing import List, Optional, Tuple
 import aiolimiter
 import httpx
 
-from api.models import (
+from src.api.models import (
     AppointmentListResponse,
     CheckPatientResponse,
     ClinicListResponse,
     DoctorListResponse,
     SpecialityListResponse,
 )
-from config import settings
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 

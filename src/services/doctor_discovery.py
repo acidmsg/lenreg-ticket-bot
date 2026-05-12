@@ -3,10 +3,10 @@ import logging
 import random
 from typing import Dict, List
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.database import Database
-from database.doctor_manager import DoctorManager
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.database import Database
+from src.database.doctor_manager import DoctorManager
 
 logger = logging.getLogger(__name__)
 

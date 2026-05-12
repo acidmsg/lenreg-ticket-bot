@@ -2,7 +2,7 @@
 Тесты для _classify_slot_change из services/monitor.py.
 """
 
-from services.monitor import _classify_slot_change
+from src.services.monitor import _classify_slot_change
 
 
 class TestClassifySlotChange:
@@ -71,7 +71,7 @@ class TestClassifySlotChange:
 
     def test_slots_decreased_below_absolute_threshold(self, monkeypatch):
         """Уменьшение ниже абсолютного порога — уведомить."""
-        import config
+        import src.config as config
 
         monkeypatch.setattr(config.settings, "SLOT_THRESHOLD_ABSOLUTE", 5)
 
@@ -85,7 +85,7 @@ class TestClassifySlotChange:
 
     def test_slots_decreased_by_percentage(self, monkeypatch):
         """Уменьшение на >= 25% — уведомить."""
-        import config
+        import src.config as config
 
         monkeypatch.setattr(config.settings, "SLOT_THRESHOLD_ABSOLUTE", 5)
         monkeypatch.setattr(config.settings, "SLOT_THRESHOLD_PERCENTAGE", 0.25)

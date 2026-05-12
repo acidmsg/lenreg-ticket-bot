@@ -6,7 +6,7 @@ DoctorManager — адаптер поверх Database (SQLite).
 import logging
 from typing import Any, Dict
 
-from database.database import Database
+from src.database.database import Database
 
 logger = logging.getLogger(__name__)
 

@@ -8,10 +8,10 @@ import os
 import pytest
 import pytest_asyncio
 
-from database.database import Database
-from database.doctor_manager import DoctorManager
-from database.manager import DatabaseManager
-from utils.cache import spam_cache
+from src.database.database import Database
+from src.database.doctor_manager import DoctorManager
+from src.database.manager import DatabaseManager
+from src.utils.cache import spam_cache
 
 # ── Вспомогательные пути ──────────────────────────────────────────────
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -73,7 +73,7 @@ async def temp_cache_path(monkeypatch):
     """Временный путь для кэша мониторинга + подмена settings.CACHE_PATH."""
     os.makedirs(TEST_DATA_DIR, exist_ok=True)
     path = os.path.join(TEST_DATA_DIR, "test_monitoring_cache.json")
-    monkeypatch.setattr("utils.cache.settings.CACHE_PATH", path)
+    monkeypatch.setattr("src.utils.cache.settings.CACHE_PATH", path)
     yield path
     if os.path.exists(path):
         os.remove(path)

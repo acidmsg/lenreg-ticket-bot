@@ -8,8 +8,8 @@ class TestDatabaseManager:
 
     async def test_load_empty_when_no_db(self, temp_db_path):
         """Загрузка из пустого SQLite-файла даёт пустой кэш."""
-        from database.database import Database
-        from database.manager import DatabaseManager
+        from src.database.database import Database
+        from src.database.manager import DatabaseManager
 
         db = Database(temp_db_path)
         await db.connect()
@@ -112,8 +112,8 @@ class TestDatabaseManager:
 
     async def test_save_persists_data(self, temp_db_path):
         """Данные сохраняются в SQLite и восстанавливаются."""
-        from database.database import Database
-        from database.manager import DatabaseManager
+        from src.database.database import Database
+        from src.database.manager import DatabaseManager
 
         # Первый экземпляр — сохраняем данные
         db1 = Database(temp_db_path)

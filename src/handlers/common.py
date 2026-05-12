@@ -5,20 +5,20 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from api.zdrav_client import ZdravClient
-from config import settings
-from database.manager import DatabaseManager
-from keyboards.inline import (
+from src.api.zdrav_client import ZdravClient
+from src.config import settings
+from src.database.manager import DatabaseManager
+from src.keyboards.inline import (
     get_city_selection,
     get_clinic_selection,
     get_confirm_deletion,
     get_doctor_selection,
     get_patient_selection,
 )
-from services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
-from services.healthcheck import format_status_report
-from utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_key
-from utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
+from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
+from src.services.healthcheck import format_status_report
+from src.utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_key
+from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
+from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 
 def get_patient_selection(patients: dict, monitoring: dict):
