@@ -32,6 +32,8 @@ class ErrorNotifier:
             sentry_sdk.init(
                 dsn=settings.SENTRY_DSN,
                 traces_sample_rate=0.0,  # no performance tracing for bot
+                send_default_pii=True,  # capture user Telegram IDs in error context
+                enable_logs=True,  # forward Python logging to Sentry
                 environment=settings.ENVIRONMENT,
             )
             self._sentry_initialized = True

@@ -1,5 +1,43 @@
 # SESSION_LOG.md
 
+## 2026-05-12 (Sentry + NTFY full setup)
+
+### Подключение Sentry DSN и NTFY ✅
+
+**Задача:** Настроить оба канала оповещений (Sentry + NTFY), заполнить отсутствующие параметры в `.env`.
+
+**Изменённые файлы:**
+| Файл | Действие |
+|------|----------|
+| [`.env`](.env:18-34) | Добавлены секции Error notifications (M2) и Rate limiting (M3): `ERROR_NOTIFY_ENABLED`, `NTFY_TOPIC_URL=https://ntfy.sh/ltb_alert`, `SENTRY_DSN`, `ENVIRONMENT`, `USER_RATE_LIMIT_MAX`, `USER_RATE_LIMIT_PERIOD` |
+| [`services/error_notifier.py`](services/error_notifier.py:35-36) | В `_init_sentry()` добавлены `send_default_pii=True` и `enable_logs=True` |
+
+**Результаты тестов:** Не запускались
+
+---
+
+## 2026-05-12 (env audit)
+
+### Аудит .env и .env.example ✅
+
+**Задача:** Проверить расхождения между [`.env`](.env:1) и [`.env.example`](.env.example:1), актуальность параметров в коде, объяснить настройку `NTFY_TOPIC_URL` и `SENTRY_DSN`.
+
+**Выявлено:** В `.env` отсутствуют 6 параметров (против `.env.example`): `ERROR_NOTIFY_ENABLED`, `NTFY_TOPIC_URL`, `SENTRY_DSN`, `ENVIRONMENT`, `USER_RATE_LIMIT_MAX`, `USER_RATE_LIMIT_PERIOD`. Все они имеют безопасные дефолты в [`config.py:80-94`](config.py:80), поэтому бот работает корректно.
+
+**Все параметры из `.env.example` подтверждены как используемые:**
+- `ERROR_NOTIFY_ENABLED` → проверка в [`error_notifier.notify()`](services/error_notifier.py:54)
+- `NTFY_TOPIC_URL` → HTTP POST в [`error_notifier._notify_ntfy()`](services/error_notifier.py:58,88-89)
+- `SENTRY_DSN` → инициализация SDK в [`error_notifier._init_sentry()`](services/error_notifier.py:27,33)
+- `ENVIRONMENT` → тег в [`sentry_sdk.init()`](services/error_notifier.py:35)
+- `USER_RATE_LIMIT_MAX` / `USER_RATE_LIMIT_PERIOD` → [`ratelimit.py:42-47`](middleware/ratelimit.py:42-47)
+- Все ключи синхронизируются с таблицей `config` БД через [`load_config_from_db()`](config.py:102)
+
+**Изменённые файлы:** Нет (только анализ)
+
+**Результаты тестов:** Не запускались
+
+---
+
 ## 2026-05-12 (project cleanup)
 
 ### Очистка мусорных и временных файлов ✅
