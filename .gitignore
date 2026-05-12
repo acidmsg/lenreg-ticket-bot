@@ -1,12 +1,27 @@
+# === Python ===
 __pycache__/
+*.whl
+
+# === Virtual environment ===
+.venv/
+
+# === IDE / Editor ===
 .history/
-*.log
-data/monitoring_cache.json
+
+# === Environment & Secrets ===
 .env
 
-*.db
-*.db-shm
-*.db-wal
-.venv/
+# === Data & Runtime ===
+data/
+
+# === Logs ===
+logs/
+*.log
+
+# === Linters & Type-checkers ===
+.mypy_cache/
+.ruff_cache/
+
+# === Tests ===
 .pytest_cache/
 .pytest_output.txt

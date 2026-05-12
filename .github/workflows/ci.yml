@@ -25,5 +25,3 @@ jobs:
 
     - name: Run tests
       run: python -m pytest tests/ -v --tb=short
-      env:
-        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
