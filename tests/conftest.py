@@ -7,7 +7,6 @@ import os
 
 import pytest
 import pytest_asyncio
-
 from src.database.database import Database
 from src.database.doctor_manager import DoctorManager
 from src.database.manager import DatabaseManager

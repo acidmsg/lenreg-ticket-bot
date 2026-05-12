@@ -6,6 +6,7 @@
     "**/.pytest_cache": true,
     "**/__pycache__": true,
     "**/.pre-commit-config.yaml": true,
+    "**/.ruff_cache": true,
     "pytest.ini": true,
     "requirements.txt": true
   },
