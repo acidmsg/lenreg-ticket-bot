@@ -34,7 +34,7 @@ async def fetch_specialties(
         return []
 
 
-async def _get_clinic_type_from_db(database, clinic_id: str) -> str:
+async def _get_clinic_type_from_db(database: "Database", clinic_id: str) -> str:
     """Получает тип клиники из БД. Если не найден — возвращает 'adult'."""
     try:
         clinic_type = await database.get_clinic_type(str(clinic_id))

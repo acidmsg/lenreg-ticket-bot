@@ -15,7 +15,7 @@ class DatabaseManager:
 
     def __init__(self, db: Database):
         self._db = db
-        self._data_cache: Dict[str, Any] = {}
+        self._data_cache: Dict[str, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
 
     @property

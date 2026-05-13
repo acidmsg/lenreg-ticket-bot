@@ -253,7 +253,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
             idx = int(idx_or_all)
             if 1 <= idx <= len(cities):
                 selected_city = cities[idx - 1]
-        except ValueError, IndexError:
+        except (ValueError, IndexError):
             pass
 
     try:
@@ -328,7 +328,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
             idx = int(city_idx)
             if 1 <= idx <= len(cities):
                 selected_city = cities[idx - 1]
-        except ValueError, IndexError:
+        except (ValueError, IndexError):
             pass
 
     try:
@@ -565,7 +565,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                     idx = int(city_idx)
                     if 1 <= idx <= len(cities):
                         selected_city = cities[idx - 1]
-                except ValueError, IndexError:
+                except (ValueError, IndexError):
                     pass
 
             await call.message.edit_text(

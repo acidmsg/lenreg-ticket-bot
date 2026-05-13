@@ -1,12 +1,94 @@
+[project]
+name = "zdrav.lenreg"
+version = "1.0.0"
+description = "Telegram-бот для мониторинга доступных талонов (слотов) на портале zdrav.lenreg.ru."
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+license = "ISC"
+authors = [
+    { name = "acidmsg" }
+]
+keywords = ["telegram", "bot", "healthcare", "monitoring", "zdrav"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Healthcare Industry",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    # === Core (Bot & Framework) ===
+    "aiogram>=3.7,<4.0",
+    # === Configuration ===
+    "pydantic-settings>=2.0,<3.0",
+    # === Logging ===
+    "loguru>=0.7,<1.0",
+    # === HTTP & Networking ===
+    "httpx>=0.27,<1.0",
+    # === Proxy support (SOCKS5) ===
+    "aiohttp-socks>=0.9,<1.0",
+    # === Data & Storage ===
+    "aiofiles>=24.0,<25.0",
+    "aiosqlite>=0.22,<1.0",
+    "cachetools>=5.3,<6.0",
+    # === Rate Limiting ===
+    "aiolimiter>=1.1,<2.0",
+    # === Error Notifications (M2) ===
+    "sentry-sdk>=2.0,<3.0",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+# === Testing ===
+pytest = ">=9.0,<10.0"
+pytest-asyncio = ">=1.3,<2.0"
+# === Linting & Formatting ===
+ruff = ">=0.4,<1.0"
+mypy = ">=1.10,<2.0"
+types-aiofiles = ">=24.0,<26.0"
+types-cachetools = ">=5.3,<8.0"
+# === Pre-commit ===
+pre-commit = ">=4.0,<5.0"
+pre-commit-hooks = ">=6.0,<7.0"
+
 [tool.ruff]
 src = ["src"]
-target-version = "py314"
+target-version = "py311"
 exclude = [".venv", "data", "logs"]
 
 [tool.ruff.lint]
-# Те самые правила, которые вы хотели: ошибки, импорты, асинхронность, именование
 select = ["E", "F", "I", "W", "ASYNC", "N"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+explicit_package_bases = true
+packages = ["src", "scripts", "tests"]
+exclude = [".venv", "data", "logs"]
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-v", "--tb=short", "--strict-markers"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestDeprecationWarning",
+]

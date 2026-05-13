@@ -238,7 +238,7 @@ def get_clinic_selection(
     try:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
         age = (datetime.now() - bday).days // 365
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         age = 18
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}

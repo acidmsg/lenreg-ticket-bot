@@ -135,7 +135,7 @@ async def load_config_from_db(database):
                 try:
                     setattr(settings, attr_name, cast_type(value))
                     loaded += 1
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     logger.warning(
                         "Не удалось преобразовать config[%s]='%s' в %s",
                         key,

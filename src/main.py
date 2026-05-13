@@ -62,7 +62,7 @@ async def _probe_host(host: str, port: int, sem: asyncio.Semaphore) -> str | Non
             writer.close()
             await writer.wait_closed()
             return host
-        except OSError, asyncio.TimeoutError:
+        except (OSError, asyncio.TimeoutError):
             return None
 
 

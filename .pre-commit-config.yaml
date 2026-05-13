@@ -3,28 +3,28 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: trailing-whitespace
-        entry: .venv/Scripts/trailing-whitespace-fixer.exe
+        entry: python -m poetry run trailing-whitespace-fixer
         language: system
         types: [text]
         exclude: ^\.venv/
 
       - id: end-of-file-fixer
         name: end-of-file-fixer
-        entry: .venv/Scripts/end-of-file-fixer.exe
+        entry: python -m poetry run end-of-file-fixer
         language: system
         types: [text]
         exclude: ^\.venv/
 
       - id: check-yaml
         name: check-yaml
-        entry: .venv/Scripts/check-yaml.exe
+        entry: python -m poetry run check-yaml
         language: system
         types: [yaml]
         exclude: ^\.venv/
 
       - id: check-added-large-files
         name: check-added-large-files
-        entry: .venv/Scripts/check-added-large-files.exe
+        entry: python -m poetry run check-added-large-files
         language: system
         types: [file]
         stages: [pre-commit]
@@ -32,21 +32,21 @@ repos:
 
       - id: debug-statements
         name: debug-statements
-        entry: .venv/Scripts/debug-statement-hook.exe
+        entry: python -m poetry run debug-statement-hook
         language: system
         types: [python]
         exclude: ^\.venv/
 
       - id: detect-private-key
         name: detect-private-key
-        entry: .venv/Scripts/detect-private-key.exe
+        entry: python -m poetry run detect-private-key
         language: system
         types: [text]
         exclude: ^\.venv/
 
       - id: mixed-line-ending
         name: mixed-line-ending
-        entry: .venv/Scripts/mixed-line-ending.exe
+        entry: python -m poetry run mixed-line-ending
         language: system
         args: [--fix=lf]
         types: [text]
@@ -54,7 +54,7 @@ repos:
 
       - id: ruff-check
         name: ruff (lint)
-        entry: .venv/Scripts/ruff.exe
+        entry: python -m poetry run ruff
         language: system
         args: [check, --fix, --exit-non-zero-on-fix]
         types: [python]
@@ -62,7 +62,7 @@ repos:
 
       - id: ruff-format
         name: ruff (format)
-        entry: .venv/Scripts/ruff.exe
+        entry: python -m poetry run ruff
         language: system
         args: [format, --check]
         types: [python]
@@ -70,7 +70,7 @@ repos:
 
       - id: mypy
         name: mypy
-        entry: .venv/Scripts/mypy.exe
+        entry: python -m poetry run mypy
         language: system
         args:
           [

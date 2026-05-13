@@ -5,6 +5,9 @@ __pycache__/
 # === Virtual environment ===
 .venv/
 
+# === Docker ===
+qdrant_storage/
+
 # === IDE / Editor ===
 .history/
 

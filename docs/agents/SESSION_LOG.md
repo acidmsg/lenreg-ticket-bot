@@ -1,57 +1,47 @@
 # SESSION_LOG.md
 
-## 2026-05-13 (middleware expansion + healthcheck race-condition fix)
+## 2026-05-13 (внедрение Poetry + Makefile + tasks.ps1)
 
-### Middleware/filter (4 новых)
+### Задача
 
-| Middleware / Filter         | Файл                                                                      | Назначение                                                           |
-| --------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `IsAdmin` (filter)          | [`src/filters/admin.py`](src/filters/admin.py:13)                         | Проверка `ADMIN_IDS` — вынесена из `common.py`                       |
-| `ErrorBoundaryMiddleware`   | [`src/middleware/error_boundary.py`](src/middleware/error_boundary.py:16) | Глобальный try/except для TelegramBadRequest/NotFound/ForbiddenError |
-| `UserDataPreloadMiddleware` | [`src/middleware/userdata.py`](src/middleware/userdata.py:14)             | Preload `user_data` в `data["user_data"]`                            |
-| `ActivityLogMiddleware`     | [`src/middleware/activity.py`](src/middleware/activity.py:13)             | Сквозное логирование всех событий (DEBUG)                            |
+Внедрены инструменты управления проектом: Poetry (зависимости), Makefile и tasks.ps1 (таск-раннеры), обновлён pyproject.toml (единая конфигурация всех инструментов).
 
-### Исправление healthcheck — race condition + переработка метрик
+### Выполненные задачи
 
-**Проблема 1:** Кумулятивные счётчики (`api_checks_total`, `api_success_total`, `api_errors_total`) инкрементировались раздельными вызовами `_safe_increment()`, а `format_status_report()` читал их без `_metrics_lock` — получался несогласованный снапшот (`0 ошибок из 3, но 67%`).
+- Установлен Poetry 2.4.1 (`python -m poetry`)
+- Перенесены зависимости из [`requirements.txt`](requirements.txt) в [`pyproject.toml`](pyproject.toml:28) (секции `dependencies` + `dev`)
+- Сгенерирован [`poetry.lock`](poetry.lock)
+- Создан [`Makefile`](Makefile:1) (команды: install, lint, format, test, run, clean, lock, check)
+- Создан [`tasks.ps1`](tasks.ps1:1) (PowerShell таск-раннер для Windows)
+- Обновлён [`.pre-commit-config.yaml`](.pre-commit-config.yaml:1) (poetry-совместимые entry-пути)
+- Обновлён [`.gitignore`](.gitignore:12) (добавлен `qdrant_storage/`)
+- Исправлен синтаксис `except X, Y:` → `except (X, Y):` в 7 местах (Python 3.11+)
+- Исправлены аннотации типов в [`src/database/manager.py`](src/database/manager.py:18) и [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:37)
+- Исправлен формат license в [`pyproject.toml`](pyproject.toml:9)
 
-**Проблема 2:** Кумулятивные счётчики за всё время аптайма неинформативны — не отвечают на вопрос «API работает сейчас?».
+### Результаты проверок
 
-**Решение:** снапшот последнего цикла healthcheck (`last_api_clinics_ok`/`_err`/`_total`) + `format_status_report()` → `async` с чтением под `_metrics_lock`.
-
-### Исправление healthcheck — зависание первого цикла
-
-**Проблема 3:** [`limiter_healthcheck`](src/api/zdrav_client.py:30) имел `max_rate=2/60s` (~30с между запросами). При 6+ активных клиниках первый цикл занимал >3 минут, при 10+ >5 минут. Сообщение «⏳ Выполняется первый цикл проверки...» не менялось 7+ минут.
-
-**Решение:** [`max_rate=2 → 30`](src/api/zdrav_client.py:30) (1 запрос в 2 секунды). Цикл и так ограничен `CHECK_INTERVAL` (300с), агрессивный лимитер избыточен.
+| Инструмент   | Результат                               |
+| ------------ | --------------------------------------- |
+| Ruff (lint)  | All checks passed                       |
+| Mypy         | 27 source files, 0 errors               |
+| Markdownlint | 0 errors                                |
+| Pytest       | 133 passed, 1 failed → fix → 134 passed |
 
 ### Изменённые файлы
 
-| Файл                                                                     | Действие                                                                         |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| [`src/filters/admin.py`](src/filters/admin.py:1)                         | Новый файл — `IsAdmin` filter                                                    |
-| [`src/filters/__init__.py`](src/filters/__init__.py:1)                   | Новый файл — экспорт `IsAdmin`                                                   |
-| [`src/middleware/activity.py`](src/middleware/activity.py:1)             | Новый файл — `ActivityLogMiddleware`                                             |
-| [`src/middleware/error_boundary.py`](src/middleware/error_boundary.py:1) | Новый файл — `ErrorBoundaryMiddleware`                                           |
-| [`src/middleware/userdata.py`](src/middleware/userdata.py:1)             | Новый файл — `UserDataPreloadMiddleware`                                         |
-| [`src/middleware/__init__.py`](src/middleware/__init__.py:1)             | Экспорт всех middleware                                                          |
-| [`src/main.py:17-20`](src/main.py:17)                                    | Импорт 4 middleware; регистрация в `dp.update.outer_middleware` (строки 302-310) |
-| [`src/handlers/common.py:8`](src/handlers/common.py:8)                   | Импорт `IsAdmin`; `cmd_status` → `await format_status_report(db)`                |
-| [`src/services/healthcheck.py:34`](src/services/healthcheck.py:34)       | `last_api_check_time` → `float = 0.0`; новые поля снапшота цикла                 |
-| [`src/services/healthcheck.py:76`](src/services/healthcheck.py:76)       | `api_health_str()` — перикловый снапшот вместо кумулятивных %                    |
-| [`src/services/healthcheck.py:139`](src/services/healthcheck.py:139)     | `healthcheck_loop()` — локальные `cycle_ok`/`cycle_err`, атомарный снапшот       |
-| [`src/services/healthcheck.py:228`](src/services/healthcheck.py:228)     | `format_status_report()` → `async`, чтение метрик под `_metrics_lock`            |
-| [`src/api/zdrav_client.py:30`](src/api/zdrav_client.py:30)               | `limiter_healthcheck` `max_rate` 2→30 req/min — устранение зависания 1-го цикла  |
-
-### Упрощение healthcheck — 1 запрос вместо цикла по клиникам
-
-**Причина:** Все клиники ходят через один API `zdrav.lenreg.ru` — опрос каждой избыточен. Достаточно одного запроса.
-
-**Изменения в [`HealthMetrics`](src/services/healthcheck.py:23):**
-`last_api_clinics_total`/`_ok`/`_err` заменены на `last_api_ok: bool`.
-
-**Изменения в [`api_health_str()`](src/services/healthcheck.py:76):** `✅ Доступен` / `❌ Недоступен` вместо процентов и количества клиник.
-
-**Изменения в [`healthcheck_loop()`](src/services/healthcheck.py:119):** цикл `for clinic_id in clinic_ids` убран; один `fetch_speciality_list(DEFAULT_CLINIC_ID, взрослый пациент)` за итерацию.
-
-**Результаты линтинга:** ruff — All checks passed. markdownlint — 0 errors.
+| Файл                                                                      | Действие                                       |
+| ------------------------------------------------------------------------- | ---------------------------------------------- |
+| [`pyproject.toml`](pyproject.toml)                                        | Полная переработка (зависимости + tool-секции) |
+| [`Makefile`](Makefile)                                                    | Создан                                         |
+| [`tasks.ps1`](tasks.ps1)                                                  | Создан                                         |
+| [`poetry.lock`](poetry.lock)                                              | Сгенерирован                                   |
+| [`.pre-commit-config.yaml`](.pre-commit-config.yaml)                      | Poetry-совместимые пути                        |
+| [`.gitignore`](.gitignore)                                                | Добавлен `qdrant_storage/`                     |
+| [`src/config.py`](src/config.py:138)                                      | `except (ValueError, TypeError)`               |
+| [`src/handlers/common.py`](src/handlers/common.py:256)                    | `except (ValueError, IndexError)` ×3           |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py:241)                  | `except (ValueError, TypeError)`               |
+| [`src/main.py`](src/main.py:65)                                           | `except (OSError, asyncio.TimeoutError)`       |
+| [`src/utils/helpers.py`](src/utils/helpers.py:36)                         | `except (ValueError, TypeError)`               |
+| [`src/database/manager.py`](src/database/manager.py:18)                   | Аннотация `Dict[str, Dict[str, Any]]`          |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:37) | Аннотация `database: "Database"`               |
