@@ -70,7 +70,7 @@ class HealthMetrics:
 
     def api_health_str(self) -> str:
         if self.api_checks_total == 0:
-            return "❓ Нет данных"
+            return "⏳ Первая проверка ещё не выполнена"
         success_rate = (self.api_success_total / self.api_checks_total) * 100
         if success_rate == 100:
             return f"✅ {success_rate:.0f}% успешных (всего {self.api_checks_total})"
@@ -129,8 +129,6 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
     while True:
         try:
-            await asyncio.sleep(settings.CHECK_INTERVAL)  # каждые 5 минут
-
             # Получаем список активных клиник из БД
             database = db._db
             clinic_ids = await database.get_active_clinic_ids()
@@ -199,6 +197,9 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                 f"Monitored: {total_monitored_doctors} | "
                 f"API: {api_health}"
             )
+
+            # Пауза до следующего цикла
+            await asyncio.sleep(settings.CHECK_INTERVAL)
 
         except asyncio.CancelledError:
             await _safe_set("healthcheck_loop_alive", False)
