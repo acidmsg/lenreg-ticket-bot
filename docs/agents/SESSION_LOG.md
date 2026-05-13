@@ -43,4 +43,15 @@
 | [`src/services/healthcheck.py:228`](src/services/healthcheck.py:228)     | `format_status_report()` → `async`, чтение метрик под `_metrics_lock`            |
 | [`src/api/zdrav_client.py:30`](src/api/zdrav_client.py:30)               | `limiter_healthcheck` `max_rate` 2→30 req/min — устранение зависания 1-го цикла  |
 
+### Упрощение healthcheck — 1 запрос вместо цикла по клиникам
+
+**Причина:** Все клиники ходят через один API `zdrav.lenreg.ru` — опрос каждой избыточен. Достаточно одного запроса.
+
+**Изменения в [`HealthMetrics`](src/services/healthcheck.py:23):**
+`last_api_clinics_total`/`_ok`/`_err` заменены на `last_api_ok: bool`.
+
+**Изменения в [`api_health_str()`](src/services/healthcheck.py:76):** `✅ Доступен` / `❌ Недоступен` вместо процентов и количества клиник.
+
+**Изменения в [`healthcheck_loop()`](src/services/healthcheck.py:119):** цикл `for clinic_id in clinic_ids` убран; один `fetch_speciality_list(DEFAULT_CLINIC_ID, взрослый пациент)` за итерацию.
+
 **Результаты линтинга:** ruff — All checks passed. markdownlint — 0 errors.

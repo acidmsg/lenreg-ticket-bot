@@ -32,11 +32,9 @@ class HealthMetrics:
     api_errors_total: int = 0
     api_success_total: int = 0
 
-    # Снапшот последнего цикла healthcheck
+    # Снапшот последнего цикла healthcheck (бинарный: доступен/недоступен)
     last_api_check_time: float = 0.0  # 0.0 = ещё ни разу
-    last_api_clinics_total: int = 0
-    last_api_clinics_ok: int = 0
-    last_api_clinics_err: int = 0
+    last_api_ok: bool = False
     last_api_error_time: Optional[float] = None
     last_api_error_message: str = ""
 
@@ -74,22 +72,16 @@ class HealthMetrics:
         return " ".join(parts)
 
     def api_health_str(self) -> str:
-        """Состояние API по последнему завершённому циклу healthcheck."""
+        """Состояние API — бинарное: ✅ Доступен / ❌ Недоступен."""
         if self.last_api_check_time == 0.0:
             if self.healthcheck_loop_alive:
                 return "⏳ Выполняется первый цикл проверки..."
             return "⏳ Healthcheck ещё не запущен"
         delta = int(time.time() - self.last_api_check_time)
         ago = f"{delta}с назад" if delta < 120 else f"{delta // 60}м назад"
-        total = self.last_api_clinics_total
-        ok = self.last_api_clinics_ok
-        err = self.last_api_clinics_err
-        if total == 0:
-            return f"⏳ Ожидание результатов ({ago})"
-        if err == 0:
-            return f"✅ Все {ok} клиник отвечают ({ago})"
-        else:
-            return f"⚠️ {err} из {total} клиник не отвечают ({ago})"
+        if self.last_api_ok:
+            return f"✅ Доступен ({ago})"
+        return f"❌ Недоступен ({ago})"
 
     def last_error_str(self) -> str:
         if not self.last_error_message:
@@ -121,75 +113,44 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
     Фоновый цикл проверки здоровья.
 
     Каждые CHECK_INTERVAL секунд:
-    1. Проверяет доступность API zdrav.lenreg.ru через все активные клиники
-    2. Собирает статистику
+    1. Делает 1 запрос к API zdrav.lenreg.ru — проверка доступности
+    2. Фиксирует бинарный результат: доступен / недоступен
     3. Логирует состояние
     """
     await _safe_set("healthcheck_loop_alive", True)
     logger.info("Healthcheck-цикл запущен")
 
-    # Кэш clinic_id → patient_id для healthcheck (заполняется на первом цикле)
-    _patient_for_clinic: dict[str, str] = {}
-
     while True:
         try:
-            # Получаем список активных клиник из БД
-            database = db._db
-            clinic_ids = await database.get_active_clinic_ids()
-            if not clinic_ids:
-                # Фоллбэк на DEFAULT_CLINIC_ID, если таблица пуста
-                clinic_ids = [settings.DEFAULT_CLINIC_ID]
-
-            # Проверяем API для каждой активной клиники (R4)
-            cycle_ok = 0
-            cycle_err = 0
-            for clinic_id in clinic_ids:
-                try:
-                    # Определяем patient_id для этой клиники
-                    if clinic_id not in _patient_for_clinic:
-                        ctype = await database.get_clinic_type(str(clinic_id))
-                        if ctype == "child":
-                            _patient_for_clinic[clinic_id] = (
-                                settings.DISCOVERY_PATIENT_ID_CHILD
-                            )
-                        else:
-                            _patient_for_clinic[clinic_id] = (
-                                settings.DISCOVERY_PATIENT_ID_ADULT
-                            )
-
-                    patient_id = _patient_for_clinic[clinic_id]
-
-                    # Накопительные счётчики (для Prometheus / логов)
+            # Один запрос — любая клиника/пациент, API общий
+            ok = False
+            try:
+                specialties = await api.fetch_speciality_list(
+                    settings.DISCOVERY_PATIENT_ID_ADULT,
+                    settings.DEFAULT_CLINIC_ID,
+                    limiter=api.limiter_healthcheck,
+                )
+                if specialties is not None:
+                    ok = True
+                    await _safe_increment("api_success_total")
                     await _safe_increment("api_checks_total")
-                    specialties = await api.fetch_speciality_list(
-                        patient_id,
-                        str(clinic_id),
-                        limiter=api.limiter_healthcheck,
-                    )
-                    if specialties is not None:
-                        await _safe_increment("api_success_total")
-                        cycle_ok += 1
-                    else:
-                        await _safe_increment("api_errors_total")
-                        cycle_err += 1
-                        await _safe_set("last_api_error_time", time.time())
-                        await _safe_set("last_api_error_message", "API вернул None")
-                except Exception as e:
+                else:
+                    await _safe_increment("api_checks_total")
                     await _safe_increment("api_errors_total")
-                    cycle_err += 1
                     await _safe_set("last_api_error_time", time.time())
-                    await _safe_set("last_api_error_message", str(e)[:200])
-                    logger.error(
-                        f"Healthcheck: ошибка API для клиники {clinic_id}: {e}"
-                    )
+                    await _safe_set("last_api_error_message", "API вернул None")
+            except Exception as e:
+                await _safe_increment("api_checks_total")
+                await _safe_increment("api_errors_total")
+                await _safe_set("last_api_error_time", time.time())
+                await _safe_set("last_api_error_message", str(e)[:200])
+                logger.error(f"Healthcheck: ошибка API: {e}")
 
-            # Атомарно фиксируем снапшот цикла
+            # Атомарно фиксируем снапшот
             now = time.time()
             async with _metrics_lock:
                 metrics.last_api_check_time = now
-                metrics.last_api_clinics_total = len(clinic_ids)
-                metrics.last_api_clinics_ok = cycle_ok
-                metrics.last_api_clinics_err = cycle_err
+                metrics.last_api_ok = ok
                 uptime = metrics.uptime_str()
                 api_health = metrics.api_health_str()
 
