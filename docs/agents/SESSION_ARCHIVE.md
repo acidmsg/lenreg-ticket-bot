@@ -1163,3 +1163,39 @@
 | [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)      | `SESSION_ARCHIVE.md` добавлен в условно-игнорируемые |
 
 **Результаты тестов:** Не запускались
+
+---
+
+## 2026-05-12 (markdownlint workflow + commit/push)
+
+### Добавление markdownlint в пре-комплишн workflow ✅
+
+**Задача:** Добавить обязательную проверку `npx markdownlint` перед `attempt_completion` для всех `.md` файлов и исправить 41 markdownlint violation в [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1).
+
+**Исправленные ошибки в SESSION_ARCHIVE.md:**
+
+| Правило | Суть                               | Кол-во | Метод исправления                                              |
+| ------- | ---------------------------------- | ------ | -------------------------------------------------------------- |
+| MD058   | Таблицы без пустых строк           | 5      | Пустые строки перед таблицами                                  |
+| MD060   | Стиль разделителей таблиц          | ~15    | Заменено на `\| --- \|` (spaces вокруг разделителей)           |
+| MD038   | Пробел внутри инлайн-кода          | 1      | Убран trailing space в коде `` `...fetch_speciality_list):` `` |
+| MD024   | Дубликат H2 `2026-05-11` (5)       | 5      | Уникальные контекстные суффиксы                                |
+| MD024   | Дубликат H3 `Изменённые файлы` (8) | 8      | `markdownlint-disable-next-line MD024` перед повторными H3     |
+
+**Изменённые файлы:**
+
+| Файл                                                     | Действие                                                               |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024                                  |
+| `.roo/rules/system_standards.md`                         | Добавлена команда `markdownlint` в секцию Валидация                    |
+| `.roo/rules/logging.md`                                  | Добавлены шаги 4 (markdownlint) и 5 (prettier) в пре-комплишн workflow |
+| `.markdownlint.json`                                     | Создан конфиг (MD013, MD041, MD060 отключены)                          |
+| `.gitignore`                                             | Добавлены `node_modules/`, `package-lock.json`, `.vscode/`             |
+| `package.json`                                           | Инициализирован npm, установлен `markdownlint-cli`                     |
+
+### Git commit + push ✅
+
+- Commit: `c2dad57` — 26 files changed, 953 insertions, 737 deletions
+- Push: `main -> main` on `github.com/acidmsg/lenreg_ticket_bot.git`
+
+**Результаты тестов:** Не запускались

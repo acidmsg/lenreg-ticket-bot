@@ -1,10 +1,7 @@
-import logging
 from typing import Any, Callable, Optional
 
+from loguru import logger
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-logger = logging.getLogger(__name__)
-
 
 # Ключи конфигов, которые можно хранить в таблице config
 CONFIG_KEY_API_TIMEOUT = "api_timeout"

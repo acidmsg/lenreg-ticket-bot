@@ -1,27 +1,47 @@
 # SESSION_LOG.md
 
-## 2026-05-12 (markdownlint workflow)
+## 2026-05-13 (диагностика падения бота + защита от недоступности прокси)
 
-### Добавление markdownlint в пре-комплишн workflow ✅
+### Анализ ошибки в [`logs/error.log`](logs/error.log)
 
-**Задача:** Добавить обязательную проверку `npx markdownlint` перед `attempt_completion` для всех `.md` файлов и исправить 41 markdownlint violation в [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1).
+**Задача:** Прочитать error.log, найти причину падения бота.
 
-**Исправленные ошибки в SESSION_ARCHIVE.md:**
+**Корневая причина:** SOCKS5 прокси `172.21.160.1:10808` был недоступен в момент старта.
+Aiogram вызывает `bot.me()` → `aiohttp_socks.ProxyConnector` → `OSError: [WinError 121] Превышен таймаут семафора`.
 
-| Правило | Суть                                | Кол-во | Метод исправления                                              |
-| ------- | ----------------------------------- | ------ | -------------------------------------------------------------- |
-| MD058   | Таблицы без пустых строк            | 5      | Пустые строки перед таблицами                                  |
-| MD060   | Стиль разделителей таблиц: `\|-\|-` | ~15    | Заменено на `\| --- \|` (spaces вокруг разделителей)           |
-| MD038   | Пробел внутри инлайн-кода           | 1      | Убран trailing space в коде `` `...fetch_speciality_list):` `` |
-| MD024   | Дубликат H2 `2026-05-11` (5)        | 5      | Уникальные контекстные суффиксы                                |
-| MD024   | Дубликат H3 `Изменённые файлы` (8)  | 8      | `markdownlint-disable-next-line MD024` перед повторными H3     |
+Полный трейс:
+
+```text
+src/main.py:135 → asyncio.run(main())
+  src/main.py:114 → dp.start_polling(bot)
+    aiogram dispatcher.py:377 → bot.me()
+      aiogram bot.py:504 → session.__call__()
+        aiohttp_socks connector.py:79 → ProxyConnectionError
+          asyncio windows_events.py:804 → OSError: [WinError 121]
+```
+
+**Диагностика:**
+
+- Прокси `172.21.160.1:10808` недоступен (curl test failed)
+- `PROXY_URL` в `.env` был закомментирован пользователем после падения
+- Указан новый адрес прокси: `172.17.16.1:10808`
+- Прокси обязателен — Telegram API недоступен в стране пользователя
+
+### Реализованные защиты в [`src/main.py`](src/main.py)
+
+| Защита                              | Функция                       | Строки  |
+| ----------------------------------- | ----------------------------- | ------- |
+| Healthcheck прокси перед стартом    | `_check_proxy_connectivity()` | 54-71   |
+| Retry для `bot.me()`                | `_bot_me_with_retry()`        | 74-97   |
+| Отложенный запуск фоновых задач     | `_start_background_tasks()`   | 100-141 |
+| Retry для `AiohttpSession` с прокси | цикл в `main()`               | 183-200 |
+| Парсинг host:port из proxy URL      | `_parse_proxy_host_port()`    | 35-39   |
 
 **Изменённые файлы:**
 
-| Файл                                                                     | Действие                                                               |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1)                 | Исправлены MD038, MD058, MD060, MD024                                  |
-| [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:54) | Добавлена команда `markdownlint` в секцию Валидация                    |
-| [`.roo/rules/logging.md`](../.roo/rules/logging.md:22)                   | Добавлены шаги 4 (markdownlint) и 5 (prettier) в пре-комплишн workflow |
+| Файл                           | Действие                                                 |
+| ------------------------------ | -------------------------------------------------------- |
+| [`.env`](.env:5)               | `PROXY_URL=socks5://172.17.16.1:10808` (новый адрес)     |
+| [`src/main.py`](src/main.py:1) | Полный рефакторинг: healthcheck, retry, отложенные таски |
 
-**Результаты тестов:** Не запускались
+**Результаты тестов:** ruff check — All checks passed. mypy — только pre-existing errors в других файлах.

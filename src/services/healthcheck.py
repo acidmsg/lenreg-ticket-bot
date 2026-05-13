@@ -8,18 +8,16 @@
 """
 
 import asyncio
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Optional
 
 from aiogram import Bot
+from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

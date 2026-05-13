@@ -1,15 +1,13 @@
 import asyncio
 import json
-import logging
 import os
 from typing import Any
 
 import aiofiles
 from cachetools import TTLCache
+from loguru import logger
 
 from src.config import settings
-
-logger = logging.getLogger(__name__)
 
 # TTL в 1 секунду, maxsize=1000 для защиты от переполнения
 spam_cache: TTLCache = TTLCache(maxsize=1000, ttl=1.0)

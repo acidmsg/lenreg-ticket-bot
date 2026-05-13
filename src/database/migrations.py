@@ -8,9 +8,7 @@
 2. Добавить (N, migrate_vN_...) в список MIGRATIONS
 """
 
-import logging
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 async def migrate_v1_initial_schema(db):

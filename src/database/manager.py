@@ -4,13 +4,10 @@ DatabaseManager — адаптер поверх Database (SQLite).
 
 import asyncio
 import copy
-import logging
 import time
 from typing import Any, Dict
 
 from src.database.database import Database
-
-logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:

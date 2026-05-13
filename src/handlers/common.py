@@ -1,9 +1,9 @@
 import asyncio
-import logging
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
+from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
@@ -21,8 +21,6 @@ from src.utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_
 from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
-logger = logging.getLogger(__name__)
-
 # Хранит city_idx последнего выбора клиники для каждого пользователя
 # (нужен для кнопки "Назад к клиникам" в списке врачей)
 _user_clinic_city_idx: dict[str, str] = {}  # key: f"{uid}_{p_id}_{clinic_id}"

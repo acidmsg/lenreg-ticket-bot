@@ -3,14 +3,12 @@
 """
 
 import json
-import logging
 import os
 import re
 from typing import Any, Dict, Optional
 
 import aiosqlite
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def detect_clinic_type(name: str) -> str:

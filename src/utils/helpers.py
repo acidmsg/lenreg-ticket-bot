@@ -18,11 +18,9 @@ async def load_specialty_aliases_from_db(db):
         if aliases:
             _db_specialty_aliases = aliases
     except Exception as e:
-        import logging
+        from loguru import logger
 
-        logging.getLogger(__name__).warning(
-            f"Не удалось загрузить псевдонимы из БД: {e}"
-        )
+        logger.warning("Не удалось загрузить псевдонимы из БД: {}", e)
 
 
 def is_child(bday_str: str) -> bool:

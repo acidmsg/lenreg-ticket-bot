@@ -1,17 +1,15 @@
-import logging
 from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
+from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.keyboards.inline import get_patient_selection, get_registration_keyboard
-
-logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -124,7 +122,7 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
             parse_mode="Markdown",
         )
     except Exception:
-        logger.exception("Ошибка при добавлении пациента %s для uid=%s", p_id, uid)
+        logger.exception("Ошибка при добавлении пациента {} для uid={}", p_id, uid)
         await state.clear()
         await message.answer(
             "⚠️ Произошла ошибка при сохранении пациента. Попробуйте снова.",
@@ -159,7 +157,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
                 parse_mode="Markdown",
             )
     except Exception:
-        logger.exception("Ошибка при пропуске alias для p_id=%s uid=%s", p_id, uid)
+        logger.exception("Ошибка при пропуске alias для p_id={} uid={}", p_id, uid)
         await state.clear()
         if isinstance(call.message, Message):
             await call.message.edit_text(

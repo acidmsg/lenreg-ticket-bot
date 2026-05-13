@@ -1,11 +1,11 @@
 import asyncio
 import datetime
-import logging
 import random
 from typing import List, Optional, Tuple
 
 import aiolimiter
 import httpx
+from loguru import logger
 
 from src.api.models import (
     AppointmentListResponse,
@@ -15,8 +15,6 @@ from src.api.models import (
     SpecialityListResponse,
 )
 from src.config import settings
-
-logger = logging.getLogger(__name__)
 
 
 class ZdravClient:

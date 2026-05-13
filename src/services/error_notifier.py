@@ -5,14 +5,12 @@ NTFY sends HTTP POST to a configurable topic URL.
 Sentry is integrated only if SENTRY_DSN is set in config.
 """
 
-import logging
 import traceback
 
 import httpx
+from loguru import logger
 
 from src.config import settings
-
-logger = logging.getLogger(__name__)
 
 
 class ErrorNotifier:
@@ -86,12 +84,16 @@ class ErrorNotifier:
                 extra_lines = "\n".join(f"{k}: {v}" for k, v in extra.items())
                 message += f"\n\n**Extra:**\n{extra_lines}"
 
+            # NTFY expects ASCII-safe headers, non-ASCII chars (emoji) → replace
+            safe_title = title.encode("ascii", errors="replace").decode("ascii")
+            safe_content = message.encode("utf-8")
+
             async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 await client.post(
                     settings.NTFY_TOPIC_URL,
-                    content=message.encode("utf-8"),
+                    content=safe_content,
                     headers={
-                        "Title": title,
+                        "Title": safe_title,
                         "Priority": "urgent",
                         "Tags": "rotating_light,bot",
                     },

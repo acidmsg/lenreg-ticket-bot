@@ -6,16 +6,14 @@ message timestamps. Users exceeding the limit get their messages
 silently dropped (or optionally warned).
 """
 
-import logging
 import time
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 from cachetools import TTLCache
+from loguru import logger
 
 from src.config import settings
-
-logger = logging.getLogger(__name__)
 
 
 class UserRateLimitMiddleware(BaseMiddleware):

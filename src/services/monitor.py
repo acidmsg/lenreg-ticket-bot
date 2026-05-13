@@ -1,8 +1,8 @@
 import asyncio
-import logging
 import random
 
 from aiogram import Bot
+from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
@@ -10,8 +10,6 @@ from src.database.manager import DatabaseManager
 from src.services.healthcheck import _safe_set
 from src.utils.cache import swap_cache_key
 from src.utils.helpers import shorten_fio, shorten_specialty
-
-logger = logging.getLogger(__name__)
 
 
 async def _send_notification(
@@ -128,7 +126,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 "clinic_id", settings.DEFAULT_CLINIC_ID
                             )
                         logger.info(
-                            "Monitor checking slots: d_id=%s, p_id=%s, clinic_id=%s",
+                            "Monitor checking slots: d_id={}, p_id={}, clinic_id={}",
                             d_id,
                             p_id,
                             clinic_id,
@@ -152,7 +150,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                             empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
                             if empty_counts[cache_key] < 3:
                                 logger.info(
-                                    "Empty slots for %s, %s. Retry %s/3",
+                                    "Empty slots for {}, {}. Retry {}/3",
                                     d_id,
                                     p_id,
                                     empty_counts[cache_key],

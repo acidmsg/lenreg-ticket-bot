@@ -1,14 +1,13 @@
 import asyncio
-import logging
 import random
 from typing import Dict, List
+
+from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
 from src.database.doctor_manager import DoctorManager
-
-logger = logging.getLogger(__name__)
 
 
 async def fetch_specialties(
