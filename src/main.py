@@ -29,6 +29,11 @@ _TG_RETRIES = 3
 _TG_RETRY_DELAY = 3.0  # секунд
 _PROXY_CHECK_TIMEOUT = 5.0  # секунд
 
+# Параметры автоопределения прокси
+_PROXY_DISCOVERY_PORT = 10808
+_PROXY_DISCOVERY_CONCURRENT = 50
+_PROXY_DISCOVERY_HOST_TIMEOUT = 0.5  # секунд на один хост
+
 
 def _parse_proxy_host_port(proxy_url: str) -> tuple[str, int]:
     """Извлекает host:port из socks5://host:port строки."""
@@ -36,6 +41,77 @@ def _parse_proxy_host_port(proxy_url: str) -> tuple[str, int]:
     stripped = re.sub(r"^[a-z0-9]+://", "", proxy_url)
     host, _, port_str = stripped.partition(":")
     return host, int(port_str) if port_str else 1080
+
+
+async def _probe_host(host: str, port: int, sem: asyncio.Semaphore) -> str | None:
+    """
+    Проверяет TCP-соединение с хостом; возвращает host или None.
+
+    Используется для параллельного сканирования — каждый вызов ограничен
+    семафором (конкурентность) и таймаутом на соединение.
+    """
+    async with sem:
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=_PROXY_DISCOVERY_HOST_TIMEOUT,
+            )
+            writer.close()
+            await writer.wait_closed()
+            return host
+        except OSError, asyncio.TimeoutError:
+            return None
+
+
+def _generate_docker_gateways() -> list[str]:
+    """
+    Генерирует список возможных Docker/WSL gateway-адресов.
+
+    Фаза 1: стандартные /16 gateway (.0.1) — 15 адресов (быстро).
+    Фаза 2: расширенный пул /20 gateway (.Y.1, шаг 16) — все комбинации
+             в диапазоне 172.17.0.0 – 172.31.255.0 (RFC 1918).
+    """
+    gateways: list[str] = []
+    # Фаза 1: стандартные /16
+    for second in range(17, 32):
+        gateways.append(f"172.{second}.0.1")
+    # Фаза 2: все /20 подсети
+    for second in range(17, 32):
+        for third in range(0, 256, 16):
+            gw = f"172.{second}.{third}.1"
+            if gw not in gateways:
+                gateways.append(gw)
+    return gateways
+
+
+async def _discover_proxy(port: int = _PROXY_DISCOVERY_PORT) -> str | None:
+    """
+    Параллельное сканирование Docker gateway'ев на наличие SOCKS5 прокси.
+
+    Сканирует IP из диапазона 172.17.0.0 – 172.31.255.0 (RFC 1918)
+    на заданном порту. Возвращает socks5://host:port или None,
+    если прокси не найден.
+    """
+    gateways = _generate_docker_gateways()
+    logger.info(
+        f"Сканирование прокси: {len(gateways)} адресов "
+        f"(конкурентность {_PROXY_DISCOVERY_CONCURRENT}, "
+        f"таймаут {_PROXY_DISCOVERY_HOST_TIMEOUT}с)..."
+    )
+    sem = asyncio.Semaphore(_PROXY_DISCOVERY_CONCURRENT)
+    tasks = [asyncio.ensure_future(_probe_host(gw, port, sem)) for gw in gateways]
+    for coro in asyncio.as_completed(tasks):
+        host = await coro
+        if host is not None:
+            proxy_url = f"socks5://{host}:{port}"
+            logger.info(f"Прокси найден: {proxy_url}")
+            # Отменяем оставшиеся проверки
+            for t in tasks:
+                t.cancel()
+            return proxy_url
+
+    logger.warning("Прокси не найден ни на одном из проверенных адресов")
+    return None
 
 
 async def _check_proxy_connectivity(proxy_url: str) -> None:
@@ -180,14 +256,27 @@ async def main():
     # === Инициализация бота с прокси (если настроен) ===
     session = None
     if settings.PROXY_URL:
+        # Разрешение прокси: если хост = "auto" — автоопределение IP
+        proxy_url = settings.PROXY_URL
+        host, port = _parse_proxy_host_port(proxy_url)
+        if host == "auto":
+            discovered = await _discover_proxy(port)
+            if discovered is None:
+                raise ConnectionError(
+                    "Автоопределение прокси не удалось — "
+                    "ни один адрес не ответил на порту "
+                    f"{port}"
+                )
+            proxy_url = discovered
+
         # Проверка доступности прокси до создания сессии
-        await _check_proxy_connectivity(settings.PROXY_URL)
+        await _check_proxy_connectivity(proxy_url)
 
         # Создание AiohttpSession с retry при падении прокси
         last_session_error: Optional[Exception] = None
         for attempt in range(1, _PROXY_RETRIES + 1):
             try:
-                session = AiohttpSession(proxy=settings.PROXY_URL)
+                session = AiohttpSession(proxy=proxy_url)
                 logger.info(f"AiohttpSession с прокси создана (попытка {attempt})")
                 last_session_error = None
                 break
