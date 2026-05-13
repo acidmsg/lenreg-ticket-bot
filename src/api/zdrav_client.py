@@ -28,7 +28,7 @@ class ZdravClient:
             max_rate=5, time_period=60
         )  # discovery врачей
         self.limiter_healthcheck = aiolimiter.AsyncLimiter(
-            max_rate=2, time_period=60
+            max_rate=30, time_period=60
         )  # healthcheck
         self.limiter = aiolimiter.AsyncLimiter(
             max_rate=10, time_period=60

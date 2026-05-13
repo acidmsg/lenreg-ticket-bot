@@ -19,6 +19,12 @@
 
 **Решение:** снапшот последнего цикла healthcheck (`last_api_clinics_ok`/`_err`/`_total`) + `format_status_report()` → `async` с чтением под `_metrics_lock`.
 
+### Исправление healthcheck — зависание первого цикла
+
+**Проблема 3:** [`limiter_healthcheck`](src/api/zdrav_client.py:30) имел `max_rate=2/60s` (~30с между запросами). При 6+ активных клиниках первый цикл занимал >3 минут, при 10+ >5 минут. Сообщение «⏳ Выполняется первый цикл проверки...» не менялось 7+ минут.
+
+**Решение:** [`max_rate=2 → 30`](src/api/zdrav_client.py:30) (1 запрос в 2 секунды). Цикл и так ограничен `CHECK_INTERVAL` (300с), агрессивный лимитер избыточен.
+
 ### Изменённые файлы
 
 | Файл                                                                     | Действие                                                                         |
@@ -35,5 +41,6 @@
 | [`src/services/healthcheck.py:76`](src/services/healthcheck.py:76)       | `api_health_str()` — перикловый снапшот вместо кумулятивных %                    |
 | [`src/services/healthcheck.py:139`](src/services/healthcheck.py:139)     | `healthcheck_loop()` — локальные `cycle_ok`/`cycle_err`, атомарный снапшот       |
 | [`src/services/healthcheck.py:228`](src/services/healthcheck.py:228)     | `format_status_report()` → `async`, чтение метрик под `_metrics_lock`            |
+| [`src/api/zdrav_client.py:30`](src/api/zdrav_client.py:30)               | `limiter_healthcheck` `max_rate` 2→30 req/min — устранение зависания 1-го цикла  |
 
 **Результаты линтинга:** ruff — All checks passed. markdownlint — 0 errors.
