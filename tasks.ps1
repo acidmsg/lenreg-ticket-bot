@@ -29,9 +29,9 @@ $Npx = (Get-Command npx -ErrorAction SilentlyContinue).Source
 if (-not $Npx) { $Npx = "npx" }
 
 function Invoke-Poetry {
-  param([string[]]$Args)
-  & $Python -m poetry @Args
-  if ($LASTEXITCODE -ne 0) { throw "Poetry command failed: poetry $Args" }
+  param([string[]]$PoetryArgs)
+  & $Python -m poetry @PoetryArgs
+  if ($LASTEXITCODE -ne 0) { throw "Poetry command failed: poetry $PoetryArgs" }
 }
 
 function Invoke-Lint {

@@ -1387,3 +1387,104 @@ Docker/WSL2, потому что Docker использует случайные 
 | --------------------------------------------------- | ---------------------------------------------------------------------------- |
 | [`.vscode/settings.json`](.vscode/settings.json:14) | Удалены `python.analysis.extraPaths` и `python.analysis.typeCheckingMode`    |
 | [`pyrightconfig.json`](pyrightconfig.json:8)        | Добавлены дефолтные исключения: `**/node_modules`, `**/__pycache__`, `**/.*` |
+
+---
+
+## 2026-05-13 (внедрение Poetry + Makefile + tasks.ps1)
+
+### Задача
+
+Внедрены инструменты управления проектом: Poetry (зависимости), Makefile и tasks.ps1 (таск-раннеры), обновлён pyproject.toml (единая конфигурация всех инструментов).
+
+### Выполненные задачи
+
+- Установлен Poetry 2.4.1 (`python -m poetry`)
+- Перенесены зависимости из [`requirements.txt`](requirements.txt) в [`pyproject.toml`](pyproject.toml:28) (секции `dependencies` + `dev`)
+- Сгенерирован [`poetry.lock`](poetry.lock)
+- Создан [`Makefile`](Makefile:1) (команды: install, lint, format, test, run, clean, lock, check)
+- Создан [`tasks.ps1`](tasks.ps1:1) (PowerShell таск-раннер для Windows)
+- Обновлён [`.pre-commit-config.yaml`](.pre-commit-config.yaml:1) (poetry-совместимые entry-пути)
+- Обновлён [`.gitignore`](.gitignore:12) (добавлен `qdrant_storage/`)
+- Исправлен синтаксис `except X, Y:` → `except (X, Y):` в 7 местах (Python 3.11+)
+- Исправлены аннотации типов в [`src/database/manager.py`](src/database/manager.py:18) и [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:37)
+- Исправлен формат license в [`pyproject.toml`](pyproject.toml:9)
+
+### Результаты проверок
+
+| Инструмент   | Результат                               |
+| ------------ | --------------------------------------- |
+| Ruff (lint)  | All checks passed                       |
+| Mypy         | 27 source files, 0 errors               |
+| Markdownlint | 0 errors                                |
+| Pytest       | 133 passed, 1 failed → fix → 134 passed |
+
+### Изменённые файлы
+
+| Файл                                                                      | Действие                                       |
+| ------------------------------------------------------------------------- | ---------------------------------------------- |
+| [`pyproject.toml`](pyproject.toml)                                        | Полная переработка (зависимости + tool-секции) |
+| [`Makefile`](Makefile)                                                    | Создан                                         |
+| [`tasks.ps1`](tasks.ps1)                                                  | Создан                                         |
+| [`poetry.lock`](poetry.lock)                                              | Сгенерирован                                   |
+| [`.pre-commit-config.yaml`](.pre-commit-config.yaml)                      | Poetry-совместимые пути                        |
+| [`.gitignore`](.gitignore)                                                | Добавлен `qdrant_storage/`                     |
+| [`src/config.py`](src/config.py:138)                                      | `except (ValueError, TypeError)`               |
+| [`src/handlers/common.py`](src/handlers/common.py:256)                    | `except (ValueError, IndexError)` ×3           |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py:241)                  | `except (ValueError, TypeError)`               |
+| [`src/main.py`](src/main.py:65)                                           | `except (OSError, asyncio.TimeoutError)`       |
+| [`src/utils/helpers.py`](src/utils/helpers.py:36)                         | `except (ValueError, TypeError)`               |
+| [`src/database/manager.py`](src/database/manager.py:18)                   | Аннотация `Dict[str, Dict[str, Any]]`          |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:37) | Аннотация `database: "Database"`               |
+
+---
+
+## 2026-05-14 (Этап 0: создание SSOT-спецификации openapi.yaml)
+
+### Задача
+
+Создан файл [`docs/openapi.yaml`](docs/openapi.yaml) — единственный источник истины (SSOT) для архитектуры данных, бизнес-логики и внешних интеграций согласно правилу [`.roo/rules/architecture.md`](.roo/rules/architecture.md:5).
+
+### Выполненные задачи
+
+- Проведён полный аудит проекта: изучены все модули `src/`, схемы БД, API-эндпоинты, knowledge-база
+- Создан [`docs/openapi.yaml`](docs/openapi.yaml:1) — OpenAPI 3.0.0 (YAML, описания на русском)
+- Задокументированы:
+  - **Внешний API zdrav.lenreg.ru:** 5 эндпоинтов (`check_patient`, `speciality_list`, `doctor_list`, `appointment_list`, `clinic_list`)
+  - **Telegram-бот:** команды `/start`, `/status`, FSM-сценарий регистрации
+  - **Фоновые сервисы:** monitor_loop, discovery_loop, healthcheck_loop, cleanup_loop
+  - **База данных (SQLite):** 6 таблиц (`user_patients`, `user_monitoring`, `user_last_messages`, `clinics`, `doctors`, `config`, `specialty_aliases`)
+  - **Конфигурация:** все параметры из `src/config.py` + rate limiting
+  - **Классификация изменений слотов:** логика уведомлений
+- YAML-валидация пройдена (`python -c "import yaml; yaml.safe_load(...)"`)
+
+### Изменённые файлы
+
+| Файл                                     | Действие |
+| ---------------------------------------- | -------- |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | Создан   |
+
+---
+
+## 2026-05-14 (Рефакторинг и универсализация системных правил .roo/rules/)
+
+### Задача
+
+Проведена глубокая реструктуризация свода правил в `.roo/rules/`: 9 разрозненных файлов объединены в 3 логических кластера. Все правила де-хардкожены — удалены ссылки на текущий проект, превращены в переиспользуемый стандарт для любого Python/aiogram проекта.
+
+### Выполненные задачи
+
+- Прочитаны и проанализированы все 9 исходных файлов `.roo/rules/`
+- Создан [`.roo/rules/core.md`](.roo/rules/core.md:1) — базовые ограничения и идентичность агента (language + ignore + restrictions)
+- Создан [`.roo/rules/workflow.md`](.roo/rules/workflow.md:1) — процессы и жизненный цикл (architecture + logging + knowledge)
+- Создан [`.roo/rules/standards.md`](.roo/rules/standards.md:1) — технические стандарты Python/Markdown (coding + system_standards + env)
+- Удалены старые 9 файлов: `architecture.md`, `coding.md`, `env.md`, `ignore.md`, `knowledge.md`, `language.md`, `logging.md`, `restrictions.md`, `system_standards.md`
+- Верификация: поиск проектного хардкода (`lenreg`, `zdrav`, `DISCOVERY_PATIENT_ID`, `doctor_manager.py`) в новых файлах — 0 совпадений
+
+### Изменённые файлы
+
+| Файл                                                 | Действие      |
+| ---------------------------------------------------- | ------------- |
+| [`.roo/rules/core.md`](.roo/rules/core.md)           | Создан (из 3) |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)   | Создан (из 3) |
+| [`.roo/rules/standards.md`](.roo/rules/standards.md) | Создан (из 3) |
+| `.roo/rules/*.md` (9 файлов)                         | Удалены       |

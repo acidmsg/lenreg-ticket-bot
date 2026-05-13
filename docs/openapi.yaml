@@ -1,0 +1,888 @@
+openapi: "3.0.0"
+info:
+  title: "lenreg_ticket_bot — Архитектура системы"
+  description: >
+    Единый источник истины (SSOT) для архитектуры данных, бизнес-логики
+    и внешних интеграций Telegram-бота мониторинга талонов zdrav.lenreg.ru.
+
+    **Назначение:** отслеживание появления свободных талонов к врачам
+    в поликлиниках Ленинградской области через портал zdrav.lenreg.ru
+    с уведомлениями в Telegram.
+
+    **Стек:** Python 3.12+, aiogram 3.x, aiosqlite (SQLite WAL),
+    httpx (async HTTP), pydantic-settings, Loguru.
+
+    **Архитектурный стиль:** многослойная (handlers → services → database),
+    событийно-ориентированная (aiogram), с фоновыми asyncio-циклами.
+  version: "1.0.0"
+  contact:
+    name: "lenreg_ticket_bot"
+
+servers:
+  - url: "https://zdrav.lenreg.ru/api"
+    description: "Публичный API портала zdrav.lenreg.ru"
+
+tags:
+  - name: "Внешний API (zdrav.lenreg.ru)"
+    description: "Эндпоинты портала записи к врачу"
+  - name: "Telegram-бот (aiogram)"
+    description: "Команды и callback-запросы Telegram-бота"
+  - name: "Фоновые сервисы"
+    description: "Asyncio-циклы: мониторинг, discovery, healthcheck, cleanup"
+  - name: "База данных (SQLite)"
+    description: "Схема хранения: пользователи, пациенты, врачи, клиники, конфигурация"
+
+# ========================================================================
+# Пути внешнего API zdrav.lenreg.ru
+# ========================================================================
+paths:
+  /check_patient/:
+    post:
+      tags:
+        - "Внешний API (zdrav.lenreg.ru)"
+      summary: "Поиск пациента по ФИО и дате рождения"
+      description: >
+        Используется при регистрации нового пациента в боте (FSM-сценарий
+        [`Registration`](src/handlers/registration.py:17)).
+        Возвращает `patient_id` при успешном поиске.
+      operationId: checkPatient
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CheckPatientRequest"
+      responses:
+        "200":
+          description: "Результат поиска пациента"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckPatientResponse"
+              example:
+                response:
+                  history_id: null
+                  patient_id: "2343192"
+                success: true
+                error: {}
+        "403":
+          description: "Защита от ботов (CSRF/rate limit)"
+        "429":
+          description: "Слишком много запросов"
+        "500":
+          description: "Внутренняя ошибка сервера"
+
+  /speciality_list/:
+    post:
+      tags:
+        - "Внешний API (zdrav.lenreg.ru)"
+      summary: "Список специальностей врачей для клиники и пациента"
+      description: >
+        Используется в [`discovery_loop`](src/services/doctor_discovery.py:48)
+        и [`_discover_doctors_on_demand`](src/handlers/common.py:33)
+        для получения списка доступных специальностей.
+      operationId: specialityList
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/SpecialityListRequest"
+      responses:
+        "200":
+          description: "Список специальностей"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpecialityListResponse"
+
+  /doctor_list/:
+    post:
+      tags:
+        - "Внешний API (zdrav.lenreg.ru)"
+      summary: "Список врачей по специальности в клинике"
+      description: >
+        Используется в discovery-циклах для наполнения справочника врачей.
+        Каждый врач содержит `IdDoc`, `Name`, `CountFreeTicket`, даты.
+      operationId: doctorList
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/DoctorListRequest"
+      responses:
+        "200":
+          description: "Список врачей"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoctorListResponse"
+
+  /appointment_list/:
+    post:
+      tags:
+        - "Внешний API (zdrav.lenreg.ru)"
+      summary: "Слоты (талоны) конкретного врача"
+      description: >
+        Ключевой эндпоинт мониторинга. Используется в
+        [`monitor_loop`](src/services/monitor.py:89) (фоновый цикл)
+        и в [`toggle_doctor`](src/handlers/common.py:408) (ручная проверка).
+        Возвращает словарь дат со списками доступных слотов.
+      operationId: appointmentList
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/AppointmentListRequest"
+      responses:
+        "200":
+          description: "Словарь дата → слоты"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentListResponse"
+
+  /clinic_list/:
+    post:
+      tags:
+        - "Внешний API (zdrav.lenreg.ru)"
+      summary: "Список клиник для района"
+      description: >
+        Используется при старте бота в
+        [`sync_clinic_names`](src/services/doctor_discovery.py:133)
+        для синхронизации названий клиник в БД.
+      operationId: clinicList
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                district_form-district_id:
+                  type: string
+                  description: "ID района (по умолчанию '4')"
+                  example: "4"
+      responses:
+        "200":
+          description: "Список клиник района"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicListResponse"
+
+# ========================================================================
+# Команды и callback-запросы Telegram-бота
+# ========================================================================
+  # Эти пути документируют интерфейс бота (не HTTP-эндпоинты),
+  # но в формате OpenAPI 3.0 для единообразия спецификации.
+  /bot/start:
+    get:
+      tags:
+        - "Telegram-бот (aiogram)"
+      summary: "Команда /start — главное меню"
+      description: >
+        Обработчик [`cmd_start`](src/handlers/common.py:157).
+        Показывает список пациентов или приглашение добавить первого.
+      operationId: botStart
+      responses:
+        "200":
+          description: "Главное меню с клавиатурой пациентов"
+
+  /bot/status:
+    get:
+      tags:
+        - "Telegram-бот (aiogram)"
+      summary: "Команда /status — отчёт о состоянии (только админы)"
+      description: >
+        Обработчик [`cmd_status`](src/handlers/common.py:147).
+        Фильтр [`IsAdmin`](src/filters/admin.py).
+        Возвращает uptime, состояние API, статистику пользователей,
+        фоновые задачи, настройки.
+      operationId: botStatus
+      responses:
+        "200":
+          description: "Markdown-отчёт о состоянии бота"
+
+  /bot/registration:
+    post:
+      tags:
+        - "Telegram-бот (aiogram)"
+      summary: "FSM-сценарий добавления пациента"
+      description: >
+        Обработчики в [`registration.py`](src/handlers/registration.py).
+        Три шага: ФИО → дата рождения → псевдоним.
+        На шаге даты выполняется запрос `check_patient` к API.
+      operationId: botRegistration
+      responses:
+        "200":
+          description: "Пациент добавлен, переход к главному меню"
+
+# ========================================================================
+# Фоновые сервисы
+# ========================================================================
+  /services/monitor:
+    post:
+      tags:
+        - "Фоновые сервисы"
+      summary: "Цикл мониторинга слотов"
+      description: >
+        [`monitor_loop`](src/services/monitor.py:89) — основной фоновый цикл.
+        Для каждого пользователя и каждого врача под мониторингом:
+        1. Запрашивает слоты через `check_slots`
+        2. Сравнивает с кэшем (файловый JSON через [`swap_cache_key`](src/utils/cache.py))
+        3. Классифицирует изменения: появление, исчезновение, уменьшение
+        4. Отправляет уведомления в Telegram
+
+        **Пороги уведомлений** (настраиваются через `config` в БД):
+        - `slot_threshold_absolute` (default: 5)
+        - `slot_threshold_percentage` (default: 0.25)
+
+        **Защита от ложных пустых ответов:** 3 последовательных пустых ответа
+        подряд прежде чем считать, что слоты действительно исчезли.
+      operationId: monitorLoop
+      responses:
+        "200":
+          description: "Цикл активен"
+
+  /services/discovery:
+    post:
+      tags:
+        - "Фоновые сервисы"
+      summary: "Цикл discovery врачей"
+      description: >
+        [`discovery_loop`](src/services/doctor_discovery.py:48) — фоновый цикл
+        для каждой активной клиники. Раз в `DISCOVERY_INTERVAL` (default: 1800с):
+        1. Получает список специальностей
+        2. Для каждой специальности получает список врачей
+        3. Сохраняет врачей в БД через `merge_doctors`
+
+        **Логика выбора patient_id:**
+        - `child` → `DISCOVERY_PATIENT_ID_CHILD`
+        - `all` → оба (adult + child)
+        - `adult` → `DISCOVERY_PATIENT_ID_ADULT`
+        - Приоритет: per-клиника из БД > глобальные из settings
+      operationId: discoveryLoop
+      responses:
+        "200":
+          description: "Цикл активен"
+
+  /services/healthcheck:
+    post:
+      tags:
+        - "Фоновые сервисы"
+      summary: "Цикл проверки здоровья API"
+      description: >
+        [`healthcheck_loop`](src/services/healthcheck.py:111).
+        Раз в `CHECK_INTERVAL` (default: 300с) проверяет доступность
+        API zdrav.lenreg.ru одним запросом `speciality_list`.
+        Ведёт накопительную статистику в [`HealthMetrics`](src/services/healthcheck.py:24).
+      operationId: healthcheckLoop
+      responses:
+        "200":
+          description: "Цикл активен"
+
+  /services/cleanup:
+    post:
+      tags:
+        - "Фоновые сервисы"
+      summary: "Цикл автоудаления старых сообщений"
+      description: >
+        [`cleanup_loop`](src/services/cleanup.py) — фоновый цикл.
+        Раз в `CLEANUP_INTERVAL` (default: 3600с) удаляет сообщения
+        старше `MESSAGE_TTL_SECONDS` (default: 604800с = 7 дней).
+      operationId: cleanupLoop
+      responses:
+        "200":
+          description: "Цикл активен"
+
+# ========================================================================
+# Схемы данных
+# ========================================================================
+components:
+  securitySchemes:
+    CsrfTokenAuth:
+      type: apiKey
+      in: header
+      name: X-CSRFToken
+      description: "CSRF-токен (статический: NOTPROVIDED)"
+
+  headers:
+    X-Requested-With:
+      schema:
+        type: string
+        example: "XMLHttpRequest"
+      description: "Обязательный заголовок для всех запросов к API"
+    Referer:
+      schema:
+        type: string
+        example: "https://zdrav.lenreg.ru/signup/free/"
+      description: "Referer для эмуляции браузерного запроса"
+    Cookie:
+      schema:
+        type: string
+        example: "csrftoken=NOTPROVIDED"
+      description: "Cookie с CSRF-токеном"
+
+  schemas:
+    # ── Общие ───────────────────────────────────────────────────
+    DateInfo:
+      type: object
+      description: "Вложенный объект даты (LastDate, NearestDate, date_start, date_end)"
+      properties:
+        year:
+          type: string
+          example: "2026"
+        day_verbose:
+          type: string
+          example: "Втр"
+        month:
+          type: string
+          example: "05"
+        month_verbose:
+          type: string
+          example: "Май"
+        time:
+          type: string
+          example: "14:40"
+        iso:
+          type: string
+          example: "2026-05-19T14:40:00"
+        day:
+          type: string
+          example: "19"
+
+    ApiError:
+      type: object
+      description: "Объект ошибки API (детали не документированы)"
+      additionalProperties: true
+
+    # ── check_patient ───────────────────────────────────────────
+    CheckPatientRequest:
+      type: object
+      description: "Тело запроса /api/check_patient/"
+      required:
+        - patient_form-first_name
+        - patient_form-last_name
+        - patient_form-middle_name
+        - patient_form-birthday
+        - patient_form-clinic_id
+        - csrfmiddlewaretoken
+      properties:
+        patient_form-first_name:
+          type: string
+          description: "Имя"
+        patient_form-last_name:
+          type: string
+          description: "Фамилия"
+        patient_form-middle_name:
+          type: string
+          description: "Отчество"
+        patient_form-birthday:
+          type: string
+          description: "Дата рождения в ISO 8601 (YYYY-MM-DDThh:mm:ss.000Z)"
+          example: "1990-07-05T00:00:00.000Z"
+        patient_form-clinic_id:
+          type: string
+          description: "ID поликлиники для поиска"
+        patient_form-insurance_series:
+          type: string
+          description: "Серия полиса (опционально)"
+        patient_form-insurance_number:
+          type: string
+          description: "Номер полиса (опционально)"
+        csrfmiddlewaretoken:
+          type: string
+          description: "CSRF-токен (NOTPROVIDED)"
+
+    CheckPatientData:
+      type: object
+      properties:
+        history_id:
+          type: string
+          nullable: true
+        patient_id:
+          type: string
+          nullable: true
+
+    CheckPatientResponse:
+      type: object
+      properties:
+        response:
+          $ref: "#/components/schemas/CheckPatientData"
+        success:
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ApiError"
+
+    # ── speciality_list ─────────────────────────────────────────
+    SpecialityListRequest:
+      type: object
+      required:
+        - clinic_form-clinic_id
+        - clinic_form-patient_id
+      properties:
+        clinic_form-clinic_id:
+          type: string
+          description: "ID поликлиники"
+        clinic_form-patient_id:
+          type: string
+          description: "ID пациента"
+        clinic_form-history_id:
+          type: string
+          description: "ID истории (пустая строка)"
+
+    SpecialityItem:
+      type: object
+      properties:
+        NameSpesiality:
+          type: string
+          description: "Название специальности"
+        FerIdSpesiality:
+          type: string
+          description: "Федеральный ID специальности"
+        IdSpesiality:
+          type: string
+          description: "Локальный ID специальности"
+        CountFreeTicket:
+          type: integer
+          description: "Количество свободных талонов"
+        LastDate:
+          $ref: "#/components/schemas/DateInfo"
+        NearestDate:
+          $ref: "#/components/schemas/DateInfo"
+        CountFreeParticipantIE:
+          type: integer
+          description: "Свободных талонов для льготников"
+
+    SpecialityListResponse:
+      type: object
+      properties:
+        response:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpecialityItem"
+        success:
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ApiError"
+
+    # ── doctor_list ─────────────────────────────────────────────
+    DoctorListRequest:
+      type: object
+      required:
+        - speciality_form-speciality_id
+        - speciality_form-clinic_id
+        - speciality_form-patient_id
+      properties:
+        speciality_form-speciality_id:
+          type: string
+          description: "ID специальности"
+        speciality_form-clinic_id:
+          type: string
+          description: "ID поликлиники"
+        speciality_form-patient_id:
+          type: string
+          description: "ID пациента"
+        speciality_form-history_id:
+          type: string
+          description: "ID истории (пустая строка)"
+
+    DoctorItem:
+      type: object
+      properties:
+        AriaNumber:
+          type: string
+          nullable: true
+        Name:
+          type: string
+          description: "ФИО врача"
+        IdDoc:
+          type: string
+          description: "ID врача"
+        CountFreeTicket:
+          type: integer
+          description: "Количество свободных талонов"
+        LastDate:
+          $ref: "#/components/schemas/DateInfo"
+        NearestDate:
+          $ref: "#/components/schemas/DateInfo"
+        CountFreeParticipantIE:
+          type: integer
+        SpesialityName:
+          type: string
+          description: "Название специальности (добавляется кодом, не API)"
+
+    DoctorListResponse:
+      type: object
+      properties:
+        response:
+          type: array
+          items:
+            $ref: "#/components/schemas/DoctorItem"
+        success:
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ApiError"
+
+    # ── appointment_list ────────────────────────────────────────
+    AppointmentListRequest:
+      type: object
+      required:
+        - doctor_form-doctor_id
+        - doctor_form-clinic_id
+        - doctor_form-patient_id
+      properties:
+        doctor_form-doctor_id:
+          type: string
+          description: "ID врача"
+        doctor_form-clinic_id:
+          type: string
+          description: "ID поликлиники"
+        doctor_form-patient_id:
+          type: string
+          description: "ID пациента"
+        doctor_form-history_id:
+          type: string
+          description: "ID истории (пустая строка)"
+        doctor_form-appointment_type:
+          type: string
+          description: "Тип записи (пустая строка)"
+
+    AppointmentSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "ID слота"
+        date_start:
+          $ref: "#/components/schemas/DateInfo"
+        date_end:
+          $ref: "#/components/schemas/DateInfo"
+
+    AppointmentListResponse:
+      type: object
+      description: "Словарь: ключ — дата (YYYY-MM-DD), значение — список слотов"
+      properties:
+        response:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/AppointmentSlot"
+        success:
+          type: boolean
+          nullable: true
+        error:
+          $ref: "#/components/schemas/ApiError"
+
+    # ── clinic_list ─────────────────────────────────────────────
+    ClinicItem:
+      type: object
+      properties:
+        IdLPU:
+          type: string
+          description: "ID лечебно-профилактического учреждения"
+        LpuName:
+          type: string
+          description: "Полное название"
+        LPUShortName:
+          type: string
+          description: "Краткое название"
+
+    ClinicListResponse:
+      type: object
+      properties:
+        response:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicItem"
+        success:
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ApiError"
+
+    # ── База данных (SQLite) ────────────────────────────────────
+    # Документирует внутренние модели хранения данных
+
+    DB_User:
+      type: object
+      description: >
+        Агрегированные данные пользователя в in-memory кэше
+        [`DatabaseManager`](src/database/manager.py:13). Собираются из трёх таблиц.
+      properties:
+        patients:
+          type: object
+          description: "Словарь пациентов: ключ — p_id"
+          additionalProperties:
+            $ref: "#/components/schemas/DB_Patient"
+        monitoring:
+          type: object
+          description: "Словарь мониторинга: p_id → {d_id → info}"
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/DB_MonitoringEntry"
+        last_messages:
+          type: object
+          description: "Словарь последних сообщений: ключ — '{p_id}_{d_id}'"
+          additionalProperties:
+            type: object
+            properties:
+              msg_id:
+                type: integer
+              ts:
+                type: number
+
+    DB_Patient:
+      type: object
+      description: "Запись таблицы `user_patients`"
+      properties:
+        fio:
+          type: string
+          description: "ФИО пациента"
+        bday:
+          type: string
+          description: "Дата рождения (YYYY-MM-DD)"
+        alias:
+          type: string
+          nullable: true
+          description: "Псевдоним (опционально, до 25 символов)"
+        confirmed_clinics:
+          type: array
+          items:
+            type: integer
+          description: "Список ID клиник, подтверждённых пользователем"
+
+    DB_MonitoringEntry:
+      type: object
+      description: "Запись таблицы `user_monitoring`"
+      properties:
+        name:
+          type: string
+          description: "ФИО врача"
+        clinic_id:
+          type: string
+          description: "ID поликлиники"
+        specialty:
+          type: string
+          description: "Название специальности"
+
+    DB_Clinic:
+      type: object
+      description: "Запись таблицы `clinics`"
+      properties:
+        clinic_id:
+          type: string
+          description: "ID поликлиники (PK)"
+        name:
+          type: string
+          description: "Название поликлиники"
+        type:
+          type: string
+          enum: ["adult", "child", "all"]
+          description: |
+            Тип клиники. Определяется автоматически по названию:
+            - `adult` — взрослая (по умолчанию)
+            - `child` — детская (содержит 'детск' в названии)
+            - `all` — стоматология (обслуживает и взрослых, и детей)
+        is_active:
+          type: integer
+          description: "Активна (1) / неактивна (0)"
+        city:
+          type: string
+          description: "Город/район (определяется эвристически по названию)"
+        discovery_patient_adult:
+          type: string
+          description: "Per-клиника ID взрослого discovery-пациента"
+        discovery_patient_child:
+          type: string
+          description: "Per-клиника ID детского discovery-пациента"
+
+    DB_Doctor:
+      type: object
+      description: "Запись таблицы `doctors`"
+      properties:
+        clinic_id:
+          type: string
+          description: "ID поликлиники (часть составного PK)"
+        doctor_id:
+          type: string
+          description: "ID врача (часть составного PK)"
+        name:
+          type: string
+          description: "ФИО врача"
+        specialty:
+          type: string
+          description: "Название специальности"
+
+    DB_Config:
+      type: object
+      description: "Запись таблицы `config` (key-value хранилище настроек)"
+      properties:
+        key:
+          type: string
+          description: "Ключ настройки (PK)"
+        value:
+          type: string
+          description: "Значение (всегда строка, преобразуется при загрузке)"
+
+    DB_SpecialtyAlias:
+      type: object
+      description: "Запись таблицы `specialty_aliases` (псевдонимы специальностей)"
+      properties:
+        full_name:
+          type: string
+          description: "Полное название специальности (PK)"
+        short_name:
+          type: string
+          description: "Краткий псевдоним для отображения"
+
+    # ── Конфигурация ────────────────────────────────────────────
+    AppConfig:
+      type: object
+      description: >
+        Параметры конфигурации бота. Загружаются из `.env` через
+        [`Settings`](src/config.py:28), переопределяются из таблицы `config` БД
+        при старте через [`load_config_from_db`](src/config.py:99).
+      properties:
+        BOT_TOKEN:
+          type: string
+          description: "Токен Telegram-бота (только .env)"
+        SQLITE_DB_PATH:
+          type: string
+          default: "data/bot.db"
+        CACHE_PATH:
+          type: string
+          default: "data/monitoring_cache.json"
+        PROXY_URL:
+          type: string
+          nullable: true
+          description: "SOCKS5-прокси для Telegram API"
+        API_BASE_URL:
+          type: string
+          default: "https://zdrav.lenreg.ru/api"
+        REFERER_URL:
+          type: string
+          default: "https://zdrav.lenreg.ru/signup/free/"
+        CSRF_TOKEN:
+          type: string
+          default: "NOTPROVIDED"
+        API_TIMEOUT:
+          type: number
+          default: 10.0
+          description: "Таймаут HTTP-запросов к API (секунд)"
+        CHECK_INTERVAL:
+          type: integer
+          default: 300
+          description: "Интервал healthcheck (секунд)"
+        DISCOVERY_INTERVAL:
+          type: integer
+          default: 1800
+          description: "Интервал discovery врачей (секунд, 30 минут)"
+        SLOT_THRESHOLD_ABSOLUTE:
+          type: integer
+          default: 5
+          description: "Абсолютный порог: уведомлять, если слотов стало < N"
+        SLOT_THRESHOLD_PERCENTAGE:
+          type: number
+          default: 0.25
+          description: "Процентный порог: уведомлять при уменьшении на ≥ 25%"
+        DISCOVERY_PATIENT_ID_ADULT:
+          type: string
+          description: "ID взрослого discovery-пациента"
+        DISCOVERY_PATIENT_ID_CHILD:
+          type: string
+          description: "ID детского discovery-пациента"
+        DEFAULT_CLINIC_ID:
+          type: string
+          default: "272"
+          description: "Клиника по умолчанию для первичного поиска пациента"
+        DEFAULT_BIRTHDAY:
+          type: string
+          default: "1990-01-01"
+          description: "Дата рождения по умолчанию"
+        ADMIN_IDS:
+          type: string
+          description: "ID админов через запятую"
+        MESSAGE_TTL_SECONDS:
+          type: integer
+          default: 604800
+          description: "TTL автоудаления сообщений (7 дней)"
+        CLEANUP_INTERVAL:
+          type: integer
+          default: 3600
+          description: "Интервал проверки автоудаления (секунд)"
+        ERROR_NOTIFY_ENABLED:
+          type: boolean
+          default: true
+          description: "Включить уведомления об ошибках (NTFY/Sentry)"
+        ENVIRONMENT:
+          type: string
+          default: "production"
+        USER_RATE_LIMIT_MAX:
+          type: integer
+          default: 30
+          description: "Максимум сообщений от пользователя за период"
+        USER_RATE_LIMIT_PERIOD:
+          type: integer
+          default: 60
+          description: "Период скользящего окна rate limiter (секунд)"
+
+    # ── Rate Limiting ───────────────────────────────────────────
+    RateLimitConfig:
+      type: object
+      description: >
+        Двухуровневый rate limiting:
+        1. **API-клиент** — [`aiolimiter.AsyncLimiter`](src/api/zdrav_client.py:24-35):
+           отдельные лимитеры для monitor (10 req/min), discovery (5 req/min),
+           healthcheck (30 req/min) и пользовательских запросов (10 req/min).
+        2. **Telegram-хендлеры** — [`UserRateLimitMiddleware`](src/middleware/ratelimit.py:19):
+           sliding window на пользователя (по умолчанию 30 сообщений/60 сек).
+      properties:
+        limiter_monitor:
+          type: object
+          description: "Лимитер фонового мониторинга: max_rate=10, time_period=60"
+        limiter_discovery:
+          type: object
+          description: "Лимитер discovery: max_rate=5, time_period=60"
+        limiter_healthcheck:
+          type: object
+          description: "Лимитер healthcheck: max_rate=30, time_period=60"
+        limiter_user:
+          type: object
+          description: "Лимитер пользовательских запросов: max_rate=10, time_period=60"
+        user_message_limit:
+          type: object
+          description: >
+            Per-user через скользящее окно: USER_RATE_LIMIT_MAX сообщений
+            за USER_RATE_LIMIT_PERIOD секунд
+
+    # ── Классификация изменений слотов ──────────────────────────
+    SlotChangeClassification:
+      type: object
+      description: >
+        Логика классификации изменений слотов в
+        [`_classify_slot_change`](src/services/monitor.py:34).
+        Определяет, нужно ли отправлять уведомление и какое.
+      properties:
+        appeared:
+          type: string
+          description: "🎉 Появились свободные номерки! — слотов не было, стали > 0"
+        new_slots:
+          type: string
+          description: "🎉 Появились НОВЫЕ номерки! — добавились даты, которых не было"
+        decreased:
+          type: string
+          description: >
+            ⚠️ Количество номерков уменьшилось до N (было M) —
+            срабатывает при: new_count < SLOT_THRESHOLD_ABSOLUTE
+            ИЛИ уменьшение ≥ SLOT_THRESHOLD_PERCENTAGE
+        disappeared:
+          type: string
+          description: "Номерков в данный момент нет — были, стали 0 (после 3 подтверждений)"
+        unchanged:
+          type: string
+          description: "Изменений нет — уведомление не отправляется"
