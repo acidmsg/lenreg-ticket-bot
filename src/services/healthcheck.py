@@ -27,11 +27,16 @@ class HealthMetrics:
     # Когда запущен
     start_time: float = field(default_factory=time.time)
 
-    # Статистика API
+    # Накопительная статистика API (для Prometheus / логирования)
     api_checks_total: int = 0
     api_errors_total: int = 0
     api_success_total: int = 0
-    last_api_check_time: Optional[float] = None
+
+    # Снапшот последнего цикла healthcheck
+    last_api_check_time: float = 0.0  # 0.0 = ещё ни разу
+    last_api_clinics_total: int = 0
+    last_api_clinics_ok: int = 0
+    last_api_clinics_err: int = 0
     last_api_error_time: Optional[float] = None
     last_api_error_message: str = ""
 
@@ -69,23 +74,22 @@ class HealthMetrics:
         return " ".join(parts)
 
     def api_health_str(self) -> str:
-        if self.api_checks_total == 0:
-            return "⏳ Первая проверка ещё не выполнена"
-        success_rate = (self.api_success_total / self.api_checks_total) * 100
-        if success_rate == 100:
-            return f"✅ {success_rate:.0f}% успешных (всего {self.api_checks_total})"
-        elif success_rate >= 80:
-            return (
-                f"⚠️ {success_rate:.0f}% успешных"
-                f" ({self.api_errors_total} ошибок"
-                f" из {self.api_checks_total})"
-            )
+        """Состояние API по последнему завершённому циклу healthcheck."""
+        if self.last_api_check_time == 0.0:
+            if self.healthcheck_loop_alive:
+                return "⏳ Выполняется первый цикл проверки..."
+            return "⏳ Healthcheck ещё не запущен"
+        delta = int(time.time() - self.last_api_check_time)
+        ago = f"{delta}с назад" if delta < 120 else f"{delta // 60}м назад"
+        total = self.last_api_clinics_total
+        ok = self.last_api_clinics_ok
+        err = self.last_api_clinics_err
+        if total == 0:
+            return f"⏳ Ожидание результатов ({ago})"
+        if err == 0:
+            return f"✅ Все {ok} клиник отвечают ({ago})"
         else:
-            return (
-                f"❌ {success_rate:.0f}% успешных"
-                f" ({self.api_errors_total} ошибок"
-                f" из {self.api_checks_total})"
-            )
+            return f"⚠️ {err} из {total} клиник не отвечают ({ago})"
 
     def last_error_str(self) -> str:
         if not self.last_error_message:
@@ -137,6 +141,8 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                 clinic_ids = [settings.DEFAULT_CLINIC_ID]
 
             # Проверяем API для каждой активной клиники (R4)
+            cycle_ok = 0
+            cycle_err = 0
             for clinic_id in clinic_ids:
                 try:
                     # Определяем patient_id для этой клиники
@@ -153,6 +159,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                     patient_id = _patient_for_clinic[clinic_id]
 
+                    # Накопительные счётчики (для Prometheus / логов)
                     await _safe_increment("api_checks_total")
                     specialties = await api.fetch_speciality_list(
                         patient_id,
@@ -161,21 +168,28 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                     )
                     if specialties is not None:
                         await _safe_increment("api_success_total")
+                        cycle_ok += 1
                     else:
                         await _safe_increment("api_errors_total")
+                        cycle_err += 1
                         await _safe_set("last_api_error_time", time.time())
                         await _safe_set("last_api_error_message", "API вернул None")
-                    await _safe_set("last_api_check_time", time.time())
                 except Exception as e:
                     await _safe_increment("api_errors_total")
+                    cycle_err += 1
                     await _safe_set("last_api_error_time", time.time())
                     await _safe_set("last_api_error_message", str(e)[:200])
                     logger.error(
                         f"Healthcheck: ошибка API для клиники {clinic_id}: {e}"
                     )
 
-            # Собираем статистику по БД (под локом для чтения metrics)
+            # Атомарно фиксируем снапшот цикла
+            now = time.time()
             async with _metrics_lock:
+                metrics.last_api_check_time = now
+                metrics.last_api_clinics_total = len(clinic_ids)
+                metrics.last_api_clinics_ok = cycle_ok
+                metrics.last_api_clinics_err = cycle_err
                 uptime = metrics.uptime_str()
                 api_health = metrics.api_health_str()
 
@@ -191,11 +205,10 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             logger.info(
                 f"Healthcheck | "
                 f"Uptime: {uptime} | "
-                f"Clinics checked: {len(clinic_ids)} | "
+                f"API: {api_health} | "
                 f"Users: {total_users} | "
                 f"Patients: {total_patients} | "
-                f"Monitored: {total_monitored_doctors} | "
-                f"API: {api_health}"
+                f"Monitored: {total_monitored_doctors}"
             )
 
             # Пауза до следующего цикла
@@ -212,7 +225,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             await asyncio.sleep(60)
 
 
-def format_status_report(db: DatabaseManager) -> str:
+async def format_status_report(db: DatabaseManager) -> str:
     """Форматирует отчёт о состоянии бота для команды /status."""
     total_users = len(db.data)
     total_patients = sum(len(u_info.get("patients", {})) for u_info in db.data.values())
@@ -228,10 +241,19 @@ def format_status_report(db: DatabaseManager) -> str:
         if doctors
     )
 
+    # Читаем метрики под локом — атомарный снапшот
+    async with _metrics_lock:
+        uptime = metrics.uptime_str()
+        api_health = metrics.api_health_str()
+        last_error = metrics.last_error_str()
+        healthcheck_alive = metrics.healthcheck_loop_alive
+        monitor_alive = metrics.monitor_loop_alive
+        discovery_tasks = metrics.discovery_tasks_alive
+
     lines = [
         "🤖 **lenreg_ticket_bot**",
         "———",
-        f"⏱ **Аптайм:** {metrics.uptime_str()}",
+        f"⏱ **Аптайм:** {uptime}",
         "",
         f"📊 **Пользователи:** {total_users}",
         f"├ Пациентов: {total_patients}",
@@ -239,12 +261,12 @@ def format_status_report(db: DatabaseManager) -> str:
         f"└ Врачей под мониторингом: {total_monitored_doctors}",
         "",
         "🌐 **API zdrav.lenreg.ru:**",
-        f"{metrics.api_health_str()}",
+        f"{api_health}",
         "",
         "🔄 **Фоновые задачи:**",
-        f"├ Healthcheck: {'✅' if metrics.healthcheck_loop_alive else '❌'}",
-        f"├ Monitor: {'✅' if metrics.monitor_loop_alive else '❌'}",
-        f"└ Discovery: {metrics.discovery_tasks_alive} задач",
+        f"├ Healthcheck: {'✅' if healthcheck_alive else '❌'}",
+        f"├ Monitor: {'✅' if monitor_alive else '❌'}",
+        f"└ Discovery: {discovery_tasks} задач",
         "",
         "⚙️ **Настройки:**",
         f"├ Интервал проверки: {settings.CHECK_INTERVAL}с",
@@ -255,7 +277,7 @@ def format_status_report(db: DatabaseManager) -> str:
         ),
         f"└ Клиника по умолчанию: {settings.DEFAULT_CLINIC_ID}",
         "",
-        f"⚠️ **Последняя ошибка:** {metrics.last_error_str()}",
+        f"⚠️ **Последняя ошибка:** {last_error}",
     ]
 
     return "\n".join(lines)

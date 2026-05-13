@@ -1,24 +1,39 @@
 # SESSION_LOG.md
 
-## 2026-05-13 (немедленный healthcheck — устранение 5-минутной тишины)
+## 2026-05-13 (middleware expansion + healthcheck race-condition fix)
 
-### Проблема
+### Middleware/filter (4 новых)
 
-[`healthcheck_loop()`](src/services/healthcheck.py:130) вызывал `asyncio.sleep(CHECK_INTERVAL)` в **начале** цикла — первая проверка API происходила только через `CHECK_INTERVAL` (5 мин) после старта бота. Всё это время [`api_health_str()`](src/services/healthcheck.py:71) возвращал `❓ Нет данных`, а команда `/status` показывала бесполезный статус.
+| Middleware / Filter         | Файл                                                                      | Назначение                                                           |
+| --------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `IsAdmin` (filter)          | [`src/filters/admin.py`](src/filters/admin.py:13)                         | Проверка `ADMIN_IDS` — вынесена из `common.py`                       |
+| `ErrorBoundaryMiddleware`   | [`src/middleware/error_boundary.py`](src/middleware/error_boundary.py:16) | Глобальный try/except для TelegramBadRequest/NotFound/ForbiddenError |
+| `UserDataPreloadMiddleware` | [`src/middleware/userdata.py`](src/middleware/userdata.py:14)             | Preload `user_data` в `data["user_data"]`                            |
+| `ActivityLogMiddleware`     | [`src/middleware/activity.py`](src/middleware/activity.py:13)             | Сквозное логирование всех событий (DEBUG)                            |
 
-### Решение
+### Исправление healthcheck — race condition + переработка метрик
 
-| Изменение                         | Строки                                 | Описание                                                     |
-| --------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
-| Перенос `sleep` в конец цикла     | [202](src/services/healthcheck.py:202) | Первая проверка API — немедленно при старте, затем пауза     |
-| Новый текст для нулевого счётчика | [73](src/services/healthcheck.py:73)   | `⏳ Первая проверка ещё не выполнена` вместо `❓ Нет данных` |
+**Проблема 1:** Кумулятивные счётчики (`api_checks_total`, `api_success_total`, `api_errors_total`) инкрементировались раздельными вызовами `_safe_increment()`, а `format_status_report()` читал их без `_metrics_lock` — получался несогласованный снапшот (`0 ошибок из 3, но 67%`).
 
-Теперь после старта бота healthcheck **сразу** проверяет API zdrav.lenreg.ru по всем активным клиникам, и `/status` показывает актуальный статус без задержки.
+**Проблема 2:** Кумулятивные счётчики за всё время аптайма неинформативны — не отвечают на вопрос «API работает сейчас?».
 
-**Изменённые файлы:**
+**Решение:** снапшот последнего цикла healthcheck (`last_api_clinics_ok`/`_err`/`_total`) + `format_status_report()` → `async` с чтением под `_metrics_lock`.
 
-| Файл                                                            | Действие                                                                         |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`src/services/healthcheck.py`](src/services/healthcheck.py:71) | `api_health_str()` — новый текст; `healthcheck_loop()` — sleep перенесён в конец |
+### Изменённые файлы
 
-**Результаты линтинга:** ruff — All checks passed. mypy — Success: no issues found.
+| Файл                                                                     | Действие                                                                         |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| [`src/filters/admin.py`](src/filters/admin.py:1)                         | Новый файл — `IsAdmin` filter                                                    |
+| [`src/filters/__init__.py`](src/filters/__init__.py:1)                   | Новый файл — экспорт `IsAdmin`                                                   |
+| [`src/middleware/activity.py`](src/middleware/activity.py:1)             | Новый файл — `ActivityLogMiddleware`                                             |
+| [`src/middleware/error_boundary.py`](src/middleware/error_boundary.py:1) | Новый файл — `ErrorBoundaryMiddleware`                                           |
+| [`src/middleware/userdata.py`](src/middleware/userdata.py:1)             | Новый файл — `UserDataPreloadMiddleware`                                         |
+| [`src/middleware/__init__.py`](src/middleware/__init__.py:1)             | Экспорт всех middleware                                                          |
+| [`src/main.py:17-20`](src/main.py:17)                                    | Импорт 4 middleware; регистрация в `dp.update.outer_middleware` (строки 302-310) |
+| [`src/handlers/common.py:8`](src/handlers/common.py:8)                   | Импорт `IsAdmin`; `cmd_status` → `await format_status_report(db)`                |
+| [`src/services/healthcheck.py:34`](src/services/healthcheck.py:34)       | `last_api_check_time` → `float = 0.0`; новые поля снапшота цикла                 |
+| [`src/services/healthcheck.py:76`](src/services/healthcheck.py:76)       | `api_health_str()` — перикловый снапшот вместо кумулятивных %                    |
+| [`src/services/healthcheck.py:139`](src/services/healthcheck.py:139)     | `healthcheck_loop()` — локальные `cycle_ok`/`cycle_err`, атомарный снапшот       |
+| [`src/services/healthcheck.py:228`](src/services/healthcheck.py:228)     | `format_status_report()` → `async`, чтение метрик под `_metrics_lock`            |
+
+**Результаты линтинга:** ruff — All checks passed. markdownlint — 0 errors.

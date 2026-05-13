@@ -8,6 +8,7 @@ from loguru import logger
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.filters.admin import IsAdmin
 from src.keyboards.inline import (
     get_city_selection,
     get_clinic_selection,
@@ -143,17 +144,13 @@ async def _delete_cleanup_msg_entries(
     return changed
 
 
-@router.message(Command("status"))
+@router.message(Command("status"), IsAdmin())
 async def cmd_status(message: Message, db: DatabaseManager):
     """Команда /status — отчёт о состоянии бота (только для администраторов)."""
     if not message.from_user:
         return
-    admin_ids = [int(x.strip()) for x in settings.ADMIN_IDS.split(",") if x.strip()]
-    if message.from_user.id not in admin_ids:
-        await message.answer("❌ Доступ запрещён. Команда только для администраторов.")
-        return
 
-    report = format_status_report(db)
+    report = await format_status_report(db)
     await message.answer(report, parse_mode="Markdown")
 
 

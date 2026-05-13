@@ -14,7 +14,10 @@ from src.database.database import Database
 from src.database.doctor_manager import DoctorManager
 from src.database.manager import DatabaseManager
 from src.handlers import common, registration
+from src.middleware.activity import ActivityLogMiddleware
+from src.middleware.error_boundary import ErrorBoundaryMiddleware
 from src.middleware.ratelimit import UserRateLimitMiddleware
+from src.middleware.userdata import UserDataPreloadMiddleware
 from src.services.cleanup import cleanup_loop
 from src.services.doctor_discovery import discovery_loop, sync_clinic_names
 from src.services.error_notifier import error_notifier
@@ -297,7 +300,14 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
 
     # Регистрация middleware (порядок важен: outer выполняется первым)
+    # 1. Error boundary — самая внешняя, ловит все исключения
+    dp.update.outer_middleware(ErrorBoundaryMiddleware())
+    # 2. Rate limiter — отсекает спам до всей остальной обработки
     dp.update.outer_middleware(UserRateLimitMiddleware())
+    # 3. User data preload — загружает user_data один раз для всех handler'ов
+    dp.update.outer_middleware(UserDataPreloadMiddleware())
+    # 4. Activity log — логирует каждое событие (DEBUG)
+    dp.update.outer_middleware(ActivityLogMiddleware())
 
     # Регистрация роутеров
     dp.include_router(common.router)
