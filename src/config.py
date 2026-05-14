@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     BOT_TOKEN: str = "MUST_BE_OVERRIDDEN_IN_ENV"
     SQLITE_DB_PATH: str = "data/bot.db"
     CACHE_PATH: str = "data/monitoring_cache.json"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     # Прокси для Telegram
     PROXY_URL: Optional[str] = None

@@ -37,8 +37,9 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   │   └── monitor.py               # Фоновый цикл мониторинга слотов + классификация изменений
 │   └── utils/
 │       ├── __init__.py
-│       ├── cache.py                  # Кэш мониторинга (файловый JSON) + spam_cache
-│       └── helpers.py                # Форматирование ФИО, специальностей, extract_msg_id, is_child, is_cabinet
+│       ├── cache.py                  # Кэш мониторинга (Redis) + spam-защита (Redis SET NX)
+│       ├── helpers.py                # Форматирование ФИО, специальностей, extract_msg_id, is_child, is_cabinet
+│       └── redis.py                  # Singleton-клиент Redis (aioredis, пул соединений)
 ├── tests/                             # Тесты
 │   ├── conftest.py
 │   ├── test_cache.py
@@ -88,17 +89,17 @@ zdrav.lenreg/                          # Корень проекта (тольк
 
 ## Зоны ответственности
 
-| Пакет             | Зона ответственности                                                                                                                                                                                                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/config.py`   | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                           |
-| `src/main.py`     | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                 |
-| `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                       |
-| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей.                                                   |
-| `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                       |
-| `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                |
-| `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache.                                                                                                                                                                                                       |
-| `src/services/`   | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry. |
-| `src/utils/`      | `cache.py` — атомарный файловый кэш слотов (swap_cache_key) и spam_cache для защиты от двойных нажатий. `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей.                                                                        |
+| Пакет             | Зона ответственности                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config.py`   | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                                               |
+| `src/main.py`     | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                                     |
+| `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                           |
+| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей.                                                                       |
+| `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                                           |
+| `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                    |
+| `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache.                                                                                                                                                                                                                           |
+| `src/services/`   | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                     |
+| `src/utils/`      | `cache.py` — кэш мониторинга на Redis (swap_cache_key через GETSET) и spam-защита на Redis (SET NX EX). `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. `redis.py` — singleton-клиент Redis с asyncio-поддержкой, пулом соединений и health-check. |
 
 ## Граф зависимостей (Mermaid)
 
@@ -134,6 +135,7 @@ graph TD
     subgraph Utils
         UTIL_CACHE[src.utils.cache]
         UTIL_HELP[src.utils.helpers]
+        UTIL_REDIS[src.utils.redis]
     end
 
     KB[src.keyboards.inline]
@@ -150,6 +152,7 @@ graph TD
     CFG --> SVC_HC
     CFG --> SVC_CLN
     CFG --> UTIL_CACHE
+    CFG --> UTIL_REDIS
     CFG --> H_COMMON
     CFG --> H_REG
     CFG --> MW
@@ -184,6 +187,10 @@ graph TD
     SVC_CLN --> ENTRY
     SVC_ERR --> ENTRY
 
+    UTIL_REDIS --> UTIL_CACHE
+    UTIL_REDIS --> MW
+    UTIL_REDIS --> ENTRY
+
     UTIL_CACHE --> H_COMMON
     UTIL_CACHE --> SVC_MON
     UTIL_HELP --> H_COMMON
@@ -203,17 +210,24 @@ graph TD
 
 1. **Все импорты — абсолютные с префиксом `src.`** (например, `from src.config import settings`). Это исключает коллизии и делает зависимости явными.
 
-2. **Конфигурация через pydantic-settings** с двухуровневым переопределением: `.env` → `Settings` → БД (таблица `config`).
+2. **Redis как централизованное хранилище** — замена файлового JSON-кэша и in-memory TTLCache. Используется для:
+   - FSM-хранилища aiogram (RedisStorage вместо MemoryStorage).
+   - Мониторингового кэша слотов (swap_cache_key через GETSET, delete по SCAN).
+   - Spam-защиты от двойных нажатий (SET NX EX с TTL 1с).
+   - Per-user rate limiting через Redis Sorted Sets (sliding window).
+   - Подключение через singleton RedisClient с пулом соединений (aioredis).
 
-3. **SQLite с WAL-режимом** — асинхронный доступ через `aiosqlite`, миграции через самописный механизм `MIGRATIONS`.
+3. **Конфигурация через pydantic-settings** с двухуровневым переопределением: `.env` → `Settings` → БД (таблица `config`).
 
-4. **DatabaseManager** — потокобезопасный in-memory кэш поверх `Database` с атомарными read-modify-write операциями под `asyncio.Lock`.
+4. **SQLite с WAL-режимом** — асинхронный доступ через `aiosqlite`, миграции через самописный механизм `MIGRATIONS`.
 
-5. **Фоновые задачи** запускаются как `asyncio.Task` и корректно останавливаются через `task.cancel()` + `asyncio.gather(return_exceptions=True)`.
+5. **DatabaseManager** — потокобезопасный in-memory кэш поверх `Database` с атомарными read-modify-write операциями под `asyncio.Lock`.
 
-6. **Rate limiting** на двух уровнях: API-клиент (`aiolimiter.AsyncLimiter`) и Telegram-хендлеры (`UserRateLimitMiddleware` с TTLCache).
+6. **Фоновые задачи** запускаются как `asyncio.Task` и корректно останавливаются через `task.cancel()` + `asyncio.gather(return_exceptions=True)`.
 
-7. **Тесты** используют временные SQLite-файлы в `tests/test_data/`, очищаемые после сессии.
+7. **Rate limiting** на двух уровнях: API-клиент (`aiolimiter.AsyncLimiter`) и Telegram-хендлеры (`UserRateLimitMiddleware` с Redis Sorted Sets).
+
+8. **Тесты** используют временные SQLite-файлы в `tests/test_data/`, очищаемые после сессии. Redis-зависимости мокируются через `fakeredis`.
 
 ## Конфигурационные файлы
 

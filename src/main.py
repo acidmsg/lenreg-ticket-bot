@@ -5,7 +5,7 @@ from typing import Optional
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
@@ -24,6 +24,7 @@ from src.services.error_notifier import error_notifier
 from src.services.healthcheck import _safe_set, healthcheck_loop, metrics
 from src.services.monitor import monitor_loop
 from src.utils.logging import setup_logging
+from src.utils.redis import RedisClient
 
 # Константы retry-логики для прокси и Telegram API
 _PROXY_RETRIES = 3
@@ -228,6 +229,9 @@ async def main():
     if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
         os.makedirs(data_dir)  # noqa: ASYNC240
 
+    # Инициализация Redis (до FSM-хранилища)
+    await RedisClient.get_instance()
+
     # Инициализация SQLite
     database = Database(settings.SQLITE_DB_PATH)
     db = DatabaseManager(database)
@@ -297,7 +301,7 @@ async def main():
             raise last_session_error
 
     bot = Bot(token=settings.BOT_TOKEN, session=session)
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
 
     # Регистрация middleware (порядок важен: outer выполняется первым)
     # 1. Error boundary — самая внешняя, ловит все исключения
@@ -339,6 +343,10 @@ async def main():
 
         if bot.session:
             await bot.session.close()
+
+        # Закрытие Redis
+        await RedisClient.shutdown()
+
         logger.info("Бот остановлен.")
 
 

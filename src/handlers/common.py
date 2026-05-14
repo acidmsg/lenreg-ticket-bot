@@ -18,7 +18,7 @@ from src.keyboards.inline import (
 )
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from src.services.healthcheck import format_status_report
-from src.utils.cache import delete_cache_keys_by_prefix, spam_cache, swap_cache_key
+from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
 from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
@@ -413,9 +413,8 @@ async def toggle_doctor(
         return
 
     # Защита от спама -- тихо игнорируем повторные нажатия
-    if call.from_user.id in spam_cache:
+    if await is_spam(str(call.from_user.id)):
         return
-    spam_cache[call.from_user.id] = True
 
     _, p_id, clinic_id, d_id = call.data.split("_")
     uid = str(call.from_user.id)

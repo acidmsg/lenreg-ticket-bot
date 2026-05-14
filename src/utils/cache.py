@@ -1,68 +1,96 @@
-import asyncio
+"""
+Модуль кэширования на основе Redis.
+
+Заменяет старый файловый JSON-кэш (monitoring_cache.json) и in-memory TTLCache.
+Все операции атомарны, с TTL-поддержкой через Redis EXPIRE.
+"""
+
+from __future__ import annotations
+
 import json
-import os
 from typing import Any
 
-import aiofiles
-from cachetools import TTLCache
 from loguru import logger
 
-from src.config import settings
+from src.utils.redis import get_redis
 
-# TTL в 1 секунду, maxsize=1000 для защиты от переполнения
-spam_cache: TTLCache = TTLCache(maxsize=1000, ttl=1.0)
+# Префикс для ключей monitoring-кэша в Redis
+_MONITORING_KEY_PREFIX = "mon:"
 
-# Единый lock для доступа к monitoring_cache.json из всех модулей
-_cache_lock = asyncio.Lock()
+# TTL для мониторинговых ключей (24 часа по умолчанию)
+_MONITORING_TTL = 86400
+
+# TTL для spam-кэша (1 секунда)
+_SPAM_TTL = 1
+
+
+# === Spam-защита (замена TTLCache) ===
+
+
+async def is_spam(key: str) -> bool:
+    """
+    Проверяет, не было ли уже обращения с таким ключом за последнюю секунду.
+
+    Возвращает True если ключ уже существует (спам), False если новое обращение.
+    Атомарно: SET NX + EXPIRE в одной операции.
+    """
+    redis = await get_redis()
+    # SET key 1 NX EX 1: True = ключ создан (не спам), None = уже был (спам)
+    created = await redis.client.set(f"spam:{key}", "1", ex=_SPAM_TTL, nx=True)
+    return created is None
+
+
+# === Мониторинговый кэш (замена файлового JSON) ===
+
+
+def _mon_key(key: str) -> str:
+    """Формирует полный Redis-ключ с префиксом monitoring."""
+    return f"{_MONITORING_KEY_PREFIX}{key}"
 
 
 async def swap_cache_key(key: str, new_value: Any) -> Any:
-    """Atomically reads old value and writes new value if different. Returns old value.
-
-    This avoids the TOCTOU race between separate read + write
-    calls by holding the lock for the entire read-compare-write cycle.
     """
-    path = settings.CACHE_PATH
-    temp_path = path + ".tmp"
+    Атомарно читает старое значение и записывает новое, если отличается.
+
+    Использует GETSET для атомарного read+write в одной команде Redis.
+    Возвращает старое значение (десериализованное из JSON) или None при ошибке.
+    """
+    redis = await get_redis()
+    rkey = _mon_key(key)
     try:
-        async with _cache_lock:
-            cache: dict[str, Any] = {}
-            if os.path.exists(path):  # noqa: ASYNC240
-                async with aiofiles.open(path, "r", encoding="utf-8") as f:
-                    content = await f.read()
-                    cache = json.loads(content) if content else {}
-            old_value = cache.get(key)
-            if old_value != new_value:
-                cache[key] = new_value
-                async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
-                    await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
-                os.replace(temp_path, path)
-            return old_value
+        new_json = json.dumps(new_value, ensure_ascii=False)
+        old_json = await redis.client.getset(rkey, new_json)
+        # Устанавливаем TTL на ключ
+        await redis.client.expire(rkey, _MONITORING_TTL)
+        if old_json is not None:
+            return json.loads(old_json)
+        return None
     except Exception as e:
         logger.error(f"Ошибка swap кэша [{key}]: {e}")
         return None
 
 
 async def delete_cache_keys_by_prefix(prefix: str) -> int:
-    """Удаляет все ключи, начинающиеся с prefix. Возвращает количество удалённых."""
-    path = settings.CACHE_PATH
-    temp_path = path + ".tmp"
+    """
+    Удаляет все мониторинговые ключи, начинающиеся с prefix.
+
+    Использует SCAN для безопасного перебора ключей (без блокировки Redis).
+    Возвращает количество удалённых ключей.
+    """
+    redis = await get_redis()
+    pattern = f"{_MONITORING_KEY_PREFIX}{prefix}*"
     deleted = 0
     try:
-        async with _cache_lock:
-            if not os.path.exists(path):  # noqa: ASYNC240
-                return 0
-            async with aiofiles.open(path, "r", encoding="utf-8") as f:
-                content = await f.read()
-                cache = json.loads(content) if content else {}
-            keys_to_delete = [k for k in cache if k.startswith(prefix)]
-            for k in keys_to_delete:
-                del cache[k]
-                deleted += 1
-            if deleted:
-                async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
-                    await f.write(json.dumps(cache, ensure_ascii=False, indent=4))
-                os.replace(temp_path, path)
+        # Используем SCAN вместо KEYS для безопасного перебора
+        cursor = 0
+        while True:
+            cursor, keys = await redis.client.scan(
+                cursor=cursor, match=pattern, count=100
+            )
+            if keys:
+                deleted += await redis.client.delete(*keys)
+            if cursor == 0:
+                break
         return deleted
     except Exception as e:
         logger.error(f"Ошибка удаления ключей по префиксу [{prefix}]: {e}")

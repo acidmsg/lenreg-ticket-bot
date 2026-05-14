@@ -1,74 +1,73 @@
 """
-Per-user rate limiting middleware for aiogram.
+Per-user rate limiting middleware for aiogram (Redis-backed).
 
-Uses a sliding window approach with TTLCache to track per-user
-message timestamps. Users exceeding the limit get their messages
-silently dropped (or optionally warned).
+Использует Redis Sorted Sets для реализации sliding window rate limiting.
+Ключи: ratelimit:msg:{user_id} и ratelimit:cb:{user_id}
+Временные метки хранятся в ZSET, автоматически очищаются по TTL.
 """
 
 import time
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
-from cachetools import TTLCache
 from loguru import logger
 
 from src.config import settings
+from src.utils.redis import get_redis
 
 
 class UserRateLimitMiddleware(BaseMiddleware):
     """
-    Per-user sliding window rate limiter.
+    Per-user sliding window rate limiter на Redis Sorted Sets.
 
-    Tracks timestamps of each user's messages. If the user exceeds
-    USER_RATE_LIMIT_MAX messages in USER_RATE_LIMIT_PERIOD seconds,
-    subsequent messages are silently ignored.
+    Каждый запрос добавляет текущий timestamp в ZSET пользователя.
+    При проверке удаляются устаревшие записи и подсчитывается количество
+    оставшихся в окне. При превышении лимита запросы молча отбрасываются.
 
-    Callback queries are also rate-limited (separately from messages).
+    Callback-запросы лимитируются отдельно от сообщений.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
+        self.max_req: int = settings.USER_RATE_LIMIT_MAX
+        self.period: int = settings.USER_RATE_LIMIT_PERIOD
 
-        # Per-user message timestamps: {user_id: [timestamp, ...]}
-        self._messages: dict[int, list[float]] = {}
+    async def _is_limited(self, user_id: int, is_callback: bool = False) -> bool:
+        """
+        Проверяет, превышен ли лимит для пользователя.
 
-        # Per-user callback timestamps
-        self._callbacks: dict[int, list[float]] = {}
-
-        # Cache for rate-limited users to avoid repeated logging
-        self._warned: TTLCache = TTLCache(
-            maxsize=5000, ttl=settings.USER_RATE_LIMIT_PERIOD
-        )
-
-        self.max_req = settings.USER_RATE_LIMIT_MAX
-        self.period = settings.USER_RATE_LIMIT_PERIOD
-
-    def _is_limited(self, user_id: int, is_callback: bool = False) -> bool:
-        """Check if user exceeded rate limit. Prunes old timestamps."""
+        Использует атомарную Redis-операцию: ZREMRANGEBYSCORE + ZADD + ZCARD
+        через pipeline для обеспечения консистентности sliding window.
+        """
+        redis = await get_redis()
         now = time.time()
-        store = self._callbacks if is_callback else self._messages
-
-        if user_id not in store:
-            store[user_id] = [now]
-            return False
-
-        timestamps = store[user_id]
-
-        # Prune timestamps outside the window
         cutoff = now - self.period
-        timestamps[:] = [t for t in timestamps if t > cutoff]
 
-        if len(timestamps) >= self.max_req:
-            if user_id not in self._warned:
-                logger.warning(
-                    f"Rate limit exceeded for user {user_id} "
-                    f"({len(timestamps)}/{self.max_req} in {self.period}s)"
-                )
-                self._warned[user_id] = True
+        key = f"ratelimit:{'cb' if is_callback else 'msg'}:{user_id}"
+
+        async with await redis.pipeline() as pipe:
+            # 1. Удаляем устаревшие записи (старше cutoff)
+            await pipe.zremrangebyscore(key, 0, cutoff)
+            # 2. Добавляем текущий запрос
+            await pipe.zadd(key, {str(now): now})
+            # 3. Считаем оставшиеся в окне
+            await pipe.zcard(key)
+            # 4. Устанавливаем TTL на ключ (период + запас)
+            await pipe.expire(key, self.period + 10)
+
+            results = await pipe.execute()
+
+        # results[2] — ZCARD (количество записей после добавления)
+        count: int = results[2]
+
+        if count > self.max_req:
+            logger.warning(
+                f"Rate limit exceeded for user {user_id} "
+                f"({'callback' if is_callback else 'message'}): "
+                f"{count}/{self.max_req} in {self.period}s"
+            )
             return True
 
-        timestamps.append(now)
         return False
 
     async def __call__(self, handler, event, data):
@@ -87,7 +86,7 @@ class UserRateLimitMiddleware(BaseMiddleware):
             # Pass through non-message/callback updates
             return await handler(event, data)
 
-        if self._is_limited(user_id, is_callback):
+        if await self._is_limited(user_id, is_callback):
             # Silently drop (or optionally answer callback to dismiss spinner)
             if isinstance(event, CallbackQuery):
                 try:

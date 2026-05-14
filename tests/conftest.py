@@ -1,5 +1,5 @@
 """
-Фикстуры и моки для тестирования (SQLite версия).
+Фикстуры и моки для тестирования (SQLite + fakeredis версия).
 """
 
 import asyncio
@@ -11,7 +11,6 @@ import pytest_asyncio
 from src.database.database import Database
 from src.database.doctor_manager import DoctorManager
 from src.database.manager import DatabaseManager
-from src.utils.cache import spam_cache
 
 # ── Вспомогательные пути ──────────────────────────────────────────────
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,24 +65,73 @@ async def doctor_manager(database):
     return mgr
 
 
-@pytest_asyncio.fixture
-async def temp_cache_path(monkeypatch):
-    """Временный путь для кэша мониторинга + подмена settings.CACHE_PATH."""
-    os.makedirs(TEST_DATA_DIR, exist_ok=True)
-    path = os.path.join(TEST_DATA_DIR, "test_monitoring_cache.json")
-    monkeypatch.setattr("src.utils.cache.settings.CACHE_PATH", path)
-    yield path
-    if os.path.exists(path):  # noqa: ASYNC240
-        os.remove(path)  # noqa: ASYNC240
+# ── Фикстуры для Redis (fakeredis) ────────────────────────────────────
 
 
-# ── Фикстура для очистки spam_cache ───────────────────────────────────
+@pytest_asyncio.fixture(autouse=True)
+async def fake_redis(monkeypatch):
+    """
+    Подменяет RedisClient на fakeredis для всех тестов.
+
+    Использует fakeredis.aioredis.FakeRedis для полной эмуляции
+    Redis без необходимости запуска реального сервера.
+    """
+    import fakeredis.aioredis
+
+    fake_redis_instance = fakeredis.aioredis.FakeRedis(decode_responses=True)
+
+    # Подменяем get_redis на возврат мок-объекта
+    class FakeRedisClient:
+        def __init__(self):
+            self.client = fake_redis_instance
+
+        async def get(self, key):
+            return await self.client.get(key)
+
+        async def set(self, key, value, ex=None):
+            return await self.client.set(key, value, ex=ex)
+
+        async def delete(self, *keys):
+            return await self.client.delete(*keys)
+
+        async def exists(self, *keys):
+            return await self.client.exists(*keys)
+
+        async def keys(self, pattern):
+            return await self.client.keys(pattern)
+
+        async def pipeline(self):
+            return self.client.pipeline()
+
+        async def health_check(self):
+            return True
+
+        async def close(self):
+            await self.client.aclose()
+
+    async def mock_get_redis():
+        return FakeRedisClient()
+
+    async def mock_get_instance():
+        return FakeRedisClient()
+
+    monkeypatch.setattr("src.utils.cache.get_redis", mock_get_redis)
+    monkeypatch.setattr("src.utils.redis.get_redis", mock_get_redis)
+    monkeypatch.setattr("src.utils.redis.RedisClient.get_instance", mock_get_instance)
+
+    # Очищаем fakeredis перед каждым тестом
+    await fake_redis_instance.flushall()
+    yield fake_redis_instance
+    await fake_redis_instance.flushall()
+    await fake_redis_instance.aclose()
+
+
+# ── Фикстура для очистки spam_cache (устарела, оставлена для совместимости) ──
 
 
 @pytest.fixture(autouse=True)
 def clear_spam_cache():
-    """Очищает spam_cache перед каждым тестом."""
-    spam_cache.clear()
+    """Spam-защита теперь на Redis, очищается через fake_redis фикстуру (autouse)."""
     yield
 
 
