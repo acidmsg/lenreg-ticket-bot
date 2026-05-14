@@ -2,7 +2,7 @@
 # tasks.ps1 - PowerShell task runner for zdrav.lenreg
 # =============================================================================
 # Usage: .\tasks.ps1 <command>
-# Commands: install, lint, format, test, run, clean, lock, check
+# Commands: install, lint, format, test, check, run, clean, lock, verify-pyproject
 #
 # Design rationale:
 #   - Make is unavailable on Windows; this script provides the same interface.
@@ -12,7 +12,7 @@
 
 param(
   [Parameter(Mandatory = $true, Position = 0)]
-  [ValidateSet("install", "lint", "format", "test", "run", "clean", "lock", "check")]
+  [ValidateSet("install", "lint", "format", "test", "check", "run", "clean", "lock", "verify-pyproject")]
   [string]$Command
 )
 
@@ -88,6 +88,35 @@ function Invoke-Clean {
   Write-Host "Clean: done." -ForegroundColor Green
 }
 
+function Invoke-Check {
+  # Full CI cycle: lint + format check + test
+  Write-Host "=== Ruff check ===" -ForegroundColor Cyan
+  & $Python -m ruff check src
+  if ($LASTEXITCODE -ne 0) { throw "Ruff check failed" }
+
+  Write-Host "=== Mypy ===" -ForegroundColor Cyan
+  & $Python -m mypy src
+  if ($LASTEXITCODE -ne 0) { throw "Mypy failed" }
+
+  Write-Host "=== Markdownlint ===" -ForegroundColor Cyan
+  & $Npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+  if ($LASTEXITCODE -ne 0) { throw "Markdownlint failed" }
+
+  Write-Host "=== Ruff format (check) ===" -ForegroundColor Cyan
+  & $Python -m ruff format --check src
+  if ($LASTEXITCODE -ne 0) { throw "Ruff format --check failed" }
+
+  Write-Host "=== Prettier (check) ===" -ForegroundColor Cyan
+  & $Npx prettier --check "docs/**/*.md" ".roo/**/*.md" "*.md"
+  if ($LASTEXITCODE -ne 0) { throw "Prettier --check failed" }
+
+  Write-Host "=== Pytest ===" -ForegroundColor Cyan
+  & $Python -m pytest tests/ -v
+  if ($LASTEXITCODE -ne 0) { throw "Pytest failed" }
+
+  Write-Host "Check: all passed." -ForegroundColor Green
+}
+
 function Invoke-Install {
   Write-Host "=== Poetry install ===" -ForegroundColor Cyan
   Invoke-Poetry install
@@ -109,10 +138,10 @@ function Invoke-Lock {
   Write-Host "Lock: done." -ForegroundColor Green
 }
 
-function Invoke-Check {
+function Invoke-VerifyPyproject {
   Write-Host "=== Poetry check ===" -ForegroundColor Cyan
   Invoke-Poetry check
-  Write-Host "Check: pyproject.toml is valid." -ForegroundColor Green
+  Write-Host "verify-pyproject: pyproject.toml is valid." -ForegroundColor Green
 }
 
 # -----------------------------------------------------------------------------
@@ -123,8 +152,9 @@ switch ($Command) {
   "lint" { Invoke-Lint }
   "format" { Invoke-Format }
   "test" { Invoke-Test }
+  "check" { Invoke-Check }
   "run" { Invoke-Run }
   "clean" { Invoke-Clean }
   "lock" { Invoke-Lock }
-  "check" { Invoke-Check }
+  "verify-pyproject" { Invoke-VerifyPyproject }
 }

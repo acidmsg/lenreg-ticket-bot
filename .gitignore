@@ -30,9 +30,10 @@ logs/
 .pytest_cache/
 .pytest_output.txt
 
+# === Temporary files (check output, scratch) ===
+.tmp_*
+*.tmp
+
 # === Node / npm ===
 node_modules/
 package-lock.json
-
-# === Editor ===
-.vscode/

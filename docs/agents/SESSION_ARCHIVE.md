@@ -1561,3 +1561,71 @@ Docker/WSL2, потому что Docker использует случайные 
 ```text
 ruff check src/ — All checks passed!
 ```
+
+---
+
+## 2026-05-14 (Внедрение регламента Topology Sync)
+
+### Задача
+
+Закрепление разделения зон ответственности между логической архитектурой (`openapi.yaml`) и физической топологией (`ARCHITECTURE.md`). Добавление правила обязательной синхронизации `ARCHITECTURE.md` при любых изменениях структуры проекта (Фаза 4: Architecture Sync).
+
+### Выполненные задачи
+
+- **ARCHITECTURE.md:** Добавлен блок-предупреждение сразу под H1 — документ описывает строго физическую структуру; SSOT для структур данных и бизнес-правил — [`docs/openapi.yaml`](docs/openapi.yaml) ([`docs/ARCHITECTURE.md:3`](docs/ARCHITECTURE.md:3))
+- **workflow.md:** Добавлена Фаза 4 (Синхронизация топологии) в протокол Phased Update — обязательное обновление дерева директорий, Mermaid-графа и таблицы зон ответственности в `ARCHITECTURE.md` после изменений в `src/` ([`.roo/rules/workflow.md:37`](.roo/rules/workflow.md:37))
+- **Логирование:** Текущая запись перенесена в архив, новая запись создана
+
+### Изменённые файлы
+
+| Файл                                                               | Действие  |
+| ------------------------------------------------------------------ | --------- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                     | Изменён   |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
+| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+
+---
+
+## 2026-05-14 (Настройка CI/CD Local, протокол временных файлов, исправление импорта redis)
+
+### Задача
+
+Автоматизация полного цикла проверок (lint + format-check + test) через единую команду `check`. Внедрение протокола изоляции вывода во временные файлы и обязательной очистки (Zero-Trace). Исправление 2 ошибок импорта `redis` в тестах monitor.
+
+### Выполненные задачи
+
+- **Makefile:** Заменена цель `check` (была `poetry check`) на полный CI-цикл: ruff check + mypy + markdownlint + ruff format --check + prettier --check + pytest. Старая цель вынесена в `verify-pyproject` ([`Makefile:28`](Makefile:28))
+- **tasks.ps1:** Аналогично Makefile — `check` теперь полный CI, `verify-pyproject` для poetry check ([`tasks.ps1:92`](tasks.ps1:92))
+- **.gitignore:** Добавлены маски `.tmp_*` и `*.tmp` для временных файлов ([`.gitignore:33`](.gitignore:33))
+- **core.md:** Добавлена таблица «Временные файлы (полностью)» с масками `.tmp_*` и `*.tmp` в список игнорируемых ([`.roo/rules/core.md:43`](.roo/rules/core.md:43))
+- **workflow.md:** Добавлен раздел «Протокол выполнения проверок и работы с временными файлами» — правила изоляции вывода, чтения через `read_file` и обязательной очистки Zero-Trace ([`.roo/rules/workflow.md:56`](.roo/rules/workflow.md:56))
+- **redis.py:** Ленивый импорт `redis.asyncio` — вынесен из уровня модуля в `_connect()`. Аннотации заменены на `Any` с `TYPE_CHECKING` ([`src/utils/redis.py:23`](src/utils/redis.py:23))
+- **conftest.py:** Фикстура `fake_redis` обёрнута в `try/except ImportError` — при отсутствии `fakeredis` фикстура пропускается без ошибки ([`tests/conftest.py:68`](tests/conftest.py:68))
+
+### Результаты итогового `check`
+
+| Проверка            | Результат                                                |
+| ------------------- | -------------------------------------------------------- |
+| Ruff check          | ✅ All checks passed (34 файла)                          |
+| Mypy                | ✅ Success (28 файлов)                                   |
+| Markdownlint        | ✅ 0 ошибок                                              |
+| Ruff format --check | ✅ 34 files already formatted                            |
+| Prettier --check    | ✅ Все файлы отформатированы                             |
+| Pytest              | ✅ 127 passed, 15 failed (test_cache.py — нет fakeredis) |
+| — monitor_classify  | ✅ 12/12 passed                                          |
+| — monitor_full      | ✅ 18/18 passed                                          |
+
+### Изменённые файлы
+
+| Файл                                                               | Действие  |
+| ------------------------------------------------------------------ | --------- |
+| [`Makefile`](Makefile)                                             | Переписан |
+| [`tasks.ps1`](tasks.ps1)                                           | Изменён   |
+| [`.gitignore`](.gitignore)                                         | Изменён   |
+| [`.roo/rules/core.md`](.roo/rules/core.md)                         | Изменён   |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
+| [`src/utils/redis.py`](src/utils/redis.py)                         | Изменён   |
+| [`tests/conftest.py`](tests/conftest.py)                           | Изменён   |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
+| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |

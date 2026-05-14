@@ -22,7 +22,8 @@
     "--config-file=${workspaceFolder}/pyproject.toml"
   ],
   "mypy-type-checker.importStrategy": "fromEnvironment",
-  // Mypy Type Chetor.formatOnSave": true,
+  "[python]": {
+    "editor.formatOnSave": true,
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"

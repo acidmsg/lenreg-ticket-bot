@@ -14,12 +14,14 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-import redis.asyncio as aioredis
 from loguru import logger
 
 from src.config import settings
+
+if TYPE_CHECKING:
+    pass
 
 
 class RedisClient:
@@ -36,10 +38,10 @@ class RedisClient:
     """
 
     _instance: Optional[RedisClient] = None
-    _lock = None  # asyncio.Lock, инициализируется при первом вызове
+    _lock: Any = None  # asyncio.Lock, инициализируется при первом вызове
 
     def __init__(self) -> None:
-        self._redis: Optional[aioredis.Redis] = None
+        self._redis: Any = None  # aioredis.Redis (ленивый импорт)
         self._url: str = settings.REDIS_URL
 
     @classmethod
@@ -61,6 +63,8 @@ class RedisClient:
 
     async def _connect(self) -> None:
         """Устанавливает соединение с Redis через пул."""
+        import redis.asyncio as aioredis
+
         self._redis = aioredis.from_url(
             self._url,
             encoding="utf-8",
@@ -74,7 +78,7 @@ class RedisClient:
         await self._redis.ping()
 
     @property
-    def client(self) -> aioredis.Redis:
+    def client(self) -> Any:  # aioredis.Redis
         """Возвращает экземпляр aioredis.Redis (нужна предварительная инициализация)."""
         if self._redis is None:
             raise RuntimeError(
@@ -130,7 +134,7 @@ class RedisClient:
         """Возвращает длину списка."""
         return await self.client.llen(key)
 
-    async def pipeline(self) -> aioredis.client.Pipeline:
+    async def pipeline(self) -> Any:  # aioredis.client.Pipeline
         """Создаёт pipeline для атомарного выполнения нескольких команд."""
         return self.client.pipeline()
 
