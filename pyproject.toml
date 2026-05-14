@@ -82,6 +82,14 @@ warn_return_any = true
 warn_unused_ignores = true
 show_error_codes = true
 
+[[tool.mypy.overrides]]
+module = "tests.test_handlers_registration"
+disable_error_code = ["union-attr", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "tests.test_handlers_common"
+disable_error_code = ["union-attr", "attr-defined"]
+
 [tool.pytest.ini_options]
 minversion = "9.0"
 asyncio_mode = "auto"
