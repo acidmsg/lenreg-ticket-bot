@@ -1715,3 +1715,112 @@ ruff check src/ — All checks passed!
 | [`tests/conftest.py`](tests/conftest.py)                           | Переписан |
 | [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
 | [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+
+---
+
+## 2026-05-14 (T1: Интеграционные тесты для хендлеров)
+
+### Задача
+
+Создание интеграционных тестов для всех 20 Telegram-обработчиков с использованием mocked aiogram объектов и прямого вызова handler'ов (без поднятия бота).
+
+### Выполненные задачи
+
+- Создан [`tests/test_handlers_registration.py`](tests/test_handlers_registration.py) — 18 тестов для 6 handler'ов FSM-сценария регистрации: `start_add_patient`, `process_fio`, `process_bday`, `process_alias`, `skip_alias`, `cancel_registration`
+- Создан [`tests/test_handlers_common.py`](tests/test_handlers_common.py) — 25 тестов для 14 handler'ов навигации и мониторинга: `cmd_start`, `back_to_main`, `select_patient`, `select_city`, `select_clinic`, `toggle_doctor`, `handle_noop`, `stop_all_monitoring`, `back_to_cities`, `back_to_clinics`, `stop_patient_monitoring`, `stop_clinic_monitoring`, `handle_delete_patient`
+- Реализованы фабрики `make_message()` / `make_callback()` с `object.__setattr__` для подмены aiogram-методов на `AsyncMock`
+- Реализован `FakeFSMContext` — легковесная замена aiogram FSM-контекста
+- Настроено подавление ложных mypy/Pylance ошибок: per-file overrides в [`pyproject.toml:85`](pyproject.toml:85) + исключение файлов из Pyright в [`pyrightconfig.json:13`](pyrightconfig.json:13)
+- Полный test suite: **185 тестов**, ruff: `All checks passed!`, mypy: `Success: no issues found`
+
+### Изменённые файлы
+
+| Файл                                                                         | Действие |
+| ---------------------------------------------------------------------------- | -------- |
+| [`tests/test_handlers_registration.py`](tests/test_handlers_registration.py) | Создан   |
+| [`tests/test_handlers_common.py`](tests/test_handlers_common.py)             | Создан   |
+| [`pyproject.toml`](pyproject.toml)                                           | Изменён  |
+| [`pyrightconfig.json`](pyrightconfig.json)                                   | Изменён  |
+
+---
+
+## 2026-05-14 (T2: Система именования изображений для уведомлений)
+
+### Задача
+
+Спроектировать систему именования PNG-изображений для заголовков сообщений Telegram-бота (6 изображений), создать директорию хранения, задокументировать правила в архитектуре проекта.
+
+### Выполненные задачи
+
+- Создана директория [`src/assets/images/`](src/assets/images/) с `.gitkeep` для хранения PNG-изображений
+- Создан [`src/assets/__init__.py`](src/assets/__init__.py) — делает `assets` Python-пакетом
+- Создан [`src/assets/README.md`](src/assets/README.md) — полная документация системы именования:
+  - Шаблон: `{контекст}_{состояние}.png` (snake_case, только PNG)
+  - Задокументированы 6 текущих изображений (patient, clinic, doctor_dentist/adult/child, slot_empty)
+  - Запланированы 3 будущих состояния (slot_available, slot_new, slot_decreased)
+  - Справочники контекстов и состояний
+  - Требования к файлам (800×400 px, ≤512 КБ)
+  - Пример кода использования через `FSInputFile` + `send_photo()`
+- Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
+  - Дерево директорий — добавлен `src/assets/` с поддиректориями
+  - Таблица зон ответственности — добавлена строка `src/assets/`
+- Обновлён [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — добавлена задача F4 (отправка изображений-заголовков)
+
+### Изменённые файлы
+
+| Файл                                                       | Действие |
+| ---------------------------------------------------------- | -------- |
+| [`src/assets/__init__.py`](src/assets/__init__.py)         | Создан   |
+| [`src/assets/README.md`](src/assets/README.md)             | Создан   |
+| [`src/assets/images/.gitkeep`](src/assets/images/.gitkeep) | Создан   |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)             | Изменён  |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён  |
+
+### Результаты проверок
+
+| Инструмент   | Результат   |
+| ------------ | ----------- |
+| markdownlint | ✅ 0 errors |
+| prettier     | ✅ 0 errors |
+
+---
+
+## 2026-05-14 (T3: Отправка изображений-заголовков в уведомлениях — F4)
+
+### Задача
+
+Реализовать отправку PNG-изображений как заголовков к текстовым уведомлениям через `send_photo()` Telegram Bot API. Изображения выбираются в зависимости от типа уведомления (empty/available/new/decreased) и загружаются из `src/assets/images/`.
+
+### Выполненные задачи
+
+- Создан [`src/assets/utils.py`](src/assets/utils.py) — хелперы для разрешения путей к изображениям:
+  - `NOTIFY_IMAGE_MAP` — маппинг `notify_type` → имя файла (empty, available, new, decreased)
+  - `NAV_IMAGE_MAP` — маппинг `nav_type` → имя файла (patient, clinic, doctor\_\*) для будущего использования
+  - `get_notify_image_path()` / `get_nav_image_path()` / `get_photo_path()` — безопасное разрешение с проверкой существования
+- Модифицирован [`src/services/monitor.py`](src/services/monitor.py):
+  - `_classify_slot_change()` — расширен возврат с `(header, display_slots, notify_type)`, где `notify_type`: `"empty"`, `"available"`, `"new"`, `"decreased"`
+  - `_send_notification()` — добавлен параметр `photo_path: Path | None`, при наличии отправляет `send_photo()` с `caption`, иначе fallback на `send_message()`
+  - `monitor_loop()` — получает `notify_type` из `_classify_slot_change()`, вызывает `get_notify_image_path()`, передаёт в `_send_notification()`
+- Модифицирован [`src/handlers/common.py`](src/handlers/common.py):
+  - `toggle_doctor()` — удаляет загрузочное сообщение, отправляет финальный результат через `answer_photo()` с изображением-заголовком; `notify_type` определяется как `"available"` или `"empty"`
+- Обновлены тесты [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py):
+  - Все 7 тестов `_classify_slot_change()` обновлены на распаковку 3 значений вместо 2
+  - Добавлены assert-проверки `notify_type` для каждого сценария
+
+### Изменённые файлы
+
+| Файл                                                               | Действие |
+| ------------------------------------------------------------------ | -------- |
+| [`src/assets/utils.py`](src/assets/utils.py)                       | Создан   |
+| [`src/services/monitor.py`](src/services/monitor.py)               | Изменён  |
+| [`src/handlers/common.py`](src/handlers/common.py)                 | Изменён  |
+| [`tests/test_monitor_classify.py`](tests/test_monitor_classify.py) | Изменён  |
+
+### Результаты проверок
+
+| Инструмент  | Результат                   |
+| ----------- | --------------------------- |
+| ruff        | ✅ All checks passed!       |
+| ruff format | ✅ 0 errors                 |
+| mypy        | ✅ Success: no issues found |
+| pytest      | ✅ 185 passed, 0 failed     |

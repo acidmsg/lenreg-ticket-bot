@@ -25,6 +25,11 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   │   ├── __init__.py
 │   │   ├── common.py                  # Основные обработчики: /start, выбор пациента/клиники/врача, toggle
 │   │   └── registration.py           # FSM-сценарий регистрации пациента (ФИО → дата → псевдоним)
+│   ├── assets/
+│   │   ├── __init__.py
+│   │   ├── README.md                  # Правила именования и использования изображений
+│   │   └── images/                    # PNG-изображения для заголовков сообщений
+│   │       └── .gitkeep
 │   ├── keyboards/
 │   │   ├── __init__.py
 │   │   └── inline.py                 # Inline-клавиатуры Telegram (пациенты, города, клиники, врачи)
@@ -99,6 +104,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 | `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                           |
 | `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей.                                                                       |
 | `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                                           |
+| `src/assets/`     | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                         |
 | `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                    |
 | `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache.                                                                                                                                                                                                                           |
 | `src/services/`   | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                     |

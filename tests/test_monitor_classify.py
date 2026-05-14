@@ -22,26 +22,29 @@ class TestClassifySlotChange:
         """Номерки исчезли — уведомить с header."""
         result = _classify_slot_change([], ["2026-05-10 в 10:00"])
         assert result is not None
-        header, display_slots = result
+        header, display_slots, notify_type = result
         assert "Номерков в данный момент нет" in header
         assert display_slots is None
+        assert notify_type == "empty"
 
     def test_slots_appeared_from_none(self):
         """Появились номерки после None."""
         slots = ["2026-05-10 в 10:00"]
         result = _classify_slot_change(slots, None)
         assert result is not None
-        header, display_slots = result
+        header, display_slots, notify_type = result
         assert "Появились свободные номерки" in header
         assert display_slots == slots
+        assert notify_type == "available"
 
     def test_slots_appeared_from_empty(self):
         """Появились номерки после "NONE"."""
         slots = ["2026-05-10 в 10:00"]
         result = _classify_slot_change(slots, "NONE")
         assert result is not None
-        header, _ = result
+        header, _, notify_type = result
         assert "Появились свободные номерки" in header
+        assert notify_type == "available"
 
     def test_new_slots_added(self):
         """Появились новые номерки в дополнение к существующим."""
@@ -49,9 +52,10 @@ class TestClassifySlotChange:
         new_slots = ["2026-05-10 в 10:00", "2026-05-10 в 11:00"]
         result = _classify_slot_change(new_slots, old_slots)
         assert result is not None
-        header, display_slots = result
+        header, display_slots, notify_type = result
         assert "Появились НОВЫЕ номерки" in header
         assert display_slots is not None
+        assert notify_type == "new"
         # Новый слот должен быть помечен [NEW]
         assert "[NEW] 2026-05-10 в 11:00" in display_slots
         assert "2026-05-10 в 10:00" in display_slots
@@ -79,9 +83,10 @@ class TestClassifySlotChange:
         new_slots = [f"slot_{i}" for i in range(4)]  # стало 4, меньше 5
         result = _classify_slot_change(new_slots, old_slots)
         assert result is not None
-        header, display_slots = result
+        header, display_slots, notify_type = result
         assert "уменьшилось до 4" in header
         assert display_slots == new_slots
+        assert notify_type == "decreased"
 
     def test_slots_decreased_by_percentage(self, monkeypatch):
         """Уменьшение на >= 25% — уведомить."""
@@ -94,9 +99,10 @@ class TestClassifySlotChange:
         new_slots = [f"slot_{i}" for i in range(7)]  # 30% decrease > 25%
         result = _classify_slot_change(new_slots, old_slots)
         assert result is not None
-        header, display_slots = result
+        header, display_slots, notify_type = result
         assert "уменьшилось до 7" in header
         assert display_slots == new_slots
+        assert notify_type == "decreased"
 
     def test_slots_decreased_below_percentage_threshold(self):
         """Уменьшение менее 25% — не уведомлять."""
@@ -111,7 +117,8 @@ class TestClassifySlotChange:
         new_slots = ["2026-05-10 в 10:00", "2026-05-11 в 09:00", "2026-05-11 в 10:00"]
         result = _classify_slot_change(new_slots, old_slots)
         assert result is not None
-        _, display_slots = result
+        _, display_slots, notify_type = result
+        assert notify_type == "new"
         assert display_slots is not None
         new_count = sum(1 for s in display_slots if "[NEW]" in s)
         assert new_count == 2

@@ -1,10 +1,13 @@
 import asyncio
 import random
+from pathlib import Path
 
 from aiogram import Bot
+from aiogram.types import FSInputFile
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
+from src.assets.utils import get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.services.healthcheck import _safe_set
@@ -13,8 +16,20 @@ from src.utils.helpers import shorten_fio, shorten_specialty
 
 
 async def _send_notification(
-    bot: Bot, uid: str, text: str, db: DatabaseManager, p_id: str, d_id: str
+    bot: Bot,
+    uid: str,
+    text: str,
+    db: DatabaseManager,
+    p_id: str,
+    d_id: str,
+    photo_path: Path | None = None,
 ):
+    """Отправляет уведомление пользователю.
+
+    При наличии photo_path использует send_photo (изображение + caption),
+    иначе — обычное send_message. Старое сообщение предварительно удаляется
+    для эффекта «приклеивания».
+    """
     try:
         # Для "приклеивания" (удаления старого сообщения) нужно хранить message_id
         last_msg_id = await db.get_last_message_id(uid, p_id, d_id)
@@ -25,16 +40,27 @@ async def _send_notification(
             except Exception:
                 pass  # Сообщение могло быть удалено или устареть
 
-        new_msg = await bot.send_message(uid, text, parse_mode="Markdown")
+        if photo_path is not None:
+            photo = FSInputFile(photo_path)
+            new_msg = await bot.send_photo(
+                uid, photo, caption=text, parse_mode="Markdown"
+            )
+        else:
+            new_msg = await bot.send_message(uid, text, parse_mode="Markdown")
+
         await db.set_last_message_id(uid, p_id, d_id, new_msg.message_id)
     except Exception as e:
         logger.error(f"Ошибка отправки уведомления: {e}")
 
 
-def _classify_slot_change(slots, old_slots_data):
+def _classify_slot_change(
+    slots: list[str] | None, old_slots_data: list[str] | str | None
+) -> tuple[str, list[str] | None, str] | None:
     """Классификация изменений слотов.
 
-    Возвращает (header, display_slots) или None если уведомлять не нужно.
+    Returns:
+        (header, display_slots, notify_type) или None если уведомлять не нужно.
+        notify_type: "empty" | "available" | "new" | "decreased"
     """
     if not slots:
         # Номерки исчезли
@@ -44,11 +70,11 @@ def _classify_slot_change(slots, old_slots_data):
             # Первое обнаружение -- состояние синхронизировано через handlers/common.py
             return None
         header = "**Номерков в данный момент нет** 🤷‍♂️"
-        return header, None
+        return header, None, "empty"
 
     # Есть слоты
     if old_slots_data == "NONE" or old_slots_data is None:
-        return "🎉 **Появились свободные номерки!**", slots
+        return "🎉 **Появились свободные номерки!**", slots, "available"
 
     # Слоты были и раньше -- проверяем изменения
     old_list = old_slots_data if isinstance(old_slots_data, list) else []
@@ -61,7 +87,7 @@ def _classify_slot_change(slots, old_slots_data):
                 display_slots.append(f"[NEW] {s}")
             else:
                 display_slots.append(s)
-        return "🎉 **Появились НОВЫЕ номерки!**", display_slots
+        return "🎉 **Появились НОВЫЕ номерки!**", display_slots, "new"
 
     # Проверяем уменьшение
     old_count = len(old_list)
@@ -81,7 +107,7 @@ def _classify_slot_change(slots, old_slots_data):
                 f"⚠️ **Количество номерков уменьшилось до {new_count}"
                 f" (было {old_count})**"
             )
-            return header, slots
+            return header, slots, "decreased"
 
     return None  # Нет значимых изменений
 
@@ -173,7 +199,7 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                         if result is None:
                             continue
 
-                        header, display_slots = result
+                        header, display_slots, notify_type = result
 
                         p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
                         d_name_display = shorten_fio(d_name)
@@ -201,7 +227,10 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 + link
                             )
 
-                        await _send_notification(bot, uid, msg, db, p_id, d_id)
+                        photo_path = get_notify_image_path(notify_type)
+                        await _send_notification(
+                            bot, uid, msg, db, p_id, d_id, photo_path=photo_path
+                        )
 
             jitter = random.uniform(42, 85)
             await asyncio.sleep(jitter)

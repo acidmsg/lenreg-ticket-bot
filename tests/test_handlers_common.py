@@ -44,6 +44,7 @@ def make_mock_bot() -> AsyncMock:
     """Создаёт AsyncMock для Bot aiogram."""
     bot = AsyncMock()
     bot.send_message = AsyncMock()
+    bot.send_photo = AsyncMock()
     bot.edit_message_text = AsyncMock()
     bot.delete_message = AsyncMock()
     return bot
@@ -397,8 +398,8 @@ class TestToggleDoctor:
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["monitoring"]
 
-        # При отключении edit_text вызван (call.answer — нет, он только в enable-пути)
-        call.message.edit_text.assert_called()
+        # При отключении send_photo вызван (call.answer — нет, он только в enable-пути)
+        bot.send_photo.assert_called()
 
 
 # ── T1.2.7: handle_noop ───────────────────────────────────────────────
@@ -446,9 +447,9 @@ class TestStopAllMonitoring:
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert user_data["monitoring"] == {}
-        call.message.edit_text.assert_called_once()
-        text = call.message.edit_text.call_args[0][0]
-        assert "✅" in text
+        bot.send_photo.assert_called_once()
+        caption = bot.send_photo.call_args[1]["caption"]
+        assert "✅" in caption
 
 
 # ── T1.2.9: back_to_cities ────────────────────────────────────────────
@@ -526,9 +527,9 @@ class TestStopPatientMonitoring:
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["monitoring"]
-        call.message.edit_text.assert_called_once()
-        text = call.message.edit_text.call_args[0][0]
-        assert "✅" in text
+        bot.send_photo.assert_called_once()
+        caption = bot.send_photo.call_args[1]["caption"]
+        assert "✅" in caption
 
     async def test_stop_patient_clinic_context(self, db_manager):
         """Сброс в контексте клиник."""
@@ -551,7 +552,7 @@ class TestStopPatientMonitoring:
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "222" not in user_data["monitoring"]
-        call.message.edit_text.assert_called_once()
+        bot.send_photo.assert_called_once()
 
 
 # ── T1.2.12: stop_clinic_monitoring ───────────────────────────────────
@@ -655,7 +656,7 @@ class TestHandleDeletePatient:
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["patients"]
         assert "222" in user_data["patients"]
-        call.message.edit_text.assert_called_once()
+        mock_bot.send_photo.assert_called_once()
 
     async def test_delete_yes_last_patient_shows_welcome(self, db_manager):
         """del_p_yes + это последний пациент — приветствие."""
@@ -674,9 +675,9 @@ class TestHandleDeletePatient:
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["patients"]
-        call.message.edit_text.assert_called_once()
-        text = call.message.edit_text.call_args[0][0]
-        assert "Привет" in text
+        mock_bot.send_photo.assert_called_once()
+        caption = mock_bot.send_photo.call_args[1]["caption"]
+        assert "Привет" in caption
 
     async def test_delete_yes_no_bot_returns_early(self, db_manager):
         """del_p_yes без bot — ранний возврат, пациент не удалён."""

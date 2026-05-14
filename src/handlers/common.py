@@ -2,10 +2,11 @@ import asyncio
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
+from src.assets.utils import get_nav_image_path, get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.filters.admin import IsAdmin
@@ -144,6 +145,66 @@ async def _delete_cleanup_msg_entries(
     return changed
 
 
+# ── Хелпер для отправки навигационных сообщений с изображением-заголовком ──
+
+
+async def _send_nav_photo(
+    bot: Bot | None,
+    msg: Message,
+    nav_type: str,
+    text: str,
+    reply_markup,
+) -> Message | None:
+    """Отправляет навигационное сообщение с изображением-заголовком.
+
+    При наличии бота и изображения: удаляет предыдущее сообщение и
+    отправляет новое через send_photo. При отсутствии бота/изображения
+    или ошибке — fallback на edit_text того же сообщения.
+    """
+    photo_path = get_nav_image_path(nav_type)
+
+    if bot is not None:
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+
+        try:
+            if photo_path is not None:
+                photo = FSInputFile(photo_path)
+                return await bot.send_photo(
+                    msg.chat.id,
+                    photo,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown",
+                )
+        except Exception:
+            pass
+
+        return await bot.send_message(
+            msg.chat.id,
+            text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+        )
+
+    # Бот недоступен (тестовый режим или call.message без bot) —
+    # используем edit_text на том же сообщении
+    try:
+        await msg.edit_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+        )
+        return msg
+    except Exception:
+        return None
+
+
+# ── Хендлеры ──────────────────────────────────────────────────
+
+
 @router.message(Command("status"), IsAdmin())
 async def cmd_status(message: Message, db: DatabaseManager):
     """Команда /status — отчёт о состоянии бота (только для администраторов)."""
@@ -156,51 +217,63 @@ async def cmd_status(message: Message, db: DatabaseManager):
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, db: DatabaseManager):
+    """Команда /start — приветствие с изображением-заголовком patient_select."""
     uid = str(message.from_user.id) if message.from_user else "unknown"
     user_data = await db.get_user_data(uid)
 
     if not user_data.get("patients"):
-        await message.answer(
+        text = (
             "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-            "У тебя пока нет добавленных пациентов. Давай добавим первого!",
-            reply_markup=get_patient_selection({}, {}),
+            "У тебя пока нет добавленных пациентов. Давай добавим первого!"
         )
+        reply_markup = get_patient_selection({}, {})
+        parse_mode = None
     else:
-        await message.answer(
-            "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
-            parse_mode="Markdown",
+        text = "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга"
+        reply_markup = get_patient_selection(
+            user_data["patients"], user_data["monitoring"]
         )
+        parse_mode = "Markdown"
+
+    photo_path = get_nav_image_path("patient")
+    try:
+        if photo_path is not None:
+            photo = FSInputFile(photo_path)
+            await message.answer_photo(
+                photo, caption=text, reply_markup=reply_markup, parse_mode=parse_mode
+            )
+        else:
+            await message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
+    except Exception:
+        await message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
 
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(call: CallbackQuery, db: DatabaseManager):
-    if not call.from_user or not call.message:
+    """Возврат в главное меню с изображением-заголовком patient_select."""
+    if not call.from_user or not call.message or not isinstance(call.message, Message):
         return
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    if isinstance(call.message, Message):
-        if not user_data.get("patients"):
-            await call.message.edit_text(
-                "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-                "У тебя пока нет добавленных пациентов. Давай добавим первого!",
-                reply_markup=get_patient_selection({}, {}),
-            )
-        else:
-            await call.message.edit_text(
-                "📋 **Ваши пациенты:**\n---\n"
-                "Выберите пациента для настройки мониторинга",
-                reply_markup=get_patient_selection(
-                    user_data["patients"], user_data["monitoring"]
-                ),
-                parse_mode="Markdown",
-            )
+
+    if not user_data.get("patients"):
+        text = (
+            "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
+            "У тебя пока нет добавленных пациентов. Давай добавим первого!"
+        )
+        reply_markup = get_patient_selection({}, {})
+    else:
+        text = "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга"
+        reply_markup = get_patient_selection(
+            user_data["patients"], user_data["monitoring"]
+        )
+
+    await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup)
 
 
 @router.callback_query(F.data.startswith("sel_p_"))
 async def select_patient(call: CallbackQuery, db: DatabaseManager):
+    """Выбор пациента → список городов с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
     p_id = call.data.replace("sel_p_", "")
@@ -213,23 +286,24 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
     clinics_data = await db._db.get_active_clinics()
     monitoring = user_data.get("monitoring")
 
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_text(
-                "📍 Сначала выберите город/район:",
-                reply_markup=get_city_selection(
-                    p_id,
-                    cities=cities,
-                    monitoring=monitoring,
-                    clinics_data=clinics_data,
-                ),
-            )
-    except Exception:
-        pass
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "clinic",
+            "📍 Сначала выберите город/район:",
+            get_city_selection(
+                p_id,
+                cities=cities,
+                monitoring=monitoring,
+                clinics_data=clinics_data,
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("sel_cty_"))
 async def select_city(call: CallbackQuery, db: DatabaseManager):
+    """Выбор города → список клиник с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
     # Формат: sel_cty_{p_id}_{idx} где idx — 1-based индекс города или "all"
@@ -256,30 +330,29 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
         except (ValueError, IndexError):
             pass
 
-    try:
-        if isinstance(call.message, Message):
-            city_label = (
-                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
-            )
-            await call.message.edit_text(
-                city_label,
-                reply_markup=get_clinic_selection(
-                    p_id,
-                    p_info.get("bday", settings.DEFAULT_BIRTHDAY),
-                    selected_city=selected_city,
-                    monitoring=user_data.get("monitoring"),
-                    clinic_names=clinic_names,
-                    clinics_data=clinics_data,
-                    city_idx=idx_or_all,
-                ),
-            )
-    except Exception:
-        pass
+    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "clinic",
+            city_label,
+            get_clinic_selection(
+                p_id,
+                p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                selected_city=selected_city,
+                monitoring=user_data.get("monitoring"),
+                clinic_names=clinic_names,
+                clinics_data=clinics_data,
+                city_idx=idx_or_all,
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("back_to_cities_"))
 async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
-    """Возвращает к выбору города."""
+    """Возвращает к выбору города с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
     p_id = call.data.replace("back_to_cities_", "")
@@ -287,24 +360,28 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
     user_data = await db.get_user_data(uid)
     cities = await db._db.get_distinct_cities()
     clinics_data = await db._db.get_active_clinics()
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_text(
-                "📍 Сначала выберите город/район:",
-                reply_markup=get_city_selection(
-                    p_id,
-                    cities=cities,
-                    monitoring=user_data.get("monitoring"),
-                    clinics_data=clinics_data,
-                ),
-            )
-    except Exception:
-        pass
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "clinic",
+            "📍 Сначала выберите город/район:",
+            get_city_selection(
+                p_id,
+                cities=cities,
+                monitoring=user_data.get("monitoring"),
+                clinics_data=clinics_data,
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("back_to_clinics_"))
 async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
-    """Возвращает к списку клиник (того же города или всех)."""
+    """Возвращает к списку клиник (того же города или всех).
+
+    Используется изображение-заголовок clinic_select.
+    """
     if not call.message or not call.from_user or not call.data:
         return
     # Формат: back_to_clinics_{p_id}_{city_idx}
@@ -331,29 +408,29 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
         except (ValueError, IndexError):
             pass
 
-    try:
-        if isinstance(call.message, Message):
-            city_label = (
-                "Все клиники" if selected_city is None else f"🏥 {selected_city}"
-            )
-            await call.message.edit_text(
-                city_label,
-                reply_markup=get_clinic_selection(
-                    p_id,
-                    p_info.get("bday", settings.DEFAULT_BIRTHDAY),
-                    selected_city=selected_city,
-                    monitoring=user_data.get("monitoring"),
-                    clinic_names=clinic_names,
-                    clinics_data=clinics_data,
-                    city_idx=city_idx,
-                ),
-            )
-    except Exception:
-        pass
+    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "clinic",
+            city_label,
+            get_clinic_selection(
+                p_id,
+                p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+                selected_city=selected_city,
+                monitoring=user_data.get("monitoring"),
+                clinic_names=clinic_names,
+                clinics_data=clinics_data,
+                city_idx=city_idx,
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("sel_c_"))
 async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClient):
+    """Выбор клиники → список врачей с изображением doctor_*_select."""
     if not call.message or not call.from_user or not call.data:
         return
     parts = call.data.split("_")
@@ -370,8 +447,6 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     confirmed = p_info.get("confirmed_clinics", [])
 
     # Добавляем клинику в confirmed, если её там ещё нет
-    # (проверка прикрепления убрана — если API не знает пациента,
-    # список врачей будет пуст, и это естественный барьер)
     if int(clinic_id) not in confirmed:
         await db.add_confirmed_clinic(uid, p_id, int(clinic_id))
 
@@ -387,22 +462,32 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
         await call.answer("⏳ Загружаю список врачей...", show_alert=False)
         doctors_list = await _discover_doctors_on_demand(api, db, clinic_id, p_id)
 
-    try:
-        if isinstance(call.message, Message):
-            clinic_line = f"\n{clinic_name}" if clinic_name else ""
-            await call.message.edit_text(
-                f"⚙️ Выберите врачей для мониторинга:{clinic_line}",
-                reply_markup=get_doctor_selection(
-                    p_id,
-                    clinic_id,
-                    doctors_list,
-                    monitored,
-                    p_info.get("bday", ""),
-                    city_idx,
-                ),
-            )
-    except Exception:
-        pass
+    # Определяем тип клиники для выбора изображения врача
+    clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+    nav_type_map = {
+        "adult": "doctor_adult",
+        "child": "doctor_child",
+        "all": "doctor_dentist",
+    }
+    nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+
+    clinic_line = f"\n{clinic_name}" if clinic_name else ""
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            nav_type,
+            f"⚙️ Выберите врачей для мониторинга:{clinic_line}",
+            get_doctor_selection(
+                p_id,
+                clinic_id,
+                doctors_list,
+                monitored,
+                p_info.get("bday", ""),
+                city_idx,
+            ),
+        )
 
 
 @router.callback_query(F.data.startswith("tgl_"))
@@ -450,21 +535,30 @@ async def toggle_doctor(
         # Получаем city_idx для кнопки "назад" (если есть)
         city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
 
-        try:
-            if isinstance(call.message, Message):
-                await call.message.edit_text(
-                    f"⚙️ Мониторинг для {d_name_display} отключен.",
-                    reply_markup=get_doctor_selection(
-                        p_id,
-                        clinic_id,
-                        doctors_list,
-                        monitored,
-                        p_info.get("bday", ""),
-                        city_idx,
-                    ),
-                )
-        except Exception:
-            pass
+        # Определяем nav_type для изображения врача
+        clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+        nav_type_map = {
+            "adult": "doctor_adult",
+            "child": "doctor_child",
+            "all": "doctor_dentist",
+        }
+        nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+
+        if isinstance(call.message, Message):
+            await _send_nav_photo(
+                bot,
+                call.message,
+                nav_type,
+                f"⚙️ Мониторинг для {d_name_display} отключен.",
+                get_doctor_selection(
+                    p_id,
+                    clinic_id,
+                    doctors_list,
+                    monitored,
+                    p_info.get("bday", ""),
+                    city_idx,
+                ),
+            )
         return
 
     # Сразу отправляем "загрузочное" сообщение — пользователь видит, что бот работает
@@ -502,15 +596,28 @@ async def toggle_doctor(
         f"👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
     )
 
-    # Редактируем загрузочное сообщение финальным результатом
+    # Удаляем загрузочное сообщение
     try:
-        await loading_msg.edit_text(text)
+        await loading_msg.delete()
     except Exception:
-        # Если не удалось отредактировать — шлём новое
-        loading_msg = await call.message.answer(text)
+        pass
+
+    # Отправляем финальный результат с изображением-заголовком
+    notify_type = "available" if has_slots else "empty"
+    photo_path = get_notify_image_path(notify_type)
+    try:
+        if photo_path is not None:
+            photo = FSInputFile(photo_path)
+            result_msg = await call.message.answer_photo(
+                photo, caption=text, parse_mode="Markdown"
+            )
+        else:
+            result_msg = await call.message.answer(text)
+    except Exception:
+        result_msg = await call.message.answer(text)
 
     # Сохраняем message_id в базу для будущих обновлений
-    await db.set_last_message_id(uid, p_id, d_id, loading_msg.message_id)
+    await db.set_last_message_id(uid, p_id, d_id, result_msg.message_id)
 
     await call.answer("Готово!")
 
@@ -550,7 +657,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     # Очищаем кэш слотов для этого пациента
     await delete_cache_keys_by_prefix(f"{uid}_{p_id}_")
 
-    if isinstance(call.message, Message):
+    if isinstance(call.message, Message) and bot is not None:
         if context == "clinic":
             # Остаёмся на списке клиник
             clinic_names = await db.get_all_clinic_names()
@@ -567,9 +674,12 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                 except (ValueError, IndexError):
                     pass
 
-            await call.message.edit_text(
+            await _send_nav_photo(
+                bot,
+                call.message,
+                "clinic",
                 "✅ Мониторинг для пациента сброшен.",
-                reply_markup=get_clinic_selection(
+                get_clinic_selection(
                     p_id,
                     p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                     selected_city=selected_city,
@@ -583,9 +693,12 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
             # Остаёмся на списке городов
             cities = await db._db.get_distinct_cities()
             clinics_data = await db._db.get_active_clinics()
-            await call.message.edit_text(
+            await _send_nav_photo(
+                bot,
+                call.message,
+                "clinic",
                 "✅ Мониторинг для пациента сброшен.",
-                reply_markup=get_city_selection(
+                get_city_selection(
                     p_id,
                     cities=cities,
                     monitoring=user_data.get("monitoring"),
@@ -633,13 +746,26 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
         for d_id in to_remove:
             await delete_cache_keys_by_prefix(f"{uid}_{p_id}_{d_id}")
 
-    if isinstance(call.message, Message):
+    if isinstance(call.message, Message) and bot is not None:
         doctors_list = await db.get_doctors_for_clinic(clinic_id)
         p_info = user_data.get("patients", {}).get(p_id, {})
         city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
-        await call.message.edit_text(
+
+        # Определяем тип клиники для изображения врача
+        clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+        nav_type_map = {
+            "adult": "doctor_adult",
+            "child": "doctor_child",
+            "all": "doctor_dentist",
+        }
+        nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+
+        await _send_nav_photo(
+            bot,
+            call.message,
+            nav_type,
             "✅ Мониторинг для клиники сброшен.",
-            reply_markup=get_doctor_selection(
+            get_doctor_selection(
                 p_id,
                 clinic_id,
                 doctors_list,
@@ -669,12 +795,13 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
 
     user_data = await db.get_user_data(uid)
 
-    if isinstance(call.message, Message):
-        await call.message.edit_text(
+    if isinstance(call.message, Message) and bot is not None:
+        await _send_nav_photo(
+            bot,
+            call.message,
+            "patient",
             "✅ Весь мониторинг остановлен.",
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
+            get_patient_selection(user_data["patients"], user_data["monitoring"]),
         )
 
 
@@ -710,17 +837,24 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
         )
         await db.delete_patient(uid, p_id)
         if not user_data.get("patients"):
-            await call.message.edit_text(
+            text = (
                 "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-                "У тебя пока нет добавленных пациентов. Давай добавим первого!",
-                reply_markup=get_patient_selection({}, {}),
+                "У тебя пока нет добавленных пациентов. Давай добавим первого!"
             )
+            reply_markup = get_patient_selection({}, {})
         else:
-            await call.message.edit_text(
+            text = (
                 "📋 **Список пациентов:**\n---\n"
-                "Выберите пациента\nдля настройки мониторинга",
-                reply_markup=get_patient_selection(
-                    user_data["patients"], user_data["monitoring"]
-                ),
-                parse_mode="Markdown",
+                "Выберите пациента\nдля настройки мониторинга"
             )
+            reply_markup = get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            )
+
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "patient",
+            text,
+            reply_markup,
+        )
