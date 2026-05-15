@@ -20,7 +20,12 @@ from src.keyboards.inline import (
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from src.services.healthcheck import format_status_report
 from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
-from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
+from src.utils.helpers import (
+    extract_msg_id,
+    format_slots,
+    shorten_fio,
+    shorten_specialty,
+)
 
 router = Router()
 # Хранит city_idx последнего выбора клиники для каждого пользователя
@@ -154,16 +159,38 @@ async def _send_nav_photo(
     nav_type: str,
     text: str,
     reply_markup,
+    db: DatabaseManager | None = None,
 ) -> Message | None:
     """Отправляет навигационное сообщение с изображением-заголовком.
 
-    При наличии бота и изображения: удаляет предыдущее сообщение и
-    отправляет новое через send_photo. При отсутствии бота/изображения
-    или ошибке — fallback на edit_text того же сообщения.
+    При наличии БД и бота: удаляет предыдущее навигационное сообщение
+    (хранится в last_messages["__nav__"]), отправляет новое и сохраняет
+    его message_id. Без БД — поведение как раньше (edit_text fallback).
     """
+    nav_msg_id_to_delete: int | None = None
+    uid = str(msg.chat.id)
+
+    # Получаем ID предыдущего навигационного сообщения
+    if db is not None and bot is not None:
+        try:
+            nav_msg_id_to_delete = await db.get_last_message_id(
+                uid, "__nav__", "__nav__"
+            )
+        except Exception:
+            pass
+
     photo_path = get_nav_image_path(nav_type)
 
+    result: Message | None = None
+
     if bot is not None:
+        # Удаляем предыдущее навигационное сообщение
+        if nav_msg_id_to_delete is not None:
+            try:
+                await bot.delete_message(msg.chat.id, nav_msg_id_to_delete)
+            except Exception:
+                pass
+
         try:
             await msg.delete()
         except Exception:
@@ -172,22 +199,33 @@ async def _send_nav_photo(
         try:
             if photo_path is not None:
                 photo = FSInputFile(photo_path)
-                return await bot.send_photo(
+                result = await bot.send_photo(
                     msg.chat.id,
                     photo,
                     caption=text,
                     reply_markup=reply_markup,
                     parse_mode="Markdown",
                 )
+            else:
+                raise ValueError("no photo")
         except Exception:
-            pass
+            result = await bot.send_message(
+                msg.chat.id,
+                text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+            )
 
-        return await bot.send_message(
-            msg.chat.id,
-            text,
-            reply_markup=reply_markup,
-            parse_mode="Markdown",
-        )
+        # Сохраняем ID нового навигационного сообщения
+        if db is not None and result is not None:
+            try:
+                await db.set_last_message_id(
+                    uid, "__nav__", "__nav__", result.message_id
+                )
+            except Exception:
+                pass
+
+        return result
 
     # Бот недоступен (тестовый режим или call.message без bot) —
     # используем edit_text на том же сообщении
@@ -200,6 +238,43 @@ async def _send_nav_photo(
         return msg
     except Exception:
         return None
+
+
+# ── Сводка активного мониторинга ──────────────────────────────
+
+
+def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
+    """Формирует текстовую сводку активного мониторинга."""
+    if not monitoring:
+        return ""
+
+    lines = ["\n📊 **Активный мониторинг:**"]
+
+    for p_id, doctors in monitoring.items():
+        p_info = patients.get(p_id, {})
+        p_name = p_info.get("alias") or p_info.get("fio", "Пациент")
+        lines.append(f"\n👤 {p_name}")
+
+        if not doctors:
+            continue
+
+        sorted_docs = sorted(
+            doctors.items(),
+            key=lambda x: x[1].get("name", "") if isinstance(x[1], dict) else str(x[1]),
+        )
+        for i, (d_id, d_info) in enumerate(sorted_docs):
+            is_last = i == len(sorted_docs) - 1
+            prefix = "  ┗" if is_last else "  ┣"
+            if isinstance(d_info, dict):
+                d_name = shorten_fio(d_info.get("name", "Врач"))
+                d_spec = shorten_specialty(d_info.get("specialty", ""))
+            else:
+                d_name = str(d_info)
+                d_spec = ""
+            spec_part = f" ({d_spec})" if d_spec else ""
+            lines.append(f"{prefix} 🧑‍⚕️ {d_name}{spec_part}")
+
+    return "\n".join(lines)
 
 
 # ── Хендлеры ──────────────────────────────────────────────────
@@ -216,10 +291,14 @@ async def cmd_status(message: Message, db: DatabaseManager):
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, db: DatabaseManager):
+async def cmd_start(message: Message, db: DatabaseManager, bot: Bot):
     """Команда /start — приветствие с изображением-заголовком patient_select."""
     uid = str(message.from_user.id) if message.from_user else "unknown"
     user_data = await db.get_user_data(uid)
+
+    # Удаляем все предыдущие сообщения бота из чата
+    await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
+    await db.update_user(uid, {"last_messages": {}})
 
     if not user_data.get("patients"):
         text = (
@@ -229,23 +308,38 @@ async def cmd_start(message: Message, db: DatabaseManager):
         reply_markup = get_patient_selection({}, {})
         parse_mode = None
     else:
-        text = "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга"
+        summary = build_monitoring_summary(
+            user_data["patients"], user_data["monitoring"]
+        )
+        text = (
+            "📋 **Ваши пациенты:**\n---\n"
+            "Выберите пациента для настройки мониторинга" + summary
+        )
         reply_markup = get_patient_selection(
             user_data["patients"], user_data["monitoring"]
         )
         parse_mode = "Markdown"
 
     photo_path = get_nav_image_path("patient")
+    result_msg: Message | None = None
     try:
         if photo_path is not None:
             photo = FSInputFile(photo_path)
-            await message.answer_photo(
+            result_msg = await message.answer_photo(
                 photo, caption=text, reply_markup=reply_markup, parse_mode=parse_mode
             )
         else:
-            await message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
+            result_msg = await message.answer(
+                text, reply_markup=reply_markup, parse_mode=parse_mode
+            )
     except Exception:
-        await message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
+        result_msg = await message.answer(
+            text, reply_markup=reply_markup, parse_mode=parse_mode
+        )
+
+    # Сохраняем ID нового навигационного сообщения
+    if result_msg is not None:
+        await db.set_last_message_id(uid, "__nav__", "__nav__", result_msg.message_id)
 
 
 @router.callback_query(F.data == "back_to_main")
@@ -263,12 +357,18 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
         )
         reply_markup = get_patient_selection({}, {})
     else:
-        text = "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга"
+        summary = build_monitoring_summary(
+            user_data["patients"], user_data["monitoring"]
+        )
+        text = (
+            "📋 **Ваши пациенты:**\n---\n"
+            "Выберите пациента для настройки мониторинга" + summary
+        )
         reply_markup = get_patient_selection(
             user_data["patients"], user_data["monitoring"]
         )
 
-    await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup)
+    await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup, db=db)
 
 
 @router.callback_query(F.data.startswith("sel_p_"))
@@ -298,6 +398,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
                 monitoring=monitoring,
                 clinics_data=clinics_data,
             ),
+            db=db,
         )
 
 
@@ -347,6 +448,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
                 clinics_data=clinics_data,
                 city_idx=idx_or_all,
             ),
+            db=db,
         )
 
 
@@ -373,6 +475,7 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
                 monitoring=user_data.get("monitoring"),
                 clinics_data=clinics_data,
             ),
+            db=db,
         )
 
 
@@ -425,6 +528,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
                 clinics_data=clinics_data,
                 city_idx=city_idx,
             ),
+            db=db,
         )
 
 
@@ -487,6 +591,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
                 p_info.get("bday", ""),
                 city_idx,
             ),
+            db=db,
         )
 
 
@@ -558,6 +663,7 @@ async def toggle_doctor(
                     p_info.get("bday", ""),
                     city_idx,
                 ),
+                db=db,
             )
         return
 
@@ -584,9 +690,17 @@ async def toggle_doctor(
 
     has_slots = bool(slots)
     status_text = "✅ есть номерки!" if has_slots else "Пока номерков нет 🤷‍♂️"
-    slots_display = (
-        "\n".join(slots) if slots else "Как только появятся, я сразу дам знать!"
-    )
+
+    if has_slots and slots:
+        slot_lines = format_slots(
+            slots,
+            detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
+            compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
+        )
+        slots_display = "\n".join(slot_lines)
+    else:
+        slots_display = "Как только появятся, я сразу дам знать!"
+
     link = (
         "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
     )
@@ -618,6 +732,33 @@ async def toggle_doctor(
 
     # Сохраняем message_id в базу для будущих обновлений
     await db.set_last_message_id(uid, p_id, d_id, result_msg.message_id)
+
+    # Обновляем клавиатуру выбора врачей (галочка + кнопка сброса клиники)
+    city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
+    clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+    nav_type_map = {
+        "adult": "doctor_adult",
+        "child": "doctor_child",
+        "all": "doctor_dentist",
+    }
+    nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            bot,
+            call.message,
+            nav_type,
+            f"⚙️ Мониторинг для {d_name_display} включен.",
+            get_doctor_selection(
+                p_id,
+                clinic_id,
+                doctors_list,
+                monitored,
+                p_info.get("bday", ""),
+                city_idx,
+            ),
+            db=db,
+        )
 
     await call.answer("Готово!")
 
@@ -688,6 +829,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                     clinics_data=clinics_data,
                     city_idx=city_idx,
                 ),
+                db=db,
             )
         else:
             # Остаёмся на списке городов
@@ -704,6 +846,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                     monitoring=user_data.get("monitoring"),
                     clinics_data=clinics_data,
                 ),
+                db=db,
             )
 
 
@@ -773,6 +916,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
                 p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                 city_idx,
             ),
+            db=db,
         )
 
 
@@ -802,6 +946,7 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
             "patient",
             "✅ Весь мониторинг остановлен.",
             get_patient_selection(user_data["patients"], user_data["monitoring"]),
+            db=db,
         )
 
 
@@ -857,4 +1002,5 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
             "patient",
             text,
             reply_markup,
+            db=db,
         )

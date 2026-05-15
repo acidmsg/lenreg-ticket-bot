@@ -1,49 +1,75 @@
 # SESSION_LOG.md
 
-## 2026-05-14 (T4: Изображения в навигационных сообщениях + slot_available)
+## 2026-05-15 (T6: Форматирование слотов + исправление чекбоксов)
 
 ### Задача
 
-Добавить изображения-заголовки во все навигационные сообщения (с инлайн-клавиатурами): выбор пациента, клиники, врача, сброс мониторинга, удаление пациента. Также переименован файл `99b9f6c6-...png` → `slot_available.png` и перенесён в актуальный комплект.
+Исправить 4 проблемы, выявленные пользователем:
+
+1. Нестабильная работа чекбоксов (✅/▫️) на кнопках выбора врачей
+2. После выбора врача для мониторинга не появляется кнопка «Сбросить мониторинг этой клиники»
+3. Слишком длинные уведомления при найденных слотах (>15)
+4. Слоты должны быть отсортированы по дате и времени (восходящий порядок)
 
 ### Выполненные задачи
 
-- Добавлен хелпер [`_send_nav_photo()`](src/handlers/common.py:151) в [`src/handlers/common.py`](src/handlers/common.py):
-  - Принимает `Bot | None` — если бот доступен, удаляет предыдущее сообщение и отправляет новое через `send_photo()` с `caption` и `reply_markup`
-  - При отсутствии бота (тестовый режим) — fallback на `edit_text()` с тем же `reply_markup`
-  - При отсутствии файла изображения — fallback на `send_message()` без фото
-- Изменены все навигационные хендлеры для использования `_send_nav_photo()`:
-  - [`cmd_start()`](src/handlers/common.py:219) — `patient_select.png` через `answer_photo` с fallback на `answer`
-  - [`back_to_main()`](src/handlers/common.py:252) — `patient_select.png`
-  - [`select_patient()`](src/handlers/common.py:274) — `clinic_select.png`
-  - [`select_city()`](src/handlers/common.py:305) — `clinic_select.png`
-  - [`back_to_cities()`](src/handlers/common.py:353) — `clinic_select.png`
-  - [`back_to_clinics()`](src/handlers/common.py:379) — `clinic_select.png`
-  - [`select_clinic()`](src/handlers/common.py:431) — `doctor_*.png` (определяется по типу клиники через `_get_clinic_type_from_db()`)
-  - [`toggle_doctor()`](src/handlers/common.py:493) disable-путь — `doctor_*.png`
-  - [`stop_patient_monitoring()`](src/handlers/common.py:625) — `clinic_select.png`
-  - [`stop_clinic_monitoring()`](src/handlers/common.py:710) — `doctor_*.png`
-  - [`stop_all_monitoring()`](src/handlers/common.py:779) — `patient_select.png`
-  - [`handle_delete_patient()`](src/handlers/common.py:814) — `patient_select.png`
-- Переименован файл `99b9f6c6-48f6-44f0-8ef7-198e3d571e1d.png` → `slot_available.png`
-- Обновлён [`src/assets/README.md`](src/assets/README.md): `slot_available.png` перенесён из «будущих состояний» в «текущий комплект» (позиция #7)
-- Обновлены тесты [`tests/test_handlers_common.py`](tests/test_handlers_common.py):
-  - Добавлен `bot.send_photo = AsyncMock()` в `make_mock_bot()`
-  - Тесты `test_disable_monitoring`, `test_stop_all_clears_monitoring`, `test_stop_patient_city_context`, `test_stop_patient_clinic_context`, `test_delete_yes_with_other_patients`, `test_delete_yes_last_patient_shows_welcome` — заменены ассерты `call.message.edit_text` на `bot.send_photo` / `mock_bot.send_photo`
+- **Диагностика:** Проблемы 1 и 2 — общая корневая причина: [`toggle_doctor()`](src/handlers/common.py:599) при включении мониторинга не обновлял клавиатуру, оставляя кнопку без чекбокса и не показывая кнопку сброса клиники.
+
+- **Исправление клавиатуры при включении** ([`toggle_doctor()`](src/handlers/common.py:714)):
+  После успешного включения мониторинга добавлен вызов `_send_nav_photo()` с обновлённой клавиатурой `get_doctor_selection()`, которая отражает новое состояние мониторинга (✅) и показывает кнопку сброса.
+
+- **Исправление битой сигнатуры** [`_send_nav_photo()`](src/handlers/common.py:963):
+  В [`handle_delete_patient()`](src/handlers/common.py:960) пропал аргумент `text` при вызове `_send_nav_photo`. Восстановлен.
+
+- **Новая функция** [`format_slots()`](src/utils/helpers.py:191) — Вариант M:
+  - Группировка по дате с днём недели: `📆 Пн 19.05 — 6 шт.`
+  - Детальный формат: времена через запятую `─ 09:00, 09:15, 10:20`
+  - Компактный формат: диапазон `с 09:00 до 10:50`
+  - Пороги: `detail_threshold` (времён на дату, по умолчанию 10) и `compact_threshold` (всего слотов, по умолчанию 15)
+  - Поддержка префикса `[NEW]` — отображается как 🆕 в выводе
+
+- **Вспомогательные функции** ([`src/utils/helpers.py`](src/utils/helpers.py)):
+  - [`_parse_slot()`](src/utils/helpers.py:170) — парсинг `YYYY-MM-DD в HH:MM` в `(datetime, time)`, игнорирует префикс `[NEW]`
+  - [`_slot_sort_key()`](src/utils/helpers.py:186) — ключ сортировки по дате+времени
+  - [`_WEEKDAYS`](src/utils/helpers.py:168) — список сокращений дней недели
+
+- **Конфигурация** ([`src/config.py`](src/config.py)):
+  - `SLOT_DETAIL_THRESHOLD=10` — макс. слотов на дату для детального формата
+  - `SLOT_COMPACT_THRESHOLD=15` — макс. всего слотов для детального формата
+  - Синхронизация через `load_config_from_db()`
+
+- **Сортировка в API** ([`src/api/zdrav_client.py`](src/api/zdrav_client.py:201)): `slots.sort()` в `check_slots()`.
+
+- **Мониторинг** ([`src/services/monitor.py`](src/services/monitor.py)):
+  - Использование `format_slots()` с порогами из конфига вместо сырого вывода
+  - Импорт `format_slots`, `shorten_fio`, `shorten_specialty`
+
+- **База данных** ([`src/database/database.py`](src/database/database.py)):
+  - `slot_detail_threshold` и `slot_compact_threshold` добавлены в `seed_config_from_defaults()`
+
+- **Конфигурация окружения** ([`.env.example`](.env.example)):
+  - `SLOT_DETAIL_THRESHOLD=10`
+  - `SLOT_COMPACT_THRESHOLD=15`
+
+- **Тесты** ([`tests/test_monitor_full.py`](tests/test_monitor_full.py)):
+  - [`test_new_slots_marked_in_notification()`](tests/test_monitor_full.py:520) — обновлён: проверка `🆕` вместо `[NEW]`, проверка `11:00` вместо сырой строки
 
 ### Изменённые файлы
 
-| Файл                                                                           | Действие                    |
-| ------------------------------------------------------------------------------ | --------------------------- |
-| [`src/handlers/common.py`](src/handlers/common.py)                             | Изменён (полная перезапись) |
-| [`tests/test_handlers_common.py`](tests/test_handlers_common.py)               | Изменён                     |
-| [`src/assets/README.md`](src/assets/README.md)                                 | Изменён                     |
-| [`src/assets/images/slot_available.png`](src/assets/images/slot_available.png) | Переименован                |
+| Файл                                                       | Действие                |
+| ---------------------------------------------------------- | ----------------------- |
+| [`src/config.py`](src/config.py)                           | Изменён (+6 строк)      |
+| [`src/utils/helpers.py`](src/utils/helpers.py)             | Изменён (+110/-3 строк) |
+| [`src/handlers/common.py`](src/handlers/common.py)         | Изменён (+30/-5 строк)  |
+| [`src/services/monitor.py`](src/services/monitor.py)       | Изменён (+8/-5 строк)   |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | Изменён (+1 строка)     |
+| [`src/database/database.py`](src/database/database.py)     | Изменён (+2 строки)     |
+| [`.env.example`](.env.example)                             | Изменён (+2 строки)     |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py) | Изменён (+2/-2)         |
 
 ### Результаты проверок
 
-| Инструмент | Результат                              |
-| ---------- | -------------------------------------- |
-| ruff       | ✅ All checks passed!                  |
-| mypy       | ✅ Success: no issues found (30 files) |
-| pytest     | ✅ 185 passed, 0 failed                |
+| Инструмент | Результат               |
+| ---------- | ----------------------- |
+| ruff       | ✅ All checks passed!   |
+| pytest     | ✅ 185 passed, 0 failed |

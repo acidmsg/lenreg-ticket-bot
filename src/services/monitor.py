@@ -12,7 +12,7 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.services.healthcheck import _safe_set
 from src.utils.cache import swap_cache_key
-from src.utils.helpers import shorten_fio, shorten_specialty
+from src.utils.helpers import format_slots, shorten_fio, shorten_specialty
 
 
 async def _send_notification(
@@ -220,10 +220,15 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 "Мы уведомим вас, когда появятся."
                             )
                         else:
+                            slot_lines = format_slots(
+                                display_slots,
+                                detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
+                                compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
+                            )
                             msg = (
                                 f"{spec_text}🧑‍⚕️ {d_name_display}\n"
                                 f"👤 {p_label}\n{header}\n\n"
-                                + "\n".join(display_slots)
+                                + "\n".join(slot_lines)
                                 + link
                             )
 

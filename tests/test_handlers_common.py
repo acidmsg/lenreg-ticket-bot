@@ -61,7 +61,10 @@ class TestCmdStart:
         from src.handlers.common import cmd_start
 
         msg = make_message("/start")
-        await cmd_start(msg, db=db_manager)
+        bot = make_mock_bot()
+        # Мокаем message_id для сохранения в БД (строка 337)
+        msg.answer.return_value.message_id = 999
+        await cmd_start(msg, db=db_manager, bot=bot)
 
         msg.answer.assert_called_once()
         # Текст передаётся позиционно: message.answer("text", reply_markup=...)
@@ -79,7 +82,10 @@ class TestCmdStart:
             {"fio": "Иванов Иван Иванович", "bday": "1990-01-01", "alias": None},
         )
         msg = make_message("/start")
-        await cmd_start(msg, db=db_manager)
+        bot = make_mock_bot()
+        # Мокаем message_id для сохранения в БД (строка 337)
+        msg.answer.return_value.message_id = 999
+        await cmd_start(msg, db=db_manager, bot=bot)
 
         msg.answer.assert_called_once()
         text = msg.answer.call_args[0][0]
@@ -92,8 +98,11 @@ class TestCmdStart:
 
         msg = make_message("/start")
         object.__setattr__(msg, "from_user", None)
+        bot = make_mock_bot()
+        # Мокаем message_id для сохранения в БД (строка 337)
+        msg.answer.return_value.message_id = 999
 
-        await cmd_start(msg, db=db_manager)
+        await cmd_start(msg, db=db_manager, bot=bot)
 
         # from_user=None → uid="unknown" → нет пациентов → приветствие
         msg.answer.assert_called_once()

@@ -199,6 +199,8 @@ class ZdravClient:
                                 t = s.date_start.time
                                 if t:
                                     slots.append(f"{date} в {t}")
+                        # Сортируем слоты по дате и времени (п.4)
+                        slots.sort()
                         if not slots:
                             logger.info(f"API returned 200 but no slots for {doc_id}")
                         return slots

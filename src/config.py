@@ -11,6 +11,8 @@ CONFIG_KEY_MESSAGE_TTL_SECONDS = "message_ttl_seconds"
 CONFIG_KEY_CLEANUP_INTERVAL = "cleanup_interval"
 CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE = "slot_threshold_absolute"
 CONFIG_KEY_SLOT_THRESHOLD_PERCENTAGE = "slot_threshold_percentage"
+CONFIG_KEY_SLOT_DETAIL_THRESHOLD = "slot_detail_threshold"
+CONFIG_KEY_SLOT_COMPACT_THRESHOLD = "slot_compact_threshold"
 CONFIG_KEY_DISCOVERY_PATIENT_ADULT = "discovery_patient_adult"
 CONFIG_KEY_DISCOVERY_PATIENT_CHILD = "discovery_patient_child"
 CONFIG_KEY_DEFAULT_CLINIC_ID = "default_clinic_id"
@@ -44,6 +46,12 @@ class Settings(BaseSettings):
     # Пороги для уведомлений об уменьшении номерков
     SLOT_THRESHOLD_ABSOLUTE: int = 5
     SLOT_THRESHOLD_PERCENTAGE: float = 0.25
+
+    # Пороги для форматирования списка номерков
+    # Если слотов на одну дату > этого порога — показываем диапазон (с HH:MM до HH:MM)
+    SLOT_DETAIL_THRESHOLD: int = 10
+    # Если всего слотов > этого порога — показываем компактно по датам
+    SLOT_COMPACT_THRESHOLD: int = 15
 
     # ID пациентов для discovery (используются для получения списка специальностей)
     DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
@@ -111,6 +119,8 @@ async def load_config_from_db(database):
             CONFIG_KEY_CLEANUP_INTERVAL: ("CLEANUP_INTERVAL", int),
             CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE: ("SLOT_THRESHOLD_ABSOLUTE", int),
             CONFIG_KEY_SLOT_THRESHOLD_PERCENTAGE: ("SLOT_THRESHOLD_PERCENTAGE", float),
+            CONFIG_KEY_SLOT_DETAIL_THRESHOLD: ("SLOT_DETAIL_THRESHOLD", int),
+            CONFIG_KEY_SLOT_COMPACT_THRESHOLD: ("SLOT_COMPACT_THRESHOLD", int),
             CONFIG_KEY_DISCOVERY_PATIENT_ADULT: ("DISCOVERY_PATIENT_ID_ADULT", str),
             CONFIG_KEY_DISCOVERY_PATIENT_CHILD: ("DISCOVERY_PATIENT_ID_CHILD", str),
             CONFIG_KEY_DEFAULT_CLINIC_ID: ("DEFAULT_CLINIC_ID", str),

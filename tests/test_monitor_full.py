@@ -534,5 +534,5 @@ class TestMonitorLoop:
 
         notify_mock.assert_called_once()
         call_args = notify_mock.call_args[0]
-        assert "[NEW]" in call_args[2]
-        assert "2026-05-11 в 11:00" in call_args[2]
+        assert "🆕" in call_args[2]
+        assert "11:00" in call_args[2]

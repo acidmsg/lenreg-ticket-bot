@@ -3,11 +3,15 @@
 """
 
 import re
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, time
 from typing import Optional
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
+
+# ── Дни недели (сокращения для отображения) ─────────────────────
+_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 
 async def load_specialty_aliases_from_db(db):
@@ -158,3 +162,113 @@ def extract_msg_id(value) -> Optional[int]:
     if isinstance(value, int):
         return value
     return None
+
+
+# ── Форматирование списка номерков ────────────────────────────────
+
+
+def _parse_slot(slot: str) -> tuple[datetime, time]:
+    """Парсит строку слота 'YYYY-MM-DD в HH:MM' в (date, time).
+
+    Игнорирует префикс '[NEW] ' если присутствует (добавляется _classify_slot_change).
+    """
+    try:
+        # Отбрасываем префикс [NEW] если есть
+        clean = slot[6:] if slot.startswith("[NEW] ") else slot
+        parts = clean.split(" в ")
+        dt = datetime.strptime(parts[0].strip(), "%Y-%m-%d")
+        t = time.fromisoformat(parts[1].strip())
+        return dt, t
+    except (ValueError, IndexError):
+        return datetime(2000, 1, 1), time(0, 0)
+
+
+def _slot_sort_key(slot: str) -> tuple[datetime, time]:
+    """Ключ сортировки для слота по дате и времени."""
+    return _parse_slot(slot)
+
+
+def format_slots(
+    slots: list[str],
+    detail_threshold: int = 10,
+    compact_threshold: int = 15,
+) -> list[str]:
+    """
+    Форматирует список слотов 'YYYY-MM-DD в HH:MM' в читаемый вид.
+
+    Поддерживает префикс '[NEW] ' для отметки новых слотов (отображается как 🆕).
+
+    Если всего слотов <= compact_threshold — детальный формат (Вариант M):
+        📆 Пн 19.05 — 6 шт.
+           ─ 09:00, 🆕 09:15, 10:20
+
+    Если > compact_threshold — компактный формат:
+        📆 Пн 19.05 — 6 шт. с 09:00 до 10:50
+
+    Слоты на конкретную дату длиннее detail_threshold — также диапазон.
+
+    Возвращает список строк (без начальных/конечных переносов).
+    """
+    if not slots:
+        return []
+
+    # Очищаем префиксы [NEW] и отслеживаем новые слоты
+    _new_prefix = "[NEW] "
+    cleaned: list[str] = []
+    new_set: set[str] = set()  # чистые строки, которые были промаркированы как NEW
+    for s in slots:
+        if s.startswith(_new_prefix):
+            clean = s[len(_new_prefix) :]
+            cleaned.append(clean)
+            new_set.add(clean)
+        else:
+            cleaned.append(s)
+
+    # Сортируем слоты по дате и времени
+    sorted_slots = sorted(cleaned, key=_slot_sort_key)
+
+    # Группируем по дате, сохраняя флаг is_new для каждого времени
+    by_date: dict[datetime, list[tuple[time, bool]]] = defaultdict(list)
+    for slot in sorted_slots:
+        dt, t = _parse_slot(slot)
+        by_date[dt].append((t, slot in new_set))
+
+    total = sum(len(times) for times in by_date.values())
+    lines: list[str] = []
+
+    for date_obj in sorted(by_date.keys()):
+        time_entries = by_date[date_obj]  # list of (time, is_new)
+        times = [entry[0] for entry in time_entries]
+        cnt = len(times)
+        wd = _WEEKDAYS[date_obj.weekday()]
+        date_fmt = date_obj.strftime("%d.%m")
+
+        if total <= compact_threshold and cnt <= detail_threshold:
+            # Детальный формат — показываем времена, новые помечаем 🆕
+            lines.append(f"📆 {wd} {date_fmt} — {cnt} шт.")
+            time_strs: list[str] = []
+            for t, is_new in time_entries:
+                ts = f"{t:%H:%M}"
+                if is_new:
+                    ts = f"🆕 {ts}"
+                time_strs.append(ts)
+            chunk_size = 6
+            for i in range(0, len(time_strs), chunk_size):
+                chunk = time_strs[i : i + chunk_size]
+                prefix = "   ─ " if i == 0 else "     "
+                lines.append(prefix + ", ".join(chunk))
+        else:
+            # Компактный формат (диапазон) — 🆕 если есть хотя бы один новый
+            t_min = times[0]
+            t_max = times[-1]
+            new_count = sum(1 for _, is_new in time_entries if is_new)
+            new_mark = " 🆕" if new_count > 0 else ""
+            if cnt == 1:
+                lines.append(f"📆 {wd} {date_fmt} — 1 шт. ({t_min:%H:%M}){new_mark}")
+            else:
+                lines.append(
+                    f"📆 {wd} {date_fmt} — {cnt} шт."
+                    f" с {t_min:%H:%M} до {t_max:%H:%M}{new_mark}"
+                )
+
+    return lines

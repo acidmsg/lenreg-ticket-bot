@@ -645,6 +645,8 @@ class Database:
                 "cleanup_interval": str(s.CLEANUP_INTERVAL),
                 "slot_threshold_absolute": str(s.SLOT_THRESHOLD_ABSOLUTE),
                 "slot_threshold_percentage": str(s.SLOT_THRESHOLD_PERCENTAGE),
+                "slot_detail_threshold": str(s.SLOT_DETAIL_THRESHOLD),
+                "slot_compact_threshold": str(s.SLOT_COMPACT_THRESHOLD),
                 "discovery_patient_adult": str(s.DISCOVERY_PATIENT_ID_ADULT),
                 "discovery_patient_child": str(s.DISCOVERY_PATIENT_ID_CHILD),
                 "default_clinic_id": str(s.DEFAULT_CLINIC_ID),
