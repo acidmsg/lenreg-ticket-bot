@@ -28,5 +28,6 @@
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"
     }
-  }
+  },
+  "markdown.validate.enabled": false
 }

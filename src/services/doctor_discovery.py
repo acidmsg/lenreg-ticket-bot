@@ -7,7 +7,6 @@ from loguru import logger
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
-from src.database.doctor_manager import DoctorManager
 
 
 async def fetch_specialties(
@@ -47,87 +46,88 @@ async def _get_clinic_type_from_db(database: "Database", clinic_id: str) -> str:
 
 async def discovery_loop(
     api: ZdravClient,
-    doctor_manager: DoctorManager,
-    clinic_id: str,
+    database: Database,
     patient_id_adult: str,
     patient_id_child: str,
 ):
-    logger.info(f"Цикл Discovery врачей для поликлиники {clinic_id} запущен")
+    """Цикл Discovery врачей — итерирует все активные clinic_ids из БД."""
+
+    logger.info("Цикл Discovery врачей запущен (агрегированный)")
 
     while True:
-        try:
-            all_doctors_with_specialty = []
+        clinic_ids = await database.get_active_clinic_ids()
+        if not clinic_ids:
+            logger.warning("Нет активных клиник для discovery, ждём...")
+            await asyncio.sleep(settings.DISCOVERY_INTERVAL)
+            continue
 
-            db = doctor_manager._db
+        for clinic_id in clinic_ids:
+            try:
+                all_doctors_with_specialty = []
 
-            # Получаем тип клиники (из БД)
-            clinic_type = await _get_clinic_type_from_db(db, clinic_id)
+                cid = str(clinic_id)
 
-            # Сначала проверяем per-клиника discovery пациентов из БД
-            clinic_patient_adult, clinic_patient_child = "", ""
-            if db:
+                # Получаем тип клиники (из БД)
+                clinic_type = await _get_clinic_type_from_db(database, cid)
+
+                # Сначала проверяем per-клиника discovery пациентов из БД
+                clinic_patient_adult, clinic_patient_child = "", ""
                 (
                     clinic_patient_adult,
                     clinic_patient_child,
-                ) = await db.get_clinic_discovery_patients(clinic_id)
+                ) = await database.get_clinic_discovery_patients(cid)
 
-            # Определяем, какие patient_id использовать для данной клиники
-            # Приоритет: per-клиника из БД > глобальные из settings
-            if clinic_type == "child":
-                patient_ids = [clinic_patient_child or patient_id_child]
-            elif clinic_type == "all":
-                patient_ids = [
-                    clinic_patient_adult or patient_id_adult,
-                    clinic_patient_child or patient_id_child,
-                ]
-            else:
-                patient_ids = [clinic_patient_adult or patient_id_adult]
+                # Определяем, какие patient_id использовать для данной клиники
+                # Приоритет: per-клиника из БД > глобальные из settings
+                if clinic_type == "child":
+                    patient_ids = [clinic_patient_child or patient_id_child]
+                elif clinic_type == "all":
+                    patient_ids = [
+                        clinic_patient_adult or patient_id_adult,
+                        clinic_patient_child or patient_id_child,
+                    ]
+                else:
+                    patient_ids = [clinic_patient_adult or patient_id_adult]
 
-            for current_patient_id in patient_ids:
-                specialties_data = await fetch_specialties(
-                    api, current_patient_id, clinic_id, limiter=api.limiter_discovery
-                )
-
-                for specialty_info in specialties_data:
-                    spec_id = specialty_info["IdSpesiality"]
-                    spec_name = specialty_info["NameSpesiality"]
-
-                    doctors = await api.fetch_all_doctors(
-                        specialty_id=spec_id,
-                        patient_id=current_patient_id,
-                        clinic_id=str(clinic_id),
-                        limiter=api.limiter_discovery,
+                for current_patient_id in patient_ids:
+                    specialties_data = await fetch_specialties(
+                        api, current_patient_id, cid, limiter=api.limiter_discovery
                     )
-                    if doctors:
-                        for doc in doctors:
-                            doc["SpesialityName"] = (
-                                spec_name  # Добавляем имя специальности к каждому врачу
-                            )
-                        all_doctors_with_specialty.extend(doctors)
-                    await asyncio.sleep(
-                        random.uniform(1.0, 3.0)
-                    )  # Случайная пауза между запросами специальностей
 
-            if all_doctors_with_specialty:
-                await doctor_manager.merge_doctors(
-                    str(clinic_id), all_doctors_with_specialty
-                )
-                logger.info(
-                    "Обновлен список врачей для %s: всего %s записей",
-                    clinic_id,
-                    len(all_doctors_with_specialty),
+                    for specialty_info in specialties_data:
+                        spec_id = specialty_info["IdSpesiality"]
+                        spec_name = specialty_info["NameSpesiality"]
+
+                        doctors = await api.fetch_all_doctors(
+                            specialty_id=spec_id,
+                            patient_id=current_patient_id,
+                            clinic_id=cid,
+                            limiter=api.limiter_discovery,
+                        )
+                        if doctors:
+                            for doc in doctors:
+                                doc["SpesialityName"] = spec_name
+                            all_doctors_with_specialty.extend(doctors)
+                        await asyncio.sleep(random.uniform(1.0, 3.0))
+
+                if all_doctors_with_specialty:
+                    await database.merge_doctors(cid, all_doctors_with_specialty)
+                    logger.info(
+                        "Обновлен список врачей для %s: всего %s записей",
+                        cid,
+                        len(all_doctors_with_specialty),
+                    )
+
+            except asyncio.CancelledError:
+                logger.info("Цикл discovery остановлен (cancelled)")
+                return
+            except Exception as e:
+                logger.error(
+                    f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
                 )
 
-            jitter = random.uniform(0.8, 1.2)
-            await asyncio.sleep(settings.DISCOVERY_INTERVAL * jitter)
-        except asyncio.CancelledError:
-            logger.info(f"Цикл discovery для {clinic_id} остановлен (cancelled)")
-            break
-        except Exception as e:
-            logger.error(
-                f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
-            )
-            await asyncio.sleep(300)
+        jitter = random.uniform(0.8, 1.2)
+        await asyncio.sleep(settings.DISCOVERY_INTERVAL * jitter)
 
 
 async def sync_clinic_names(api: ZdravClient, database: Database):

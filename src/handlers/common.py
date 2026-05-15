@@ -32,6 +32,27 @@ router = Router()
 # (нужен для кнопки "Назад к клиникам" в списке врачей)
 _user_clinic_city_idx: dict[str, str] = {}  # key: f"{uid}_{p_id}_{clinic_id}"
 
+# Словарь соответствия типа клиники → ключ изображения навигации
+_CLINIC_NAV_TYPE_MAP: dict[str, str] = {
+    "adult": "doctor_adult",
+    "child": "doctor_child",
+    "all": "doctor_dentist",
+}
+
+
+def _decode_city_from_idx(idx_or_all: str, cities: list[str]) -> tuple[str | None, str]:
+    """Декодирует city_idx в название города и текстовую метку."""
+    selected_city: str | None = None
+    if idx_or_all != "all":
+        try:
+            idx = int(idx_or_all)
+            if 1 <= idx <= len(cities):
+                selected_city = cities[idx - 1]
+        except (ValueError, IndexError):
+            pass
+    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+    return selected_city, city_label
+
 
 # ── On-demand discovery врачей (когда БД пуста для этой клиники) ──
 
@@ -421,17 +442,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
     clinics_data = await db._db.get_active_clinics()
     cities = await db._db.get_distinct_cities()
 
-    # Раскодируем индекс → название города
-    selected_city = None
-    if idx_or_all != "all":
-        try:
-            idx = int(idx_or_all)
-            if 1 <= idx <= len(cities):
-                selected_city = cities[idx - 1]
-        except (ValueError, IndexError):
-            pass
-
-    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+    selected_city, city_label = _decode_city_from_idx(idx_or_all, cities)
 
     if isinstance(call.message, Message):
         await _send_nav_photo(
@@ -501,17 +512,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
     clinics_data = await db._db.get_active_clinics()
     cities = await db._db.get_distinct_cities()
 
-    # Раскодируем индекс → название города
-    selected_city = None
-    if city_idx != "all":
-        try:
-            idx = int(city_idx)
-            if 1 <= idx <= len(cities):
-                selected_city = cities[idx - 1]
-        except (ValueError, IndexError):
-            pass
-
-    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+    selected_city, city_label = _decode_city_from_idx(str(city_idx), cities)
 
     if isinstance(call.message, Message):
         await _send_nav_photo(
@@ -568,12 +569,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     # Определяем тип клиники для выбора изображения врача
     clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-    nav_type_map = {
-        "adult": "doctor_adult",
-        "child": "doctor_child",
-        "all": "doctor_dentist",
-    }
-    nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+    nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
 
     clinic_line = f"\n{clinic_name}" if clinic_name else ""
 
@@ -642,12 +638,7 @@ async def toggle_doctor(
 
         # Определяем nav_type для изображения врача
         clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-        nav_type_map = {
-            "adult": "doctor_adult",
-            "child": "doctor_child",
-            "all": "doctor_dentist",
-        }
-        nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+        nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
 
         if isinstance(call.message, Message):
             await _send_nav_photo(
@@ -736,12 +727,7 @@ async def toggle_doctor(
     # Обновляем клавиатуру выбора врачей (галочка + кнопка сброса клиники)
     city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
     clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-    nav_type_map = {
-        "adult": "doctor_adult",
-        "child": "doctor_child",
-        "all": "doctor_dentist",
-    }
-    nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+    nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
 
     if isinstance(call.message, Message):
         await _send_nav_photo(
@@ -806,14 +792,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
             cities = await db._db.get_distinct_cities()
             p_info = user_data.get("patients", {}).get(p_id, {})
 
-            selected_city = None
-            if city_idx != "all":
-                try:
-                    idx = int(city_idx)
-                    if 1 <= idx <= len(cities):
-                        selected_city = cities[idx - 1]
-                except (ValueError, IndexError):
-                    pass
+            selected_city, _ = _decode_city_from_idx(str(city_idx), cities)
 
             await _send_nav_photo(
                 bot,
@@ -896,12 +875,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
 
         # Определяем тип клиники для изображения врача
         clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-        nav_type_map = {
-            "adult": "doctor_adult",
-            "child": "doctor_child",
-            "all": "doctor_dentist",
-        }
-        nav_type = nav_type_map.get(clinic_type, "doctor_adult")
+        nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
 
         await _send_nav_photo(
             bot,
