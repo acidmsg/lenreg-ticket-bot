@@ -19,7 +19,6 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   │   ├── __init__.py
 │   │   ├── database.py                # SQLite-движок: соединение, таблицы, CRUD
 │   │   ├── manager.py                 # DatabaseManager — адаптер с in-memory кэшем
-│   │   ├── doctor_manager.py          # DoctorManager — кэш справочника врачей
 │   │   └── migrations.py             # Миграции схемы БД (versioned)
 │   ├── handlers/
 │   │   ├── __init__.py
@@ -53,7 +52,6 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── test_cache.py
 │   ├── test_database_manager.py
 │   ├── test_doctor_discovery.py
-│   ├── test_doctor_manager.py
 │   ├── test_keyboards.py
 │   ├── test_monitor_classify.py
 │   ├── test_monitor_full.py
@@ -102,7 +100,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 | `src/config.py`   | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                                               |
 | `src/main.py`     | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                                     |
 | `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                           |
-| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `DoctorManager` — кэш справочника врачей.                                                                       |
+| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями.                                                                                                                 |
 | `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                                           |
 | `src/assets/`     | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                         |
 | `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                    |
@@ -124,7 +122,6 @@ graph TD
     subgraph DB
         DB_CORE[src.database.database]
         DB_MGR[src.database.manager]
-        DB_DOC[src.database.doctor_manager]
         DB_MIG[src.database.migrations]
     end
 
@@ -167,7 +164,6 @@ graph TD
     CFG --> MW
 
     DB_CORE --> DB_MGR
-    DB_CORE --> DB_DOC
     DB_CORE --> DB_MIG
 
     CLIENT --> H_COMMON
@@ -183,9 +179,6 @@ graph TD
     DB_MGR --> SVC_HC
     DB_MGR --> SVC_CLN
     DB_MGR --> ENTRY
-
-    DB_DOC --> SVC_DISC
-    DB_DOC --> ENTRY
 
     SVC_DISC --> H_COMMON
     SVC_DISC --> ENTRY

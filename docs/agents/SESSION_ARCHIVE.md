@@ -1993,3 +1993,150 @@ ruff check src/ — All checks passed!
 | ---------- | ----------------------- |
 | ruff       | ✅ All checks passed!   |
 | pytest     | ✅ 185 passed, 0 failed |
+
+---
+
+## 2026-05-16 (T7: Оптимизация кода — рекомендации A, B, G, H)
+
+### Задача
+
+Применить 4 низкорисковые рекомендации из анализа [`docs/code_review_optimization.md`](docs/code_review_optimization.md),
+выполненного в этой же сессии.
+
+### Выполненные задачи
+
+- **A — Вынос `_CLINIC_NAV_TYPE_MAP` в константу модуля** ([`src/handlers/common.py`](src/handlers/common.py:36)):
+  Словарь `{"adult": "doctor_adult", "child": "doctor_child", "all": "doctor_dentist"}` дублировался
+  в 4 местах: `select_clinic`, `toggle_doctor` ON, `toggle_doctor` OFF, `stop_clinic_monitoring`.
+  Вынесен в модульную константу `_CLINIC_NAV_TYPE_MAP`. 4 инлайн-копии заменены ссылкой на константу.
+
+- **B — Хелпер `_decode_city_from_idx()`** ([`src/handlers/common.py`](src/handlers/common.py:43)):
+  Логика декодирования `city_idx` → `selected_city` + `city_label` дублировалась в 3 местах:
+  `select_city`, `back_to_clinics`, `stop_patient_monitoring`. Вынесена в функцию-хелпер.
+  3 дублирующих блока заменены вызовом хелпера.
+
+- **G — Агрегация clinic_ids внутри `discovery_loop`** ([`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:47)):
+  Ранее `_start_background_tasks` создавал N фоновых задач discovery (по одной на clinic_id),
+  каждая получала свой экземпляр `DoctorManager`. Теперь `discovery_loop` сам агрегирует все
+  активные `clinic_ids` через `database.get_active_clinic_ids()` и напрямую использует
+  `database.merge_doctors()`. `_start_background_tasks` создаёт 1 задачу discovery вместо N.
+  Зависимость от `DoctorManager` в discovery полностью удалена.
+
+- **H — Модуль `proxy_discovery.py`** ([`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py)):
+  Логика автоопределения прокси (76 строк в [`main.py`](src/main.py)) вынесена в отдельный модуль.
+  Функции: `_parse_proxy_host_port`, `_probe_host`, `_generate_docker_gateways`,
+  `discover_proxy`, `check_proxy_connectivity`. Исправлена ошибка ruff ASYNC109
+  (параметр `timeout` переименован в `connect_timeout`).
+
+### Изменённые файлы
+
+| Файл                                                                   | Действие                    |
+| ---------------------------------------------------------------------- | --------------------------- |
+| [`src/handlers/common.py`](src/handlers/common.py)                     | Изменён (+17/-39 строк)     |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py) | Изменён (-10 строк)         |
+| [`src/main.py`](src/main.py)                                           | Изменён (-111 строк)        |
+| [`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py)         | **Новый файл** (+130 строк) |
+| [`docs/code_review_optimization.md`](docs/code_review_optimization.md) | Изменён (актуализация)      |
+
+### Результаты проверок
+
+| Инструмент | Результат               |
+| ---------- | ----------------------- |
+| ruff       | ✅ All checks passed!   |
+| pytest     | ✅ 185 passed, 0 failed |
+
+---
+
+## 2026-05-16 (Коммит рефакторинга T7)
+
+### Задача
+
+Закоммитить все изменения, накопленные в сессии T7 (оптимизация кода — рекомендации A, B, G, H).
+
+### Выполненные задачи
+
+- **Git commit** `11516b0` — 9 files changed, 709 insertions, 625 deletions.
+- Pre-commit хуки: все пройдены (mixed-line-ending автофиксил `.vscode/settings.json` и `src/utils/proxy_discovery.py`).
+- Состав коммита:
+  - `src/utils/proxy_discovery.py` — новый модуль (+125 строк)
+  - `src/main.py` — удалены утилиты прокси, агрегированный discovery (−111 строк)
+  - `src/services/doctor_discovery.py` — `discovery_loop` с `Database` вместо `DoctorManager`
+  - `src/handlers/common.py` — дедупликация `_CLINIC_NAV_TYPE_MAP` и `_decode_city_from_idx()`
+  - `docs/code_review_optimization.md` — перенесён из корня в `docs/`
+  - `docs/agents/` — обновлены SESSION_LOG и SESSION_ARCHIVE
+
+### Изменённые файлы
+
+| Файл                                                                         | Действие          |
+| ---------------------------------------------------------------------------- | ----------------- |
+| [`src/utils/proxy_discovery.py`](../../src/utils/proxy_discovery.py)         | Создан            |
+| [`src/main.py`](../../src/main.py)                                           | Изменён           |
+| [`src/services/doctor_discovery.py`](../../src/services/doctor_discovery.py) | Изменён           |
+| [`src/handlers/common.py`](../../src/handlers/common.py)                     | Изменён           |
+| [`docs/code_review_optimization.md`](../code_review_optimization.md)         | Перенесён в docs/ |
+| [`docs/agents/SESSION_LOG.md`](SESSION_LOG.md)                               | Изменён           |
+| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                       | Изменён           |
+
+---
+
+## 2026-05-16 (Рефакторинг — находки B, C, E)
+
+### Задача
+
+Реализовать находки B, C, E из [`docs/code_review_optimization.md`](../code_review_optimization.md): вынесение дублирующегося кода в переиспользуемые хелперы.
+
+### Выполненные задачи
+
+- **Находка B** — [`_build_clinic_selection_kb()`](../../src/handlers/common.py:57): хелпер для сборки клавиатуры выбора клиники. Заменены 2 дублирующих вызова `get_clinic_selection(...)` в `select_city` и `back_to_clinics`. **Экономия: ~9 строк.**
+- **Находка C** — [`format_notification_text()`](../../src/utils/helpers.py:278): функция сборки текста уведомления о номерках. Заменены 2 дублирующих места: в [`monitor.py`](../../src/services/monitor.py:223) (обе ветки) и в [`common.py`](../../src/handlers/common.py:720). **Экономия: ~12 строк.**
+- **Находка E** — [`_send_or_update_message()`](../../src/handlers/common.py:199): низкоуровневый хелпер «удалить старое → отправить новое → сохранить msg_id». Использован в [`_send_nav_photo()`](../../src/handlers/common.py:249) и [`_send_notification()`](../../src/services/monitor.py:35). **Экономия: ~10 строк.**
+
+### Изменённые файлы
+
+| Файл                                                       | Действие                |
+| ---------------------------------------------------------- | ----------------------- |
+| [`src/handlers/common.py`](../../src/handlers/common.py)   | Изменён (+70/-50 строк) |
+| [`src/services/monitor.py`](../../src/services/monitor.py) | Изменён (+8/-18 строк)  |
+| [`src/utils/helpers.py`](../../src/utils/helpers.py)       | Изменён (+16 строк)     |
+
+### Результаты проверок
+
+| Инструмент | Результат             |
+| ---------- | --------------------- |
+| ruff       | ✅ All checks passed! |
+
+---
+
+## 2026-05-16 (Удаление DoctorManager — находка D)
+
+### Задача
+
+Удалить неиспользуемый класс `DoctorManager` и связанные тесты (находка D из [`docs/code_review_optimization.md`](../code_review_optimization.md)).
+
+### Выполненные задачи
+
+- **Удалён** [`src/database/doctor_manager.py`](../../src/database/doctor_manager.py) (32 строки) — класс `DoctorManager` не использовался в production-коде. `discovery_loop()` уже принимает `Database` напрямую.
+- **Обновлён** [`tests/conftest.py`](../../tests/conftest.py) — удалён импорт `DoctorManager` и фикстура `doctor_manager` (строки 14, 62–66).
+- **Обновлён** [`tests/test_doctor_discovery.py`](../../tests/test_doctor_discovery.py) — удалена неиспользуемая `_make_mock_doctor_manager()` (строки 34–39).
+- **Удалён** [`tests/test_doctor_manager.py`](../../tests/test_doctor_manager.py) — тестировать нечего.
+- `src/database/__init__.py` не требовал изменений (не экспортировал `DoctorManager`).
+- Grep по `src/` и `tests/`: 0 упоминаний `DoctorManager`.
+
+### Изменённые файлы
+
+| Файл                                                                     | Действие           |
+| ------------------------------------------------------------------------ | ------------------ |
+| [`src/database/doctor_manager.py`](../../src/database/doctor_manager.py) | Удалён             |
+| [`tests/test_doctor_manager.py`](../../tests/test_doctor_manager.py)     | Удалён             |
+| [`tests/conftest.py`](../../tests/conftest.py)                           | Изменён (-9 строк) |
+| [`tests/test_doctor_discovery.py`](../../tests/test_doctor_discovery.py) | Изменён (-6 строк) |
+
+### Экономия
+
+**~47 строк** (32 doctor_manager.py + 9 conftest.py + 6 test_doctor_discovery.py). Файл `test_doctor_manager.py` удалён целиком.
+
+### Результаты проверок
+
+| Инструмент | Результат             |
+| ---------- | --------------------- |
+| ruff       | ✅ All checks passed! |

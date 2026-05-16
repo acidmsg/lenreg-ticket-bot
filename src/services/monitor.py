@@ -3,16 +3,21 @@ import random
 from pathlib import Path
 
 from aiogram import Bot
-from aiogram.types import FSInputFile
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
 from src.assets.utils import get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.handlers.common import _send_or_update_message
 from src.services.healthcheck import _safe_set
 from src.utils.cache import swap_cache_key
-from src.utils.helpers import format_slots, shorten_fio, shorten_specialty
+from src.utils.helpers import (
+    format_notification_text,
+    format_slots,
+    shorten_fio,
+    shorten_specialty,
+)
 
 
 async def _send_notification(
@@ -31,24 +36,15 @@ async def _send_notification(
     для эффекта «приклеивания».
     """
     try:
-        # Для "приклеивания" (удаления старого сообщения) нужно хранить message_id
-        last_msg_id = await db.get_last_message_id(uid, p_id, d_id)
-
-        if last_msg_id:
-            try:
-                await bot.delete_message(uid, last_msg_id)
-            except Exception:
-                pass  # Сообщение могло быть удалено или устареть
-
-        if photo_path is not None:
-            photo = FSInputFile(photo_path)
-            new_msg = await bot.send_photo(
-                uid, photo, caption=text, parse_mode="Markdown"
-            )
-        else:
-            new_msg = await bot.send_message(uid, text, parse_mode="Markdown")
-
-        await db.set_last_message_id(uid, p_id, d_id, new_msg.message_id)
+        await _send_or_update_message(
+            bot,
+            int(uid),
+            db,
+            p_id,
+            d_id,
+            text,
+            photo_path=photo_path,
+        )
     except Exception as e:
         logger.error(f"Ошибка отправки уведомления: {e}")
 
@@ -214,10 +210,12 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
                         if display_slots is None:
                             # Номерки исчезли
-                            msg = (
-                                f"{spec_text}🧑‍⚕️ {d_name_display}\n"
-                                f"👤 {p_label}\n{header}\n\n"
-                                "Мы уведомим вас, когда появятся."
+                            msg = format_notification_text(
+                                p_label,
+                                d_name_display,
+                                spec_text,
+                                header,
+                                "Мы уведомим вас, когда появятся.",
                             )
                         else:
                             slot_lines = format_slots(
@@ -225,11 +223,13 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                                 detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
                                 compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
                             )
-                            msg = (
-                                f"{spec_text}🧑‍⚕️ {d_name_display}\n"
-                                f"👤 {p_label}\n{header}\n\n"
-                                + "\n".join(slot_lines)
-                                + link
+                            msg = format_notification_text(
+                                p_label,
+                                d_name_display,
+                                spec_text,
+                                header,
+                                "\n".join(slot_lines),
+                                link,
                             )
 
                         photo_path = get_notify_image_path(notify_type)

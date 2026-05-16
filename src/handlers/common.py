@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
@@ -22,6 +23,7 @@ from src.services.healthcheck import format_status_report
 from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
 from src.utils.helpers import (
     extract_msg_id,
+    format_notification_text,
     format_slots,
     shorten_fio,
     shorten_specialty,
@@ -52,6 +54,27 @@ def _decode_city_from_idx(idx_or_all: str, cities: list[str]) -> tuple[str | Non
             pass
     city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
     return selected_city, city_label
+
+
+def _build_clinic_selection_kb(
+    p_id: str,
+    bday: str,
+    selected_city: str | None,
+    monitoring: dict | None,
+    clinic_names: dict,
+    clinics_data: list,
+    city_idx: str,
+):
+    """Хелпер: собирает клавиатуру выбора клиники через get_clinic_selection."""
+    return get_clinic_selection(
+        p_id,
+        bday,
+        selected_city=selected_city,
+        monitoring=monitoring,
+        clinic_names=clinic_names,
+        clinics_data=clinics_data,
+        city_idx=city_idx,
+    )
 
 
 # ── On-demand discovery врачей (когда БД пуста для этой клиники) ──
@@ -171,6 +194,61 @@ async def _delete_cleanup_msg_entries(
     return changed
 
 
+async def _send_or_update_message(
+    bot: Bot,
+    chat_id: int,
+    db: DatabaseManager,
+    cache_key1: str,
+    cache_key2: str,
+    text: str,
+    photo_path: Path | None = None,
+    reply_markup=None,
+    old_message: Message | None = None,
+) -> Message | None:
+    """Низкоуровневый хелпер: удалить старое → отправить новое → сохранить msg_id.
+
+    Общий паттерн для _send_nav_photo и _send_notification:
+    1. Получить last_msg_id из БД и удалить предыдущее сообщение.
+    2. Опционально удалить old_message (call.message).
+    3. Отправить новое сообщение (с фото или без).
+    4. Сохранить message_id в БД.
+    """
+    uid = str(chat_id)
+
+    last_msg_id = await db.get_last_message_id(uid, cache_key1, cache_key2)
+    if last_msg_id:
+        try:
+            await bot.delete_message(chat_id, last_msg_id)
+        except Exception:
+            pass
+
+    if old_message is not None:
+        try:
+            await old_message.delete()
+        except Exception:
+            pass
+
+    if photo_path is not None:
+        photo = FSInputFile(photo_path)
+        new_msg = await bot.send_photo(
+            chat_id,
+            photo,
+            caption=text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
+        )
+    else:
+        new_msg = await bot.send_message(
+            chat_id,
+            text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
+        )
+
+    await db.set_last_message_id(uid, cache_key1, cache_key2, new_msg.message_id)
+    return new_msg
+
+
 # ── Хелпер для отправки навигационных сообщений с изображением-заголовком ──
 
 
@@ -188,30 +266,30 @@ async def _send_nav_photo(
     (хранится в last_messages["__nav__"]), отправляет новое и сохраняет
     его message_id. Без БД — поведение как раньше (edit_text fallback).
     """
-    nav_msg_id_to_delete: int | None = None
-    uid = str(msg.chat.id)
-
-    # Получаем ID предыдущего навигационного сообщения
-    if db is not None and bot is not None:
-        try:
-            nav_msg_id_to_delete = await db.get_last_message_id(
-                uid, "__nav__", "__nav__"
-            )
-        except Exception:
-            pass
-
     photo_path = get_nav_image_path(nav_type)
-
+    uid = str(msg.chat.id)
     result: Message | None = None
 
     if bot is not None:
-        # Удаляем предыдущее навигационное сообщение
-        if nav_msg_id_to_delete is not None:
+        if db is not None:
+            # Основной путь: используют хелпер для удаления/отправки/сохранения
             try:
-                await bot.delete_message(msg.chat.id, nav_msg_id_to_delete)
+                return await _send_or_update_message(
+                    bot,
+                    msg.chat.id,
+                    db,
+                    "__nav__",
+                    "__nav__",
+                    text,
+                    photo_path=photo_path,
+                    reply_markup=reply_markup,
+                    old_message=msg,
+                )
             except Exception:
                 pass
 
+        # Путь без БД или fallback при ошибке хелпера:
+        # удаляем call.message вручную и отправляем без кэширования
         try:
             await msg.delete()
         except Exception:
@@ -237,7 +315,6 @@ async def _send_nav_photo(
                 parse_mode="Markdown",
             )
 
-        # Сохраняем ID нового навигационного сообщения
         if db is not None and result is not None:
             try:
                 await db.set_last_message_id(
@@ -450,7 +527,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
             call.message,
             "clinic",
             city_label,
-            get_clinic_selection(
+            _build_clinic_selection_kb(
                 p_id,
                 p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                 selected_city=selected_city,
@@ -520,7 +597,7 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
             call.message,
             "clinic",
             city_label,
-            get_clinic_selection(
+            _build_clinic_selection_kb(
                 p_id,
                 p_info.get("bday", settings.DEFAULT_BIRTHDAY),
                 selected_city=selected_city,
@@ -696,9 +773,8 @@ async def toggle_doctor(
         "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
     )
 
-    text = (
-        f"{spec_text}🧑‍⚕️ {d_name_display}\n"
-        f"👤 {p_label}\n{status_text}\n\n{slots_display}{link}"
+    text = format_notification_text(
+        p_label, d_name_display, spec_text, status_text, slots_display, link
     )
 
     # Удаляем загрузочное сообщение

@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from src.database.database import Database
-from src.database.doctor_manager import DoctorManager
 from src.database.manager import DatabaseManager
 
 # ── Вспомогательные пути ──────────────────────────────────────────────
@@ -55,14 +54,6 @@ async def database(temp_db_path):
 async def db_manager(database):
     """DatabaseManager с временным SQLite."""
     mgr = DatabaseManager(database)
-    await mgr.load()
-    return mgr
-
-
-@pytest_asyncio.fixture
-async def doctor_manager(database):
-    """DoctorManager с временным SQLite."""
-    mgr = DoctorManager(database)
     await mgr.load()
     return mgr
 

@@ -31,14 +31,6 @@ def _make_mock_db():
     return db
 
 
-def _make_mock_doctor_manager(mock_db):
-    """Создаёт мок DoctorManager."""
-    mgr = MagicMock()
-    mgr._db = mock_db
-    mgr.merge_doctors = AsyncMock()
-    return mgr
-
-
 # ── fetch_specialties ───────────────────────────────────────────────────────
 
 

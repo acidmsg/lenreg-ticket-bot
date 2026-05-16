@@ -272,3 +272,22 @@ def format_slots(
                 )
 
     return lines
+
+
+def format_notification_text(
+    p_label: str,
+    d_name_display: str,
+    spec_text: str,
+    header_or_status: str,
+    slots_display: str,
+    link: str = "",
+) -> str:
+    """Собирает полный текст уведомления о номерках.
+
+    Принимает уже отформатированные компоненты и возвращает итоговую строку
+    с единообразной структурой: специальность, врач, пациент, статус, слоты, ссылка.
+    """
+    return (
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n"
+        f"👤 {p_label}\n{header_or_status}\n\n{slots_display}{link}"
+    )
