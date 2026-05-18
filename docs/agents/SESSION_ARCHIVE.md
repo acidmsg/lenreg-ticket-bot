@@ -2213,3 +2213,73 @@ ruff check src/ — All checks passed!
 | ---------- | ----------------------------------------- |
 | ruff       | ✅ All checks passed!                     |
 | pytest     | ✅ 50 passed, 8 failed (предсуществующие) |
+
+---
+
+## 2026-05-18 (Распараллеливание monitor_loop)
+
+### Задача
+
+Распараллеливание цикла мониторинга в [`src/services/monitor.py`](../../src/services/monitor.py) для устранения критической проблемы производительности: тройной вложенный цикл (пользователи → пациенты → врачи) с последовательными HTTP-запросами. При 100 пользователях × 2 пациента × 3 врача = 600 последовательных запросов, полный цикл >30 минут.
+
+### Выполненные задачи
+
+- **Выделена вспомогательная функция** [`_check_single_doctor()`](../../src/services/monitor.py:111) — инкапсулирует полный цикл проверки одного врача: jitter → API-запрос → классификация → уведомление.
+- **Параллельное выполнение** через `asyncio.gather()` — все врачи одного пациента проверяются одновременно.
+- **Семафор** [`asyncio.Semaphore(10)`](../../src/services/monitor.py:243) — ограничивает количество одновременных HTTP-запросов к API.
+- **Потокобезопасность** `empty_counts` через [`asyncio.Lock`](../../src/services/monitor.py:242) — защита разделяемого словаря при конкурентном доступе.
+- **Jitter-логика сохранена** — `asyncio.sleep(1.0–3.0)` перед каждым запросом, вне семафора (не занимает слоты ожиданием).
+- Логика классификации `_classify_slot_change`, отправки уведомлений `_send_notification` и все вызовы `db.*` сохранены без изменений.
+
+### Изменённые файлы
+
+| Файл                                                       | Действие           |
+| ---------------------------------------------------------- | ------------------ |
+| [`src/services/monitor.py`](../../src/services/monitor.py) | Изменён (+135/-98) |
+
+### Результаты проверок
+
+| Инструмент       | Результат                                                        |
+| ---------------- | ---------------------------------------------------------------- |
+| ruff             | ✅ All checks passed!                                            |
+| pytest (monitor) | ✅ 27 passed, 3 failed (предсуществующие в TestSendNotification) |
+
+---
+
+## 2026-05-18 (Консолидация тасков и код-ревью)
+
+### Задача
+
+Консолидация 4 файлов с задачами и код-ревью в 2 целевых файла: [`AGENT_TASKS.md`](AGENT_TASKS.md) (активные задачи) и [`TECH_DEBT.md`](TECH_DEBT.md) (технический долг). Удаление дубликатов, распределение по приоритетам, структурирование по модулям.
+
+### Выполненные задачи
+
+- Прочитаны и проанализированы 4 исходных файла: [`code_review.md`](code_review.md) (2026-05-14), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md) (2026-05-11), [`docs/code_review_optimization.md`](docs/code_review_optimization.md) (2026-05-15), предыдущий [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- Выполнена дедупликация: из ~75 пунктов выделены уникальные задачи с перекрёстными ссылками.
+- Создан [`AGENT_TASKS.md`](AGENT_TASKS.md) — 24 активные задачи:
+  - 🔴 CRITICAL (6): T-MON-PARALLEL, T-CONFIG-ORDER, T-CONN-ENCAPSULATE, T-MONITOR-RESTART-SPAM, T-IF-DB-CHECK, T-HEALTHCHECK-COUNT
+  - 🟠 HIGH (6): T-DOCKER, T-CI-CD, T-METRICS, T-REDIS-FALLBACK, T-EXCEPT-PASS, T-CALLBACK-VALIDATION
+  - 🟡 MEDIUM (4): T-README, T-HARDCODE-IDS, T-CACHE-STRATEGY, T-API-VERSIONING
+  - 🆕 FEATURES (8): F1-F8 (пациенты, интервалы, статистика, i18n, веб-интерфейс, экспорт, аудит-лог, детектор API)
+- Создан [`TECH_DEBT.md`](TECH_DEBT.md) — 58 пунктов технического долга:
+  - 🟢 LOW / TECH DEBT (36): сгруппированы по модулям `src/` (api, database, handlers, services, middleware, utils, keyboards, tests, main.py, прочее)
+  - 🔵 OPTIMIZATION (6): OPT-A, OPT-B, OPT-D, OPT-E, OPT-G, OPT-K (отклонённые/выполненные исключены)
+  - ⚪ MINOR (16): мелкие правки (опечатки, форматирование, docstrings, type hints)
+- Удалены старые файлы-источники: [`code_review.md`](code_review.md), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md), [`docs/code_review_optimization.md`](docs/code_review_optimization.md).
+
+### Изменённые файлы
+
+| Файл                                                                   | Действие                         |
+| ---------------------------------------------------------------------- | -------------------------------- |
+| [`docs/agents/AGENT_TASKS.md`](AGENT_TASKS.md)                         | Перезаписан (24 задачи)          |
+| [`docs/agents/TECH_DEBT.md`](TECH_DEBT.md)                             | Создан (58 пунктов)              |
+| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                 | Дополнен (перенос старой записи) |
+| [`code_review.md`](code_review.md)                                     | Удалён                           |
+| [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md)             | Удалён                           |
+| [`docs/code_review_optimization.md`](docs/code_review_optimization.md) | Удалён                           |
+
+### Результаты проверок
+
+| Инструмент   | Результат                                   |
+| ------------ | ------------------------------------------- |
+| markdownlint | ✅ 0 errors (AGENT_TASKS.md + TECH_DEBT.md) |

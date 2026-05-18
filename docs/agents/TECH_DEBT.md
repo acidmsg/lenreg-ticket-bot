@@ -1,0 +1,131 @@
+# Технический долг (Technical Debt)
+
+> **Последнее обновление:** 2026-05-18
+> **Источники:** [`code_review.md`](code_review.md) (2026-05-14), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md) (2026-05-11), [`docs/code_review_optimization.md`](docs/code_review_optimization.md) (2026-05-15)
+>
+> **Это НЕ план работ.** Это каталог известных проблем, которые будут исправляться по мере возможности.
+> Активные задачи (CRITICAL, HIGH, MEDIUM, FEATURES) вынесены в [`AGENT_TASKS.md`](AGENT_TASKS.md).
+> **Статус:** ⬜ — не начато. Исправленные пункты удаляются из списка.
+> **Верификация:** 2026-05-18 — сверка против кода. 6 оптимизаций выполнено и удалено, 2 дубликата объединено.
+
+---
+
+## 🟢 LOW / TECH DEBT
+
+### src/api/
+
+| ID         | Задача                                                                                                           | Файл:строка                                               | Примечание                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------- |
+| TD-API-001 | `fetch_patient_id()` — общий `Exception` вместо конкретных типов (TimeoutError, ParseError, NetworkError)        | [`zdrav_client.py:118-119`](src/api/zdrav_client.py:118)  | Маскирует реальные причины ошибок |
+| TD-API-002 | `_get_headers()` создаёт словарь заново при каждом вызове — нет кэширования User-Agent на время запроса          | [`zdrav_client.py:_get_headers`](src/api/zdrav_client.py) | Микро-оптимизация                 |
+| TD-API-003 | `check_slots()` возвращает `None` при 3 неудачных попытках — вызывающий код должен явно проверять `is None`      | [`zdrav_client.py:197`](src/api/zdrav_client.py:197)      | Неочевидный контракт              |
+| TD-API-005 | Поля `NameSpesiality`/`FerIdSpesiality`/`IdSpesiality` — опечатки в названиях, сохранены для совместимости с API | [`models.py`](src/api/models.py)                          | Не контролируется нашей стороной  |
+
+### src/database/
+
+| ID        | Задача                                                                                                                                           | Файл:строка                                                                              | Примечание                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| TD-DB-001 | `seed_specialty_aliases_from_fallback()` и `seed_config_from_defaults()` падают тихо (только warning) — бот продолжит работу с неполными данными | [`database.py`](src/database/database.py)                                                | Риск скрытых ошибок сидирования                    |
+| TD-DB-002 | `detect_clinic_city()` — дублирующиеся записи "всеволож" и "всеволожск" в маппинге settlements                                                   | [`database.py:58-59`](src/database/database.py:58)                                       | Не критично, но неаккуратно                        |
+| TD-DB-003 | `_replace_patients()` и `_replace_monitoring()` — DELETE + INSERT вместо `INSERT OR REPLACE`, потенциальный race condition                       | [`manager.py:59,74`](src/database/manager.py:59)                                         | Требует рефакторинга с учётом lock                 |
+| TD-DB-004 | `update_user()` — ручное управление BEGIN/COMMIT/ROLLBACK вместо context manager, риск зависшей транзакции                                       | [`manager.py:102-128`](src/database/manager.py:102)                                      | Заменить на `async with db._db._conn.execute(...)` |
+| TD-DB-005 | `get_last_message_id()` — поддержка legacy-формата (int вместо dict), усложняет код                                                              | [`manager.py:153-154`](src/database/manager.py:153)                                      | Можно удалить после миграции всех пользователей    |
+| TD-DB-006 | `migrate_v2_clinics_columns()` — голый `except Exception: pass`, скрывает ошибки миграции                                                        | [`migrations.py:89`](src/database/migrations.py:89)                                      | Низкий риск, миграция уже применена                |
+| TD-DB-007 | Дублирование `migrate_v5_seed_new_config_keys` и `database.seed_config_from_defaults()` — разное поведение (INSERT OR IGNORE vs REPLACE)         | [`migrations.py`](src/database/migrations.py), [`database.py`](src/database/database.py) | Унифицировать                                      |
+
+### src/handlers/
+
+| ID         | Задача                                                                                                                                   | Файл:строка                                             | Примечание                            |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------- |
+| TD-HND-001 | `_user_clinic_city_idx` — глобальный dict без ограничения размера, потенциальная утечка памяти при долгом аптайме                        | [`common.py:29`](src/handlers/common.py:29)             | Добавить LRU-ограничение              |
+| TD-HND-004 | Дублирование парсинга `city_idx` — паттерн `parts[4] if len(parts) >= 5 else "all"` встречается 5+ раз                                   | [`common.py`](src/handlers/common.py) (multiple)        | Вынести в `_parse_city_idx(parts)`    |
+| TD-HND-005 | `process_fio()` — строгая валидация "3 слова", не поддерживает двойные фамилии (например, «Салтыков-Щедрин М.Е.»)                        | [`registration.py:42`](src/handlers/registration.py:42) | Разрешить 3-4 слова                   |
+| TD-HND-006 | `process_bday()` — проверка пациента только по `DEFAULT_CLINIC_ID`, может дать ложно-отрицательный результат для пациентов других клиник | [`registration.py:77`](src/handlers/registration.py:77) | Искать по всем clinic_id пользователя |
+
+### src/services/
+
+| ID         | Задача                                                                                                        | Файл:строка                                                           | Примечание                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| TD-SVC-001 | `_classify_slot_change()` — избыточная вложенность (4 уровня), цикломатическая сложность ~12                  | [`monitor.py:34-86`](src/services/monitor.py:34)                      | Разбить на `_handle_disappeared`, `_handle_appeared`, `_handle_decrease` |
+| TD-SVC-002 | `discovery_loop` — при ошибке в середине цикла частичные данные теряются (нет частичного обновления врачей)   | [`doctor_discovery.py:60`](src/services/doctor_discovery.py:60)       | Сохранять промежуточные результаты                                       |
+| TD-SVC-003 | `random.uniform(1.0, 3.0)` пауза между специальностями — при 50 специальностях до 150с на одну клинику        | [`doctor_discovery.py:108-109`](src/services/doctor_discovery.py:108) | Использовать фиксированную паузу 0.5-1с                                  |
+| TD-SVC-004 | `sync_clinic_names()` — `exc_info=True` даёт очень подробный лог при каждом сбое API                          | [`doctor_discovery.py:154`](src/services/doctor_discovery.py:154)     | Использовать `exc_info=False` после N повторов                           |
+| TD-SVC-005 | `_safe_increment()` и `_safe_set()` — глобальный lock на каждое изменение метрик, может стать узким местом    | [`healthcheck.py:98-107`](src/services/healthcheck.py:98)             | Использовать atomic-операции или per-metric lock                         |
+| TD-SVC-006 | `cleanup_loop` — `users_data = db.data` загружает всех пользователей в память                                 | [`cleanup.py:45`](src/services/cleanup.py:45)                         | Добавить пагинацию или where-фильтр                                      |
+| TD-SVC-007 | `bot.delete_message(int(uid))` — приведение к int может упасть для нечисловых uid                             | [`cleanup.py:73`](src/services/cleanup.py:73)                         | Валидировать uid перед приведением                                       |
+| TD-SVC-008 | `_notify_ntfy()` — обрезает traceback с конца (`tb_str[-2000:]`), теряется начало с типом и сообщением ошибки | [`error_notifier.py:78`](src/services/error_notifier.py:78)           | Обрезать с начала: `tb_str[:2000]` (дубликат MIN-003 удалён)                                       |
+
+### src/middleware/
+
+| ID         | Задача                                                                                                                          | Файл:строка                                         | Примечание                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------- |
+
+### src/utils/
+
+| ID         | Задача                                                                                                                                | Файл:строка                                                                      | Примечание                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| TD-UTL-003 | `RedisClient.client` аннотирован как `Any` с комментарием — использовать `TYPE_CHECKING` + `from __future__ import annotations`       | [`redis.py:81`](src/utils/redis.py:81)                                           | ⚠️ Частично: `TYPE_CHECKING` и `from __future__ import annotations` уже есть. Реальный тип не импортируется под `TYPE_CHECKING`.                                               |
+| TD-UTL-004 | Строковые литералы `"patients"`, `"monitoring"`, `"fio"`, `"bday"` без констант или TypedDict — риск опечаток                         | [`manager.py`](src/database/manager.py), [`monitor.py`](src/services/monitor.py) | Ввести `TypedDict` для `UserData`, `PatientInfo`, `MonitoringEntry` |
+
+### src/keyboards/
+
+| ID         | Задача                                                                                                                      | Файл:строка                                    | Примечание                            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------- |
+| TD-KEY-001 | `get_clinic_selection()` — расчёт возраста через `.days // 365` не учитывает високосные годы (погрешность ±4 дня за 18 лет) | [`inline.py:239`](src/keyboards/inline.py:239) | Использовать `dateutil.relativedelta` |
+
+### tests/
+
+| ID         | Задача                                                                                                                            | Файл:строка                                          | Примечание                                 |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| TD-TST-001 | Структура `tests/` не зеркалит `src/` — тесты лежат плоским списком, а не в поддиректориях `tests/api/`, `tests/database/` и т.д. | [`tests/`](tests/)                                   | Усложняет навигацию при росте числа тестов |
+| TD-TST-002 | Шумный вывод `test_monitor_full.py` через Loguru, несмотря на `log_cli = false` в `pytest.ini`                                    | [`test_monitor_full.py`](tests/test_monitor_full.py) | Настроить loguru для тестового режима      |
+
+### src/main.py
+
+| ID          | Задача                                                                                            | Файл:строка                      | Примечание                        |
+| ----------- | ------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------- |
+| TD-MAIN-001 | `discovery_tasks_alive` счётчик — чтение `metrics.discovery_tasks_alive` вне lock, race condition | [`main.py:113`](src/main.py:113) | ⚠️ Частично: `_safe_set` уже под локом. Чтение `metrics.discovery_tasks_alive` в [`healthcheck.py:212`](src/services/healthcheck.py:212) под `_metrics_lock`. Задача близка к закрытию. |
+| TD-MAIN-002 | Один вызов `bot.session.close()` в `finally` на [`main.py:242-243`](src/main.py:242). `dp.start_polling()` в aiogram 3.x может закрывать сессию сам — требуется проверка. (дубликат MIN-016 удалён) | [`main.py:139`](src/main.py:139) | Убрать ручной `close()`           |
+
+### Прочее
+
+| ID           | Задача                                                                                                                     | Файл:строка                                                    | Примечание                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------- |
+| TD-OTHER-001 | `requirements.txt` дублирует `pyproject.toml` (Poetry) — рассинхронизация неизбежна                                        | [`requirements.txt`](requirements.txt)                         | Удалить, оставить только Poetry               |
+| TD-OTHER-002 | Скрипты `apply_city_heuristic.py` и `apply_heuristic_types.py` не интегрированы в Makefile                                 | [`scripts/`](scripts/)                                         | Добавить `make heal` и `make heal-types`      |
+| TD-OTHER-003 | Sentry `traces_sample_rate` и `before_send` не настроены — ограничивает полезность для отладки                             | [`error_notifier.py:23-42`](src/services/error_notifier.py:23) | Настроить фильтрацию несущественных ошибок    |
+| TD-OTHER-004 | Redis без пароля в `docker-compose.yml` — при биндинге на `127.0.0.1` приемлемо, но при внешнем доступе станет уязвимостью | [`docker-compose.yml:2-10`](docker-compose.yml:2)              | Добавить `requirepass` с переменной окружения |
+
+---
+
+## 🔵 OPTIMIZATION
+
+| ID    | Задача                                                                                                                                                      | Файлы                                                                                                                                                            | Экономия            | Статус |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------ |
+| OPT-K | Улучшить переиспользование общих фикстур через [`conftest.py`](tests/conftest.py) в тестах — снизить дублирование setup-логики                              | [`tests/conftest.py`](tests/conftest.py), [`tests/test_handlers_common.py`](tests/test_handlers_common.py), [`tests/test_keyboards.py`](tests/test_keyboards.py) | ~10 строк           | ⬜     |
+
+> **Исключены из плана:**
+>
+> - OPT-C (дублирование шаблона сообщения) — частично решено в сессии T6 (`format_slots()`)
+> - OPT-F (дублирование check_slots в toggle_doctor) — логика разошлась после T4/T5/T6
+> - OPT-H (вынос proxy_discovery) — уже выполнено, модуль [`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py) существует
+
+---
+
+## ⚪ MINOR
+
+| ID      | Задача                                                                                                        | Файл:строка                                                           | Примечание                               |
+| ------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| MIN-001 | Опечатка `"сте – клянный"` (дефис с пробелами) в маппинге settlements                                         | [`database.py:75`](src/database/database.py:75)                       | Должно быть `"стерлитамак"` или подобное |
+| MIN-002 | Опечатки `Spesiality` в названиях полей — приходят от API, не контролируются нашей стороной                   | [`models.py`](src/api/models.py)                                      | Документировать как алиасы API           |
+| MIN-004 | `message.encode("utf-8")` не нужен — httpx принимает строки                                                   | [`error_notifier.py:89`](src/services/error_notifier.py:89)           | Убрать `.encode()`                       |
+| MIN-005 | `import sentry_sdk` внутри метода `_notify_sentry()` — уже импортирован в `_init_sentry()`                    | [`error_notifier.py:108`](src/services/error_notifier.py:108)         | Вынести на уровень модуля                |
+| MIN-006 | Неконсистентное поведение rate limiter: для Message — тихий дроп, для Callback — уведомление                  | [`ratelimit.py:62,95-98`](src/middleware/ratelimit.py:62)             | Унифицировать поведение                  |
+| MIN-008 | `handle_delete_patient()` проверка `if call.bot is None` избыточна — `call.bot` всегда доступен в aiogram 3.x | [`common.py:711`](src/handlers/common.py:711)                         | Убрать проверку                          |
+| MIN-009 | `skip_alias()` и `cancel_registration()` — одинаковый код обработки исключений, дублирование                  | [`registration.py:122-128,155-161`](src/handlers/registration.py:122) | Вынести в общий хелпер                   |
+| MIN-010 | `load_specialty_aliases_from_db()` — `import logging` внутри функции                                          | [`helpers.py:21`](src/utils/helpers.py:21)                            | Вынести на уровень модуля                |
+| MIN-011 | `is_cabinet()` эвристика "3 слова по-русски" может ошибаться на врачах с нестандартными именами               | [`helpers.py:117-119`](src/utils/helpers.py:117)                      | Добавить больше паттернов                |
+| MIN-012 | `shorten_fio()` для пустого имени/отчества возвращает пустую строку                                           | [`helpers.py:131`](src/utils/helpers.py:131)                          | Добавить fallback                        |
+| MIN-013 | `_short_clinic_label()` парсинг названия по кавычкам — формат названий может измениться                       | [`inline.py:147-149`](src/keyboards/inline.py:147)                    | Добавить fallback-формат                 |
+| MIN-014 | `get_clinic_selection()` голый `except` при парсинге даты → `age=18`, маскирует ошибки                        | [`inline.py:240`](src/keyboards/inline.py:240)                        | Логировать исключение                    |
+| MIN-015 | `settings.PROXY_URL` проверяется но не валидируется — невалидный URL → исключение при создании сессии         | [`main.py:73-74`](src/main.py:73)                                     | Добавить валидацию URL                   |
