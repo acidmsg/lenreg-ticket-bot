@@ -12,12 +12,14 @@
   "python-envs.defaultEnvManager": "ms-python.python:venv",
   "Lingma.aI Chat.mcpToolsInAgentMode": true,
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
-  "python.terminal.activateEnvironment": false,
-  "terminal.integrated.env.windows": {
-    "PYTHONUTF8": "1"
+
+  "terminal.integrated.defaultProfile.windows": "PowerShell 7",
+  "terminal.integrated.profiles.windows": {
+      "PowerShell 7": {
+          "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "args": ["-NoLogo", "-NoExit"]
+      }
   },
-  // Mypy Type Checker — дополнительный статический анализатор к Pylance.
-  // Использует pyproject.toml [tool.mypy] (warn_return_any = true, check_untyped_defs = true).
   "mypy-type-checker.args": [
     "--config-file=${workspaceFolder}/pyproject.toml"
   ],

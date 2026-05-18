@@ -37,3 +37,4 @@ logs/
 # === Node / npm ===
 node_modules/
 package-lock.json
+.vscode/settings.json
