@@ -108,11 +108,139 @@ def _classify_slot_change(
     return None  # Нет значимых изменений
 
 
+async def _check_single_doctor(
+    semaphore: asyncio.Semaphore,
+    api: ZdravClient,
+    uid: str,
+    p_id: str,
+    d_id: str,
+    d_info: dict | str,
+    p_info: dict,
+    empty_counts_lock: asyncio.Lock,
+    empty_counts: dict[str, int],
+    bot: Bot,
+    db: DatabaseManager,
+):
+    """Проверяет слоты для одного врача и отправляет уведомления при изменениях.
+
+    Выполняет полный цикл: jitter → API-запрос → классификация → уведомление.
+    Семафор ограничивает количество одновременных HTTP-запросов к API.
+    """
+    # Jitter вне семафора — распределяем старты запросов во времени,
+    # не занимая слоты семафора ожиданием
+    await asyncio.sleep(random.uniform(1.0, 3.0))
+
+    # Извлекаем данные врача
+    if isinstance(d_info, dict):
+        d_name = d_info.get("name", "Врач")
+        d_spec = d_info.get("specialty", "")
+        clinic_id = d_info.get(
+            "clinic_id",
+            p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID),
+        )
+    else:
+        d_name = d_info
+        d_spec = ""
+        clinic_id = p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID)
+
+    logger.info(
+        "Monitor checking slots: d_id={}, p_id={}, clinic_id={}",
+        d_id,
+        p_id,
+        clinic_id,
+    )
+
+    # Только API-запрос под семафором — ограничиваем конкурентность
+    async with semaphore:
+        slots = await api.check_slots(
+            d_id, p_id, clinic_id, limiter=api.limiter_monitor
+        )
+
+    logger.info(f"API result for {d_id}: {slots}")
+
+    if slots is None:
+        logger.warning(f"API error for {d_id}, {p_id}. Skipping.")
+        return
+
+    cache_key = f"{uid}_{p_id}_{d_id}"
+
+    # Защита от ложных пустых ответов (3 подряд) — под локом для потокобезопасности
+    async with empty_counts_lock:
+        if not slots:
+            empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
+            if empty_counts[cache_key] < 3:
+                logger.info(
+                    "Empty slots for {}, {}. Retry {}/3",
+                    d_id,
+                    p_id,
+                    empty_counts[cache_key],
+                )
+                return
+        else:
+            empty_counts[cache_key] = 0
+
+    # Atomically read old value and write new value.
+    # swap_cache_key использует Redis GETSET — атомарно на уровне Redis.
+    new_cache_value = slots if slots else "NONE"
+    old_slots_data = await swap_cache_key(cache_key, new_cache_value)
+
+    result = _classify_slot_change(slots, old_slots_data)
+
+    if result is None:
+        return
+
+    header, display_slots, notify_type = result
+
+    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
+    d_name_display = shorten_fio(d_name)
+    d_spec_display = shorten_specialty(d_spec)
+    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
+    has_slots = bool(slots)
+    link = (
+        "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
+    )
+
+    if display_slots is None:
+        # Номерки исчезли
+        msg = format_notification_text(
+            p_label,
+            d_name_display,
+            spec_text,
+            header,
+            "Мы уведомим вас, когда появятся.",
+        )
+    else:
+        slot_lines = format_slots(
+            display_slots,
+            detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
+            compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
+        )
+        msg = format_notification_text(
+            p_label,
+            d_name_display,
+            spec_text,
+            header,
+            "\n".join(slot_lines),
+            link,
+        )
+
+    photo_path = get_notify_image_path(notify_type)
+    await _send_notification(bot, uid, msg, db, p_id, d_id, photo_path=photo_path)
+
+
 async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
+    """Главный цикл мониторинга слотов.
+
+    Пользователи → пациенты → врачи.  Проверка врачей внутри одного пациента
+    выполняется параллельно через asyncio.gather() с семафором (10 одновременных
+    HTTP-запросов).  Между полными циклами — jitter 42-85 секунд.
+    """
     await _safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
 
     empty_counts: dict[str, int] = {}
+    empty_counts_lock = asyncio.Lock()
+    semaphore = asyncio.Semaphore(10)
 
     while True:
         try:
@@ -125,117 +253,36 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                 for p_id, doctors in u_info.get("monitoring", {}).items()
                 for d_id in doctors
             }
-            for stale in list(empty_counts.keys()):
-                if stale not in active_keys:
-                    del empty_counts[stale]
+            async with empty_counts_lock:
+                for stale in list(empty_counts.keys()):
+                    if stale not in active_keys:
+                        del empty_counts[stale]
 
             for uid, u_info in users_data.items():
                 monitoring = u_info.get("monitoring", {})
                 for p_id, doctors in monitoring.items():
+                    p_info = u_info["patients"].get(p_id, {})
+
+                    # Собираем корутины проверки всех врачей пациента
+                    doctor_tasks = []
                     for d_id, d_info in doctors.items():
-                        p_info = u_info["patients"].get(p_id, {})
-                        if isinstance(d_info, dict):
-                            d_name = d_info.get("name", "Врач")
-                            d_spec = d_info.get("specialty", "")
-                            clinic_id = d_info.get(
-                                "clinic_id",
-                                p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID),
-                            )
-                        else:
-                            d_name = d_info
-                            d_spec = ""
-                            clinic_id = p_info.get(
-                                "clinic_id", settings.DEFAULT_CLINIC_ID
-                            )
-                        logger.info(
-                            "Monitor checking slots: d_id={}, p_id={}, clinic_id={}",
-                            d_id,
-                            p_id,
-                            clinic_id,
+                        task = _check_single_doctor(
+                            semaphore=semaphore,
+                            api=api,
+                            uid=uid,
+                            p_id=p_id,
+                            d_id=d_id,
+                            d_info=d_info,
+                            p_info=p_info,
+                            empty_counts_lock=empty_counts_lock,
+                            empty_counts=empty_counts,
+                            bot=bot,
+                            db=db,
                         )
+                        doctor_tasks.append(task)
 
-                        await asyncio.sleep(random.uniform(1.0, 3.0))
-
-                        slots = await api.check_slots(
-                            d_id, p_id, clinic_id, limiter=api.limiter_monitor
-                        )
-                        logger.info(f"API result for {d_id}: {slots}")
-
-                        if slots is None:
-                            logger.warning(f"API error for {d_id}, {p_id}. Skipping.")
-                            continue
-
-                        cache_key = f"{uid}_{p_id}_{d_id}"
-
-                        # Защита от ложных пустых ответов (3 подряд)
-                        if not slots:
-                            empty_counts[cache_key] = empty_counts.get(cache_key, 0) + 1
-                            if empty_counts[cache_key] < 3:
-                                logger.info(
-                                    "Empty slots for {}, {}. Retry {}/3",
-                                    d_id,
-                                    p_id,
-                                    empty_counts[cache_key],
-                                )
-                                continue
-                        else:
-                            empty_counts[cache_key] = 0
-
-                        # Atomically read old value and write new value under a single
-                        # lock acquisition.  This closes the TOCTOU window where a
-                        # handler's update_cache_key / delete_cache_key could slip in
-                        # between a separate read and write.
-                        new_cache_value = slots if slots else "NONE"
-                        old_slots_data = await swap_cache_key(
-                            cache_key, new_cache_value
-                        )
-
-                        result = _classify_slot_change(slots, old_slots_data)
-
-                        if result is None:
-                            continue
-
-                        header, display_slots, notify_type = result
-
-                        p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
-                        d_name_display = shorten_fio(d_name)
-                        d_spec_display = shorten_specialty(d_spec)
-                        spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
-                        has_slots = bool(slots)
-                        link = (
-                            "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)"
-                            if has_slots
-                            else ""
-                        )
-
-                        if display_slots is None:
-                            # Номерки исчезли
-                            msg = format_notification_text(
-                                p_label,
-                                d_name_display,
-                                spec_text,
-                                header,
-                                "Мы уведомим вас, когда появятся.",
-                            )
-                        else:
-                            slot_lines = format_slots(
-                                display_slots,
-                                detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
-                                compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
-                            )
-                            msg = format_notification_text(
-                                p_label,
-                                d_name_display,
-                                spec_text,
-                                header,
-                                "\n".join(slot_lines),
-                                link,
-                            )
-
-                        photo_path = get_notify_image_path(notify_type)
-                        await _send_notification(
-                            bot, uid, msg, db, p_id, d_id, photo_path=photo_path
-                        )
+                    # Параллельный запуск проверки всех врачей пациента
+                    await asyncio.gather(*doctor_tasks)
 
             jitter = random.uniform(42, 85)
             await asyncio.sleep(jitter)

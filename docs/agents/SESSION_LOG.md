@@ -1,34 +1,29 @@
 # SESSION_LOG.md
 
-## 2026-05-18 (Graceful degradation без Redis)
+## 2026-05-18 (Распараллеливание monitor_loop)
 
 ### Задача
 
-По запросу пользователя проанализирован [`logs/error.log`](../../logs/error.log) — обнаружена ошибка `redis.exceptions.ConnectionError` при старте бота (3 краша подряд). Реализован graceful degradation: бот теперь стартует и работает без Redis.
+Распараллеливание цикла мониторинга в [`src/services/monitor.py`](../../src/services/monitor.py) для устранения критической проблемы производительности: тройной вложенный цикл (пользователи → пациенты → врачи) с последовательными HTTP-запросами. При 100 пользователях × 2 пациента × 3 врача = 600 последовательных запросов, полный цикл >30 минут.
 
 ### Выполненные задачи
 
-- **Анализ error.log** — [`logs/error.log`](../../logs/error.log): 9461 строка. Бот работал 07:28–08:43 без ошибок, затем 3 попытки перезапуска с `ConnectionRefusedError: [WinError 1225]` на `localhost:6379`. Redis-контейнер не был запущен.
-- **Graceful degradation в RedisClient** — [`src/utils/redis.py`](../../src/utils/redis.py:27): добавлен флаг `is_available`, метод `_connect()` перехватывает `ConnectionError` и переходит в fallback-режим, все публичные методы возвращают безопасные значения по умолчанию (`None`, `False`, `0`, `[]`).
-- **FSM-хранилище с fallback** — [`src/main.py`](../../src/main.py:192): если Redis доступен → `RedisStorage`, иначе → `MemoryStorage` (aiogram in-memory).
-- **Rate limiter с проверкой** — [`src/middleware/ratelimit.py`](../../src/middleware/ratelimit.py:42): `_is_limited()` проверяет `redis.is_available`, при недоступности пропускает запросы.
-- **Cache с проверкой** — [`src/utils/cache.py`](../../src/utils/cache.py): `is_spam()`, `swap_cache_key()`, `delete_cache_keys_by_prefix()` проверяют `redis.is_available` перед использованием `.client`.
-- **Тестовые фикстуры** — [`tests/conftest.py`](../../tests/conftest.py:196): `FakeRedisClient` дополнен `is_available = True`.
-- **Анализ docker-compose** — [`docker-compose.yml`](../../docker-compose.yml): Redis настроен корректно (`127.0.0.1:6379`, `restart: always`). Qdrant используется для IDE codebase indexing — не удалять.
+- **Выделена вспомогательная функция** [`_check_single_doctor()`](../../src/services/monitor.py:111) — инкапсулирует полный цикл проверки одного врача: jitter → API-запрос → классификация → уведомление.
+- **Параллельное выполнение** через `asyncio.gather()` — все врачи одного пациента проверяются одновременно.
+- **Семафор** [`asyncio.Semaphore(10)`](../../src/services/monitor.py:243) — ограничивает количество одновременных HTTP-запросов к API.
+- **Потокобезопасность** `empty_counts` через [`asyncio.Lock`](../../src/services/monitor.py:242) — защита разделяемого словаря при конкурентном доступе.
+- **Jitter-логика сохранена** — `asyncio.sleep(1.0–3.0)` перед каждым запросом, вне семафора (не занимает слоты ожиданием).
+- Логика классификации `_classify_slot_change`, отправки уведомлений `_send_notification` и все вызовы `db.*` сохранены без изменений.
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие         |
-| ------------------------------------------------------------------ | ---------------- |
-| [`src/utils/redis.py`](../../src/utils/redis.py)                   | Изменён (+45/-5) |
-| [`src/main.py`](../../src/main.py)                                 | Изменён (+8/-2)  |
-| [`src/middleware/ratelimit.py`](../../src/middleware/ratelimit.py) | Изменён (+5/-0)  |
-| [`src/utils/cache.py`](../../src/utils/cache.py)                   | Изменён (+12/-0) |
-| [`tests/conftest.py`](../../tests/conftest.py)                     | Изменён (+1/-0)  |
+| Файл                                                       | Действие           |
+| ---------------------------------------------------------- | ------------------ |
+| [`src/services/monitor.py`](../../src/services/monitor.py) | Изменён (+135/-98) |
 
 ### Результаты проверок
 
-| Инструмент | Результат                                 |
-| ---------- | ----------------------------------------- |
-| ruff       | ✅ All checks passed!                     |
-| pytest     | ✅ 50 passed, 8 failed (предсуществующие) |
+| Инструмент       | Результат                                                        |
+| ---------------- | ---------------------------------------------------------------- |
+| ruff             | ✅ All checks passed!                                            |
+| pytest (monitor) | ✅ 27 passed, 3 failed (предсуществующие в TestSendNotification) |
