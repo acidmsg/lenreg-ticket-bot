@@ -223,8 +223,7 @@ class TestMonitorLoop:
             swap_cache_return=None,
         )
 
-        # monitor_loop catches CancelledError internally, returns normally
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
 
         # Verify _safe_set was called at start
         safe_set_mock.assert_called_with("monitor_loop_alive", True)
@@ -297,7 +296,7 @@ class TestMonitorLoop:
             swap_cache_return=None,
         )
 
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
         notify_mock.assert_called_once()
 
     async def test_monitors_doctor_first_discovery_empty_no_notification(
@@ -380,8 +379,7 @@ class TestMonitorLoop:
             swap_cache_return=None,
         )
 
-        # Should complete without raising (CancelledError caught internally)
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
         notify_mock.assert_called_once()
 
     # ── Multiple doctors ─────────────────────────────────────────────────
@@ -428,7 +426,7 @@ class TestMonitorLoop:
             sleep_raises_on_call=5,
         )
 
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
 
         assert api.check_slots.call_count == 3
         assert notify_mock.call_count == 3
@@ -452,7 +450,7 @@ class TestMonitorLoop:
             swap_cache_return=None,
         )
 
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
 
         api.check_slots.assert_called_once()
         notify_mock.assert_called_once()
@@ -469,7 +467,7 @@ class TestMonitorLoop:
             swap_cache_return=None,
         )
 
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
 
         call_args = notify_mock.call_args[0]
         assert "Петя" in call_args[2]
@@ -535,9 +533,29 @@ class TestMonitorLoop:
             swap_cache_return=old_slots,
         )
 
-        await monitor_loop(bot, api, db)
+        await monitor_loop(bot, api, db, initial_sync=False)
 
         notify_mock.assert_called_once()
         call_args = notify_mock.call_args[0]
         assert "🆕" in call_args[2]
         assert "11:00" in call_args[2]
+
+    # ── Initial sync suppression ──────────────────────────────────────────
+
+    async def test_initial_sync_suppresses_notifications(self, monkeypatch):
+        """При initial_sync=True уведомления не отправляются, кэш заполняется."""
+        user_data = _make_user_data()
+        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
+            monkeypatch,
+            user_data,
+            check_slots_return=["2026-05-15 в 10:00"],
+            swap_cache_return=None,
+        )
+
+        # initial_sync=True по умолчанию — первый цикл без уведомлений
+        await monitor_loop(bot, api, db)
+
+        # Кэш должен быть заполнен
+        swap_mock.assert_called_once()
+        # Уведомление НЕ должно быть отправлено
+        notify_mock.assert_not_called()

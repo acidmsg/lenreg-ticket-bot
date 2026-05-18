@@ -119,6 +119,11 @@ class Database:
         self.db_path = db_path
         self._conn: Optional[aiosqlite.Connection] = None
 
+    @property
+    def conn(self) -> Optional[aiosqlite.Connection]:
+        """Активное соединение с БД или None, если не установлено."""
+        return self._conn
+
     # ── Управление соединением ──────────────────────────────
     async def connect(self):
         """Открыть соединение и создать таблицы."""

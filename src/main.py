@@ -133,19 +133,23 @@ async def main():
     # Сидирование конфигов из defaults settings (если таблица config пуста)
     await database.seed_config_from_defaults()
 
-    # Синхронизация названий клиник из API (обновляет только имя)
-    await sync_clinic_names(api, database)
-
-    # Загрузка конфигов из БД (переопределяет значения из settings)
+    # Загрузка конфигов из БД (переопределяет значения из settings).
+    # Выполняется ДО sync_clinic_names, чтобы переопределённый в БД API_BASE_URL
+    # применился до первого обращения к API.
     try:
         from src.config import load_config_from_db
         from src.utils.helpers import load_specialty_aliases_from_db
 
         await load_config_from_db(database)
+        # Обновляем base_url у API-клиента после загрузки из БД
+        api.base_url = settings.API_BASE_URL
         await load_specialty_aliases_from_db(database)
         logger.info("Конфиги и псевдонимы специальностей загружены из БД")
     except Exception as e:
         logger.warning(f"Не удалось загрузить данные из БД: {e}")
+
+    # Синхронизация названий клиник из API (обновляет только имя)
+    await sync_clinic_names(api, database)
 
     # --- Инициализация бота с прокси (если настроен) ---
     session = None

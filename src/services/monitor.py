@@ -120,11 +120,15 @@ async def _check_single_doctor(
     empty_counts: dict[str, int],
     bot: Bot,
     db: DatabaseManager,
+    *,
+    initial_sync: bool = False,
 ):
     """Проверяет слоты для одного врача и отправляет уведомления при изменениях.
 
     Выполняет полный цикл: jitter → API-запрос → классификация → уведомление.
     Семафор ограничивает количество одновременных HTTP-запросов к API.
+
+    При ``initial_sync=True`` уведомления подавляются — кэш только заполняется.
     """
     # Jitter вне семафора — распределяем старты запросов во времени,
     # не занимая слоты семафора ожиданием
@@ -191,6 +195,15 @@ async def _check_single_doctor(
 
     header, display_slots, notify_type = result
 
+    # Initial sync: только заполняем кэш, уведомления не отправляем
+    if initial_sync:
+        logger.info(
+            "Initial sync — пропускаем уведомление для {} ({}), кэш заполнен",
+            d_id,
+            p_id,
+        )
+        return
+
     p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
     d_name_display = shorten_fio(d_name)
     d_spec_display = shorten_specialty(d_spec)
@@ -228,12 +241,23 @@ async def _check_single_doctor(
     await _send_notification(bot, uid, msg, db, p_id, d_id, photo_path=photo_path)
 
 
-async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
+async def monitor_loop(
+    bot: Bot,
+    api: ZdravClient,
+    db: DatabaseManager,
+    *,
+    initial_sync: bool = True,
+):
     """Главный цикл мониторинга слотов.
 
     Пользователи → пациенты → врачи.  Проверка врачей внутри одного пациента
     выполняется параллельно через asyncio.gather() с семафором (10 одновременных
     HTTP-запросов).  Между полными циклами — jitter 42-85 секунд.
+
+    Args:
+        initial_sync: Если True, первый цикл только заполняет кэш без отправки
+            уведомлений.  Используется для подавления ложных уведомлений
+            после перезапуска бота.
     """
     await _safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
@@ -241,6 +265,12 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
     empty_counts: dict[str, int] = {}
     empty_counts_lock = asyncio.Lock()
     semaphore = asyncio.Semaphore(10)
+
+    # Флаг начальной синхронизации: первый цикл только заполняет кэш,
+    # не отправляя уведомления, чтобы избежать спама после перезапуска.
+    _initial_sync = initial_sync
+    if _initial_sync:
+        logger.info("Initial sync active — уведомления подавлены до заполнения кэша")
 
     while True:
         try:
@@ -278,11 +308,17 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
                             empty_counts=empty_counts,
                             bot=bot,
                             db=db,
+                            initial_sync=_initial_sync,
                         )
                         doctor_tasks.append(task)
 
                     # Параллельный запуск проверки всех врачей пациента
                     await asyncio.gather(*doctor_tasks)
+
+            # Первый полный цикл завершён — снимаем флаг начальной синхронизации
+            if _initial_sync:
+                logger.info("Initial sync completed — уведомления разблокированы")
+                _initial_sync = False
 
             jitter = random.uniform(42, 85)
             await asyncio.sleep(jitter)
@@ -292,4 +328,9 @@ async def monitor_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             break
         except Exception as e:
             logger.error(f"Ошибка в цикле мониторинга: {e}", exc_info=True)
+            if _initial_sync:
+                logger.info(
+                    "Initial sync завершён с ошибками — уведомления разблокированы"
+                )
+                _initial_sync = False
             await asyncio.sleep(60)

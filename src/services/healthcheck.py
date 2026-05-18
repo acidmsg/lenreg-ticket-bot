@@ -156,7 +156,14 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
 
             total_users = len(db.data)
             total_monitored_doctors = sum(
-                len(u_info.get("monitoring", {})) for u_info in db.data.values()
+                len(
+                    set(
+                        d_id
+                        for doctors in u_info.get("monitoring", {}).values()
+                        for d_id in doctors
+                    )
+                )
+                for u_info in db.data.values()
             )
             total_patients = sum(
                 len(u_info.get("patients", {})) for u_info in db.data.values()
@@ -191,7 +198,14 @@ async def format_status_report(db: DatabaseManager) -> str:
     total_users = len(db.data)
     total_patients = sum(len(u_info.get("patients", {})) for u_info in db.data.values())
     total_monitored_doctors = sum(
-        len(u_info.get("monitoring", {})) for u_info in db.data.values()
+        len(
+            set(
+                d_id
+                for doctors in u_info.get("monitoring", {}).values()
+                for d_id in doctors
+            )
+        )
+        for u_info in db.data.values()
     )
 
     # Считаем количество активных мониторингов (врачей с возможными номерками)

@@ -2283,3 +2283,154 @@ ruff check src/ — All checks passed!
 | Инструмент   | Результат                                   |
 | ------------ | ------------------------------------------- |
 | markdownlint | ✅ 0 errors (AGENT_TASKS.md + TECH_DEBT.md) |
+
+---
+
+## 2026-05-18 (Проверка статуса OPT-I, OPT-J, OPT-L)
+
+### Задача
+
+Проверка статуса трёх оптимизаций из списка исключённых в [`TECH_DEBT.md`](TECH_DEBT.md) и актуализация: OPT-I (переезд на Pydantic-модели), OPT-J (единая точка выхода), OPT-L (переезд на Redis).
+
+### Выполненные задачи
+
+- Проверен **OPT-I**: Pydantic-модели полностью реализованы — [`Settings`](src/config.py:30) на `pydantic_settings.BaseSettings`, 9 Pydantic-моделей в [`models.py`](src/api/models.py:1-147) (все `BaseModel`).
+- Проверен **OPT-J**: единая точка выхода реализована — [`main()`](src/main.py:109) централизованный entry point, унифицированный запуск `asyncio.run(main())` на [`main.py:251`](src/main.py:251).
+- Проверен **OPT-L**: Redis полностью внедрён — [`RedisClient`](src/utils/redis.py:27) singleton с graceful degradation, Redis-based кэш в [`cache.py`](src/utils/cache.py), `RedisStorage` для FSM в [`main.py:195-196`](src/main.py:195).
+- Удалены OPT-I, OPT-J, OPT-L из списка «Исключены из плана» в [`TECH_DEBT.md`](TECH_DEBT.md).
+- Секция «Исключены из плана» теперь содержит только OPT-C, OPT-F, OPT-H (3 пункта вместо 6).
+
+### Изменённые файлы
+
+| Файл                                       | Действие                           |
+| ------------------------------------------ | ---------------------------------- |
+| [`docs/agents/TECH_DEBT.md`](TECH_DEBT.md) | Удалены строки OPT-I, OPT-J, OPT-L |
+
+### Результаты проверок
+
+| Инструмент   | Результат                  |
+| ------------ | -------------------------- |
+| markdownlint | ✅ 0 errors (TECH_DEBT.md) |
+
+---
+
+## 2026-05-18 (T-CONFIG-ORDER — Исправлен порядок загрузки конфигурации)
+
+### Задача
+
+Исправить порядок вызова [`load_config_from_db()`](src/config.py:108) и [`sync_clinic_names()`](src/main.py:137) в [`main()`](src/main.py:109), чтобы переопределённый в БД `API_BASE_URL` применялся до синхронизации клиник.
+
+### Выполненные задачи
+
+- Прочитан [`src/main.py`](src/main.py) и [`src/config.py`](src/config.py) — установлен точный порядок инициализации.
+- Выяснено, что [`ZdravClient.__init__()`](src/api/zdrav_client.py:21) захватывает `settings.API_BASE_URL` в `self.base_url` при создании.
+- Блок загрузки конфигов из БД (строки 139–148) перемещён **до** вызова [`sync_clinic_names()`](src/main.py:137).
+- После [`load_config_from_db()`](src/config.py:108) добавлено обновление `api.base_url = settings.API_BASE_URL`, чтобы API-клиент использовал актуальный URL из БД.
+- Проверка ruff: `python -m ruff check src/main.py` — **0 ошибок**.
+
+### Изменённые файлы
+
+| Файл                             | Действие                                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`src/main.py`](src/main.py:133) | Переставлены блоки `load_config_from_db` и `sync_clinic_names`; добавлено `api.base_url = settings.API_BASE_URL` |
+
+### Результаты проверок
+
+| Инструмент | Результат             |
+| ---------- | --------------------- |
+| ruff check | ✅ 0 errors (main.py) |
+
+---
+
+## 2026-05-18 (T-CONN-ENCAPSULATE — Инкапсуляция соединения с БД)
+
+### Задача
+
+Добавить `property` в класс [`Database`](src/database/database.py:122) для доступа к соединению и заменить прямое обращение `self._db._conn` в [`DatabaseManager`](src/database/manager.py) на новый property.
+
+### Выполненные задачи
+
+- Прочитаны [`src/database/database.py`](src/database/database.py) и [`src/database/manager.py`](src/database/manager.py) — установлена структура вложенности `_conn`.
+- Найдены 3 места прямого доступа `self._db._conn` в manager.py: строки 55, 70, 95.
+- Проверен grep по `src/` — других вхождений `_db._conn` не найдено.
+- В класс [`Database`](src/database/database.py:122) добавлен `property conn`, возвращающий `Optional[aiosqlite.Connection]`.
+- Выполнена замена `self._db._conn` → `self._db.conn` в трёх местах manager.py.
+- Проверка ruff: `python -m ruff check src/database/` — **0 ошибок**.
+
+### Изменённые файлы
+
+| Файл                                                             | Действие                                                                            |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`src/database/database.py:122`](src/database/database.py:122)   | Добавлен `property conn` с докстрингом и type hint `Optional[aiosqlite.Connection]` |
+| [`src/database/manager.py:55,70,95`](src/database/manager.py:55) | Заменено `self._db._conn` → `self._db.conn` в трёх методах                          |
+
+### Результаты проверок
+
+| Инструмент | Результат                   |
+| ---------- | --------------------------- |
+| ruff check | ✅ 0 errors (src/database/) |
+
+---
+
+## 2026-05-18 (T-MONITOR-RESTART-SPAM — Подавление спама при перезапуске мониторинга)
+
+### Задача
+
+Добавить флаг `initial_sync` в [`src/services/monitor.py`](src/services/monitor.py), чтобы первый цикл после запуска не генерировал ложные уведомления «Появились номерки» при пустом кэше.
+
+### Выполненные задачи
+
+- Прочитаны [`src/services/monitor.py`](src/services/monitor.py) и тесты — установлена архитектура цикла мониторинга.
+- В [`_check_single_doctor()`](src/services/monitor.py:111) добавлен keyword-only параметр `initial_sync: bool = False`:
+  - После классификации изменений при `initial_sync=True` уведомление не отправляется, кэш заполняется.
+  - Добавлено лог-сообщение `"Initial sync — пропускаем уведомление для {} ({}), кэш заполнен"`.
+- В [`monitor_loop()`](src/services/monitor.py:244) добавлен флаг `_initial_sync`:
+  - Принимает параметр `initial_sync: bool = True` (по умолчанию включён).
+  - Перед циклом — лог `"Initial sync active — уведомления подавлены до заполнения кэша"`.
+  - После первого успешного цикла — сброс `_initial_sync = False`, лог `"Initial sync completed — уведомления разблокированы"`.
+  - При ошибке в первом цикле — также сброс флага, лог `"Initial sync завершён с ошибками — уведомления разблокированы"`.
+- Адаптированы тесты в [`tests/test_monitor_full.py`](tests/test_monitor_full.py): 7 тестов получают `initial_sync=False`.
+- Добавлен новый тест `test_initial_sync_suppresses_notifications`: проверяет, что при `initial_sync=True` уведомления не отправляются, а кэш заполняется.
+
+### Изменённые файлы
+
+| Файл                                                                 | Действие                                                           |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [`src/services/monitor.py:111,198,244`](src/services/monitor.py:111) | Добавлены `initial_sync` в `_check_single_doctor` и `monitor_loop` |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py)           | Адаптированы 7 тестов, добавлен 1 новый тест                       |
+
+### Результаты проверок
+
+| Инструмент | Результат                |
+| ---------- | ------------------------ |
+| ruff check | ✅ 0 errors (monitor.py) |
+| pytest     | ✅ 31 passed             |
+
+---
+
+## 2026-05-18 (T-HEALTHCHECK-COUNT — Исправление подсчёта total_monitored_doctors)
+
+### Задача
+
+Исправить [`src/services/healthcheck.py:158`](src/services/healthcheck.py:158): поле `total_monitored_doctors` считало `len()` от словаря `p_id → d_id` (количество **пациентов** в мониторинге), а не количество уникальных **врачей**.
+
+### Выполненные задачи
+
+- Прочитаны [`src/services/healthcheck.py`](src/services/healthcheck.py) и [`src/database/manager.py`](src/database/manager.py) — установлена структура `monitoring`: `Dict[p_id, Dict[d_id, doctor_info]]`.
+- Исправлен подсчёт в [`healthcheck_loop()`](src/services/healthcheck.py:158):
+  - **Было:** `len(u_info.get("monitoring", {}))` — считает количество пациентов.
+  - **Стало:** `len(set(d_id for doctors in ... for d_id in doctors))` — собирает все `d_id` в set и считает уникальных врачей.
+- Исправлен идентичный подсчёт в [`format_status_report()`](src/services/healthcheck.py:193) — та же логическая ошибка.
+- Проверка ruff: `python -m ruff check src/services/healthcheck.py` — **0 ошибок**.
+
+### Изменённые файлы
+
+| Файл                                                                     | Действие                                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| [`src/services/healthcheck.py:158,193`](src/services/healthcheck.py:158) | Исправлен подсчёт `total_monitored_doctors` (уникальные `d_id` через set) |
+
+### Результаты проверок
+
+| Инструмент | Результат                                 |
+| ---------- | ----------------------------------------- |
+| ruff check | ✅ 0 errors (src/services/healthcheck.py) |

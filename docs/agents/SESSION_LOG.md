@@ -1,27 +1,39 @@
 # SESSION_LOG.md
 
-## 2026-05-18 (Проверка статуса OPT-I, OPT-J, OPT-L)
+## 2026-05-18 (Финальная валидация — 5 CRITICAL задач)
 
-### Задача
+### Сводка выполненных CRITICAL задач
 
-Проверка статуса трёх оптимизаций из списка исключённых в [`TECH_DEBT.md`](TECH_DEBT.md) и актуализация: OPT-I (переезд на Pydantic-модели), OPT-J (единая точка выхода), OPT-L (переезд на Redis).
+В данной сессии (18.05.2026) выполнены следующие 5 CRITICAL задач:
 
-### Выполненные задачи
+| ID                     | Задача                                                                                                                                                                                       | Статус |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| T-HEALTHCHECK-COUNT    | Исправление подсчёта `total_monitored_doctors` в [`src/services/healthcheck.py`](src/services/healthcheck.py:158) (уникальные врачи через set)                                               | ✅     |
+| T-CONFIG-ORDER         | Исправлен порядок загрузки конфигурации в [`src/main.py`](src/main.py:133) — `load_config_from_db()` теперь вызывается до `sync_clinic_names()`                                              | ✅     |
+| T-CONN-ENCAPSULATE     | Добавлен `property conn` в [`src/database/database.py:122`](src/database/database.py:122); заменён прямой доступ `_db._conn` → `_db.conn` в 3 местах [`manager.py`](src/database/manager.py) | ✅     |
+| T-MONITOR-RESTART-SPAM | Добавлен флаг `initial_sync` в [`src/services/monitor.py`](src/services/monitor.py:111,198,244) — подавление ложных уведомлений при перезапуске                                              | ✅     |
+| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)                    | ✅     |
 
-- Проверен **OPT-I**: Pydantic-модели полностью реализованы — [`Settings`](src/config.py:30) на `pydantic_settings.BaseSettings`, 9 Pydantic-моделей в [`models.py`](src/api/models.py:1-147) (все `BaseModel`).
-- Проверен **OPT-J**: единая точка выхода реализована — [`main()`](src/main.py:109) централизованный entry point, унифицированный запуск `asyncio.run(main())` на [`main.py:251`](src/main.py:251).
-- Проверен **OPT-L**: Redis полностью внедрён — [`RedisClient`](src/utils/redis.py:27) singleton с graceful degradation, Redis-based кэш в [`cache.py`](src/utils/cache.py), `RedisStorage` для FSM в [`main.py:195-196`](src/main.py:195).
-- Удалены OPT-I, OPT-J, OPT-L из списка «Исключены из плана» в [`TECH_DEBT.md`](TECH_DEBT.md).
-- Секция «Исключены из плана» теперь содержит только OPT-C, OPT-F, OPT-H (3 пункта вместо 6).
+### Финальная валидация (текущая подзадача)
+
+- Удалена устаревшая задача T-IF-DB-CHECK из таблицы CRITICAL в [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- Запущен полный набор тестов: **179 passed** (23.75s).
+- Запущен ruff check для `src/`: **All checks passed!** (0 errors).
+- Запущен markdownlint для `docs/**/*.md`, `.roo/**/*.md`, `*.md`: **0 errors**.
+- Выполнена очистка временных файлов (`.tmp_*`).
 
 ### Изменённые файлы
 
-| Файл                                       | Действие                           |
-| ------------------------------------------ | ---------------------------------- |
-| [`docs/agents/TECH_DEBT.md`](TECH_DEBT.md) | Удалены строки OPT-I, OPT-J, OPT-L |
+| Файл                                                               | Действие                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------ |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Новая сводка по 5 CRITICAL задачам               |
+| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Добавлена запись T-HEALTHCHECK-COUNT             |
 
 ### Результаты проверок
 
-| Инструмент   | Результат                  |
-| ------------ | -------------------------- |
-| markdownlint | ✅ 0 errors (TECH_DEBT.md) |
+| Инструмент   | Результат                   |
+| ------------ | --------------------------- |
+| pytest       | ✅ 179 passed (23.75s)      |
+| ruff check   | ✅ All checks passed (src/) |
+| markdownlint | ✅ 0 errors                 |

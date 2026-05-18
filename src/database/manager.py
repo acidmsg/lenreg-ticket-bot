@@ -52,7 +52,7 @@ class DatabaseManager:
         return self._data_cache[uid]
 
     async def _replace_patients(self, uid: str, patients: Dict[str, Any]):
-        c = self._db._conn
+        c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
         await c.execute("DELETE FROM user_patients WHERE uid = ?", (uid,))
@@ -67,7 +67,7 @@ class DatabaseManager:
             )
 
     async def _replace_monitoring(self, uid: str, monitoring: Dict[str, Any]):
-        c = self._db._conn
+        c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
         await c.execute("DELETE FROM user_monitoring WHERE uid = ?", (uid,))
@@ -92,7 +92,7 @@ class DatabaseManager:
                 self._data_cache[uid] = user
             user_data = self._get_user_data_nolock(uid)
             user_data.update(update_dict)
-            c = self._db._conn
+            c = self._db.conn
             if c is None:
                 raise RuntimeError("Database connection not initialized")
             await c.execute("BEGIN")
