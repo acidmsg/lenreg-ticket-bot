@@ -4,6 +4,8 @@ Per-user rate limiting middleware for aiogram (Redis-backed).
 Использует Redis Sorted Sets для реализации sliding window rate limiting.
 Ключи: ratelimit:msg:{user_id} и ratelimit:cb:{user_id}
 Временные метки хранятся в ZSET, автоматически очищаются по TTL.
+
+При недоступности Redis пропускает запросы без ограничений (graceful degradation).
 """
 
 import time
@@ -38,8 +40,16 @@ class UserRateLimitMiddleware(BaseMiddleware):
 
         Использует атомарную Redis-операцию: ZREMRANGEBYSCORE + ZADD + ZCARD
         через pipeline для обеспечения консистентности sliding window.
+
+        При недоступности Redis пропускает запросы без ограничений
+        (graceful degradation).
         """
         redis = await get_redis()
+
+        # Graceful degradation: если Redis недоступен, пропускаем без лимитов
+        if not redis.is_available:
+            return False
+
         now = time.time()
         cutoff = now - self.period
 

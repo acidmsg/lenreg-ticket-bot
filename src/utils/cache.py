@@ -3,6 +3,9 @@
 
 Заменяет старый файловый JSON-кэш (monitoring_cache.json) и in-memory TTLCache.
 Все операции атомарны, с TTL-поддержкой через Redis EXPIRE.
+
+При недоступности Redis возвращает безопасные значения по умолчанию
+(graceful degradation).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ _MONITORING_TTL = 86400
 _SPAM_TTL = 1
 
 
-# === Spam-защита (замена TTLCache) ===
+# --- Spam-защита (замена TTLCache) ---
 
 
 async def is_spam(key: str) -> bool:
@@ -33,14 +36,18 @@ async def is_spam(key: str) -> bool:
 
     Возвращает True если ключ уже существует (спам), False если новое обращение.
     Атомарно: SET NX + EXPIRE в одной операции.
+
+    При недоступности Redis возвращает False (пропускает запрос).
     """
     redis = await get_redis()
+    if not redis.is_available:
+        return False
     # SET key 1 NX EX 1: True = ключ создан (не спам), None = уже был (спам)
     created = await redis.client.set(f"spam:{key}", "1", ex=_SPAM_TTL, nx=True)
     return created is None
 
 
-# === Мониторинговый кэш (замена файлового JSON) ===
+# --- Мониторинговый кэш (замена файлового JSON) ---
 
 
 def _mon_key(key: str) -> str:
@@ -53,9 +60,12 @@ async def swap_cache_key(key: str, new_value: Any) -> Any:
     Атомарно читает старое значение и записывает новое, если отличается.
 
     Использует GETSET для атомарного read+write в одной команде Redis.
-    Возвращает старое значение (десериализованное из JSON) или None при ошибке.
+    Возвращает старое значение (десериализованное из JSON) или None при ошибке
+    либо недоступности Redis.
     """
     redis = await get_redis()
+    if not redis.is_available:
+        return None
     rkey = _mon_key(key)
     try:
         new_json = json.dumps(new_value, ensure_ascii=False)
@@ -76,8 +86,11 @@ async def delete_cache_keys_by_prefix(prefix: str) -> int:
 
     Использует SCAN для безопасного перебора ключей (без блокировки Redis).
     Возвращает количество удалённых ключей.
+    При недоступности Redis возвращает 0.
     """
     redis = await get_redis()
+    if not redis.is_available:
+        return 0
     pattern = f"{_MONITORING_KEY_PREFIX}{prefix}*"
     deleted = 0
     try:

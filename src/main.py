@@ -116,7 +116,8 @@ async def main():
         os.makedirs(data_dir)  # noqa: ASYNC240
 
     # Инициализация Redis (до FSM-хранилища)
-    await RedisClient.get_instance()
+    # Не падает при недоступности Redis: переходит в режим graceful degradation
+    redis_client = await RedisClient.get_instance()
 
     # Инициализация SQLite
     database = Database(settings.SQLITE_DB_PATH)
@@ -146,7 +147,7 @@ async def main():
     except Exception as e:
         logger.warning(f"Не удалось загрузить данные из БД: {e}")
 
-    # === Инициализация бота с прокси (если настроен) ===
+    # --- Инициализация бота с прокси (если настроен) ---
     session = None
     if settings.PROXY_URL:
         from src.utils.proxy_discovery import _parse_proxy_host_port
@@ -189,7 +190,16 @@ async def main():
             raise last_session_error
 
     bot = Bot(token=settings.BOT_TOKEN, session=session)
-    dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
+
+    # FSM-хранилище: Redis если доступен, иначе MemoryStorage (graceful degradation)
+    if redis_client.is_available:
+        dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
+        logger.info("FSM-хранилище: Redis")
+    else:
+        from aiogram.fsm.storage.memory import MemoryStorage
+
+        dp = Dispatcher(storage=MemoryStorage())
+        logger.warning("FSM-хранилище: MemoryStorage (Redis недоступен)")
 
     # Регистрация middleware (порядок важен: outer выполняется первым)
     # 1. Error boundary — самая внешняя, ловит все исключения

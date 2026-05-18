@@ -194,6 +194,7 @@ async def fake_redis(monkeypatch):
     class FakeRedisClient:
         def __init__(self):
             self.client = redis_instance
+            self.is_available = True
 
         async def get(self, key):
             return await self.client.get(key)
