@@ -44,7 +44,8 @@ def make_mock_bot() -> AsyncMock:
     """Создаёт AsyncMock для Bot aiogram."""
     bot = AsyncMock()
     bot.send_message = AsyncMock()
-    bot.send_photo = AsyncMock()
+    # send_photo возвращает объект с int message_id, иначе SQLite падает
+    bot.send_photo = AsyncMock(return_value=AsyncMock(message_id=12345))
     bot.edit_message_text = AsyncMock()
     bot.delete_message = AsyncMock()
     return bot

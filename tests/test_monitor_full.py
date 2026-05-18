@@ -87,7 +87,10 @@ class TestSendNotification:
         await _send_notification(bot, "123", "Hello!", db, "p1", "d1")
 
         bot.delete_message.assert_not_called()
-        bot.send_message.assert_called_once_with("123", "Hello!", parse_mode="Markdown")
+        # uid преобразуется в int при вызове _send_or_update_message
+        bot.send_message.assert_called_once_with(
+            123, "Hello!", parse_mode="Markdown", reply_markup=None
+        )
         db.set_last_message_id.assert_called_once_with("123", "p1", "d1", 555)
 
     async def test_deletes_previous_message_and_sends_new(self):
@@ -102,9 +105,9 @@ class TestSendNotification:
 
         await _send_notification(bot, "123", "Updated!", db, "p1", "d1")
 
-        bot.delete_message.assert_called_once_with("123", 100)
+        bot.delete_message.assert_called_once_with(123, 100)
         bot.send_message.assert_called_once_with(
-            "123", "Updated!", parse_mode="Markdown"
+            123, "Updated!", parse_mode="Markdown", reply_markup=None
         )
         db.set_last_message_id.assert_called_once_with("123", "p1", "d1", 200)
 
@@ -122,8 +125,10 @@ class TestSendNotification:
         # Should not raise
         await _send_notification(bot, "123", "Msg", db, "p1", "d1")
 
-        bot.delete_message.assert_called_once_with("123", 999)
-        bot.send_message.assert_called_once_with("123", "Msg", parse_mode="Markdown")
+        bot.delete_message.assert_called_once_with(123, 999)
+        bot.send_message.assert_called_once_with(
+            123, "Msg", parse_mode="Markdown", reply_markup=None
+        )
 
     async def test_handles_send_message_exception_gracefully(self):
         """If send_message raises, no crash and no set_last_message_id."""
