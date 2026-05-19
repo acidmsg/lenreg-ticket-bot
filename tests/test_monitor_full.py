@@ -6,6 +6,7 @@ with mocked API, Bot, and DatabaseManager.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
+from aiogram.exceptions import TelegramAPIError
 from src.services.monitor import _send_notification, monitor_loop
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,7 +115,9 @@ class TestSendNotification:
     async def test_handles_delete_message_exception_gracefully(self):
         """If delete_message raises, send_message still proceeds."""
         bot = _make_mock_bot()
-        bot.delete_message.side_effect = Exception("Message not found")
+        bot.delete_message.side_effect = TelegramAPIError(
+            method=MagicMock(), message="Message not found"
+        )
         db = _make_mock_db()
         db.get_last_message_id.return_value = 999
 

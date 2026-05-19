@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from loguru import logger
@@ -171,7 +172,7 @@ async def _delete_cleanup_msg_entry(
     if msg_id:
         try:
             await bot.delete_message(uid, msg_id)
-        except Exception:
+        except TelegramAPIError:
             pass
     del last_messages[key]
     return True
@@ -219,7 +220,7 @@ async def _send_or_update_message(
     if last_msg_id:
         try:
             await bot.delete_message(chat_id, last_msg_id)
-        except Exception:
+        except TelegramAPIError:
             pass
 
     if old_message is not None:
@@ -286,7 +287,11 @@ async def _send_nav_photo(
                     old_message=msg,
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Не удалось отправить/обновить навигационное сообщение "
+                    "для chat_id={}",
+                    msg.chat.id,
+                )
 
         # Путь без БД или fallback при ошибке хелпера:
         # удаляем call.message вручную и отправляем без кэширования
@@ -321,7 +326,9 @@ async def _send_nav_photo(
                     uid, "__nav__", "__nav__", result.message_id
                 )
             except Exception:
-                pass
+                logger.debug(
+                    "Не удалось сохранить last_message_id для uid={} (nav)", uid
+                )
 
         return result
 
@@ -335,6 +342,10 @@ async def _send_nav_photo(
         )
         return msg
     except Exception:
+        logger.debug(
+            "Не удалось отредактировать сообщение (edit_text) для chat_id={}",
+            msg.chat.id,
+        )
         return None
 
 
@@ -769,9 +780,7 @@ async def toggle_doctor(
     else:
         slots_display = "Как только появятся, я сразу дам знать!"
 
-    link = (
-        "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
-    )
+    link = f"\n\n🔗 [Записаться]({settings.SIGNUP_URL})" if has_slots else ""
 
     text = format_notification_text(
         p_label, d_name_display, spec_text, status_text, slots_display, link

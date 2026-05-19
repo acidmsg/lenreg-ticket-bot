@@ -38,6 +38,9 @@ class HealthMetrics:
     last_api_error_time: Optional[float] = None
     last_api_error_message: str = ""
 
+    # Длительность последней проверки (для Prometheus)
+    last_check_duration: float = 0.0
+
     # Статистика мониторинга
     monitoring_slots_checked: int = 0
     monitoring_notifications_sent: int = 0
@@ -124,6 +127,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
         try:
             # Один запрос — любая клиника/пациент, API общий
             ok = False
+            check_start = time.time()
             try:
                 specialties = await api.fetch_speciality_list(
                     settings.DISCOVERY_PATIENT_ID_ADULT,
@@ -151,6 +155,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
             async with _metrics_lock:
                 metrics.last_api_check_time = now
                 metrics.last_api_ok = ok
+                metrics.last_check_duration = now - check_start
                 uptime = metrics.uptime_str()
                 api_health = metrics.api_health_str()
 

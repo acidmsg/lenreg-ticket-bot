@@ -2,6 +2,7 @@ from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.config import settings
 from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
 
@@ -49,8 +50,7 @@ def get_doctor_selection(
     doctors_cabinets = []
 
     # Определяем, нужно ли фильтровать по детским специальностям в стоматологии
-    _dental_clinic_id = "272"
-    is_dental = clinic_id == _dental_clinic_id
+    is_dental = clinic_id == settings.DENTAL_CLINIC_ID
     patient_is_child = is_child(bday_str) if is_dental and bday_str else None
 
     for d_id, info in doctors_list.items():

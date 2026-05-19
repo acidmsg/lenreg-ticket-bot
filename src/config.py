@@ -25,6 +25,13 @@ CONFIG_KEY_ERROR_NOTIFY_ENABLED = "error_notify_enabled"
 CONFIG_KEY_ENVIRONMENT = "environment"
 CONFIG_KEY_USER_RATE_LIMIT_MAX = "user_rate_limit_max"
 CONFIG_KEY_USER_RATE_LIMIT_PERIOD = "user_rate_limit_period"
+CONFIG_KEY_METRICS_PORT = "metrics_port"
+CONFIG_KEY_DENTAL_CLINIC_ID = "dental_clinic_id"
+CONFIG_KEY_ORIGIN_URL = "origin_url"
+CONFIG_KEY_DISTRICT_ID = "district_id"
+CONFIG_KEY_SIGNUP_URL = "signup_url"
+CONFIG_KEY_API_VERSION = "api_version"
+CONFIG_KEY_API_VALIDATE_RESPONSES = "api_validate_responses"
 
 
 class Settings(BaseSettings):
@@ -71,8 +78,20 @@ class Settings(BaseSettings):
     # Клиника по умолчанию для первичного поиска пациента
     DEFAULT_CLINIC_ID: str = "272"
 
+    # ID стоматологической клиники (для фильтрации детских/взрослых специальностей)
+    DENTAL_CLINIC_ID: str = "272"
+
+    # Origin для HTTP-заголовков
+    ORIGIN_URL: str = "https://zdrav.lenreg.ru"
+
+    # ID района по умолчанию для получения списка клиник
+    DISTRICT_ID: str = "4"
+
     # Дефолтная дата рождения для новых пациентов без даты
     DEFAULT_BIRTHDAY: str = "1990-01-01"
+
+    # Публичная ссылка для записи (отображается в уведомлениях)
+    SIGNUP_URL: str = "https://zdrav.lenreg.ru/signup/free/"
 
     # ID админов с доступом к /status (через запятую, напр.: 123456789,987654321)
     ADMIN_IDS: str = ""
@@ -99,6 +118,16 @@ class Settings(BaseSettings):
     USER_RATE_LIMIT_MAX: int = 30
     USER_RATE_LIMIT_PERIOD: int = 60  # seconds
 
+    # === Prometheus Metrics ===
+    # Порт для HTTP-endpoint /metrics
+    METRICS_PORT: int = 9090
+
+    # === API Versioning ===
+    # Версия API-клиента (передаётся в заголовке X-Client-Version)
+    API_VERSION: str = "1.0.0"
+    # Валидация ответов API через Pydantic-схемы
+    API_VALIDATE_RESPONSES: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -124,7 +153,11 @@ async def load_config_from_db(database):
             CONFIG_KEY_DISCOVERY_PATIENT_ADULT: ("DISCOVERY_PATIENT_ID_ADULT", str),
             CONFIG_KEY_DISCOVERY_PATIENT_CHILD: ("DISCOVERY_PATIENT_ID_CHILD", str),
             CONFIG_KEY_DEFAULT_CLINIC_ID: ("DEFAULT_CLINIC_ID", str),
+            CONFIG_KEY_DENTAL_CLINIC_ID: ("DENTAL_CLINIC_ID", str),
+            CONFIG_KEY_ORIGIN_URL: ("ORIGIN_URL", str),
+            CONFIG_KEY_DISTRICT_ID: ("DISTRICT_ID", str),
             CONFIG_KEY_DEFAULT_BIRTHDAY: ("DEFAULT_BIRTHDAY", str),
+            CONFIG_KEY_SIGNUP_URL: ("SIGNUP_URL", str),
             CONFIG_KEY_API_BASE_URL: ("API_BASE_URL", str),
             CONFIG_KEY_REFERER_URL: ("REFERER_URL", str),
             CONFIG_KEY_CSRF_TOKEN: ("CSRF_TOKEN", str),
@@ -136,6 +169,12 @@ async def load_config_from_db(database):
             CONFIG_KEY_ENVIRONMENT: ("ENVIRONMENT", str),
             CONFIG_KEY_USER_RATE_LIMIT_MAX: ("USER_RATE_LIMIT_MAX", int),
             CONFIG_KEY_USER_RATE_LIMIT_PERIOD: ("USER_RATE_LIMIT_PERIOD", int),
+            CONFIG_KEY_METRICS_PORT: ("METRICS_PORT", int),
+            CONFIG_KEY_API_VERSION: ("API_VERSION", str),
+            CONFIG_KEY_API_VALIDATE_RESPONSES: (
+                "API_VALIDATE_RESPONSES",
+                lambda v: v.lower() in ("1", "true", "yes"),
+            ),
         }
 
         all_config = await database.get_all_config()

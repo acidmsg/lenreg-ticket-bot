@@ -1,0 +1,64 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / Editor
+.vscode/
+.history/
+.idea/
+*.swp
+*.swo
+
+# Project config (not needed in runtime image)
+.roo/
+.clinerules
+.markdownlint.json
+.pre-commit-config.yaml
+pyrightconfig.json
+pytest.ini
+poetry.lock
+pyproject.toml
+Makefile
+package.json
+tasks.ps1
+
+# Tests
+tests/
+
+# Documentation
+docs/
+README.md
+
+# Node (for markdownlint/prettier)
+node_modules/
+dist/
+package-lock.json
+
+# Runtime data (created by container volume)
+data/
+logs/
+
+# Environment (real .env must NOT be in image)
+.env
+
+# Temp files
+*.tmp
+.tmp_*
+
+# Scripts
+scripts/

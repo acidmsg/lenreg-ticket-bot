@@ -5,6 +5,7 @@ from typing import Optional
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.redis import RedisStorage
+from aiohttp import web
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
@@ -20,6 +21,7 @@ from src.services.cleanup import cleanup_loop
 from src.services.doctor_discovery import discovery_loop, sync_clinic_names
 from src.services.error_notifier import error_notifier
 from src.services.healthcheck import _safe_set, healthcheck_loop
+from src.services.metrics import prometheus_metrics
 from src.services.monitor import monitor_loop
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
@@ -104,6 +106,30 @@ async def _start_background_tasks(
 
     logger.info(f"Запущено {len(tasks)} фоновых задач")
     return tasks
+
+
+async def _start_metrics_server(
+    db: DatabaseManager,
+) -> tuple[web.AppRunner, web.TCPSite]:
+    """
+    Запускает aiohttp-сервер с Prometheus /metrics endpoint.
+
+    Возвращает (runner, site) для корректной остановки в finally.
+    """
+    app = web.Application()
+
+    async def metrics_handler(request: web.Request) -> web.Response:
+        body, content_type = await prometheus_metrics.generate_response(db)
+        return web.Response(body=body, content_type=content_type)
+
+    app.router.add_get("/metrics", metrics_handler)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", settings.METRICS_PORT)
+    await site.start()
+    logger.info(f"Prometheus HTTP-сервер запущен на порту {settings.METRICS_PORT}")
+    return runner, site
 
 
 async def main():
@@ -226,6 +252,9 @@ async def main():
     # Запуск фоновых задач только после подтверждения связи с Telegram
     background_tasks = await _start_background_tasks(bot, api, db, database)
 
+    # Запуск Prometheus HTTP-сервера
+    metrics_runner, metrics_site = await _start_metrics_server(db)
+
     logger.info("Бот запущен и готов помогать!")
 
     try:
@@ -240,6 +269,10 @@ async def main():
         for task in background_tasks:
             task.cancel()
         await asyncio.gather(*background_tasks, return_exceptions=True)
+
+        # Остановка Prometheus HTTP-сервера
+        await metrics_runner.cleanup()
+        logger.info("Prometheus HTTP-сервер остановлен")
 
         await api.close()
 
@@ -265,4 +298,4 @@ if __name__ == "__main__":
         try:
             asyncio.run(error_notifier.notify(e, context="startup_crash"))
         except Exception:
-            pass
+            logger.debug("Не удалось отправить уведомление об ошибке старта")

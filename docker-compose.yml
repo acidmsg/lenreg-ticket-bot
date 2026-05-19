@@ -1,4 +1,7 @@
 services:
+  # ===========================================================================
+  # Redis — FSM-хранилище и кэш
+  # ===========================================================================
   redis:
     image: redis:7-alpine
     container_name: zdrav_redis
@@ -6,15 +9,50 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - ./redis_data:/data
+      - redis_data:/data
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zdrav_network
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: qdrant_local
-    ports:
-      - "127.0.0.1:6333:6333"
-      - "127.0.0.1:6334:6334"
+  # ===========================================================================
+  # Bot — Telegram-бот (aiogram polling)
+  # ===========================================================================
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zdrav_bot
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
     volumes:
-      - ./qdrant_storage:/qdrant/storage
-    restart: always
+      - bot_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.access('data/bot.db', os.R_OK | os.W_OK) or exit(1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - zdrav_network
+
+volumes:
+  redis_data:
+    driver: local
+  bot_data:
+    driver: local
+
+networks:
+  zdrav_network:
+    driver: bridge

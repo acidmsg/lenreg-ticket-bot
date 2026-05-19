@@ -86,7 +86,9 @@ async def migrate_v2_clinics_columns(db):
                 f"{col} {col_type} NOT NULL DEFAULT {default}"
             )
         except Exception:
-            pass  # колонка уже существует
+            logger.debug(
+                "Колонка {} уже существует в таблице clinics (ALTER пропущен)", col
+            )
 
 
 async def migrate_v5_seed_new_config_keys(db):

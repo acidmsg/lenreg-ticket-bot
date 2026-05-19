@@ -11,6 +11,7 @@ Per-user rate limiting middleware for aiogram (Redis-backed).
 import time
 
 from aiogram import BaseMiddleware
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery, Message
 from loguru import logger
 
@@ -101,7 +102,7 @@ class UserRateLimitMiddleware(BaseMiddleware):
             if isinstance(event, CallbackQuery):
                 try:
                     await event.answer("⏳ Слишком много запросов, подождите...")
-                except Exception:
+                except TelegramAPIError:
                     pass
             return
 

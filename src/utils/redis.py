@@ -100,7 +100,7 @@ class RedisClient:
                 try:
                     await self._redis.aclose()
                 except Exception:
-                    pass
+                    logger.debug("Не удалось закрыть неудачное Redis-соединение")
                 self._redis = None
 
     @property

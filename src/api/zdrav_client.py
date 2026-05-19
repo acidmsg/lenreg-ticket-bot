@@ -1,11 +1,12 @@
 import asyncio
 import datetime
 import random
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, TypeVar
 
 import aiolimiter
 import httpx
 from loguru import logger
+from pydantic import BaseModel, ValidationError
 
 from src.api.models import (
     AppointmentListResponse,
@@ -15,6 +16,9 @@ from src.api.models import (
     SpecialityListResponse,
 )
 from src.config import settings
+
+# TypeVar для сохранения конкретного типа Pydantic-модели в _validate_response
+M = TypeVar("M", bound=BaseModel)
 
 
 class ZdravClient:
@@ -53,7 +57,8 @@ class ZdravClient:
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "X-CSRFToken": settings.CSRF_TOKEN,
             "Cookie": f"csrftoken={settings.CSRF_TOKEN}",
-            "Origin": "https://zdrav.lenreg.ru",
+            "Origin": settings.ORIGIN_URL,
+            "X-Client-Version": settings.API_VERSION,
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -73,6 +78,46 @@ class ZdravClient:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
+
+    def _validate_response(
+        self,
+        json_data: dict[str, Any],
+        model_class: type[M],
+        endpoint_name: str,
+        request_url: str,
+    ) -> M:
+        """Валидирует JSON-ответ API через Pydantic-модель.
+
+        Если API_VALIDATE_RESPONSES=True — при ошибке валидации логирует
+        детали расхождения (эндпоинт, поля, типы, URL) и пробрасывает
+        ValidationError.
+        Если API_VALIDATE_RESPONSES=False — ошибка только логируется,
+        исключение не пробрасывается.
+        """
+        try:
+            return model_class.model_validate(json_data)
+        except ValidationError as e:
+            # Детальное логирование каждого ошибочного поля
+            for error in e.errors():
+                field_path = ".".join(str(loc) for loc in error["loc"])
+                logger.error(
+                    "Несоответствие схемы API | Эндпоинт: %s | "
+                    "Поле: %s | Ожидаемый тип: %s | Получено: %s | URL: %s",
+                    endpoint_name,
+                    field_path,
+                    error.get("type", "?"),
+                    repr(error.get("input", "?")),
+                    request_url,
+                )
+            if settings.API_VALIDATE_RESPONSES:
+                raise
+            logger.warning(
+                "Валидация ответа API отключена, продолжаю с сырыми данными "
+                "(эндпоинт: %s, URL: %s)",
+                endpoint_name,
+                request_url,
+            )
+            return json_data  # type: ignore[return-value]
 
     async def fetch_patient_id(
         self,
@@ -106,7 +151,12 @@ class ZdravClient:
                     headers=self._get_headers(),
                 )
                 if res.status_code == 200:
-                    model = CheckPatientResponse.model_validate(res.json())
+                    model = self._validate_response(
+                        res.json(),
+                        CheckPatientResponse,
+                        "check_patient",
+                        f"{self.base_url}/check_patient/",
+                    )
                     p_id = model.response.patient_id
                     if p_id:
                         return str(p_id), None
@@ -148,7 +198,12 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        model = SpecialityListResponse.model_validate(res.json())
+                        model = self._validate_response(
+                            res.json(),
+                            SpecialityListResponse,
+                            "speciality_list",
+                            f"{self.base_url}/speciality_list/",
+                        )
                         if model.success:
                             # Обратная совместимость: возвращаем list[dict]
                             return [
@@ -191,7 +246,12 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        model = AppointmentListResponse.model_validate(res.json())
+                        model = self._validate_response(
+                            res.json(),
+                            AppointmentListResponse,
+                            "appointment_list",
+                            f"{self.base_url}/appointment_list/",
+                        )
                         logger.info(f"API response for {doc_id}: {model.response}")
                         slots = []
                         for date, items in model.response.items():
@@ -243,7 +303,12 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        model = DoctorListResponse.model_validate(res.json())
+                        model = self._validate_response(
+                            res.json(),
+                            DoctorListResponse,
+                            "doctor_list",
+                            f"{self.base_url}/doctor_list/",
+                        )
                         if model.success:
                             # Обратная совместимость: возвращаем list[dict]
                             return [
@@ -263,7 +328,7 @@ class ZdravClient:
 
     async def fetch_clinic_list(
         self,
-        district_id: str = "4",
+        district_id: str = settings.DISTRICT_ID,
         limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> list[dict]:
         """Получает список клиник для указанного района через /clinic_list/."""
@@ -280,7 +345,12 @@ class ZdravClient:
                         headers=self._get_headers(),
                     )
                     if res.status_code == 200:
-                        model = ClinicListResponse.model_validate(res.json())
+                        model = self._validate_response(
+                            res.json(),
+                            ClinicListResponse,
+                            "clinic_list",
+                            f"{self.base_url}/clinic_list/",
+                        )
                         if model.success:
                             # Обратная совместимость: возвращаем list[dict]
                             return [

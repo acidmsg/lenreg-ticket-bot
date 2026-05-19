@@ -2434,3 +2434,429 @@ ruff check src/ — All checks passed!
 | Инструмент | Результат                                 |
 | ---------- | ----------------------------------------- |
 | ruff check | ✅ 0 errors (src/services/healthcheck.py) |
+
+---
+
+## 2026-05-18 (Финальная валидация — 5 CRITICAL задач)
+
+### Сводка выполненных CRITICAL задач
+
+В данной сессии (18.05.2026) выполнены следующие 5 CRITICAL задач:
+
+| ID                     | Задача                                                                                                                                                                                       | Статус |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| T-HEALTHCHECK-COUNT    | Исправление подсчёта `total_monitored_doctors` в [`src/services/healthcheck.py`](src/services/healthcheck.py:158) (уникальные врачи через set)                                               | ✅     |
+| T-CONFIG-ORDER         | Исправлен порядок загрузки конфигурации в [`src/main.py`](src/main.py:133) — `load_config_from_db()` теперь вызывается до `sync_clinic_names()`                                              | ✅     |
+| T-CONN-ENCAPSULATE     | Добавлен `property conn` в [`src/database/database.py:122`](src/database/database.py:122); заменён прямой доступ `_db._conn` → `_db.conn` в 3 местах [`manager.py`](src/database/manager.py) | ✅     |
+| T-MONITOR-RESTART-SPAM | Добавлен флаг `initial_sync` в [`src/services/monitor.py`](src/services/monitor.py:111,198,244) — подавление ложных уведомлений при перезапуске                                              | ✅     |
+| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)                    | ✅     |
+
+### Финальная валидация (текущая подзадача)
+
+- Удалена устаревшая задача T-IF-DB-CHECK из таблицы CRITICAL в [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- Запущен полный набор тестов: **179 passed** (23.75s).
+- Запущен ruff check для `src/`: **All checks passed!** (0 errors).
+- Запущен markdownlint для `docs/**/*.md`, `.roo/**/*.md`, `*.md`: **0 errors**.
+- Выполнена очистка временных файлов (`.tmp_*`).
+
+### Изменённые файлы
+
+| Файл                                                               | Действие                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------ |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Новая сводка по 5 CRITICAL задачам               |
+| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Добавлена запись T-HEALTHCHECK-COUNT             |
+
+### Результаты проверок
+
+| Инструмент   | Результат                   |
+| ------------ | --------------------------- |
+| pytest       | ✅ 179 passed (23.75s)      |
+| ruff check   | ✅ All checks passed (src/) |
+| markdownlint | ✅ 0 errors                 |
+
+---
+
+## 2026-05-18 (T-CI-CD — CI/CD пайплайн GitHub Actions)
+
+### Задача
+
+Создан файл [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — CI/CD пайплайн для GitHub Actions.
+
+### Реализация
+
+- **Триггеры:** `push` и `pull_request` в ветки `main`, `develop`
+- **Параллельные jobs (3):**
+  - `lint` — `ruff check src` (проверка без автофикса)
+  - `typecheck` — `mypy src scripts tests` (строгая проверка типов)
+  - `test` — `pytest` (все тесты, 179 тестов) + Redis-сервис (`redis:7-alpine`)
+- **Окружение:** Python 3.11, кэширование pip-зависимостей через `actions/setup-python@v5` с `cache: pip`
+- **Конкурентность:** `concurrency` с `cancel-in-progress: true` для отмены дублирующихся запусков
+- **Таймаут:** 10 минут на каждый job
+
+### Изменённые файлы
+
+| Файл                                                       | Действие                    |
+| ---------------------------------------------------------- | --------------------------- |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml)     | Перезаписан (полная версия) |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-CI-CD      |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md) | Новая запись сессии         |
+
+---
+
+## 2026-05-19 (T-EXCEPT-PASS — Аудит и исправление `except Exception: pass`)
+
+### Задача
+
+Аудит и исправление всех случаев `except Exception: pass` в проекте. Найдено 15 случаев (на 8 больше, чем указано в задании — часть была добавлена после первоначального аудита).
+
+### Реализация
+
+**Подход:** Для Telegram API-операций через `bot.xxx()` — замена на `except TelegramAPIError: pass`. Для вызовов `.delete()` на объектах `Message` (могут кидать `RuntimeError` без бота) — оставлено `Exception` с `pass`. Для не-Telegram операций — добавлен `logger.debug()` с осмысленным сообщением.
+
+**Таблица изменений:**
+
+| Файл                                                                      | Строки | Операция                     | Действие                                    |
+| ------------------------------------------------------------------------- | ------ | ---------------------------- | ------------------------------------------- |
+| [`src/handlers/common.py`](src/handlers/common.py:174)                    | 174    | `bot.delete_message()`       | `TelegramAPIError: pass`                    |
+| [`src/handlers/common.py`](src/handlers/common.py:222)                    | 222    | `bot.delete_message()`       | `TelegramAPIError: pass`                    |
+| [`src/handlers/common.py`](src/handlers/common.py:228)                    | 228    | `old_message.delete()`       | `Exception: pass` (RuntimeError)            |
+| [`src/handlers/common.py`](src/handlers/common.py:288)                    | 288    | `_send_or_update_message()`  | `logger.debug()`                            |
+| [`src/handlers/common.py`](src/handlers/common.py:295)                    | 295    | `msg.delete()`               | `Exception: pass` (RuntimeError)            |
+| [`src/handlers/common.py`](src/handlers/common.py:323)                    | 323    | `db.set_last_message_id()`   | `logger.debug()`                            |
+| [`src/handlers/common.py`](src/handlers/common.py:337)                    | 337    | `msg.edit_text()`            | `Exception: logger.debug()` + `return None` |
+| [`src/handlers/common.py`](src/handlers/common.py:783)                    | 783    | `loading_msg.delete()`       | `Exception: pass` (RuntimeError)            |
+| [`src/main.py`](src/main.py:267)                                          | 267    | `error_notifier.notify()`    | `logger.debug()`                            |
+| [`src/utils/redis.py`](src/utils/redis.py:102)                            | 102    | `self._redis.aclose()`       | `logger.debug()`                            |
+| [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:104)          | 104    | `event.answer()`             | `TelegramAPIError: pass`                    |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:42) | 42     | `database.get_clinic_type()` | `logger.debug()`                            |
+| [`src/services/cleanup.py`](src/services/cleanup.py:73)                   | 73     | `bot.delete_message()`       | `TelegramAPIError: pass`                    |
+| [`src/database/database.py`](src/database/database.py:168)                | 168    | `PRAGMA wal_checkpoint()`    | `logger.debug()`                            |
+| [`src/database/migrations.py`](src/database/migrations.py:88)             | 88     | `ALTER TABLE ADD COLUMN`     | `logger.debug()`                            |
+
+**Попутные исправления:**
+
+- Добавлен импорт `TelegramAPIError` в [`src/handlers/common.py`](src/handlers/common.py:5), [`src/services/cleanup.py`](src/services/cleanup.py:11), [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:14)
+- Исправлен тест [`tests/test_monitor_full.py`](tests/test_monitor_full.py:117) — `Exception("Message not found")` → `TelegramAPIError(method=MagicMock(), message="Message not found")`
+
+### Изменённые файлы
+
+| Файл                                                                      | Действие                         |
+| ------------------------------------------------------------------------- | -------------------------------- |
+| [`src/handlers/common.py`](src/handlers/common.py)                        | +1 импорт, 8 блоков except       |
+| [`src/main.py`](src/main.py:267)                                          | +1 logger.debug                  |
+| [`src/utils/redis.py`](src/utils/redis.py:102)                            | +1 logger.debug                  |
+| [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:14,104)       | +1 импорт, +1 TelegramAPIError   |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py:42) | +1 logger.debug                  |
+| [`src/services/cleanup.py`](src/services/cleanup.py:11,73)                | +1 импорт, +1 TelegramAPIError   |
+| [`src/database/database.py`](src/database/database.py:168)                | +1 logger.debug                  |
+| [`src/database/migrations.py`](src/database/migrations.py:88)             | +1 logger.debug                  |
+| [`tests/test_monitor_full.py`](tests/test_monitor_full.py:7,117)          | +1 импорт, исправлен side_effect |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)                | Удалена задача T-EXCEPT-PASS     |
+
+### Результаты проверок
+
+| Инструмент       | Результат            |
+| ---------------- | -------------------- |
+| `ruff check src` | All checks passed    |
+| `pytest`         | 179 passed, 0 failed |
+
+---
+
+## 2026-05-19 (T-DOCKER — Dockerfile для бота + актуализация docker-compose.yml)
+
+### Задача
+
+Создание Dockerfile для Telegram-бота (aiogram polling) и актуализация docker-compose.yml: удаление неиспользуемого Qdrant, добавление сервиса `bot`, улучшение Redis (healthcheck, named volume).
+
+### Реализация
+
+**Создан [`Dockerfile`](Dockerfile:1):**
+
+- **Base image:** `python:3.11-slim` — минимальный образ для Python 3.11 (target-version из pyproject.toml)
+- **Multi-stage build:** builder-слой для установки зависимостей (с `gcc`/`libc6-dev`), финальный слой — только runtime (`procps`, `sqlite3`)
+- **Копирование:** только `src/` и `requirements.txt`; исключены `tests/`, `docs/`, `.git/`, `.roo/`, `.vscode/`, `scripts/`, `data/`, `logs/`
+- **Безопасность:** создан непривилегированный пользователь `appuser`, WORKDIR `/app`
+- **Healthcheck:** проверка доступности `data/bot.db` (R/W) — косвенный индикатор работы бота
+- **Entrypoint:** `python -m src.main` (асинхронный поллинг aiogram)
+- **Метки:** `maintainer`, `description`, `version`, `org.opencontainers.image.source`
+
+**Создан [`.dockerignore`](.dockerignore:1):**
+
+Исключены: `.git/`, `.venv/`, `__pycache__/`, `.vscode/`, `.history/`, `.roo/`, `tests/`, `docs/`, `node_modules/`, `dist/`, `data/`, `logs/`, `.env` (реальный), `scripts/`, `*.tmp`, poetry-файлы, Markdown-файлы, конфиги линтеров
+
+**Обновлён [`docker-compose.yml`](docker-compose.yml:1):**
+
+- **Qdrant** — удалён (не используется в проекте)
+- **Redis** — улучшен: добавлен `healthcheck` (redis-cli ping), named volume `redis_data` вместо bind mount, включён в общую сеть `zdrav_network`
+- **Bot** — новый сервис:
+  - `build: .` (текущая директория, Dockerfile)
+  - `restart: unless-stopped`
+  - `depends_on: redis (condition: service_healthy)` — старт только после готовности Redis
+  - `env_file: .env` — все переменные окружения
+  - `volumes: bot_data:/app/data` — named volume для персистентности SQLite и кэша
+  - `healthcheck` — проверка доступности `data/bot.db`
+  - `networks: zdrav_network`
+- Добавлены named volumes: `redis_data`, `bot_data`
+- Добавлена bridge network: `zdrav_network`
+
+### Изменённые файлы
+
+| Файл                                                       | Действие                   |
+| ---------------------------------------------------------- | -------------------------- |
+| [`Dockerfile`](Dockerfile:1)                               | Создан                     |
+| [`.dockerignore`](.dockerignore:1)                         | Создан                     |
+| [`docker-compose.yml`](docker-compose.yml)                 | Перезаписан (Qdrant → Bot) |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-DOCKER    |
+
+### Результаты проверок
+
+| Инструмент | Результат                                           |
+| ---------- | --------------------------------------------------- |
+| YAML       | Валидация docker-compose.yml — корректный синтаксис |
+
+---
+
+## 2026-05-19 (T-METRICS — Prometheus-метрики: HTTP-endpoint `/metrics`)
+
+### Задача
+
+Добавление HTTP-endpoint `/metrics` с Prometheus-метриками. [`HealthMetrics`](src/services/healthcheck.py:24) уже собирал данные, но они были доступны только через Telegram-команду `/status`. Реализован aiohttp-сервер, запускаемый параллельно с поллингом aiogram.
+
+### Реализация
+
+**Создан [`src/services/metrics.py`](src/services/metrics.py:1):**
+
+- Класс `PrometheusMetrics` — агрегатор метрик для Prometheus
+- Синхронизация Counter'ов через дельта-инкременты (не нарушает семантику монотонности)
+- Синхронизация Gauge'ев из HealthMetrics + DatabaseManager + RedisClient
+
+**Добавленные метрики (10):**
+
+| Метрика                                    | Тип     | Источник                                      |
+| ------------------------------------------ | ------- | --------------------------------------------- |
+| `zdrav_monitor_status`                     | Gauge   | `HealthMetrics.monitor_loop_alive`            |
+| `zdrav_healthcheck_errors_total`           | Counter | `HealthMetrics.api_errors_total`              |
+| `zdrav_healthcheck_last_success_timestamp` | Gauge   | `HealthMetrics.last_api_check_time`           |
+| `zdrav_healthcheck_duration_seconds`       | Gauge   | `HealthMetrics.last_check_duration`           |
+| `zdrav_slots_found_total`                  | Counter | `HealthMetrics.monitoring_notifications_sent` |
+| `zdrav_api_requests_total`                 | Counter | `HealthMetrics.api_checks_total`              |
+| `zdrav_api_errors_total`                   | Counter | `HealthMetrics.api_errors_total`              |
+| `zdrav_active_users`                       | Gauge   | `DatabaseManager.data` (len)                  |
+| `zdrav_monitored_doctors`                  | Gauge   | БД — уникальные `d_id` в мониторинге          |
+| `zdrav_redis_connected`                    | Gauge   | `RedisClient.is_available`                    |
+
+**Изменён [`src/services/healthcheck.py`](src/services/healthcheck.py:41):**
+
+- Добавлено поле `last_check_duration: float = 0.0` в [`HealthMetrics`](src/services/healthcheck.py:24)
+- В [`healthcheck_loop()`](src/services/healthcheck.py:111) добавлен замер длительности запроса (`check_start = time.time()`, запись в `last_check_duration`)
+
+**Изменён [`src/config.py`](src/config.py:103):**
+
+- Добавлен `METRICS_PORT: int = 9090` в класс `Settings`
+- Добавлен `CONFIG_KEY_METRICS_PORT` и запись в `mapping` для загрузки из БД
+
+**Изменён [`src/main.py`](src/main.py):**
+
+- Добавлен импорт `from aiohttp import web`
+- Добавлен импорт `from src.services.metrics import prometheus_metrics`
+- Добавлена функция `_start_metrics_server()` — запускает aiohttp-сервер на `0.0.0.0:METRICS_PORT`
+- Добавлен маршрут `GET /metrics`, возвращающий метрики в формате Prometheus
+- Сервер запускается после фоновых задач, останавливается в `finally` через `runner.cleanup()`
+
+**Дополнительные файлы:**
+
+| Файл                                       | Действие                            |
+| ------------------------------------------ | ----------------------------------- |
+| [`requirements.txt`](requirements.txt)     | Добавлен `prometheus-client>=0.20`  |
+| [`.env.example`](.env.example)             | Добавлен `METRICS_PORT=9090`        |
+| [`Dockerfile`](Dockerfile:96)              | Добавлен `EXPOSE 9090`              |
+| [`docker-compose.yml`](docker-compose.yml) | Добавлен порт `127.0.0.1:9090:9090` |
+
+### Изменённые файлы
+
+| Файл                                                         | Действие |
+| ------------------------------------------------------------ | -------- |
+| [`src/services/metrics.py`](src/services/metrics.py:1)       | Создан   |
+| [`src/services/healthcheck.py`](src/services/healthcheck.py) | Изменён  |
+| [`src/config.py`](src/config.py)                             | Изменён  |
+| [`src/main.py`](src/main.py)                                 | Изменён  |
+| [`requirements.txt`](requirements.txt)                       | Изменён  |
+| [`.env.example`](.env.example)                               | Изменён  |
+| [`Dockerfile`](Dockerfile)                                   | Изменён  |
+| [`docker-compose.yml`](docker-compose.yml)                   | Изменён  |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)   | Изменён  |
+
+### Результаты проверок
+
+| Инструмент   | Результат               |
+| ------------ | ----------------------- |
+| `ruff check` | ✅ All checks passed!   |
+| `pytest`     | ✅ 179 passed, 0 failed |
+
+---
+
+## 2026-05-19 (T-HARDCODE-IDS — Вынос хардкод-идентификаторов в .env / БД)
+
+### Задача
+
+Вынос всех хардкод-идентификаторов из исходного кода в `.env` / БД, чтобы изменение параметров на портале zdrav.lenreg.ru не ломало бота.
+
+### Найденные хардкод-идентификаторы
+
+| #   | Файл                                                     | Строка | Значение                                 | Описание                         |
+| --- | -------------------------------------------------------- | ------ | ---------------------------------------- | -------------------------------- |
+| 1   | [`src/keyboards/inline.py`](src/keyboards/inline.py:52)  | 52     | `"272"`                                  | ID стоматологической клиники     |
+| 2   | [`src/api/zdrav_client.py`](src/api/zdrav_client.py:56)  | 56     | `"https://zdrav.lenreg.ru"`              | Origin для HTTP-заголовков       |
+| 3   | [`src/api/zdrav_client.py`](src/api/zdrav_client.py:266) | 266    | `"4"`                                    | ID района по умолчанию           |
+| 4   | [`src/handlers/common.py`](src/handlers/common.py:784)   | 784    | `"https://zdrav.lenreg.ru/signup/free/"` | Ссылка для записи в уведомлениях |
+| 5   | [`src/services/monitor.py`](src/services/monitor.py:213) | 213    | `"https://zdrav.lenreg.ru/signup/free/"` | Ссылка для записи в уведомлениях |
+
+Также в `.env` и `.env.example` отсутствовали ключи для уже вынесенных в `Settings` параметров: `API_BASE_URL`, `REFERER_URL`, `CSRF_TOKEN`, `DEFAULT_CLINIC_ID`, `DEFAULT_BIRTHDAY`.
+
+### Реализация
+
+**Добавлены поля в [`src/config.py`](src/config.py):**
+
+| Поле               | Значение по умолчанию                    | Описание                     |
+| ------------------ | ---------------------------------------- | ---------------------------- |
+| `DENTAL_CLINIC_ID` | `"272"`                                  | ID стоматологической клиники |
+| `ORIGIN_URL`       | `"https://zdrav.lenreg.ru"`              | Origin для HTTP-заголовков   |
+| `DISTRICT_ID`      | `"4"`                                    | ID района по умолчанию       |
+| `SIGNUP_URL`       | `"https://zdrav.lenreg.ru/signup/free/"` | Публичная ссылка для записи  |
+
+Добавлены соответствующие `CONFIG_KEY_*` константы и записи в `mapping` для синхронизации с БД.
+
+**Обновлён [`.env`](.env):**
+
+Добавлены ключи: `API_BASE_URL`, `REFERER_URL`, `ORIGIN_URL`, `CSRF_TOKEN`, `DISTRICT_ID`, `DEFAULT_CLINIC_ID`, `DENTAL_CLINIC_ID`, `DEFAULT_BIRTHDAY`, `SIGNUP_URL`.
+
+**Обновлён [`.env.example`](.env.example):**
+
+Добавлены те же ключи. Чувствительный `CSRF_TOKEN` — плейсхолдер `your_csrf_token_here`. Остальные — реальные значения по умолчанию.
+
+**Заменены хардкоды в коде:**
+
+| Файл                                                     | Было                                     | Стало                       |
+| -------------------------------------------------------- | ---------------------------------------- | --------------------------- |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py:52)  | `_dental_clinic_id = "272"`              | `settings.DENTAL_CLINIC_ID` |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py:56)  | `"Origin": "https://zdrav.lenreg.ru"`    | `settings.ORIGIN_URL`       |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py:266) | `district_id: str = "4"`                 | `settings.DISTRICT_ID`      |
+| [`src/handlers/common.py`](src/handlers/common.py:784)   | `"https://zdrav.lenreg.ru/signup/free/"` | `settings.SIGNUP_URL`       |
+| [`src/services/monitor.py`](src/services/monitor.py:213) | `"https://zdrav.lenreg.ru/signup/free/"` | `settings.SIGNUP_URL`       |
+
+### Изменённые файлы
+
+| Файл                                                       | Действие                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| [`src/config.py`](src/config.py)                           | Изменён (+4 поля, +4 CONFIG_KEY, +4 записи в mapping)          |
+| [`.env`](.env)                                             | Изменён (+9 ключей)                                            |
+| [`.env.example`](.env.example)                             | Изменён (+9 ключей)                                            |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py)       | Изменён (хардкод → settings.DENTAL_CLINIC_ID)                  |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | Изменён (хардкоды → settings.ORIGIN_URL, settings.DISTRICT_ID) |
+| [`src/handlers/common.py`](src/handlers/common.py)         | Изменён (хардкод → settings.SIGNUP_URL)                        |
+| [`src/services/monitor.py`](src/services/monitor.py)       | Изменён (хардкод → settings.SIGNUP_URL)                        |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён (удалена строка T-HARDCODE-IDS)                        |
+
+### Результаты проверок
+
+| Инструмент   | Результат               |
+| ------------ | ----------------------- |
+| `ruff check` | ✅ All checks passed!   |
+| `pytest`     | ✅ 179 passed, 0 failed |
+
+---
+
+## 2026-05-19 (T-METRICS — Установка prometheus-client в виртуальное окружение)
+
+### Задача
+
+Исправление `ModuleNotFoundError: No module named 'prometheus_client'` — пакет был добавлен в `requirements.txt` задачей T-METRICS, но не установлен в виртуальное окружение.
+
+### Выполненные шаги
+
+1. Установлен `prometheus-client==0.25.0` в `.venv` через `pip install`.
+2. Проверен импорт: `from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest` — успешно.
+3. Запущены тесты — все 179 passed.
+
+### Результаты проверок
+
+| Инструмент | Результат               |
+| ---------- | ----------------------- |
+| `pytest`   | ✅ 179 passed, 0 failed |
+
+---
+
+## 2026-05-19 (Исправление mypy-ошибок в src/services/metrics.py)
+
+### Задача
+
+Устранение 4 неиспользуемых `# type: ignore[attr-defined]` комментариев в [`src/services/metrics.py`](src/services/metrics.py:97,110,121,132) и проверка наличия поля `last_check_duration` в [`src/services/healthcheck.py`](src/services/healthcheck.py:42).
+
+### Выполненные шаги
+
+1. Прочитан [`src/services/metrics.py`](src/services/metrics.py) — обнаружено 4 неиспользуемых `# type: ignore[attr-defined]` на строках 97, 110, 121, 132.
+2. Прочитан [`src/services/healthcheck.py`](src/services/healthcheck.py) — поле `last_check_duration: float = 0.0` уже присутствует в `HealthMetrics` на строке 42.
+3. Удалены 4 комментария `# type: ignore[attr-defined]` из [`src/services/metrics.py`](src/services/metrics.py:97,110,121,132) — оставлены только `# noqa: SLF001`.
+4. Запущен `ruff check src` — 0 ошибок.
+5. Запущен `mypy src` — 0 ошибок.
+6. Запущен `pytest` — exit code 0 (все тесты пройдены).
+7. Временные файлы проверок удалены.
+
+### Изменённые файлы
+
+| Файл                                                   | Действие                 |
+| ------------------------------------------------------ | ------------------------ |
+| [`src/services/metrics.py`](src/services/metrics.py:1) | Удалены 4 `type: ignore` |
+
+### Результаты проверок
+
+| Инструмент | Результат             |
+| ---------- | --------------------- |
+| `ruff`     | ✅ All checks passed! |
+| `mypy`     | ✅ Success: no issues |
+| `pytest`   | ✅ All tests passed   |
+
+---
+
+## 2026-05-19 (T-API-VERSIONING — Версионирование API-эндпоинтов)
+
+### Задача
+
+Добавлен механизм версионирования API-эндпоинтов `zdrav.lenreg.ru`: валидация схемы ответов через Pydantic-модели, заголовок `X-Client-Version`, настройки в config.
+
+### Выполненные шаги
+
+1. Прочитаны [`src/api/zdrav_client.py`](src/api/zdrav_client.py), [`src/api/models.py`](src/api/models.py), [`src/config.py`](src/config.py) — изучена текущая архитектура API-клиента.
+2. Добавлены настройки в [`src/config.py`](src/config.py):
+   - `API_VERSION: str = "1.0.0"` — версия API-клиента
+   - `API_VALIDATE_RESPONSES: bool = True` — флаг включения/выключения валидации
+   - Константы `CONFIG_KEY_API_VERSION` и `CONFIG_KEY_API_VALIDATE_RESPONSES`
+   - Оба ключа добавлены в mapping для синхронизации с БД
+3. Обновлён [`src/api/zdrav_client.py`](src/api/zdrav_client.py):
+   - В `_get_headers()` добавлен заголовок `X-Client-Version: settings.API_VERSION`
+   - Создан метод `_validate_response()` с детальным логированием при `ValidationError` (эндпоинт, поле, ожидаемый тип, фактическое значение, URL)
+   - Все 5 эндпоинтов (`check_patient`, `speciality_list`, `doctor_list`, `appointment_list`, `clinic_list`) используют `_validate_response()` вместо прямого `model_validate()`
+   - Использован `TypeVar` для сохранения типа Pydantic-модели в возврате `_validate_response()`
+4. Обновлён [`.env.example`](.env.example) — добавлены `API_VERSION` и `API_VALIDATE_RESPONSES`
+5. Запущены проверки:
+   - `ruff check src` — ✅ All checks passed
+   - `mypy src` — ✅ Success: no issues found
+   - `pytest` — ✅ 179 passed, 0 failed
+
+### Изменённые файлы
+
+| Файл                                                       | Действие                                     |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| [`src/config.py`](src/config.py)                           | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | +`_validate_response()`, +`X-Client-Version` |
+| [`.env.example`](.env.example)                             | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-API-VERSIONING              |
+
+### Результаты проверок
+
+| Инструмент | Результат               |
+| ---------- | ----------------------- |
+| `ruff`     | ✅ All checks passed!   |
+| `mypy`     | ✅ Success: no issues   |
+| `pytest`   | ✅ 179 passed, 0 failed |

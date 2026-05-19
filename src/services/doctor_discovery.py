@@ -40,7 +40,7 @@ async def _get_clinic_type_from_db(database: "Database", clinic_id: str) -> str:
         if clinic_type:
             return clinic_type
     except Exception:
-        pass
+        logger.debug("Не удалось получить тип клиники clinic_id={} из БД", clinic_id)
     return "adult"
 
 

@@ -209,9 +209,7 @@ async def _check_single_doctor(
     d_spec_display = shorten_specialty(d_spec)
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
     has_slots = bool(slots)
-    link = (
-        "\n\n🔗 [Записаться](https://zdrav.lenreg.ru/signup/free/)" if has_slots else ""
-    )
+    link = f"\n\n🔗 [Записаться]({settings.SIGNUP_URL})" if has_slots else ""
 
     if display_slots is None:
         # Номерки исчезли
