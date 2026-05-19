@@ -3878,3 +3878,83 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 | Инструмент                     | Результат                                    |
 | ------------------------------ | -------------------------------------------- |
 | `mypy src/keyboards/inline.py` | ✅ Success: no issues found in 1 source file |
+
+---
+
+## 2026-05-19 — Исправление TelegramBadRequest «no text in the message to edit»
+
+### Выполненные задачи
+
+| Задача  | Описание                                                                   | Файлы                                                   |
+| ------- | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| FIX-001 | Замена `edit_text()` на delete+answer в `handle_delete_patient` action=ask | [`common.py:1023`](src/handlers/common.py:1023)         |
+| FIX-002 | Замена `edit_text()` на delete+answer в `start_add_patient`                | [`registration.py:28`](src/handlers/registration.py:28) |
+
+### Изменённые файлы
+
+- `src/handlers/common.py:1023-1029` — `handle_delete_patient(action="ask")`: удаление старого фото-сообщения и отправка нового текстового через `call.message.answer()` вместо `edit_text()`
+- `src/handlers/registration.py:1` — добавлен `import contextlib`
+- `src/handlers/registration.py:28-33` — `start_add_patient`: удаление старого фото-сообщения и отправка нового текстового через `call.message.answer()` вместо `edit_text()`
+
+### Результаты проверок
+
+| Инструмент                                                       | Результат            |
+| ---------------------------------------------------------------- | -------------------- |
+| `ruff check src/handlers/common.py src/handlers/registration.py` | ✅ All checks passed |
+
+---
+
+## 2026-05-19 — Batch-исправление технического долга MIN-004..MIN-015
+
+### Выполненные задачи
+
+| ID      | Описание                                                                                     | Файлы                                                        |
+| ------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| MIN-004 | Убрать `.encode("utf-8")` в `_notify_ntfy()` — httpx принимает строки                        | [`error_notifier.py:89`](src/services/error_notifier.py)     |
+| MIN-005 | Удалить дублирующий `import sentry_sdk` внутри `_notify_sentry()`, вынести на уровень модуля | [`error_notifier.py:12,112`](src/services/error_notifier.py) |
+| MIN-006 | Унифицировать rate limiter: CallbackQuery → throttling с ожиданием как у Message             | [`ratelimit.py:102-107`](src/middleware/ratelimit.py)        |
+| MIN-008 | Убрать избыточную проверку `if call.bot is None` в `handle_delete_patient`                   | [`common.py:1031-1032`](src/handlers/common.py)              |
+| MIN-009 | Вынести дублирующий код `skip_alias()`/`cancel_registration()` в `_show_patient_selection()` | [`registration.py`](src/handlers/registration.py)            |
+| MIN-010 | Вынести `from loguru import logger` на уровень модуля в `helpers.py`                         | [`helpers.py:9,34`](src/utils/helpers.py)                    |
+| MIN-013 | Добавить fallback-формат (проверка на одно слово) в `_short_clinic_label()`                  | [`inline.py:158-160`](src/keyboards/inline.py)               |
+| MIN-014 | Добавить `logger.exception()` в голый `except` в `get_clinic_selection()`                    | [`inline.py:257`](src/keyboards/inline.py)                   |
+| MIN-015 | Добавить валидацию URL для `PROXY_URL` через `urlparse` в `main.py`                          | [`main.py:303-309`](src/main.py)                             |
+
+### Изменённые файлы
+
+- `src/services/error_notifier.py:1,12,89,112` — добавлен `import sentry_sdk` на уровне модуля; убраны `.encode("utf-8")` и дублирующий `import sentry_sdk` внутри `_notify_sentry()`
+- `src/middleware/ratelimit.py:1,11,102-107` — добавлен `import asyncio`; CallbackQuery при rate limit — `await asyncio.sleep(1)` + `return await handler(event, data)`
+- `src/handlers/common.py:1031-1032` — удалены строки `if call.bot is None: return`
+- `src/handlers/registration.py` — добавлен `_show_patient_selection()`; `skip_alias()` и `cancel_registration()` используют общий helper
+- `src/utils/helpers.py:9,34` — `from loguru import logger` вынесен на уровень модуля
+- `src/keyboards/inline.py:3` — добавлен `from loguru import logger`; в `_short_clinic_label()` добавлен fallback для однословных названий; в `get_clinic_selection()` добавлен `logger.exception()`
+- `src/main.py:303-309` — добавлена валидация `PROXY_URL` через `urlparse`
+- `docs/agents/TECH_DEBT.md:90-100` — удалены строки MIN-004..MIN-015 (выполнены)
+
+### Результаты проверок
+
+| Инструмент                                      | Результат            |
+| ----------------------------------------------- | -------------------- |
+| `ruff check src` (изменённые файлы)             | ✅ All checks passed |
+| `npx markdownlint "docs/**/*.md"`               | ✅ 0 errors          |
+| `npx prettier --write docs/agents/TECH_DEBT.md` | ✅                   |
+
+---
+
+## 2026-05-19 — Исправление type safety для MIN-008
+
+### Выполненные задачи
+
+| Задача | Описание    | Файлы                                                                                                                  |
+| ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+|        | MIN-008-fix | Замена удалённой проверки `if call.bot is None: return` на `assert call.bot is not None` для сохранения type narrowing | [`common.py:1034`](src/handlers/common.py:1034) |
+
+### Изменённые файлы
+
+- `src/handlers/common.py:1034` — добавлен `assert call.bot is not None` перед вызовом `_delete_cleanup_msg_entries()` для устранения ошибки mypy `Argument "bot" has incompatible type "Bot | None"; expected "Bot"`.
+
+### Результаты проверок
+
+| Инструмент                    | Результат                                    |
+| ----------------------------- | -------------------------------------------- |
+| `mypy src/handlers/common.py` | ✅ Success: no issues found in 1 source file |

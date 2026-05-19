@@ -6,6 +6,8 @@ import re
 from collections import defaultdict
 from datetime import datetime, time
 
+from loguru import logger
+
 from src.i18n import _data
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
@@ -31,8 +33,6 @@ async def load_specialty_aliases_from_db(db):
         if aliases:
             _db_specialty_aliases = aliases
     except Exception as e:
-        from loguru import logger
-
         logger.warning("Не удалось загрузить псевдонимы из БД: {}", e)
 
 

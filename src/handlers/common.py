@@ -1028,10 +1028,10 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
             reply_markup=get_confirm_deletion(p_id),
         )
     elif action == "yes" and isinstance(call.message, Message):
-        if call.bot is None:
-            return
         # Удаляем сообщения из чата, связанные с пациентом
         user_data = await db.get_user_data(uid)
+        # Гарантируем, что бот доступен (type narrowing для mypy/pylance)
+        assert call.bot is not None, "Bot must be available in callback"
         await _delete_cleanup_msg_entries(
             bot=call.bot,
             uid=uid,

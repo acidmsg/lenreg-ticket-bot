@@ -8,6 +8,7 @@ Sentry is integrated only if SENTRY_DSN is set in config.
 import traceback
 
 import httpx
+import sentry_sdk
 from loguru import logger
 
 from src.config import settings
@@ -86,7 +87,7 @@ class ErrorNotifier:
 
             # NTFY expects ASCII-safe headers, non-ASCII chars (emoji) → replace
             safe_title = title.encode("ascii", errors="replace").decode("ascii")
-            safe_content = message.encode("utf-8")
+            safe_content = message
 
             async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 await client.post(
@@ -109,8 +110,6 @@ class ErrorNotifier:
     ) -> None:
         """Send error to Sentry."""
         try:
-            import sentry_sdk
-
             with sentry_sdk.push_scope() as scope:
                 scope.set_tag("context", context)
                 if extra:

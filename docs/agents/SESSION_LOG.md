@@ -1,22 +1,35 @@
 # SESSION_LOG
 
-## 2026-05-19 — Исправление TelegramBadRequest «no text in the message to edit»
+## 2026-05-19 — Коммит техдолга MIN-004..MIN-015
 
 ### Выполненные задачи
 
-| Задача  | Описание                                                                   | Файлы                                                   |
-| ------- | -------------------------------------------------------------------------- | ------------------------------------------------------- |
-| FIX-001 | Замена `edit_text()` на delete+answer в `handle_delete_patient` action=ask | [`common.py:1023`](src/handlers/common.py:1023)         |
-| FIX-002 | Замена `edit_text()` на delete+answer в `start_add_patient`                | [`registration.py:28`](src/handlers/registration.py:28) |
+| Задача           | Описание                                                                         | Файлы          |
+| ---------------- | -------------------------------------------------------------------------------- | -------------- |
+| MIN-004..MIN-015 | Коммит всех изменений по техническому долгу: чистка кода, типизация, логирование | Все файлы ниже |
 
 ### Изменённые файлы
 
-- `src/handlers/common.py:1023-1029` — `handle_delete_patient(action="ask")`: удаление старого фото-сообщения и отправка нового текстового через `call.message.answer()` вместо `edit_text()`
-- `src/handlers/registration.py:1` — добавлен `import contextlib`
-- `src/handlers/registration.py:28-33` — `start_add_patient`: удаление старого фото-сообщения и отправка нового текстового через `call.message.answer()` вместо `edit_text()`
+- `src/services/error_notifier.py` — MIN-004, MIN-005: чистка кода, типизация
+- `src/middleware/ratelimit.py` — MIN-006: чистка кода
+- `src/handlers/common.py` — MIN-008: type safety, assert вместо удалённой проверки
+- `src/handlers/registration.py` — MIN-009: чистка кода
+- `src/utils/helpers.py` — MIN-010: чистка кода
+- `src/keyboards/inline.py` — MIN-013, MIN-014: чистка кода, логирование
+- `src/main.py` — MIN-015: чистка кода
+- `docs/agents/TECH_DEBT.md` — обновление статусов выполненных задач
+- `docs/agents/SESSION_LOG.md` — запись сессии
+- `docs/agents/SESSION_ARCHIVE.md` — архив предыдущей записи
+
+### Коммит
+
+```text
+c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типизация, логирование
+```
 
 ### Результаты проверок
 
-| Инструмент                                                       | Результат            |
-| ---------------------------------------------------------------- | -------------------- |
-| `ruff check src/handlers/common.py src/handlers/registration.py` | ✅ All checks passed |
+| Инструмент          | Результат         |
+| ------------------- | ----------------- |
+| `ruff` (pre-commit) | ✅ Passed         |
+| `git commit`        | ✅ Успешно создан |

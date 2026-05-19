@@ -301,6 +301,16 @@ async def main():
     # --- Инициализация бота с прокси (если настроен) ---
     session = None
     if settings.PROXY_URL:
+        from urllib.parse import urlparse
+
+        # Валидация формата URL прокси
+        parsed = urlparse(settings.PROXY_URL)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(
+                f"Неверный формат PROXY_URL: {settings.PROXY_URL}. "
+                "Ожидается URL вида http://user:pass@host:port"
+            )
+
         from src.utils.proxy_discovery import _parse_proxy_host_port
 
         # Разрешение прокси: если хост = "auto" — автоопределение IP

@@ -4,6 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dateutil.relativedelta import (
     relativedelta,
 )
+from loguru import logger
 
 from src.config import settings
 from src.i18n import _
@@ -155,6 +156,9 @@ def _short_clinic_label(clinic_name: str, count: int) -> str:
             return f"{dept_part}{count_str}"
 
     # Если кавычек нет, берём последнее слово или сокращаем до ~50 символов
+    words = clinic_name.split()
+    if len(words) == 1:
+        return f"{clinic_name}{count_str}"
     if len(clinic_name) > 50:
         return f"{clinic_name[:50]}...{count_str}"
     return f"{clinic_name}{count_str}"
@@ -255,6 +259,7 @@ def get_clinic_selection(
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
         age = relativedelta(datetime.now(), bday).years
     except (ValueError, TypeError):
+        logger.exception("Не удалось распарсить дату рождения: {}", bday_str)
         age = 18
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}

@@ -124,6 +124,24 @@ async def process_bday(
         await state.clear()
 
 
+async def _show_patient_selection(
+    call: CallbackQuery,
+    uid: str,
+    db: DatabaseManager,
+    text: str,
+) -> None:
+    """Показывает список пациентов после операции (добавление/отмена)."""
+    user_data = await db.get_user_data(uid)
+    if isinstance(call.message, Message):
+        await call.message.edit_text(
+            text,
+            reply_markup=get_patient_selection(
+                user_data["patients"], user_data["monitoring"]
+            ),
+            parse_mode="Markdown",
+        )
+
+
 @router.message(Registration.wait_alias)
 async def process_alias(message: Message, state: FSMContext, db: DatabaseManager):
     if message.text and len(message.text) > 25:
@@ -175,16 +193,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
     try:
         await db.add_patient(uid, p_id, p_info)
         await state.clear()
-
-        user_data = await db.get_user_data(uid)
-        if isinstance(call.message, Message):
-            await call.message.edit_text(
-                _("patient-added-success"),
-                reply_markup=get_patient_selection(
-                    user_data["patients"], user_data["monitoring"]
-                ),
-                parse_mode="Markdown",
-            )
+        await _show_patient_selection(call, uid, db, _("patient-added-success"))
     except Exception:
         logger.exception("Ошибка при пропуске alias для p_id={} uid={}", p_id, uid)
         await state.clear()
@@ -201,12 +210,4 @@ async def cancel_registration(
 ):
     await state.clear()
     uid = str(call.from_user.id) if call.from_user else "unknown"
-    user_data = await db.get_user_data(uid)
-    if isinstance(call.message, Message):
-        await call.message.edit_text(
-            _("your-patients-header"),
-            reply_markup=get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            ),
-            parse_mode="Markdown",
-        )
+    await _show_patient_selection(call, uid, db, _("your-patients-header"))
