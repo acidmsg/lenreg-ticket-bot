@@ -5,6 +5,7 @@
 Запускается как asyncio.Task в том же event loop, что и aiogram-бот.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,7 +19,7 @@ from src.services.metrics import PrometheusMetrics
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # startup: singleton'ы уже созданы в main.py, ничего не делаем
     yield
     # shutdown: uvicorn.Server остановит себя сам при task.cancel()

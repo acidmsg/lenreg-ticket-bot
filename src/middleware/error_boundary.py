@@ -6,6 +6,8 @@ that are currently silently swallowed in every handler, centralising error
 suppression and logging.
 """
 
+from typing import Any
+
 from aiogram import BaseMiddleware
 from aiogram.exceptions import (
     TelegramBadRequest,
@@ -26,7 +28,7 @@ class ErrorBoundaryMiddleware(BaseMiddleware):
     can handle them (or crash the polling loop if truly fatal).
     """
 
-    async def __call__(self, handler, event, data):
+    async def __call__(self, handler, event, data) -> Any:
         try:
             return await handler(event, data)
         except TelegramBadRequest as e:

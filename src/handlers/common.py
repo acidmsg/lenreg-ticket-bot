@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 from pathlib import Path
 
+import aiofiles.os
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
@@ -13,6 +14,7 @@ from src.api.zdrav_client import ZdravClient
 from src.assets.utils import get_nav_image_path, get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo
 from src.filters.admin import IsAdmin
 from src.handlers.callback_parser import _parse_callback_arg
 from src.i18n import _
@@ -352,7 +354,10 @@ async def _send_nav_photo(
 # ── Сводка активного мониторинга ──────────────────────────────
 
 
-def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
+def build_monitoring_summary(
+    patients: dict[str, PatientInfo],
+    monitoring: dict[str, dict[str, MonitoringEntry]],
+) -> str:
     """Формирует текстовую сводку активного мониторинга."""
     if not monitoring:
         return ""
@@ -360,7 +365,10 @@ def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
     lines = [_("monitoring-summary-header")]
 
     for p_id, doctors in monitoring.items():
-        p_info = patients.get(p_id, {})
+        raw = patients.get(p_id)
+        if raw is None:
+            continue
+        p_info: PatientInfo = raw
         p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
         lines.append(f"\n👤 {p_name}")
 
@@ -390,7 +398,7 @@ def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
 
 
 @router.message(Command("status"), IsAdmin())
-async def cmd_status(message: Message, db: DatabaseManager):
+async def cmd_status(message: Message, db: DatabaseManager) -> None:
     """Команда /status — отчёт о состоянии бота (только для администраторов)."""
     if not message.from_user:
         return
@@ -400,7 +408,7 @@ async def cmd_status(message: Message, db: DatabaseManager):
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, db: DatabaseManager, bot: Bot):
+async def cmd_start(message: Message, db: DatabaseManager, bot: Bot) -> None:
     """Команда /start — приветствие с изображением-заголовком patient_select."""
     uid = str(message.from_user.id) if message.from_user else "unknown"
     user_data = await db.get_user_data(uid)
@@ -451,7 +459,7 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot):
 
 
 @router.callback_query(F.data == "back_to_main")
-async def back_to_main(call: CallbackQuery, db: DatabaseManager):
+async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
     """Возврат в главное меню с изображением-заголовком patient_select."""
     if not call.from_user or not call.message or not isinstance(call.message, Message):
         return
@@ -480,7 +488,7 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.callback_query(F.data.startswith("sel_p_"))
-async def select_patient(call: CallbackQuery, db: DatabaseManager):
+async def select_patient(call: CallbackQuery, db: DatabaseManager) -> None:
     """Выбор пациента → список городов с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
@@ -511,7 +519,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.callback_query(F.data.startswith("sel_cty_"))
-async def select_city(call: CallbackQuery, db: DatabaseManager):
+async def select_city(call: CallbackQuery, db: DatabaseManager) -> None:
     """Выбор города → список клиник с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
@@ -523,7 +531,10 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
     idx_or_all = parts[3]
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    p_info = user_data["patients"].get(p_id, {})
+    raw_p = user_data["patients"].get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
 
     clinic_names = await db.get_all_clinic_names()
     clinics_data = await db._db.get_active_clinics()
@@ -551,7 +562,7 @@ async def select_city(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.callback_query(F.data.startswith("back_to_cities_"))
-async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
+async def back_to_cities(call: CallbackQuery, db: DatabaseManager) -> None:
     """Возвращает к выбору города с изображением clinic_select."""
     if not call.message or not call.from_user or not call.data:
         return
@@ -578,7 +589,7 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.callback_query(F.data.startswith("back_to_clinics_"))
-async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
+async def back_to_clinics(call: CallbackQuery, db: DatabaseManager) -> None:
     """Возвращает к списку клиник (того же города или всех).
 
     Используется изображение-заголовок clinic_select.
@@ -593,7 +604,10 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
     city_idx = parts[4]  # всегда есть, т.к. len >= 5
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    p_info = user_data["patients"].get(p_id, {})
+    raw_p = user_data["patients"].get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
 
     clinic_names = await db.get_all_clinic_names()
     clinics_data = await db._db.get_active_clinics()
@@ -621,7 +635,9 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.callback_query(F.data.startswith("sel_c_"))
-async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClient):
+async def select_clinic(
+    call: CallbackQuery, db: DatabaseManager, api: ZdravClient
+) -> None:
     """Выбор клиники → список врачей с изображением doctor_*_select."""
     if not call.message or not call.from_user or not call.data:
         return
@@ -635,7 +651,10 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
     city_idx = _parse_callback_arg(parts, 4, "all")
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    p_info = user_data["patients"].get(p_id, {})
+    raw_p = user_data["patients"].get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
     confirmed = p_info.get("confirmed_clinics", [])
 
     # Добавляем клинику в confirmed, если её там ещё нет
@@ -681,7 +700,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 @router.callback_query(F.data.startswith("tgl_"))
 async def toggle_doctor(
     call: CallbackQuery, db: DatabaseManager, api: ZdravClient, bot: Bot
-):
+) -> None:
     if not call.message or not call.from_user or not call.data:
         return
 
@@ -694,7 +713,10 @@ async def toggle_doctor(
 
     user_data = await db.get_user_data(uid)
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
-    doc_info = doctors_list.get(d_id, {})
+    raw_doc = doctors_list.get(d_id)
+    if raw_doc is None:
+        return
+    doc_info: DoctorEntry = raw_doc
     d_name = doc_info.get("name", _("doctor-fallback-name"))
     d_spec = doc_info.get("specialty", "")
 
@@ -706,7 +728,10 @@ async def toggle_doctor(
 
     await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec)
 
-    p_info = user_data.get("patients", {}).get(p_id, {})
+    raw_p = user_data.get("patients", {}).get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
 
     if already_monitored:
         user_data = await db.get_user_data(uid)
@@ -831,7 +856,9 @@ async def toggle_doctor(
 
 
 @router.callback_query(F.data.startswith("stop_patient_"))
-async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot):
+async def stop_patient_monitoring(
+    call: CallbackQuery, db: DatabaseManager, bot: Bot
+) -> None:
     """
     Сброс мониторинга для конкретного пациента.
     Формат: stop_patient_{p_id}_city или stop_patient_{p_id}_clinic_{city_idx}
@@ -872,7 +899,10 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
             clinic_names = await db.get_all_clinic_names()
             clinics_data = await db._db.get_active_clinics()
             cities = await db._db.get_distinct_cities()
-            p_info = user_data.get("patients", {}).get(p_id, {})
+            raw_p = user_data.get("patients", {}).get(p_id)
+            if raw_p is None:
+                return
+            p_info: PatientInfo = raw_p
 
             selected_city, __ = _decode_city_from_idx(str(city_idx), cities)
 
@@ -912,7 +942,9 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
 
 
 @router.callback_query(F.data.startswith("stop_clinic_"))
-async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot):
+async def stop_clinic_monitoring(
+    call: CallbackQuery, db: DatabaseManager, bot: Bot
+) -> None:
     """Сброс мониторинга для конкретной клиники пациента."""
     if not call.data or not call.from_user or not call.message:
         return
@@ -952,7 +984,10 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
 
     if isinstance(call.message, Message) and bot is not None:
         doctors_list = await db.get_doctors_for_clinic(clinic_id)
-        p_info = user_data.get("patients", {}).get(p_id, {})
+        raw_p = user_data.get("patients", {}).get(p_id)
+        if raw_p is None:
+            return
+        p_info: PatientInfo = raw_p
         city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
 
         # Определяем тип клиники для изображения врача
@@ -977,7 +1012,9 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
 
 
 @router.callback_query(F.data == "stop_all")
-async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot):
+async def stop_all_monitoring(
+    call: CallbackQuery, db: DatabaseManager, bot: Bot
+) -> None:
     """Сброс всего мониторинга для пользователя."""
     if not call.from_user or not call.message:
         return
@@ -1007,13 +1044,13 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
 
 
 @router.callback_query(F.data == "noop")
-async def handle_noop(call: CallbackQuery):
+async def handle_noop(call: CallbackQuery) -> None:
     """Заглушка для кнопки-разделителя."""
     await call.answer()
 
 
 @router.callback_query(F.data.startswith("del_p_"))
-async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
+async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager) -> None:
     if not call.message or not call.from_user or not call.data:
         return
     parts = call.data.split("_")
@@ -1063,7 +1100,7 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
 
 
 @router.message(Command("export"), IsAdmin())
-async def cmd_export(message: Message, db: DatabaseManager):
+async def cmd_export(message: Message, db: DatabaseManager) -> None:
     """Экспорт данных мониторинга в CSV или JSON.
 
     Показывает пользователю inline-клавиатуру с выбором формата.
@@ -1097,7 +1134,7 @@ async def cmd_export(message: Message, db: DatabaseManager):
 
 
 @router.callback_query(F.data.in_({"export_csv", "export_json"}))
-async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
+async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> None:
     """Генерация и отправка файла экспорта."""
     if not call.from_user or not isinstance(call.message, Message):
         return
@@ -1142,7 +1179,7 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
         # Удаляем временный файл
         try:
             if filepath:
-                Path(filepath).unlink(missing_ok=True)  # noqa: ASYNC240
+                await aiofiles.os.unlink(str(filepath))
         except Exception as e:
             logger.debug(f"Не удалось удалить временный файл {filepath}: {e}")
 
@@ -1151,4 +1188,4 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
         if isinstance(call.message, Message):
             await call.message.delete()
     except Exception:
-        pass
+        logger.debug("Не удалось удалить сообщение с выбором формата экспорта")

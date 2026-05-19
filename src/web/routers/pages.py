@@ -7,16 +7,17 @@ HTML-страницы веб-дашборда.
 import time
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, TemplateResponse
 from loguru import logger
 
+from src.database.types import UserData
 from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
 
 router = APIRouter()
 
 
-def _count_active_monitorings(db_data: dict) -> int:
+def _count_active_monitorings(db_data: dict[str, UserData]) -> int:
     """Считает количество активных мониторингов (разные p_id у пользователей)."""
     return sum(
         1
@@ -27,7 +28,7 @@ def _count_active_monitorings(db_data: dict) -> int:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard_summary(request: Request):
+async def dashboard_summary(request: Request) -> TemplateResponse:
     """Главная страница — сводка."""
     try:
         db = request.app.state.db
@@ -73,7 +74,7 @@ async def dashboard_summary(request: Request):
 
 
 @router.get("/users", response_class=HTMLResponse)
-async def users_list(request: Request):
+async def users_list(request: Request) -> TemplateResponse:
     """Список пользователей."""
     db = request.app.state.db
     db_data = db.data
@@ -106,7 +107,7 @@ async def users_list(request: Request):
 
 
 @router.get("/users/{uid}", response_class=HTMLResponse)
-async def user_detail(request: Request, uid: str):
+async def user_detail(request: Request, uid: str) -> TemplateResponse:
     """Детали пользователя."""
     db = request.app.state.db
     db_data = db.data
@@ -145,7 +146,7 @@ async def monitoring_logs(
     limit: int = Query(50, ge=1, le=500),
     uid: str | None = Query(None),
     status: str | None = Query(None),
-):
+) -> TemplateResponse:
     """Лог мониторинга с пагинацией и фильтрацией."""
     db = request.app.state.db
     logs = await db.get_all_monitoring_logs(
@@ -168,7 +169,7 @@ async def monitoring_logs(
 
 
 @router.get("/clinics", response_class=HTMLResponse)
-async def clinics_list(request: Request):
+async def clinics_list(request: Request) -> TemplateResponse:
     """Список клиник."""
     db = request.app.state.db
     clinics = await db._db.get_active_clinics()
@@ -198,7 +199,7 @@ async def clinics_list(request: Request):
 
 
 @router.get("/api-status", response_class=HTMLResponse)
-async def api_status(request: Request):
+async def api_status(request: Request) -> TemplateResponse:
     """Состояние внешнего API."""
     pm = request.app.state.prometheus_metrics
 

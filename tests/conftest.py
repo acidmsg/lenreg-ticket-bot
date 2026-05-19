@@ -6,10 +6,13 @@ import asyncio
 import fnmatch
 import gc
 import os
+from datetime import datetime
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
+from aiogram.types import CallbackQuery, Chat, Message, User
 from src.database.database import Database
 from src.database.manager import DatabaseManager
 from src.i18n import setup_i18n
@@ -303,3 +306,92 @@ def _silence_loguru() -> None:
 
     logger.remove()
     logger.add(lambda _: None, level="ERROR")
+
+
+# ── Общие константы и фабрики для тестов обработчиков ─────────────────
+
+
+TEST_USER_ID = 123456789
+
+
+def _make_user(user_id: int = TEST_USER_ID) -> User:
+    """Создаёт объект User для тестов."""
+    return User(id=user_id, is_bot=False, first_name="Test")
+
+
+def make_message(text: str | None, user_id: int = TEST_USER_ID) -> Message:
+    """
+    Создаёт объект Message с замоканными answer/edit_text.
+
+    Модели aiogram — frozen (pydantic), поэтому методы присоединяются
+    через object.__setattr__, обходящий валидацию pydantic.
+    """
+    msg = Message(
+        message_id=1,
+        date=datetime.now(),
+        chat=Chat(id=user_id, type="private"),
+        from_user=_make_user(user_id),
+        text=text,
+    )
+    object.__setattr__(msg, "answer", AsyncMock())
+    object.__setattr__(msg, "edit_text", AsyncMock())
+    return msg
+
+
+def make_callback(
+    data: str,
+    user_id: int = TEST_USER_ID,
+    message: Message | None = None,
+) -> CallbackQuery:
+    """
+    Создаёт CallbackQuery с замоканными answer и message.answer/edit_text.
+
+    Модель frozen — используем object.__setattr__ для мок-методов.
+    Если message не передан, создаётся тестовый Message.
+    """
+    if message is None:
+        message = make_message("dummy", user_id)
+
+    call = CallbackQuery(
+        id="cb_test_001",
+        from_user=_make_user(user_id),
+        message=message,
+        data=data,
+        chat_instance="test",
+    )
+    object.__setattr__(call, "answer", AsyncMock())
+    return call
+
+
+def make_mock_api() -> AsyncMock:
+    """Создаёт AsyncMock для ZdravClient с замоканным fetch_patient_id."""
+    api = AsyncMock()
+    api.fetch_patient_id = AsyncMock()
+    return api
+
+
+def make_mock_bot() -> AsyncMock:
+    """Создаёт AsyncMock для Bot aiogram."""
+    bot = AsyncMock()
+    bot.send_message = AsyncMock()
+    # send_photo возвращает объект с int message_id, иначе SQLite падает
+    bot.send_photo = AsyncMock(return_value=AsyncMock(message_id=12345))
+    bot.edit_message_text = AsyncMock()
+    bot.delete_message = AsyncMock()
+    return bot
+
+
+async def seed_clinic(db_manager, clinic_id: str, name: str) -> None:
+    """Сидирует одну активную клинику в тестовой БД."""
+    await db_manager._db.upsert_clinic(clinic_id, name)
+
+
+async def seed_doctors(db_manager, clinic_id: str, doctors: list[dict]) -> None:
+    """Сидирует список врачей для клиники в тестовой БД."""
+    for doc in doctors:
+        await db_manager._db.upsert_doctor(
+            clinic_id=clinic_id,
+            doctor_id=doc["id"],
+            name=doc["name"],
+            specialty=doc.get("specialty", ""),
+        )

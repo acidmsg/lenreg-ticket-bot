@@ -7,6 +7,7 @@
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -16,7 +17,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._api_key = api_key
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         # Если ключ не задан — пропускаем все запросы
         if not self._api_key:
             return await call_next(request)

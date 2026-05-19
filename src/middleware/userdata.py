@@ -5,6 +5,8 @@ Loads user_data from the database once per update and injects it into
 data["user_data"], eliminating repeated db.get_user_data() calls in handlers.
 """
 
+from typing import Any
+
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 from loguru import logger
@@ -23,7 +25,7 @@ class UserDataPreloadMiddleware(BaseMiddleware):
     Falls back to an empty dict if the user is unknown or db is unavailable.
     """
 
-    async def __call__(self, handler, event, data):
+    async def __call__(self, handler, event, data) -> Any:
         db: DatabaseManager | None = data.get("db")
         uid: str | None = None
 

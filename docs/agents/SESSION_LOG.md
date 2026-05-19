@@ -1,23 +1,21 @@
-# SESSION LOG
+# Session Log
 
-## 2026-05-19 — Исправление 4 записей MINOR технического долга
+## 2026-05-19 — Исправление F821 Undefined name и arg-type ошибок в тестах
 
-**Выполненные задачи:**
+### Выполненные задачи
 
-| ID        | Описание                                                                      | Файлы                                            |
-| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| MIN-001   | Исправлена опечатка `"сте – клянный"` → `"стеклянный"` в маппинге settlements | [`database.py:84`](src/database/database.py:84)  |
-| MIN-002-A | Добавлен docstring про опечатку API `Spesiality` в `SpecialityItem`           | [`models.py:62-69`](src/api/models.py:62)        |
-| MIN-011   | Улучшена эвристика `is_cabinet()`: ключевые слова, цифры, дефисы, отчества    | [`helpers.py:116-172`](src/utils/helpers.py:116) |
-| MIN-012   | Улучшена `shorten_fio()`: фильтр пустых частей, 2-словные ФИО, fallback       | [`helpers.py:174-202`](src/utils/helpers.py:174) |
+- **F821** — Исправлена ошибка `Undefined name` в [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py):
+  - Проблема: использовались неопределённые имена `_seed_clinic` и `_seed_doctors`. В `conftest.py` функции называются `seed_clinic` и `seed_doctors` (без префиксного подчёркивания).
+  - Добавлен импорт с алиасами: `seed_clinic as _seed_clinic, seed_doctors as _seed_doctors`
+- **arg-type** — Исправлена ошибка типизации в [`tests/keyboards/test_keyboards.py`](tests/keyboards/test_keyboards.py):
+  - Проблема: `get_city_selection()` ожидает `list[ClinicInfo] | None`, а тесты передавали `list[dict[str, str]]`.
+  - Заменены вызовы на корректно типизированные `list[ClinicInfo]` с импортом `ClinicInfo` из `src.database.types`.
 
-**Изменённые файлы:**
+### Изменённые файлы
 
-- [`src/database/database.py`](src/database/database.py) — строка 84
-- [`src/api/models.py`](src/api/models.py) — строки 62–69
-- [`src/utils/helpers.py`](src/utils/helpers.py) — строки 116–202
+- [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py) — добавлены импорты с алиасами
+- [`tests/keyboards/test_keyboards.py`](tests/keyboards/test_keyboards.py) — исправлены типы аргументов
 
-**Результаты проверок:**
+### Результаты проверок
 
-- Ruff: 0 errors
-- Тесты `tests/utils/`: 15/15 passed
+- **Ruff**: 0 errors

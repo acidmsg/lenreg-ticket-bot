@@ -25,7 +25,7 @@ _WEEKDAYS = [
 ]
 
 
-async def load_specialty_aliases_from_db(db):
+async def load_specialty_aliases_from_db(db) -> None:
     """Загружает псевдонимы специальностей из БД в кэш."""
     global _db_specialty_aliases
     try:

@@ -234,9 +234,23 @@ class TestCitySelection:
                 "d3": {"clinic_id": "272"},
             }
         }
-        clinics_data = [
-            {"clinic_id": "271", "city": "Москва"},
-            {"clinic_id": "272", "city": "Казань"},
+        from src.database.types import ClinicInfo
+
+        clinics_data: list[ClinicInfo] = [
+            {
+                "clinic_id": "271",
+                "name": "Поликлиника №1",
+                "type": "adult",
+                "is_active": 1,
+                "city": "Москва",
+            },
+            {
+                "clinic_id": "272",
+                "name": "Поликлиника №2",
+                "type": "child",
+                "is_active": 1,
+                "city": "Казань",
+            },
         ]
         mk = get_city_selection(
             p_id="p1",
@@ -253,7 +267,17 @@ class TestCitySelection:
         from src.keyboards.inline import get_city_selection
 
         monitoring = {"p1": {"d1": {"clinic_id": "271"}}}
-        clinics_data = [{"clinic_id": "271", "city": "Москва"}]
+        from src.database.types import ClinicInfo
+
+        clinics_data: list[ClinicInfo] = [
+            {
+                "clinic_id": "271",
+                "name": "Поликлиника №1",
+                "type": "adult",
+                "is_active": 1,
+                "city": "Москва",
+            },
+        ]
         mk = get_city_selection(
             p_id="p1",
             cities=["Москва"],

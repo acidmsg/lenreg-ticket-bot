@@ -14,11 +14,13 @@
 #   make clean        - Remove cache/temp directories
 #   make lock         - Regenerate poetry.lock
 #   make verify-pyproject - Validate pyproject.toml (Poetry check)
+#   make apply-heuristics      - Apply city heuristic to patients
+#   make apply-heuristic-types - Apply heuristic types to doctors
 # =============================================================================
 
 POETRY := python -m poetry
 
-.PHONY: install lint format test check run clean lock verify-pyproject
+.PHONY: install lint format test check run clean lock verify-pyproject apply-heuristics apply-heuristic-types
 
 install:
 	$(POETRY) install
@@ -59,3 +61,9 @@ lock:
 
 verify-pyproject:
 	$(POETRY) check
+
+apply-heuristics:
+	python scripts/apply_city_heuristic.py
+
+apply-heuristic-types:
+	python scripts/apply_heuristic_types.py

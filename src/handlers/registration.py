@@ -10,6 +10,7 @@ from loguru import logger
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.database.types import PatientInfo
 from src.i18n import _
 from src.keyboards.inline import get_patient_selection, get_registration_keyboard
 
@@ -23,7 +24,7 @@ class Registration(StatesGroup):
 
 
 @router.callback_query(F.data == "start_add_p")
-async def start_add_patient(call: CallbackQuery, state: FSMContext):
+async def start_add_patient(call: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(Registration.wait_fio)
     if isinstance(call.message, Message):
         with contextlib.suppress(Exception):
@@ -35,7 +36,7 @@ async def start_add_patient(call: CallbackQuery, state: FSMContext):
 
 
 @router.message(Registration.wait_fio)
-async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
+async def process_fio(message: Message, state: FSMContext, db: DatabaseManager) -> None:
     if not message.text:
         return
 
@@ -59,7 +60,7 @@ async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
 @router.message(Registration.wait_bday)
 async def process_bday(
     message: Message, state: FSMContext, api: ZdravClient, db: DatabaseManager
-):
+) -> None:
     date_str = message.text or ""
     try:
         date = datetime.strptime(date_str, "%d.%m.%Y")
@@ -143,7 +144,9 @@ async def _show_patient_selection(
 
 
 @router.message(Registration.wait_alias)
-async def process_alias(message: Message, state: FSMContext, db: DatabaseManager):
+async def process_alias(
+    message: Message, state: FSMContext, db: DatabaseManager
+) -> None:
     if message.text and len(message.text) > 25:
         await message.answer(
             _("alias-too-long"),
@@ -157,7 +160,10 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
 
     # Если псевдоним не введён — оставляем None (отобразится ФИО)
     alias = message.text if message.text else None
-    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": alias}
+    if alias:
+        p_info = PatientInfo(fio=data["fio"], bday=data["bday"], alias=alias)
+    else:
+        p_info = PatientInfo(fio=data["fio"], bday=data["bday"])
     try:
         await db.add_patient(uid, p_id, p_info)
         await state.clear()
@@ -180,7 +186,9 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
 
 
 @router.callback_query(F.data == "skip_alias", Registration.wait_alias)
-async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager):
+async def skip_alias(
+    call: CallbackQuery, state: FSMContext, db: DatabaseManager
+) -> None:
     """Пропустить ввод псевдонима — alias остаётся None, отобразится ФИО."""
     if not call.from_user or not call.message:
         return
@@ -189,7 +197,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
     p_id = data["p_id"]
 
     # При пропуске псевдоним не сохраняем (None) — отобразится ФИО через fallback
-    p_info = {"fio": data["fio"], "bday": data["bday"], "alias": None}
+    p_info = PatientInfo(fio=data["fio"], bday=data["bday"])
     try:
         await db.add_patient(uid, p_id, p_info)
         await state.clear()
@@ -207,7 +215,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
 @router.callback_query(F.data == "cancel_registration")
 async def cancel_registration(
     call: CallbackQuery, state: FSMContext, db: DatabaseManager
-):
+) -> None:
     await state.clear()
     uid = str(call.from_user.id) if call.from_user else "unknown"
     await _show_patient_selection(call, uid, db, _("your-patients-header"))

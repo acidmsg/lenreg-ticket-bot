@@ -46,7 +46,7 @@ async def discovery_loop(
     database: Database,
     patient_id_adult: str,
     patient_id_child: str,
-):
+) -> None:
     """Цикл Discovery врачей — итерирует все активные clinic_ids из БД."""
 
     logger.info("Цикл Discovery врачей запущен (агрегированный)")
@@ -139,7 +139,7 @@ async def discovery_loop(
 _sync_consecutive_errors: int = 0
 
 
-async def sync_clinic_names(api: ZdravClient, database: Database):
+async def sync_clinic_names(api: ZdravClient, database: Database) -> None:
     """Получает список клиник из API и сохраняет названия в БД."""
     global _sync_consecutive_errors
     try:

@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-05-19 — Исправление 4 записей MINOR технического долга
+
+### Выполненные задачи
+
+| ID        | Описание                                                                      | Файлы                                            |
+| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| MIN-001   | Исправлена опечатка `"сте – клянный"` → `"стеклянный"` в маппинге settlements | [`database.py:84`](src/database/database.py:84)  |
+| MIN-002-A | Добавлен docstring про опечатку API `Spesiality` в `SpecialityItem`           | [`models.py:62-69`](src/api/models.py:62)        |
+| MIN-011   | Улучшена эвристика `is_cabinet()`: ключевые слова, цифры, дефисы, отчества    | [`helpers.py:116-172`](src/utils/helpers.py:116) |
+| MIN-012   | Улучшена `shorten_fio()`: фильтр пустых частей, 2-словные ФИО, fallback       | [`helpers.py:174-202`](src/utils/helpers.py:174) |
+
+### Изменённые файлы
+
+- [`src/database/database.py`](src/database/database.py) — строка 84
+- [`src/api/models.py`](src/api/models.py) — строки 62–69
+- [`src/utils/helpers.py`](src/utils/helpers.py) — строки 116–202
+
+### Результаты проверок
+
+- Ruff: 0 errors
+- Тесты `tests/utils/`: 15/15 passed
+
+---
+
 ## 2026-05-19 — Синхронизация `.env` с `.env.example`
 
 ### Выполненные задачи
@@ -4120,3 +4144,28 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - `docs/agents/TECH_DEBT.md`
 - `docs/design/td-utl-004-typeddict-design.md` (новый)
 - `requirements.txt` (удалён)
+
+---
+
+## 2026-05-19 — OPT-K & OPT-L: Консолидация фикстур + аннотации async-функций
+
+### Выполненные задачи
+
+- **OPT-K** — Консолидация тестовых фикстур через [`tests/conftest.py`](tests/conftest.py):
+  - Добавлено 7 общих хелперов: `TEST_USER_ID`, `make_message()`, `make_callback()`, `make_mock_api()`, `make_mock_bot()`, `seed_clinic()`, `seed_doctors()` (строки 311–399)
+  - Из [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py) удалено ~26 строк дублирования setup-логики
+  - [`tests/keyboards/test_keyboards.py`](tests/keyboards/test_keyboards.py) — без изменений
+- **OPT-L** — Аннотации `-> None` для async-функций без возвращаемого типа:
+  - 91 функция в 21 файле `src/`: 72 `-> None`, 18 typed (`-> Any`, `-> dict[str, Any]`, `-> TemplateResponse`, `-> Response`), 1 `-> AsyncGenerator[None, None]`
+  - Ключевые файлы: [`src/database/manager.py`](src/database/manager.py) (13), [`src/database/database.py`](src/database/database.py) (19), [`src/handlers/common.py`](src/handlers/common.py) (17), [`src/handlers/registration.py`](src/handlers/registration.py) (7), [`src/web/routers/api.py`](src/web/routers/api.py) (7), [`src/web/routers/pages.py`](src/web/routers/pages.py) (6)
+
+### Изменённые файлы
+
+- [`tests/conftest.py`](tests/conftest.py) — добавлены общие хелперы
+- [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py) — удалено дублирование
+- 21 файл в `src/` — добавлены аннотации возвращаемого типа
+
+### Результаты проверок
+
+- **Ruff**: 0 errors
+- **Pytest**: 181 passed, 4 failed (pre-existing, не связаны с изменениями)

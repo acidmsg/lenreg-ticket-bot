@@ -21,7 +21,7 @@ from loguru import logger
 from src.config import settings
 
 if TYPE_CHECKING:
-    pass
+    from redis.asyncio import Redis
 
 
 class RedisClient:
@@ -109,7 +109,7 @@ class RedisClient:
         return self._available
 
     @property
-    def client(self) -> Any:  # aioredis.Redis
+    def client(self) -> Redis:
         """
         Возвращает экземпляр aioredis.Redis.
 

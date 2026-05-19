@@ -46,6 +46,8 @@ dependencies = [
     "python-dateutil>=2.9,<3.0",
     # === Error Notifications (M2) ===
     "sentry-sdk>=2.0,<3.0",
+    # === Metrics & Monitoring ===
+    "prometheus-client>=0.20,<1.0",
 ]
 
 [tool.poetry]

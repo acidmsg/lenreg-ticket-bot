@@ -3,6 +3,7 @@ import os
 import threading
 import time
 
+import aiofiles.os
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -78,7 +79,8 @@ async def _bot_me_with_retry(
                     f"Не удалось связаться с Telegram API "
                     f"после {max_retries} попыток: {e}"
                 )
-    raise last_error  # type: ignore[misc]
+    if last_error is not None:
+        raise last_error
 
 
 async def _start_background_tasks(
@@ -230,7 +232,7 @@ async def run_dashboard(
     config,
     host: str = "0.0.0.0",
     port: int = 8080,
-):
+) -> None:
     """
     Запускает uvicorn-сервер веб-дашборда как asyncio-задачу (автоподбор порта).
 
@@ -250,7 +252,7 @@ async def run_dashboard(
         )
 
 
-async def main():
+async def main() -> None:
     # Настройка логирования (Loguru)
     setup_logging()
 
@@ -259,8 +261,8 @@ async def main():
 
     # Убедимся, что каталог 'data' существует
     data_dir = os.path.dirname(settings.SQLITE_DB_PATH)
-    if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
-        os.makedirs(data_dir)
+    if data_dir and not await aiofiles.os.path.exists(data_dir):
+        await aiofiles.os.makedirs(data_dir)
 
     # Инициализация Redis (до FSM-хранилища)
     # Не падает при недоступности Redis: переходит в режим graceful degradation

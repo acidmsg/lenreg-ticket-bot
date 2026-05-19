@@ -7,6 +7,7 @@ from dateutil.relativedelta import (
 from loguru import logger
 
 from src.config import settings
+from src.database.types import ClinicInfo
 from src.i18n import _
 from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
@@ -168,7 +169,7 @@ def get_city_selection(
     p_id: str,
     cities: list[str] | None = None,
     monitoring: dict | None = None,
-    clinics_data: list[dict] | None = None,
+    clinics_data: list[ClinicInfo] | None = None,
 ):
     """
     Клавиатура выбора города.
@@ -240,7 +241,7 @@ def get_clinic_selection(
     selected_city: str | None = None,
     monitoring: dict | None = None,
     clinic_names: dict[str, str] | None = None,
-    clinics_data: list[dict] | None = None,
+    clinics_data: list[ClinicInfo] | None = None,
     city_idx: str = "all",
 ):
     """

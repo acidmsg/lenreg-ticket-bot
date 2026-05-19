@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import json
 import random
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import aiolimiter
 import httpx
@@ -78,7 +78,7 @@ class ZdravClient:
             )
         return self._client
 
-    async def close(self):
+    async def close(self) -> None:
         """Закрывает HTTP-клиент. Вызывать при остановке бота."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
@@ -122,7 +122,7 @@ class ZdravClient:
                 endpoint_name,
                 request_url,
             )
-            return json_data  # type: ignore[return-value]
+            return cast(M, json_data)
 
     async def fetch_patient_id(
         self,

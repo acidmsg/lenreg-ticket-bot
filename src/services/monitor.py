@@ -10,6 +10,7 @@ from src.api.zdrav_client import ZdravClient
 from src.assets.utils import get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.database.types import MonitoringEntry, PatientInfo
 from src.handlers.common import _send_or_update_message
 from src.i18n import _
 from src.services.healthcheck import _safe_set
@@ -30,7 +31,7 @@ async def _send_notification(
     p_id: str,
     d_id: str,
     photo_path: Path | None = None,
-):
+) -> None:
     """Отправляет уведомление пользователю.
 
     При наличии photo_path использует send_photo (изображение + caption),
@@ -157,15 +158,15 @@ async def _check_single_doctor(
     uid: str,
     p_id: str,
     d_id: str,
-    d_info: dict | str,
-    p_info: dict,
+    d_info: MonitoringEntry | str,
+    p_info: PatientInfo,
     empty_counts_lock: asyncio.Lock,
     empty_counts: dict[str, int],
     bot: Bot,
     db: DatabaseManager,
     *,
     initial_sync: bool = False,
-):
+) -> None:
     """Проверяет слоты для одного врача и отправляет уведомления при изменениях.
 
     Выполняет полный цикл: jitter → API-запрос → классификация → уведомление.
@@ -268,7 +269,11 @@ async def _check_single_doctor(
                 if name:
                     clinic_name = name
             except Exception:
-                pass
+                logger.debug(
+                    "Не удалось получить имя клиники clinic_id={} для p_id={}",
+                    clinic_id,
+                    p_id,
+                )
 
         try:
             await db.add_monitoring_log(
@@ -338,7 +343,7 @@ async def monitor_loop(
     db: DatabaseManager,
     *,
     initial_sync: bool = True,
-):
+) -> None:
     """Главный цикл мониторинга слотов.
 
     Пользователи → пациенты → врачи.  Проверка врачей внутри одного пациента
@@ -382,7 +387,15 @@ async def monitor_loop(
             for uid, u_info in users_data.items():
                 monitoring = u_info.get("monitoring", {})
                 for p_id, doctors in monitoring.items():
-                    p_info = u_info["patients"].get(p_id, {})
+                    p_info = u_info["patients"].get(p_id)
+                    if p_info is None:
+                        logger.warning(
+                            "Мониторинг ссылается на несуществующего пациента "
+                            "p_id={} (uid={}), пропускаю",
+                            p_id,
+                            uid,
+                        )
+                        continue
 
                     # Собираем корутины проверки всех врачей пациента
                     doctor_tasks = []

@@ -11,6 +11,7 @@ Per-user rate limiting middleware for aiogram (Redis-backed).
 import asyncio
 import contextlib
 import time
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
@@ -84,7 +85,7 @@ class UserRateLimitMiddleware(BaseMiddleware):
 
         return False
 
-    async def __call__(self, handler, event, data):
+    async def __call__(self, handler, event, data) -> Any:
         # Determine user_id and event type
         if isinstance(event, Message):
             if not event.from_user:

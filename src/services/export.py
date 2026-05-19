@@ -15,6 +15,7 @@ from typing import Any
 from loguru import logger
 
 from src.database.manager import DatabaseManager
+from src.database.types import PatientInfo
 from src.i18n import _
 
 
@@ -47,10 +48,6 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
 
     # Получаем логи мониторинга
     logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
-    log_by_key: dict[str, list[dict]] = {}
-    for entry in logs:
-        key = f"{entry['p_id']}_{entry['d_id']}"
-        log_by_key.setdefault(key, []).append(entry)
 
     # Создаём временный CSV-файл
     with tempfile.NamedTemporaryFile(
@@ -94,7 +91,10 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
             now_str = _format_timestamp(time.time())
 
             for p_id, doctors in monitoring.items():
-                p_info = patients.get(p_id, {})
+                raw_p = patients.get(p_id)
+                if raw_p is None:
+                    continue
+                p_info: PatientInfo = raw_p
                 p_name = p_info.get("alias") or p_info.get(
                     "fio", _("patient-fallback-name")
                 )
@@ -186,7 +186,10 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
     }
 
     for p_id, doctors in monitoring.items():
-        p_info = patients.get(p_id, {})
+        raw_p = patients.get(p_id)
+        if raw_p is None:
+            continue
+        p_info: PatientInfo = raw_p
         p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
 
         patient_entry: dict[str, Any] = {

@@ -5,17 +5,19 @@ JSON API веб-дашборда.
 """
 
 import time
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from src.database.types import UserData
 from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
 
 router = APIRouter()
 
 
-def _count_active_monitorings(db_data: dict) -> int:
+def _count_active_monitorings(db_data: dict[str, UserData]) -> int:
     """Считает количество активных мониторингов."""
     return sum(
         1
@@ -25,7 +27,7 @@ def _count_active_monitorings(db_data: dict) -> int:
     )
 
 
-def _count_total_monitored_doctors(db_data: dict) -> int:
+def _count_total_monitored_doctors(db_data: dict[str, UserData]) -> int:
     """Считает количество отслеживаемых врачей."""
     return sum(
         len(
@@ -40,7 +42,7 @@ def _count_total_monitored_doctors(db_data: dict) -> int:
 
 
 @router.get("/dashboard/summary")
-async def api_summary(request: Request):
+async def api_summary(request: Request) -> dict[str, Any]:
     """JSON-сводка состояния системы."""
     db = request.app.state.db
     db_data = db.data
@@ -108,7 +110,7 @@ async def api_summary(request: Request):
 
 
 @router.get("/dashboard/users")
-async def api_users(request: Request):
+async def api_users(request: Request) -> dict[str, Any]:
     """JSON-список пользователей."""
     db = request.app.state.db
     db_data = db.data
@@ -139,7 +141,7 @@ async def api_users(request: Request):
 
 
 @router.get("/dashboard/users/{uid}")
-async def api_user_detail(request: Request, uid: str):
+async def api_user_detail(request: Request, uid: str) -> dict[str, Any]:
     """JSON-детали пользователя."""
     db = request.app.state.db
     db_data = db.data
@@ -166,7 +168,7 @@ async def api_logs(
     limit: int = Query(50, ge=1, le=500),
     uid: str | None = Query(None),
     status: str | None = Query(None),
-):
+) -> dict[str, Any]:
     """JSON-лог мониторинга с пагинацией."""
     db = request.app.state.db
     logs = await db.get_all_monitoring_logs(
@@ -177,7 +179,7 @@ async def api_logs(
 
 
 @router.get("/dashboard/clinics")
-async def api_clinics(request: Request):
+async def api_clinics(request: Request) -> dict[str, Any]:
     """JSON-список клиник."""
     db = request.app.state.db
     clinics = await db._db.get_active_clinics()
@@ -200,7 +202,7 @@ async def api_clinics(request: Request):
 
 
 @router.get("/dashboard/health")
-async def api_dashboard_health(request: Request):
+async def api_dashboard_health(request: Request) -> dict[str, Any]:
     """JSON-статус здоровья API."""
     async with _metrics_lock:
         api_ok = health_metrics.last_api_ok
@@ -227,6 +229,6 @@ async def api_dashboard_health(request: Request):
 
 
 @router.get("/health")
-async def liveness():
+async def liveness() -> dict[str, Any]:
     """Liveness probe — всегда 200, если процесс жив."""
     return {"status": "ok"}

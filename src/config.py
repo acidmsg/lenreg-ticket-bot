@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     SQLITE_DB_PATH: str = "data/bot.db"
     CACHE_PATH: str = "data/monitoring_cache.json"
     REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_PASSWORD: str = ""
 
     # Прокси для Telegram
     PROXY_URL: str | None = None
@@ -148,13 +149,26 @@ class Settings(BaseSettings):
     WEB_DASHBOARD_PORT: int = 8090
     WEB_DASHBOARD_API_KEY: str = ""
 
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Пост-инициализация: если задан REDIS_PASSWORD, встраивает его в REDIS_URL.
+
+        Пароль вставляется по схеме redis:// → redis://:password@, чтобы клиент
+        Redis (redis-py) автоматически использовал его при аутентификации.
+        Если пароль не задан или REDIS_URL уже содержит `@` (т.е. пароль уже
+        встроен), URL не изменяется.
+        """
+        if self.REDIS_PASSWORD and "@" not in self.REDIS_URL.split("://", 1)[1]:
+            scheme, rest = self.REDIS_URL.split("://", 1)
+            self.REDIS_URL = f"{scheme}://:{self.REDIS_PASSWORD}@{rest}"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()
 
 
-async def load_config_from_db(database):
+async def load_config_from_db(database) -> None:
     """
     Загружает настройки из таблицы config БД и переопределяет значения settings.
     Вызывается при старте бота после инициализации БД.

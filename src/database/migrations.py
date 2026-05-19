@@ -11,7 +11,7 @@
 from loguru import logger
 
 
-async def migrate_v1_initial_schema(db):
+async def migrate_v1_initial_schema(db) -> None:
     """Создание всех таблиц (initial schema)."""
     c = db._conn
     if c is None:
@@ -71,7 +71,7 @@ short_name          TEXT NOT NULL DEFAULT ''
     await c.commit()
 
 
-async def migrate_v6_monitoring_log(db):
+async def migrate_v6_monitoring_log(db) -> None:
     """Создаёт таблицу monitoring_log для истории изменений слотов."""
     c = db._conn
     if c is None:

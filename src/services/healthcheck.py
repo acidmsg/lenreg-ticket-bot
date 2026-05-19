@@ -108,20 +108,20 @@ def _get_lock(attr: str) -> asyncio.Lock:
     return _metrics_locks[attr]
 
 
-async def _safe_increment(attr: str, delta: int = 1):
+async def _safe_increment(attr: str, delta: int = 1) -> None:
     """Атомарный инкремент поля metrics (per-metric lock)."""
     async with _get_lock(attr):
         current = getattr(metrics, attr, 0)
         setattr(metrics, attr, current + delta)
 
 
-async def _safe_set(attr: str, value):
+async def _safe_set(attr: str, value) -> None:
     """Атомарная установка поля metrics (per-metric lock)."""
     async with _get_lock(attr):
         setattr(metrics, attr, value)
 
 
-async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager):
+async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> None:
     """
     Фоновый цикл проверки здоровья.
 

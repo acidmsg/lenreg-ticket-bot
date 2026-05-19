@@ -30,8 +30,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
 # ---------------------------------------------------------------------------
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY pyproject.toml poetry.lock ./
+RUN pip install --no-cache-dir poetry \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
 
 # =============================================================================
 # Финальный образ

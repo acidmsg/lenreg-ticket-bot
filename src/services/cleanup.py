@@ -17,7 +17,7 @@ from src.database.manager import DatabaseManager
 from src.utils.helpers import extract_msg_id
 
 
-async def cleanup_loop(bot: Bot, db: DatabaseManager):
+async def cleanup_loop(bot: Bot, db: DatabaseManager) -> None:
     """Фоновый цикл: проверяет last_messages и удаляет просроченные."""
     logger.info(
         "Цикл очистки старых сообщений запущен (TTL={} с, интервал={} с)",
@@ -37,7 +37,7 @@ async def cleanup_loop(bot: Bot, db: DatabaseManager):
         await asyncio.sleep(settings.CLEANUP_INTERVAL)
 
 
-async def _cleanup_pass(bot: Bot, db: DatabaseManager):
+async def _cleanup_pass(bot: Bot, db: DatabaseManager) -> None:
     """Один проход очистки для всех пользователей.
 
     Обрабатывает пользователей батчами по BATCH_SIZE записей,

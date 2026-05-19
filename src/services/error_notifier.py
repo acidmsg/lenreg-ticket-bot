@@ -5,13 +5,42 @@ NTFY sends HTTP POST to a configurable topic URL.
 Sentry is integrated only if SENTRY_DSN is set in config.
 """
 
+import asyncio
 import traceback
+from typing import Any
 
+import aiohttp
 import httpx
 import sentry_sdk
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 from loguru import logger
 
 from src.config import settings
+
+
+def _before_send(event: Any, hint: dict[str, Any]) -> Any | None:
+    """Фильтрует несущественные ошибки перед отправкой в Sentry.
+
+    Args:
+        event: Событие Sentry.
+        hint: Подсказка Sentry, содержащая информацию об исключении.
+
+    Returns:
+        Событие для отправки или None, если событие следует отбросить.
+    """
+    exc_info = hint.get("exc_info")
+    if exc_info is not None:
+        exc_type, _exc_value, _tb = exc_info
+        # Игнорируем сетевые ошибки
+        if issubclass(exc_type, (aiohttp.ClientError, asyncio.TimeoutError)):
+            return None
+        # Игнорируем системные сигналы завершения
+        if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+            return None
+        # Игнорируем временные ошибки Telegram API
+        if issubclass(exc_type, (TelegramRetryAfter, TelegramNetworkError)):
+            return None
+    return event
 
 
 class ErrorNotifier:
@@ -34,6 +63,7 @@ class ErrorNotifier:
                 send_default_pii=True,  # capture user Telegram IDs in error context
                 enable_logs=True,  # forward Python logging to Sentry
                 environment=settings.ENVIRONMENT,
+                before_send=_before_send,
             )
             self._sentry_initialized = True
             logger.info("Sentry SDK initialized")

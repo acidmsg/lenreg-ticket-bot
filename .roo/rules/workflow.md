@@ -104,26 +104,27 @@ Remove-Item .tmp_check_results.txt
 
 - **Активный лог:** `docs/agents/SESSION_LOG.md` — только последняя сессия (шаблон: дата, задачи, файлы, тесты).
 - **Архив:** `docs/agents/SESSION_ARCHIVE.md` — полная хронология всех прошлых сессий.
-- **Перед КАЖДЫМ вызовом `attempt_completion`** ОБЯЗАН:
+- **Только в режиме orchestrator**, после получения успешного результата `attempt_completion` (т.е. когда задача реально завершена и подтверждена пользователем) ОБЯЗАН:
   1. Дописать запись в `docs/agents/SESSION_LOG.md` с:
      - Датой.
      - Списком выполненных задач (со ссылками на файлы и номера строк).
      - Списком изменённых файлов.
      - Результатами тестов (если запускались).
   2. Перенести предыдущую запись из `SESSION_LOG.md` в конец `docs/agents/SESSION_ARCHIVE.md` (под заголовок `---`).
-- `attempt_completion` = конец сессии. Нельзя вызывать его, пока лог не обновлён.
+- `attempt_completion` = конец сессии. Нельзя вызывать его, пока лог не обновлён (в режиме orchestrator).
 
 ### AGENT_TASKS.md
 
 - **В начале сессии** — прочитать `docs/agents/AGENT_TASKS.md`, сверить актуальность.
-- **Перед `attempt_completion`** — **удалить** выполненные задачи из таблицы и чек-листа (не зачёркивать, не отмечать `[x]`, а полностью удалить строку).
+- **После успешного `attempt_completion` в режиме orchestrator** — **удалить** выполненные задачи из таблицы и чек-листа (не зачёркивать, не отмечать `[x]`, а полностью удалить строку).
 - Выполненные задачи НЕ хранятся в `AGENT_TASKS.md` — их история в `SESSION_LOG.md` и `SESSION_ARCHIVE.md`.
 
-### Порядок перед attempt_completion (обязательный)
+### Порядок после attempt_completion (только для orchestrator)
+
+Применяется **только** в режиме `orchestrator`. Если задача выполняется в любом другом режиме (code, debug, ask, architect и др.) — эта процедура пропускается полностью.
 
 1. `apply_diff` → обновить `docs/agents/SESSION_LOG.md`.
 2. `apply_diff` → перенести старую запись в `docs/agents/SESSION_ARCHIVE.md`.
 3. `apply_diff` → обновить `docs/agents/AGENT_TASKS.md`.
 4. `execute_command` → `npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"` (исправить ошибки, если есть).
 5. `execute_command` → `npx prettier --write` на изменённые `.md` файлы.
-6. Только после этого → `attempt_completion`.

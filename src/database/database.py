@@ -136,7 +136,7 @@ class Database:
         return self._conn
 
     # ── Управление соединением ──────────────────────────────
-    async def connect(self):
+    async def connect(self) -> None:
         """Открыть соединение и создать таблицы."""
         data_dir = os.path.dirname(self.db_path)
         if data_dir and not await aiofiles.os.path.exists(data_dir):
@@ -170,7 +170,7 @@ class Database:
             )
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         if self._conn:
             # Принудительный checkpoint WAL перед закрытием — освобождает память
             # и усекает WAL-файл до 0 байт (предотвращает накопление при тестах).
@@ -181,7 +181,7 @@ class Database:
             await self._conn.close()
             self._conn = None
 
-    async def _enable_wal(self):
+    async def _enable_wal(self) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -189,7 +189,7 @@ class Database:
         await c.execute("PRAGMA busy_timeout=5000")
         await c.execute("PRAGMA foreign_keys=ON")
 
-    async def _create_tables(self):
+    async def _create_tables(self) -> None:
         """Создаёт только таблицу schema_version — всё остальное через миграции."""
         c = self._conn
         if c is None:
@@ -199,7 +199,7 @@ class Database:
         )
         await c.commit()
 
-    async def _run_migrations(self):
+    async def _run_migrations(self) -> None:
         """Применяет все миграции с версией > текущей schema_version."""
         from src.database.migrations import MIGRATIONS
 
@@ -269,7 +269,7 @@ class Database:
 
     async def set_last_message(
         self, uid: str, p_id: str, d_id: str, msg_id: int, ts: float = 0
-    ):
+    ) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -333,7 +333,7 @@ class Database:
         bday: str,
         alias: str | None,
         confirmed_clinics: list | None = None,
-    ):
+    ) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -359,7 +359,7 @@ class Database:
         uid: str,
         p_id: str,
         confirmed_clinics: list,
-    ):
+    ) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -369,7 +369,7 @@ class Database:
         )
         await c.commit()
 
-    async def delete_patient(self, uid: str, p_id: str):
+    async def delete_patient(self, uid: str, p_id: str) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -421,7 +421,7 @@ class Database:
         name: str,
         clinic_id: str,
         specialty: str,
-    ):
+    ) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -433,7 +433,7 @@ class Database:
         )
         await c.commit()
 
-    async def remove_monitoring_entry(self, uid: str, p_id: str, d_id: str):
+    async def remove_monitoring_entry(self, uid: str, p_id: str, d_id: str) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -443,7 +443,7 @@ class Database:
         )
         await c.commit()
 
-    async def clear_all_monitoring(self, uid: str):
+    async def clear_all_monitoring(self, uid: str) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -471,7 +471,7 @@ class Database:
 
     async def upsert_doctor(
         self, clinic_id: str, doctor_id: str, name: str, specialty: str
-    ):
+    ) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -483,7 +483,7 @@ class Database:
         )
         await c.commit()
 
-    async def upsert_clinic(self, clinic_id: str, name: str):
+    async def upsert_clinic(self, clinic_id: str, name: str) -> None:
         """
         Обновляет только название клиники. Не затирает type/is_active/city.
         Если клиники нет — вставляет с типом и городом, определёнными по названию.
@@ -501,7 +501,7 @@ class Database:
         )
         await c.commit()
 
-    async def merge_doctors(self, clinic_id: str, doctors: list[dict]):
+    async def merge_doctors(self, clinic_id: str, doctors: list[dict]) -> None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -616,7 +616,7 @@ class Database:
 
     # ── Сидирование данными из fallback-констант ────────────
 
-    async def seed_specialty_aliases_from_fallback(self):
+    async def seed_specialty_aliases_from_fallback(self) -> None:
         """
         Заполняет таблицу specialty_aliases из SPECIALTY_ALIASES, если она пуста.
         """
@@ -640,7 +640,7 @@ class Database:
         except Exception as e:
             logger.error(f"Не удалось заполнить specialty_aliases из fallback: {e}")
 
-    async def seed_config_from_defaults(self):
+    async def seed_config_from_defaults(self) -> None:
         """
         Заполняет таблицу config дефолтными значениями из settings, если она пуста.
         """
@@ -708,7 +708,7 @@ class Database:
         row = await cursor.fetchone()
         return row["value"] if row else default
 
-    async def set_config(self, key: str, value: str):
+    async def set_config(self, key: str, value: str) -> None:
         """Устанавливает значение конфига."""
         c = self._conn
         if c is None:
@@ -739,7 +739,7 @@ class Database:
         rows = await cursor.fetchall()
         return {row["full_name"]: row["short_name"] for row in rows}
 
-    async def upsert_specialty_alias(self, full_name: str, short_name: str):
+    async def upsert_specialty_alias(self, full_name: str, short_name: str) -> None:
         """Добавляет или обновляет псевдоним специальности."""
         c = self._conn
         if c is None:
@@ -765,7 +765,7 @@ class Database:
         slot_date: str,
         status: str,
         ts: float,
-    ):
+    ) -> None:
         """Добавляет запись в лог мониторинга (появление/исчезновение слота)."""
         c = self._conn
         if c is None:

@@ -5,9 +5,17 @@ DatabaseManager — адаптер поверх Database (SQLite).
 import asyncio
 import copy
 import time
-from typing import Any
 
 from src.database.database import Database
+from src.database.types import (
+    DoctorEntry,
+    LastMessageEntry,
+    MonitoringEntry,
+    MonitoringLogEntry,
+    PatientInfo,
+    UserData,
+    UserDataUpdate,
+)
 
 
 class DatabaseManager:
@@ -15,14 +23,14 @@ class DatabaseManager:
 
     def __init__(self, db: Database):
         self._db = db
-        self._data_cache: dict[str, dict[str, Any]] = {}
+        self._data_cache: dict[str, UserData] = {}
         self._lock = asyncio.Lock()
 
     @property
-    def data(self) -> dict[str, Any]:
+    def data(self) -> dict[str, UserData]:
         return copy.deepcopy(self._data_cache)
 
-    async def refresh_cache(self):
+    async def refresh_cache(self) -> None:
         async with self._lock:
             self._data_cache = {}
             uids = await self._db.get_all_user_ids()
@@ -33,25 +41,30 @@ class DatabaseManager:
 
     # ── Пользователи ────────────────────────────────────────
 
-    async def get_user_data(self, uid: str) -> dict[str, Any]:
+    async def get_user_data(self, uid: str) -> UserData:
         """Потокобезопасное получение/создание данных пользователя в кэше."""
         async with self._lock:
             return self._get_user_data_nolock(uid)
 
-    def _get_user_data_nolock(self, uid: str) -> dict[str, Any]:
+    def _get_user_data_nolock(self, uid: str) -> UserData:
         """Внутренняя версия без захвата лока (вызывать только под self._lock)."""
         uid = str(uid)
         if uid not in self._data_cache:
-            self._data_cache[uid] = {
-                "patients": {},
-                "monitoring": {},
-                "last_messages": {},
-            }
+            empty_patients: dict[str, PatientInfo] = {}
+            empty_monitoring: dict[str, dict[str, MonitoringEntry]] = {}
+            empty_messages: dict[str, LastMessageEntry] = {}
+            self._data_cache[uid] = UserData(
+                patients=empty_patients,
+                monitoring=empty_monitoring,
+                last_messages=empty_messages,
+            )
         elif "last_messages" not in self._data_cache[uid]:
             self._data_cache[uid]["last_messages"] = {}
         return self._data_cache[uid]
 
-    async def _replace_patients(self, uid: str, patients: dict[str, Any]):
+    async def _replace_patients(
+        self, uid: str, patients: dict[str, PatientInfo]
+    ) -> None:
         c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -66,7 +79,9 @@ class DatabaseManager:
                 confirmed_clinics=p_info.get("confirmed_clinics", []),
             )
 
-    async def _replace_monitoring(self, uid: str, monitoring: dict[str, Any]):
+    async def _replace_monitoring(
+        self, uid: str, monitoring: dict[str, dict[str, MonitoringEntry]]
+    ) -> None:
         c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -83,7 +98,7 @@ class DatabaseManager:
                         specialty=d_info.get("specialty", ""),
                     )
 
-    async def update_user(self, uid: str, update_dict: dict[str, Any]):
+    async def update_user(self, uid: str, update_dict: UserDataUpdate) -> None:
         """Атомарное обновление данных пользователя (кэш + БД)."""
         uid = str(uid)
         async with self._lock:
@@ -130,13 +145,14 @@ class DatabaseManager:
 
     async def set_last_message_id(
         self, uid: str, p_id: str, d_id: str, message_id: int
-    ):
+    ) -> None:
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
             key = f"{p_id}_{d_id}"
             ts = time.time()
-            user_data["last_messages"][key] = {"msg_id": message_id, "ts": ts}
+            entry: LastMessageEntry = {"msg_id": message_id, "ts": ts}
+            user_data["last_messages"][key] = entry
             await self._db.set_last_message(uid, p_id, d_id, message_id, ts)
 
     async def get_last_message_id(self, uid: str, p_id: str, d_id: str) -> int | None:
@@ -150,11 +166,13 @@ class DatabaseManager:
                 return val.get("msg_id")
             return None
 
-    async def add_patient(self, uid: str, p_id: str, p_info: dict[str, Any]):
+    async def add_patient(self, uid: str, p_id: str, p_info: PatientInfo) -> None:
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
-            p_info["confirmed_clinics"] = p_info.get("confirmed_clinics", [])
+            # confirmed_clinics — NotRequired, runtime-проверка перед записью
+            if "confirmed_clinics" not in p_info:
+                p_info["confirmed_clinics"] = []
             user_data["patients"][p_id] = p_info
             await self._db.add_patient(
                 uid=uid,
@@ -168,18 +186,17 @@ class DatabaseManager:
             if updated:
                 self._data_cache[uid] = updated
 
-    async def add_confirmed_clinic(self, uid: str, p_id: str, clinic_id: int):
+    async def add_confirmed_clinic(self, uid: str, p_id: str, clinic_id: int) -> None:
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
             if p_id in user_data["patients"]:
-                if "confirmed_clinics" not in user_data["patients"][p_id]:
-                    user_data["patients"][p_id]["confirmed_clinics"] = []
-
-                if clinic_id not in user_data["patients"][p_id]["confirmed_clinics"]:
-                    user_data["patients"][p_id]["confirmed_clinics"].append(clinic_id)
+                confirmed = user_data["patients"][p_id].get("confirmed_clinics", [])
+                if clinic_id not in confirmed:
+                    confirmed.append(clinic_id)
+                    user_data["patients"][p_id]["confirmed_clinics"] = confirmed
                     await self._db.update_patient_confirmed_clinics(
-                        uid, p_id, user_data["patients"][p_id]["confirmed_clinics"]
+                        uid, p_id, confirmed
                     )
                     updated = await self._db.get_user(uid)
                     if updated:
@@ -187,7 +204,7 @@ class DatabaseManager:
 
     async def toggle_monitoring(
         self, uid: str, p_id: str, d_id: str, d_name: str, clinic_id: str, d_spec: str
-    ):
+    ) -> None:
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
@@ -198,11 +215,12 @@ class DatabaseManager:
                 del user_data["monitoring"][p_id][d_id]
                 await self._db.remove_monitoring_entry(uid, p_id, d_id)
             else:
-                user_data["monitoring"][p_id][d_id] = {
+                mon_entry: MonitoringEntry = {
                     "name": d_name,
                     "clinic_id": clinic_id,
                     "specialty": d_spec,
                 }
+                user_data["monitoring"][p_id][d_id] = mon_entry
                 await self._db.add_monitoring_entry(
                     uid=uid,
                     p_id=p_id,
@@ -215,14 +233,14 @@ class DatabaseManager:
             if updated:
                 self._data_cache[uid] = updated
 
-    async def stop_all_monitoring(self, uid: str):
+    async def stop_all_monitoring(self, uid: str) -> None:
         uid = str(uid)
         async with self._lock:
             if uid in self._data_cache:
                 self._data_cache[uid]["monitoring"] = {}
             await self._db.clear_all_monitoring(uid)
 
-    async def delete_patient(self, uid: str, p_id: str):
+    async def delete_patient(self, uid: str, p_id: str) -> None:
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
@@ -237,10 +255,10 @@ class DatabaseManager:
 
     # ── Врачи ───────────────────────────────────────────────
 
-    async def get_doctors_for_clinic(self, clinic_id: str) -> dict:
+    async def get_doctors_for_clinic(self, clinic_id: str) -> dict[str, DoctorEntry]:
         return await self._db.get_clinic_doctors(str(clinic_id))
 
-    async def merge_doctors(self, clinic_id: str, doctors: list):
+    async def merge_doctors(self, clinic_id: str, doctors: list) -> None:
         return await self._db.merge_doctors(str(clinic_id), doctors)
 
     async def get_clinic_name(self, clinic_id: str) -> str | None:
@@ -251,7 +269,7 @@ class DatabaseManager:
 
     # ── Управление подключением ─────────────────────────────
 
-    async def load(self):
+    async def load(self) -> None:
         await self._db.connect()
         await self.refresh_cache()
 
@@ -269,7 +287,7 @@ class DatabaseManager:
         slot_date: str,
         status: str,
         ts: float,
-    ):
+    ) -> None:
         """Добавляет запись в лог мониторинга."""
         return await self._db.add_monitoring_log(
             uid=uid,
@@ -286,7 +304,7 @@ class DatabaseManager:
 
     async def get_user_monitoring_logs(
         self, uid: str, limit: int = 5000, offset: int = 0
-    ) -> list[dict]:
+    ) -> list[MonitoringLogEntry]:
         """Возвращает логи мониторинга пользователя."""
         return await self._db.get_user_monitoring_logs(uid, limit=limit, offset=offset)
 
@@ -306,7 +324,7 @@ class DatabaseManager:
         offset: int = 0,
         uid: str | None = None,
         status: str | None = None,
-    ) -> list[dict]:
+    ) -> list[MonitoringLogEntry]:
         """Лог мониторинга с пагинацией и фильтрацией."""
         return await self._db.get_all_monitoring_logs(
             limit=limit, offset=offset, uid=uid, status=status

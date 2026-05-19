@@ -13,43 +13,20 @@
 
 from unittest.mock import AsyncMock
 
-# ── Reuse фабрик из test_handlers_registration ─────────────────────────
-from tests.handlers.test_handlers_registration import (
+# ── Фабрики и хелперы из conftest.py ──────────────────────────────────
+from tests.conftest import (
     TEST_USER_ID,
     make_callback,
     make_message,
     make_mock_api,
+    make_mock_bot,
 )
-
-# ── Fixture: сидирование клиник и врачей ──────────────────────────────
-
-
-async def _seed_clinic(db_manager, clinic_id: str, name: str):
-    """Сидирует одну активную клинику."""
-    await db_manager._db.upsert_clinic(clinic_id, name)
-
-
-async def _seed_doctors(db_manager, clinic_id: str, doctors: list[dict]):
-    """Сидирует список врачей для клиники."""
-    for doc in doctors:
-        await db_manager._db.upsert_doctor(
-            clinic_id=clinic_id,
-            doctor_id=doc["id"],
-            name=doc["name"],
-            specialty=doc.get("specialty", ""),
-        )
-
-
-def make_mock_bot() -> AsyncMock:
-    """Создаёт AsyncMock для Bot aiogram."""
-    bot = AsyncMock()
-    bot.send_message = AsyncMock()
-    # send_photo возвращает объект с int message_id, иначе SQLite падает
-    bot.send_photo = AsyncMock(return_value=AsyncMock(message_id=12345))
-    bot.edit_message_text = AsyncMock()
-    bot.delete_message = AsyncMock()
-    return bot
-
+from tests.conftest import (
+    seed_clinic as _seed_clinic,
+)
+from tests.conftest import (
+    seed_doctors as _seed_doctors,
+)
 
 # ── T1.2.1: cmd_start ─────────────────────────────────────────────────
 
