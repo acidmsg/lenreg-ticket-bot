@@ -60,8 +60,6 @@ async def discovery_loop(
 
         for clinic_id in clinic_ids:
             try:
-                all_doctors_with_specialty = []
-
                 cid = str(clinic_id)
 
                 # Получаем тип клиники (из БД)
@@ -86,6 +84,7 @@ async def discovery_loop(
                 else:
                     patient_ids = [clinic_patient_adult or patient_id_adult]
 
+                total_doctors = 0
                 for current_patient_id in patient_ids:
                     specialties_data = await fetch_specialties(
                         api, current_patient_id, cid, limiter=api.limiter_discovery
@@ -104,15 +103,23 @@ async def discovery_loop(
                         if doctors:
                             for doc in doctors:
                                 doc["SpesialityName"] = spec_name
-                            all_doctors_with_specialty.extend(doctors)
-                        await asyncio.sleep(random.uniform(1.0, 3.0))
+                            # TD-SVC-002: частичное сохранение после каждой спец-ти
+                            await database.merge_doctors(cid, doctors)
+                            total_doctors += len(doctors)
+                            logger.info(
+                                "Обновлены врачи для {} / specialty {}: {} записей",
+                                cid,
+                                spec_id,
+                                len(doctors),
+                            )
+                        # TD-SVC-003: фиксированная пауза 0.7с вместо случайной 1-3с
+                        await asyncio.sleep(0.7)
 
-                if all_doctors_with_specialty:
-                    await database.merge_doctors(cid, all_doctors_with_specialty)
+                if total_doctors > 0:
                     logger.info(
-                        "Обновлен список врачей для {}: всего {} записей",
+                        "Цикл завершён для {}: обработано {} записей",
                         cid,
-                        len(all_doctors_with_specialty),
+                        total_doctors,
                     )
 
             except asyncio.CancelledError:
@@ -127,12 +134,19 @@ async def discovery_loop(
         await asyncio.sleep(settings.DISCOVERY_INTERVAL * jitter)
 
 
+# Счётчик последовательных ошибок для sync_clinic_names
+# TD-SVC-004: после 3 сбоев подряд exc_info отключается, чтобы не засорять лог
+_sync_consecutive_errors: int = 0
+
+
 async def sync_clinic_names(api: ZdravClient, database: Database):
     """Получает список клиник из API и сохраняет названия в БД."""
+    global _sync_consecutive_errors
     try:
         clinics_data = await api.fetch_clinic_list()
         if not clinics_data:
             logger.warning("Не удалось получить список клиник из API")
+            _sync_consecutive_errors = 0
             return
 
         updated = 0
@@ -149,5 +163,11 @@ async def sync_clinic_names(api: ZdravClient, database: Database):
         logger.info(
             f"Синхронизировано названий клиник: {updated} из {len(clinics_data)}"
         )
+        _sync_consecutive_errors = 0
     except Exception as e:
-        logger.error(f"Ошибка синхронизации названий клиник: {e}", exc_info=True)
+        _sync_consecutive_errors += 1
+        use_exc_info = _sync_consecutive_errors <= 3
+        logger.error(
+            f"Ошибка синхронизации названий клиник: {e}",
+            exc_info=use_exc_info,
+        )

@@ -95,19 +95,29 @@ class HealthMetrics:
 
 # Глобальный экземпляр метрик
 metrics = HealthMetrics()
-_metrics_lock = asyncio.Lock()
+_metrics_lock = asyncio.Lock()  # только для групповых операций (множество полей)
+
+# Per-metric locks для изоляции одиночных операций над разными метриками
+_metrics_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_lock(attr: str) -> asyncio.Lock:
+    """Возвращает per-metric lock (lazy initialization)."""
+    if attr not in _metrics_locks:
+        _metrics_locks[attr] = asyncio.Lock()
+    return _metrics_locks[attr]
 
 
 async def _safe_increment(attr: str, delta: int = 1):
-    """Атомарный инкремент поля metrics (под локом)."""
-    async with _metrics_lock:
+    """Атомарный инкремент поля metrics (per-metric lock)."""
+    async with _get_lock(attr):
         current = getattr(metrics, attr, 0)
         setattr(metrics, attr, current + delta)
 
 
 async def _safe_set(attr: str, value):
-    """Атомарная установка поля metrics (под локом)."""
-    async with _metrics_lock:
+    """Атомарная установка поля metrics (per-metric lock)."""
+    async with _get_lock(attr):
         setattr(metrics, attr, value)
 
 

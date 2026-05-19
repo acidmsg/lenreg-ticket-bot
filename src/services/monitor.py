@@ -51,60 +51,104 @@ async def _send_notification(
         logger.error(f"Ошибка отправки уведомления: {e}")
 
 
+def _handle_disappeared(
+    old_slots_data: list[str] | str | None,
+) -> tuple[str, None, str] | None:
+    """Обрабатывает случай, когда слоты исчезли.
+
+    Returns:
+        (header, None, "empty") если слоты исчезли и об этом нужно уведомить,
+        None если уведомление не требуется (уже было пусто или первое обнаружение).
+    """
+    if old_slots_data == "NONE" or old_slots_data is None:
+        # Уже было пусто — не дублируем / Первое обнаружение
+        return None
+    return _("slots-disappeared-header"), None, "empty"
+
+
+def _handle_appeared(
+    slots: list[str],
+    old_slots_data: list[str] | str | None,
+) -> tuple[str, list[str], str] | None:
+    """Обрабатывает случай, когда слоты появились (впервые или новые).
+
+    Returns:
+        (header, display_slots, notify_type) для "available" или "new",
+        None если новых слотов нет.
+    """
+    if old_slots_data == "NONE" or old_slots_data is None:
+        return _("slots-appeared-header"), slots, "available"
+
+    # Слоты были и раньше — проверяем, появились ли новые
+    old_list = old_slots_data if isinstance(old_slots_data, list) else []
+    new_slots = [s for s in slots if s not in old_list]
+
+    if not new_slots:
+        return None
+
+    display_slots = [f"[NEW] {s}" if s in new_slots else s for s in slots]
+    return _("slots-new-header"), display_slots, "new"
+
+
+def _handle_decrease(
+    slots: list[str],
+    old_slots_data: list[str] | str | None,
+) -> tuple[str, list[str], str] | None:
+    """Обрабатывает случай, когда количество слотов уменьшилось.
+
+    Уведомление отправляется только если новое количество ниже порога
+    ``SLOT_THRESHOLD_ABSOLUTE`` или процент уменьшения превышает
+    ``SLOT_THRESHOLD_PERCENTAGE``.
+
+    Returns:
+        (header, slots, "decreased") если нужно уведомить об уменьшении,
+        None если изменений нет или они незначительны.
+    """
+    old_list = old_slots_data if isinstance(old_slots_data, list) else []
+    old_count = len(old_list)
+    new_count = len(slots)
+
+    if new_count >= old_count:
+        return None
+
+    should_notify = False
+    if new_count < settings.SLOT_THRESHOLD_ABSOLUTE:
+        should_notify = True
+    elif old_count > 0:
+        percentage_decrease = (old_count - new_count) / old_count
+        if percentage_decrease >= settings.SLOT_THRESHOLD_PERCENTAGE:
+            should_notify = True
+
+    if not should_notify:
+        return None
+
+    header = _("slots-decreased-header").format(new=new_count, old=old_count)
+    return header, slots, "decreased"
+
+
 def _classify_slot_change(
     slots: list[str] | None, old_slots_data: list[str] | str | None
 ) -> tuple[str, list[str] | None, str] | None:
     """Классификация изменений слотов.
+
+    Разбита на три вспомогательных метода для снижения цикломатической сложности:
+
+    - :func:`_handle_disappeared` — слоты исчезли
+    - :func:`_handle_appeared` — слоты появились (впервые или новые)
+    - :func:`_handle_decrease` — количество слотов уменьшилось
 
     Returns:
         (header, display_slots, notify_type) или None если уведомлять не нужно.
         notify_type: "empty" | "available" | "new" | "decreased"
     """
     if not slots:
-        # Номерки исчезли
-        if old_slots_data == "NONE":
-            return None  # Уже было пусто, не дублируем
-        if old_slots_data is None:
-            # Первое обнаружение -- состояние синхронизировано через handlers/common.py
-            return None
-        header = _("slots-disappeared-header")
-        return header, None, "empty"
+        return _handle_disappeared(old_slots_data)
 
-    # Есть слоты
-    if old_slots_data == "NONE" or old_slots_data is None:
-        return _("slots-appeared-header"), slots, "available"
+    result = _handle_appeared(slots, old_slots_data)
+    if result is not None:
+        return result
 
-    # Слоты были и раньше -- проверяем изменения
-    old_list = old_slots_data if isinstance(old_slots_data, list) else []
-    new_slots = [s for s in slots if s not in old_list]
-
-    if new_slots:
-        display_slots = []
-        for s in slots:
-            if s in new_slots:
-                display_slots.append(f"[NEW] {s}")
-            else:
-                display_slots.append(s)
-        return _("slots-new-header"), display_slots, "new"
-
-    # Проверяем уменьшение
-    old_count = len(old_list)
-    new_count = len(slots)
-
-    if new_count < old_count:
-        should_notify = False
-        if new_count < settings.SLOT_THRESHOLD_ABSOLUTE:
-            should_notify = True
-        elif old_count > 0:
-            percentage_decrease = (old_count - new_count) / old_count
-            if percentage_decrease >= settings.SLOT_THRESHOLD_PERCENTAGE:
-                should_notify = True
-
-        if should_notify:
-            header = _("slots-decreased-header").format(new=new_count, old=old_count)
-            return header, slots, "decreased"
-
-    return None  # Нет значимых изменений
+    return _handle_decrease(slots, old_slots_data)
 
 
 async def _check_single_doctor(

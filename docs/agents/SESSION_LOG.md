@@ -1,35 +1,33 @@
 # SESSION_LOG
 
-## 2026-05-19 — Коммит техдолга MIN-004..MIN-015
+## Сессия 2026-05-19 — Техдолг src/services/ (TD-SVC-001..008)
+
+**Задача:** Устранение 8 пунктов технического долга из секции `src/services/` согласно [`TECH_DEBT.md`](TECH_DEBT.md).
 
 ### Выполненные задачи
 
-| Задача           | Описание                                                                         | Файлы          |
-| ---------------- | -------------------------------------------------------------------------------- | -------------- |
-| MIN-004..MIN-015 | Коммит всех изменений по техническому долгу: чистка кода, типизация, логирование | Все файлы ниже |
+| ID         | Описание                                                                                                    | Файл                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| TD-SVC-001 | Рефакторинг `_classify_slot_change()` → `_handle_disappeared()`, `_handle_appeared()`, `_handle_decrease()` | [`monitor.py:54-113`](src/services/monitor.py:54)                     |
+| TD-SVC-002 | Частичное сохранение врачей в `discovery_loop` (per-specialty commit)                                       | [`doctor_discovery.py:87-114`](src/services/doctor_discovery.py:87)   |
+| TD-SVC-003 | Фиксированная пауза 0.7с вместо `random.uniform(1,3)`                                                       | [`doctor_discovery.py:116`](src/services/doctor_discovery.py:116)     |
+| TD-SVC-004 | `exc_info=False` после 3 последовательных ошибок в `sync_clinic_names()`                                    | [`doctor_discovery.py:139-169`](src/services/doctor_discovery.py:139) |
+| TD-SVC-005 | Per-metric `asyncio.Lock` вместо глобального lock                                                           | [`healthcheck.py:101-106`](src/services/healthcheck.py:101)           |
+| TD-SVC-006 | Пакетная обработка (батчи по 50) вместо загрузки всех пользователей                                         | [`cleanup.py:40`](src/services/cleanup.py:40)                         |
+| TD-SVC-007 | Валидация `uid` через `try/except (ValueError, TypeError)` перед `int()`                                    | [`cleanup.py:81`](src/services/cleanup.py:81)                         |
+| TD-SVC-008 | Обрезка traceback с начала: `tb_str[:2000]` вместо `tb_str[-2000:]`                                         | [`error_notifier.py:78`](src/services/error_notifier.py:78)           |
 
 ### Изменённые файлы
 
-- `src/services/error_notifier.py` — MIN-004, MIN-005: чистка кода, типизация
-- `src/middleware/ratelimit.py` — MIN-006: чистка кода
-- `src/handlers/common.py` — MIN-008: type safety, assert вместо удалённой проверки
-- `src/handlers/registration.py` — MIN-009: чистка кода
-- `src/utils/helpers.py` — MIN-010: чистка кода
-- `src/keyboards/inline.py` — MIN-013, MIN-014: чистка кода, логирование
-- `src/main.py` — MIN-015: чистка кода
-- `docs/agents/TECH_DEBT.md` — обновление статусов выполненных задач
-- `docs/agents/SESSION_LOG.md` — запись сессии
-- `docs/agents/SESSION_ARCHIVE.md` — архив предыдущей записи
-
-### Коммит
-
-```text
-c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типизация, логирование
-```
+- [`src/services/monitor.py`](src/services/monitor.py)
+- [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py)
+- [`src/services/healthcheck.py`](src/services/healthcheck.py)
+- [`src/services/cleanup.py`](src/services/cleanup.py)
+- [`src/services/error_notifier.py`](src/services/error_notifier.py)
+- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены выполненные строки
 
 ### Результаты проверок
 
-| Инструмент          | Результат         |
-| ------------------- | ----------------- |
-| `ruff` (pre-commit) | ✅ Passed         |
-| `git commit`        | ✅ Успешно создан |
+- `ruff check src/services/` — All checks passed!
+- `markdownlint` — без ошибок
+- `prettier` — отформатировано

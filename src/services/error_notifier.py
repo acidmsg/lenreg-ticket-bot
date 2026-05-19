@@ -74,9 +74,9 @@ class ErrorNotifier:
             tb_str = "".join(
                 traceback.format_exception(type(error), error, error.__traceback__)
             )
-            # Truncate to avoid huge messages
+            # Truncate to avoid huge messages: сохраняем начало (тип + сообщение)
             if len(tb_str) > 2000:
-                tb_str = tb_str[-2000:]
+                tb_str = tb_str[:2000]
 
             title = f"❌ Bot Error: {context or type(error).__name__}"
             message = f"{type(error).__name__}: {error}\n\n```\n{tb_str}\n```"
