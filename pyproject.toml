@@ -65,7 +65,7 @@ target-version = "py311"
 exclude = [".venv", "data", "logs"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "ASYNC", "N"]
+select = ["E", "F", "I", "W", "ASYNC", "N", "B", "UP", "SIM", "RUF"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -2,12 +2,12 @@
 Хелперы для унифицированного парсинга callback_data.
 
 Предоставляет функцию `_parse_callback_arg()` для безопасного извлечения
-именованных параметров из callback_data с значениями по умолчанию.
+именованных параметров из callback_data со значениями по умолчанию.
 
 Пример использования:
     parts = call.data.split("_")
     city_idx = _parse_callback_arg(parts, 4, "all")
-"""
+"""  # noqa: RUF002
 
 
 def _parse_callback_arg(parts: list[str], index: int, default: str = "all") -> str:
