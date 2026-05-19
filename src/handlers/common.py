@@ -13,6 +13,7 @@ from src.assets.utils import get_nav_image_path, get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.filters.admin import IsAdmin
+from src.handlers.callback_parser import _parse_callback_arg
 from src.keyboards.inline import (
     get_city_selection,
     get_clinic_selection,
@@ -407,6 +408,11 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot):
     uid = str(message.from_user.id) if message.from_user else "unknown"
     user_data = await db.get_user_data(uid)
 
+    # Удаляем все ключи пользователя из кэша city_idx
+    for k in list(_user_clinic_city_idx):
+        if k.startswith(f"{uid}_"):
+            del _user_clinic_city_idx[k]
+
     # Удаляем все предыдущие сообщения бота из чата
     await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
     await db.update_user(uid, {"last_messages": {}})
@@ -459,6 +465,12 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
     if not call.from_user or not call.message or not isinstance(call.message, Message):
         return
     uid = str(call.from_user.id)
+
+    # Удаляем все ключи пользователя из кэша city_idx
+    for k in list(_user_clinic_city_idx):
+        if k.startswith(f"{uid}_"):
+            del _user_clinic_city_idx[k]
+
     user_data = await db.get_user_data(uid)
 
     if not user_data.get("patients"):
@@ -635,7 +647,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     p_id, clinic_id = parts[2], parts[3]
     # Формат: sel_c_{p_id}_{clinic_id}_{city_idx}
-    city_idx = parts[4] if len(parts) >= 5 else "all"
+    city_idx = _parse_callback_arg(parts, 4, "all")
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     p_info = user_data["patients"].get(p_id, {})
@@ -849,8 +861,9 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
     if len(parts) < 4:
         return
     p_id = parts[2]
-    context = parts[3] if len(parts) >= 4 else "city"  # city или clinic
-    city_idx = parts[4] if len(parts) >= 5 else "all"
+    # Формат: stop_patient_{p_id}_{context}_{city_idx}
+    context = _parse_callback_arg(parts, 3, "city")  # city или clinic
+    city_idx = _parse_callback_arg(parts, 4, "all")
 
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)

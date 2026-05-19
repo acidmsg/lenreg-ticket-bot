@@ -38,7 +38,10 @@ async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
     parts = message.text.split()
     if len(parts) != 3:
         await message.answer(
-            "Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество).",
+            "Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество).\n\n"
+            "💡 Если у вас двойная фамилия, введите её через дефис "
+            "(например: *Салтыков-Щедрин Михаил Евграфович*).\n"
+            "Если у вас двойное имя — введите все слова полностью.",
             reply_markup=get_registration_keyboard(step="fio"),
         )
         return
@@ -72,9 +75,39 @@ async def process_bday(
     data = await state.get_data()
     fio = data["fio"]
 
-    # Для проверки пациента используем клинику по умолчанию из настроек
-    clinic_id = settings.DEFAULT_CLINIC_ID
-    p_id, err = await api.fetch_patient_id(fio, date, clinic_id)
+    # Двухэтапный поиск пациента по всем доступным clinic_id
+    clinic_ids_to_try: list[str] = []
+
+    # Этап 1: клиника по умолчанию
+    clinic_ids_to_try.append(settings.DEFAULT_CLINIC_ID)
+
+    # Этап 2: пустая строка (глобальный поиск, если API поддерживает)
+    clinic_ids_to_try.append("")
+
+    # Этап 3: все активные clinic_id из БД
+    try:
+        active_ids = await db._db.get_active_clinic_ids()
+        for cid in active_ids:
+            if cid not in clinic_ids_to_try:
+                clinic_ids_to_try.append(cid)
+    except Exception:
+        logger.warning("Не удалось получить список активных clinic_id")
+
+    p_id: str | None = None
+    last_err: str | None = None
+
+    for clinic_id in clinic_ids_to_try:
+        p_id, err = await api.fetch_patient_id(fio, date, clinic_id)
+        if p_id is not None:
+            logger.info(
+                "Пациент {} найден в clinic_id={} (попытка {}/{})",
+                fio,
+                clinic_id,
+                clinic_ids_to_try.index(clinic_id) + 1,
+                len(clinic_ids_to_try),
+            )
+            break
+        last_err = err
 
     if p_id:
         await state.update_data(p_id=p_id, bday=str(date.date()))
@@ -86,7 +119,8 @@ async def process_bday(
         )
     else:
         await message.answer(
-            f"❌ {err}", reply_markup=get_registration_keyboard(step="fio")
+            f"❌ {last_err or 'Пациент не найден.'}",
+            reply_markup=get_registration_keyboard(step="fio"),
         )
         await state.clear()
 

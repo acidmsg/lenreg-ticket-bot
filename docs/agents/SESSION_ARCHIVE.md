@@ -3003,3 +3003,76 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 - [`src/database/migrations.py`](src/database/migrations.py) — дополнена v1 (3 колонки), удалены v2, v5, `import sqlite3`, обновлён список MIGRATIONS
 - [`src/database/database.py`](src/database/database.py) — `logger.warning` → `logger.error` в двух seed-функциях
 - [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены 6 записей, обновлена TD-DB-005
+
+---
+
+## 2026-05-19 — TD-DB-005: удаление legacy-формата в `get_last_message_id()`
+
+### Выполненные задачи
+
+- **TD-DB-005** в [`src/database/manager.py`](src/database/manager.py:142): удалена проверка `isinstance(val, int)` из `get_last_message_id()`.
+  - Функция теперь ожидает только `dict` в кэше (текущий формат).
+  - Legacy-формат (`int`) больше не поддерживается.
+  - Ruff check пройден успешно (0 errors).
+
+### Изменённые файлы
+
+- [`src/database/manager.py`](src/database/manager.py:148-152) — удалены строки 151-152 (legacy-проверка `isinstance(val, int)`).
+- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md:19) — удалена запись TD-DB-005.
+
+---
+
+## 2026-05-19 — TD-HND-001/004/005/006: 4 пункта технического долга хендлеров
+
+### Выполненные задачи
+
+- **TD-HND-005** — подсказка про дефис для двойных фамилий в сообщении об ошибке валидации ФИО:
+  - [`src/handlers/registration.py:39-46`](src/handlers/registration.py:39) — обновлён текст ошибки в `process_fio()`.
+  - [`src/api/zdrav_client.py:133-143`](src/api/zdrav_client.py:133) — обновлён текст ошибки в `fetch_patient_id()`.
+
+- **TD-HND-006** — двухэтапный поиск пациента по всем clinic_id в `process_bday()`:
+  - [`src/handlers/registration.py:75-100`](src/handlers/registration.py:75) — добавлен перебор: DEFAULT_CLINIC_ID → пустая строка → все активные clinic_id из БД.
+  - При первом успешном `p_id is not None` поиск прекращается.
+  - Использует `db._db.get_active_clinic_ids()` для получения списка клиник.
+
+- **TD-HND-004** — хелпер для унифицированного парсинга callback_data:
+  - Создан новый файл [`src/handlers/callback_parser.py`](src/handlers/callback_parser.py) с функцией `_parse_callback_arg()`.
+  - Применён в [`src/handlers/common.py:638`](src/handlers/common.py:638) (`select_clinic`) и [`src/handlers/common.py:853-854`](src/handlers/common.py:853) (`stop_patient_monitoring`).
+
+- **TD-HND-001** — очистка глобального кэша `_user_clinic_city_idx`:
+  - [`src/handlers/common.py:410-413`](src/handlers/common.py:410) — в `cmd_start()` удаляются все ключи пользователя.
+  - [`src/handlers/common.py:463-467`](src/handlers/common.py:463) — в `back_to_main()` удаляются все ключи пользователя.
+
+### Изменённые файлы
+
+- [`src/handlers/registration.py`](src/handlers/registration.py:39-100) — TD-HND-005 (текст ошибки), TD-HND-006 (multi-clinic search).
+- [`src/api/zdrav_client.py`](src/api/zdrav_client.py:133-143) — TD-HND-005 (текст ошибки).
+- [`src/handlers/callback_parser.py`](src/handlers/callback_parser.py) — **новый файл** с `_parse_callback_arg()`.
+- [`src/handlers/common.py`](src/handlers/common.py:11,638,853-854,410-413,463-467) — импорт хелпера, применение к двум хендлерам, очистка кэша.
+- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md:19-24) — удалены записи TD-HND-001/004/005/006.
+
+### Проверки
+
+- Ruff check: 0 errors, all checks passed.
+
+---
+
+## 2026-05-19 — Исправление 3 ошибок mypy в common.py после TD-HND-004
+
+### Выполненные задачи
+
+- **mypy fix** — устранение несоответствия типов `str | None` vs `str` для `city_idx`:
+  - [`src/handlers/callback_parser.py:13`](src/handlers/callback_parser.py:13) — сигнатура `_parse_callback_arg()` уже возвращает `str` (default: `str = "all"`, а не `str | None = None`). **Вариант A** был применён ранее — функция гарантированно возвращает `str`.
+  - [`src/handlers/common.py:650`](src/handlers/common.py:650) — вызов `_parse_callback_arg(parts, 4, "all")` в `select_clinic()`.
+  - [`src/handlers/common.py:866`](src/handlers/common.py:866) — вызов `_parse_callback_arg(parts, 4, "all")` в `stop_patient_monitoring()`.
+  - Строки 665, 690, 909 — `city_idx` теперь гарантированно `str`, ошибок mypy нет.
+
+### Изменённые файлы
+
+- [`src/handlers/callback_parser.py`](src/handlers/callback_parser.py:13) — сигнатура уже исправлена (default: `str = "all"`).
+- [`src/handlers/common.py`](src/handlers/common.py:650,866) — оба вызова уже передают `"all"` явно.
+
+### Проверки
+
+- mypy: `Success: no issues found in 2 source files`.
+- Ruff check: `All checks passed!`.

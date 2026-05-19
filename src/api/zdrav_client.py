@@ -132,7 +132,13 @@ class ZdravClient:
     ) -> Tuple[Optional[str], Optional[str]]:
         parts = [p.strip() for p in fio.split() if p.strip()]
         if len(parts) != 3:
-            return None, "Пожалуйста, введите ФИО (3 слова) полностью через пробел."
+            return (
+                None,
+                "Пожалуйста, введите ФИО (3 слова) полностью через пробел.\n\n"
+                "💡 Если у вас двойная фамилия, введите её через дефис "
+                "(например: Салтыков-Щедрин Михаил Евграфович).\n"
+                "Если у вас двойное имя — введите все слова полностью.",
+            )
 
         iso_bday = bday_date.strftime("%Y-%m-%dT00:00:00.000Z")
         payload = {
