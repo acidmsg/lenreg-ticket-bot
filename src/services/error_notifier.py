@@ -120,6 +120,84 @@ class ErrorNotifier:
         except Exception as e:
             logger.error(f"Failed to send Sentry notification: {e}")
 
+    # ── Schema Change Notifications (F8) ───────────────────────────
+
+    async def notify_schema_change(
+        self,
+        endpoint: str,
+        diffs: list[str],
+    ) -> None:
+        """Отправляет алерт об изменении схемы API.
+
+        Args:
+            endpoint: Название эндпоинта (напр. 'speciality_list').
+            diffs: Список строк с описанием расхождений.
+        """
+        if not settings.ERROR_NOTIFY_ENABLED:
+            return
+
+        # NTFY
+        if settings.NTFY_TOPIC_URL:
+            await self._notify_schema_change_ntfy(endpoint, diffs)
+
+        # Sentry
+        if self._sentry_initialized and settings.SENTRY_DSN:
+            self._notify_schema_change_sentry(endpoint, diffs)
+
+    async def _notify_schema_change_ntfy(
+        self,
+        endpoint: str,
+        diffs: list[str],
+    ) -> None:
+        """Отправляет NTFY-уведомление об изменении схемы API."""
+        try:
+            title = f"API Schema Change: {endpoint}"
+            message = f"Эндпоинт: {endpoint}\n\nРасхождения ({len(diffs)}):\n"
+            for i, diff in enumerate(diffs, 1):
+                message += f"{i}. {diff}\n"
+
+            # Truncate до 2000 символов
+            if len(message) > 2000:
+                message = message[:1997] + "..."
+
+            safe_title = title.encode("ascii", errors="replace").decode("ascii")
+            safe_content = message.encode("utf-8")
+
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
+                await client.post(
+                    settings.NTFY_TOPIC_URL,
+                    content=safe_content,
+                    headers={
+                        "Title": safe_title,
+                        "Priority": "high",
+                        "Tags": "api_schema_change,rotating_light",
+                    },
+                )
+        except Exception as e:
+            logger.error("Failed to send NTFY schema change notification: %s", e)
+
+    def _notify_schema_change_sentry(
+        self,
+        endpoint: str,
+        diffs: list[str],
+    ) -> None:
+        """Отправляет Sentry-событие об изменении схемы API."""
+        try:
+            import sentry_sdk
+
+            with sentry_sdk.push_scope() as scope:
+                scope.set_tag("alert_type", "api_schema_change")
+                scope.set_tag("endpoint", endpoint)
+                scope.set_extra("endpoint", endpoint)
+                scope.set_extra("diffs", diffs)
+                scope.set_extra("diffs_count", len(diffs))
+                sentry_sdk.capture_message(
+                    f"API Schema Change: {endpoint} — {len(diffs)} расхождений",
+                    level="warning",
+                )
+        except Exception as e:
+            logger.error("Failed to send Sentry schema change notification: %s", e)
+
 
 # Singleton
 error_notifier = ErrorNotifier()

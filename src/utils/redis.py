@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -39,7 +39,7 @@ class RedisClient:
             value = await redis.get("key")
     """
 
-    _instance: Optional[RedisClient] = None
+    _instance: RedisClient | None = None
     _lock: Any = None  # asyncio.Lock, инициализируется при первом вызове
 
     def __init__(self) -> None:
@@ -123,13 +123,13 @@ class RedisClient:
             )
         return self._redis
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Получает значение по ключу. Возвращает None при недоступности Redis."""
         if not self._available:
             return None
         return await self.client.get(key)
 
-    async def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
         """Устанавливает значение. Возвращает False при недоступности Redis."""
         if not self._available:
             return False

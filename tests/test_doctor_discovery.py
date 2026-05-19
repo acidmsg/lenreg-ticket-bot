@@ -47,8 +47,24 @@ class TestFetchSpecialties:
 
         result = await fetch_specialties(api, "p123", "272")
         assert len(result) == 2
-        assert result[0] == {"IdSpesiality": "1", "NameSpesiality": "Хирургия"}
-        assert result[1] == {"IdSpesiality": "2", "NameSpesiality": "Терапия"}
+        assert result[0].model_dump(by_alias=True) == {
+            "IdSpesiality": "1",
+            "NameSpesiality": "Хирургия",
+            "FerIdSpesiality": "",
+            "CountFreeTicket": 0,
+            "LastDate": None,
+            "NearestDate": None,
+            "CountFreeParticipantIE": 0,
+        }
+        assert result[1].model_dump(by_alias=True) == {
+            "IdSpesiality": "2",
+            "NameSpesiality": "Терапия",
+            "FerIdSpesiality": "",
+            "CountFreeTicket": 0,
+            "LastDate": None,
+            "NearestDate": None,
+            "CountFreeParticipantIE": 0,
+        }
         api.fetch_speciality_list.assert_called_once_with("p123", "272", limiter=None)
 
     async def test_empty_api_response_returns_empty_list(self):

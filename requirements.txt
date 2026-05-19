@@ -21,6 +21,11 @@ cachetools>=5.3,<6.0
 # === Rate Limiting ===
 aiolimiter>=1.1,<2.0
 
+# === Web Dashboard (F5) ===
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.34,<1.0
+jinja2>=3.1,<4.0
+
 # === Error Notifications (M2) ===
 sentry-sdk>=2.0,<3.0  # optional; only used if SENTRY_DSN is configured
 

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from loguru import logger
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,10 @@ CONFIG_KEY_DISTRICT_ID = "district_id"
 CONFIG_KEY_SIGNUP_URL = "signup_url"
 CONFIG_KEY_API_VERSION = "api_version"
 CONFIG_KEY_API_VALIDATE_RESPONSES = "api_validate_responses"
+CONFIG_KEY_SCHEMA_CHECK_INTERVAL = "schema_check_interval"
+CONFIG_KEY_SCHEMA_CHECK_ENABLED = "schema_check_enabled"
+CONFIG_KEY_WEB_DASHBOARD_ENABLED = "web_dashboard_enabled"
+CONFIG_KEY_WEB_DASHBOARD_PORT = "web_dashboard_port"
 
 
 class Settings(BaseSettings):
@@ -41,7 +46,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Прокси для Telegram
-    PROXY_URL: Optional[str] = None
+    PROXY_URL: str | None = None
 
     # Интервал проверки в секундах
     CHECK_INTERVAL: int = 300
@@ -128,6 +133,21 @@ class Settings(BaseSettings):
     # Валидация ответов API через Pydantic-схемы
     API_VALIDATE_RESPONSES: bool = True
 
+    # === i18n ===
+    # Язык интерфейса бота (ru, en)
+    BOT_LANGUAGE: str = "ru"
+
+    # === API Schema Change Detection (F8) ===
+    # Интервал проверки схем API (секунды, по умолчанию 1 час)
+    SCHEMA_CHECK_INTERVAL: int = 3600
+    # Включить/выключить проверку схем API
+    SCHEMA_CHECK_ENABLED: bool = True
+
+    # === Web Dashboard (F5) ===
+    WEB_DASHBOARD_ENABLED: bool = True
+    WEB_DASHBOARD_PORT: int = 8090
+    WEB_DASHBOARD_API_KEY: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -174,6 +194,22 @@ async def load_config_from_db(database):
             CONFIG_KEY_API_VALIDATE_RESPONSES: (
                 "API_VALIDATE_RESPONSES",
                 lambda v: v.lower() in ("1", "true", "yes"),
+            ),
+            CONFIG_KEY_SCHEMA_CHECK_INTERVAL: (
+                "SCHEMA_CHECK_INTERVAL",
+                int,
+            ),
+            CONFIG_KEY_SCHEMA_CHECK_ENABLED: (
+                "SCHEMA_CHECK_ENABLED",
+                lambda v: v.lower() in ("1", "true", "yes"),
+            ),
+            CONFIG_KEY_WEB_DASHBOARD_ENABLED: (
+                "WEB_DASHBOARD_ENABLED",
+                lambda v: v.lower() in ("1", "true", "yes"),
+            ),
+            CONFIG_KEY_WEB_DASHBOARD_PORT: (
+                "WEB_DASHBOARD_PORT",
+                int,
             ),
         }
 

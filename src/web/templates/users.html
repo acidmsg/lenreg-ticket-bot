@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Пользователи — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Пользователи <span class="text-muted">Всего: {{ total }}</span></h1>
+
+{% if users %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>User ID</th>
+      <th>Пациентов</th>
+      <th>Мониторингов</th>
+      <th>Детали</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td><code>{{ u.uid }}</code></td>
+      <td>{{ u.patient_count }}</td>
+      <td>{{ u.monitoring_count }}</td>
+      <td><a href="/users/{{ u.uid }}" class="btn-link">Показать</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">Нет зарегистрированных пользователей</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Клиники — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Клиники <span class="text-muted">Всего: {{ total }}</span></h1>
+
+{% if clinics %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Название</th>
+      <th>Тип</th>
+      <th>Город</th>
+      <th>Врачей</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for clinic in clinics %}
+    <tr>
+      <td><code>{{ clinic.clinic_id }}</code></td>
+      <td>{{ clinic.name }}</td>
+      <td>
+        {% if clinic.type == 'adult' %}
+        <span class="badge badge-info">adult</span>
+        {% elif clinic.type == 'child' %}
+        <span class="badge badge-warn">child</span>
+        {% elif clinic.type == 'all' %}
+        <span class="badge badge-ok">all</span>
+        {% else %}
+        <span class="badge">{{ clinic.type }}</span>
+        {% endif %}
+      </td>
+      <td>{{ clinic.city }}</td>
+      <td>{{ clinic.doctor_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">Нет активных клиник</p>
+{% endif %}
+{% endblock %}

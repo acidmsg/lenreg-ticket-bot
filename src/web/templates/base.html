@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}ZdravLenReg Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">📊 zdrav.lenreg Monitor</div>
+    <div class="nav-links">
+      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">📊 Сводка</a>
+      <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">👥 Пользователи</a>
+      <a href="/logs" class="{% if request.url.path == '/logs' %}active{% endif %}">📋 Логи</a>
+      <a href="/clinics" class="{% if request.url.path == '/clinics' %}active{% endif %}">🏥 Клиники</a>
+      <a href="/api-status" class="{% if request.url.path == '/api-status' %}active{% endif %}">🔌 API</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>zdrav.lenreg Monitor v1.0.0</span>
+    <span>|</span>
+    <span>Prometheus: <a href="/metrics">:9090</a></span>
+    <span>|</span>
+    <span>Bot: <span class="badge badge-ok">alive</span></span>
+  </footer>
+</body>
+
+</html>

@@ -9,9 +9,9 @@ from src.api.exceptions import (
 from src.api.zdrav_client import ZdravClient
 
 __all__ = [
-    "ZdravClient",
     "ZdravApiError",
+    "ZdravClient",
     "ZdravNetworkError",
-    "ZdravTimeoutError",
     "ZdravParseError",
+    "ZdravTimeoutError",
 ]

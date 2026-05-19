@@ -5,7 +5,7 @@ DatabaseManager — адаптер поверх Database (SQLite).
 import asyncio
 import copy
 import time
-from typing import Any, Dict
+from typing import Any
 
 from src.database.database import Database
 
@@ -15,11 +15,11 @@ class DatabaseManager:
 
     def __init__(self, db: Database):
         self._db = db
-        self._data_cache: Dict[str, Dict[str, Any]] = {}
+        self._data_cache: dict[str, dict[str, Any]] = {}
         self._lock = asyncio.Lock()
 
     @property
-    def data(self) -> Dict[str, Any]:
+    def data(self) -> dict[str, Any]:
         return copy.deepcopy(self._data_cache)
 
     async def refresh_cache(self):
@@ -33,12 +33,12 @@ class DatabaseManager:
 
     # ── Пользователи ────────────────────────────────────────
 
-    async def get_user_data(self, uid: str) -> Dict[str, Any]:
+    async def get_user_data(self, uid: str) -> dict[str, Any]:
         """Потокобезопасное получение/создание данных пользователя в кэше."""
         async with self._lock:
             return self._get_user_data_nolock(uid)
 
-    def _get_user_data_nolock(self, uid: str) -> Dict[str, Any]:
+    def _get_user_data_nolock(self, uid: str) -> dict[str, Any]:
         """Внутренняя версия без захвата лока (вызывать только под self._lock)."""
         uid = str(uid)
         if uid not in self._data_cache:
@@ -51,7 +51,7 @@ class DatabaseManager:
             self._data_cache[uid]["last_messages"] = {}
         return self._data_cache[uid]
 
-    async def _replace_patients(self, uid: str, patients: Dict[str, Any]):
+    async def _replace_patients(self, uid: str, patients: dict[str, Any]):
         c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -66,7 +66,7 @@ class DatabaseManager:
                 confirmed_clinics=p_info.get("confirmed_clinics", []),
             )
 
-    async def _replace_monitoring(self, uid: str, monitoring: Dict[str, Any]):
+    async def _replace_monitoring(self, uid: str, monitoring: dict[str, Any]):
         c = self._db.conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -83,7 +83,7 @@ class DatabaseManager:
                         specialty=d_info.get("specialty", ""),
                     )
 
-    async def update_user(self, uid: str, update_dict: Dict[str, Any]):
+    async def update_user(self, uid: str, update_dict: dict[str, Any]):
         """Атомарное обновление данных пользователя (кэш + БД)."""
         uid = str(uid)
         async with self._lock:
@@ -150,7 +150,7 @@ class DatabaseManager:
                 return val.get("msg_id")
             return None
 
-    async def add_patient(self, uid: str, p_id: str, p_info: Dict[str, Any]):
+    async def add_patient(self, uid: str, p_id: str, p_info: dict[str, Any]):
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
@@ -293,3 +293,31 @@ class DatabaseManager:
     async def get_user_monitoring_logs_count(self, uid: str) -> int:
         """Возвращает количество записей лога пользователя."""
         return await self._db.get_user_monitoring_logs_count(uid)
+
+    # ── Дашборд: глобальные запросы ─────────────────────────
+
+    async def get_total_stats(self) -> dict:
+        """Агрегированная статистика для дашборда."""
+        return await self._db.get_total_stats()
+
+    async def get_all_monitoring_logs(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        uid: str | None = None,
+        status: str | None = None,
+    ) -> list[dict]:
+        """Лог мониторинга с пагинацией и фильтрацией."""
+        return await self._db.get_all_monitoring_logs(
+            limit=limit, offset=offset, uid=uid, status=status
+        )
+
+    async def get_all_monitoring_logs_count(
+        self, uid: str | None = None, status: str | None = None
+    ) -> int:
+        """Количество записей лога мониторинга."""
+        return await self._db.get_all_monitoring_logs_count(uid=uid, status=status)
+
+    async def get_clinic_doctor_count(self, clinic_id: str) -> int:
+        """Количество врачей в клинике."""
+        return await self._db.get_clinic_doctor_count(clinic_id)

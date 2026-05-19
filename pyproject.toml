@@ -38,6 +38,10 @@ dependencies = [
     "redis>=5.2,<6.0",
     # === Rate Limiting ===
     "aiolimiter>=1.1,<2.0",
+    # === Web Dashboard (F5) ===
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.34,<1.0",
+    "jinja2>=3.1,<4.0",
     # === Error Notifications (M2) ===
     "sentry-sdk>=2.0,<3.0",
 ]
@@ -55,6 +59,8 @@ mypy = ">=1.10,<2.0"
 types-aiofiles = ">=24.0,<26.0"
 types-cachetools = ">=5.3,<8.0"
 fakeredis = {extras = ["lua"], version = ">=2.30,<3.0"}
+# === i18n ===
+babel = ">=2.14,<3.0"
 # === Pre-commit ===
 pre-commit = ">=4.0,<5.0"
 pre-commit-hooks = ">=6.0,<7.0"
@@ -65,7 +71,12 @@ target-version = "py311"
 exclude = [".venv", "data", "logs"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "ASYNC", "N", "B", "UP", "SIM"]
+select = ["E", "F", "I", "W", "ASYNC", "N", "B", "UP", "SIM", "RUF"]
+ignore = [
+    "RUF001", # Разрешить кириллицу в обычных строках (String contains ambiguous Unicode character)
+    "RUF002", # Разрешить кириллицу в докстрингах (Docstring contains ambiguous Unicode character)
+    "RUF003", # Разрешить кириллицу в комментариях (Comment contains ambiguous Unicode character)
+]
 
 [tool.ruff.format]
 quote-style = "double"

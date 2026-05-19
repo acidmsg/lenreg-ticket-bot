@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Сводка — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Сводка</h1>
+
+<div class="grid-2col">
+  <div class="card">
+    <h2>Статус бота</h2>
+    <table class="info-table">
+      <tr>
+        <td>Uptime</td>
+        <td>{{ uptime }}</td>
+      </tr>
+      <tr>
+        <td>Пользователей</td>
+        <td>{{ stats.total_users }}</td>
+      </tr>
+      <tr>
+        <td>Пациентов</td>
+        <td>{{ stats.total_patients }}</td>
+      </tr>
+      <tr>
+        <td>Отслеж. врачей</td>
+        <td>{{ stats.total_monitored_doctors }}</td>
+      </tr>
+      <tr>
+        <td>Активных мониторингов</td>
+        <td>{{ active_monitorings }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Фоновые задачи</h2>
+    <table class="info-table">
+      <tr>
+        <td>monitor_loop</td>
+        <td>
+          {% if monitor_alive %}
+          <span class="badge badge-ok">✅ alive</span>
+          {% else %}
+          <span class="badge badge-err">❌ dead</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>discovery_tasks</td>
+        <td>
+          {% if discovery_alive > 0 %}
+          <span class="badge badge-ok">✅ {{ discovery_alive }}</span>
+          {% else %}
+          <span class="badge badge-err">❌ 0</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>healthcheck_loop</td>
+        <td>
+          {% if healthcheck_alive %}
+          <span class="badge badge-ok">✅ alive</span>
+          {% else %}
+          <span class="badge badge-err">❌ dead</span>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>API zdrav.lenreg.ru</h2>
+    <table class="info-table">
+      <tr>
+        <td>Статус</td>
+        <td>{{ api_health|safe }}</td>
+      </tr>
+      <tr>
+        <td>Успешных проверок</td>
+        <td>{{ api_checks }}</td>
+      </tr>
+      <tr>
+        <td>Ошибок</td>
+        <td>{{ api_errors }}</td>
+      </tr>
+      <tr>
+        <td>Уведомлений отправлено</td>
+        <td>{{ notifications }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Последние алерты (10)</h2>
+    {% if recent_alerts %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Пациент</th>
+          <th>Врач</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in recent_alerts %}
+        <tr>
+          <td class="cell-nowrap">{{ log.ts|int|strftime }}</td>
+          <td>{{ log.patient_name }}</td>
+          <td>{{ log.doctor_name }}</td>
+          <td>
+            {% if log.status == 'появился' or log.status == 'увеличилось' %}
+            <span class="badge badge-ok">{{ log.status }}</span>
+            {% elif log.status == 'исчез' or log.status == 'уменьшилось' %}
+            <span class="badge badge-warn">{{ log.status }}</span>
+            {% else %}
+            <span class="badge">{{ log.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">Нет записей в логе</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card links-bar">
+  <strong>Ссылки:</strong>
+  <a href="/metrics">/metrics (Prometheus)</a>
+</div>
+{% endblock %}

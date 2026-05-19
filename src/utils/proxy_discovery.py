@@ -41,7 +41,7 @@ async def _probe_host(host: str, port: int, sem: asyncio.Semaphore) -> str | Non
             writer.close()
             await writer.wait_closed()
             return host
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             return None
 
 
@@ -115,7 +115,7 @@ async def check_proxy_connectivity(
         writer.close()
         await writer.wait_closed()
         logger.info(f"Прокси {host}:{port} доступен")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         msg = f"Таймаут соединения с прокси {host}:{port} ({connect_timeout}с)"
         logger.error(msg)
         raise ConnectionError(msg)

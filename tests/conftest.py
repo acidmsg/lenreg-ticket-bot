@@ -12,10 +12,18 @@ import pytest
 import pytest_asyncio
 from src.database.database import Database
 from src.database.manager import DatabaseManager
+from src.i18n import setup_i18n
 
 # ── Вспомогательные пути ──────────────────────────────────────────────
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DATA_DIR = os.path.join(TEST_DIR, "test_data")
+
+
+# ── Инициализация i18n для тестов ────────────────────────────────────
+@pytest.fixture(autouse=True)
+def _init_i18n():
+    """Инициализирует русский язык для gettext в тестах."""
+    setup_i18n("ru")
 
 
 # ── Фикстуры для базы данных ──────────────────────────────────────────
@@ -34,7 +42,7 @@ async def temp_db_path(request):
         for _ in range(5):  # увеличено до 5 попыток
             try:
                 if os.path.exists(full):  # noqa: ASYNC240
-                    os.remove(full)  # noqa: ASYNC240
+                    os.remove(full)
                 break
             except PermissionError:
                 await asyncio.sleep(0.2)  # увеличена задержка

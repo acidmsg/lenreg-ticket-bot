@@ -14,6 +14,7 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.filters.admin import IsAdmin
 from src.handlers.callback_parser import _parse_callback_arg
+from src.i18n import _
 from src.keyboards.inline import (
     get_city_selection,
     get_clinic_selection,
@@ -56,7 +57,10 @@ def _decode_city_from_idx(idx_or_all: str, cities: list[str]) -> tuple[str | Non
                 selected_city = cities[idx - 1]
         except (ValueError, IndexError):
             pass
-    city_label = "Все клиники" if selected_city is None else f"🏥 {selected_city}"
+    if selected_city is None:
+        city_label = _("all-clinics")
+    else:
+        city_label = _("clinic-prefix").format(city=selected_city)
     return selected_city, city_label
 
 
@@ -360,11 +364,11 @@ def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
     if not monitoring:
         return ""
 
-    lines = ["\n📊 **Активный мониторинг:**"]
+    lines = [_("monitoring-summary-header")]
 
     for p_id, doctors in monitoring.items():
         p_info = patients.get(p_id, {})
-        p_name = p_info.get("alias") or p_info.get("fio", "Пациент")
+        p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
         lines.append(f"\n👤 {p_name}")
 
         if not doctors:
@@ -378,7 +382,7 @@ def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
             is_last = i == len(sorted_docs) - 1
             prefix = "  ┗" if is_last else "  ┣"
             if isinstance(d_info, dict):
-                d_name = shorten_fio(d_info.get("name", "Врач"))
+                d_name = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
                 d_spec = shorten_specialty(d_info.get("specialty", ""))
             else:
                 d_name = str(d_info)
@@ -418,20 +422,14 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot):
     await db.update_user(uid, {"last_messages": {}})
 
     if not user_data.get("patients"):
-        text = (
-            "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-            "У тебя пока нет добавленных пациентов. Давай добавим первого!"
-        )
+        text = _("no-patients-welcome")
         reply_markup = get_patient_selection({}, {})
         parse_mode = None
     else:
         summary = build_monitoring_summary(
             user_data["patients"], user_data["monitoring"]
         )
-        text = (
-            "📋 **Ваши пациенты:**\n---\n"
-            "Выберите пациента для настройки мониторинга" + summary
-        )
+        text = _("patient-list-header") + summary
         reply_markup = get_patient_selection(
             user_data["patients"], user_data["monitoring"]
         )
@@ -474,19 +472,13 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager):
     user_data = await db.get_user_data(uid)
 
     if not user_data.get("patients"):
-        text = (
-            "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-            "У тебя пока нет добавленных пациентов. Давай добавим первого!"
-        )
+        text = _("no-patients-welcome")
         reply_markup = get_patient_selection({}, {})
     else:
         summary = build_monitoring_summary(
             user_data["patients"], user_data["monitoring"]
         )
-        text = (
-            "📋 **Ваши пациенты:**\n---\n"
-            "Выберите пациента для настройки мониторинга" + summary
-        )
+        text = _("patient-list-header") + summary
         reply_markup = get_patient_selection(
             user_data["patients"], user_data["monitoring"]
         )
@@ -514,7 +506,7 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager):
             call.bot,
             call.message,
             "clinic",
-            "📍 Сначала выберите город/район:",
+            _("select-city-prompt"),
             get_city_selection(
                 p_id,
                 cities=cities,
@@ -581,7 +573,7 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager):
             call.bot,
             call.message,
             "clinic",
-            "📍 Сначала выберите город/район:",
+            _("select-city-prompt"),
             get_city_selection(
                 p_id,
                 cities=cities,
@@ -666,7 +658,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
 
     # Если врачей нет — делаем on-demand discovery
     if not doctors_list:
-        await call.answer("⏳ Загружаю список врачей...", show_alert=False)
+        await call.answer(_("loading-doctors"), show_alert=False)
         doctors_list = await _discover_doctors_on_demand(api, db, clinic_id, p_id)
 
     # Определяем тип клиники для выбора изображения врача
@@ -680,7 +672,7 @@ async def select_clinic(call: CallbackQuery, db: DatabaseManager, api: ZdravClie
             call.bot,
             call.message,
             nav_type,
-            f"⚙️ Выберите врачей для мониторинга:{clinic_line}",
+            _("select-doctors-prompt").format(clinic_line=clinic_line),
             get_doctor_selection(
                 p_id,
                 clinic_id,
@@ -704,13 +696,13 @@ async def toggle_doctor(
     if await is_spam(str(call.from_user.id)):
         return
 
-    _, p_id, clinic_id, d_id = call.data.split("_")
+    __, p_id, clinic_id, d_id = call.data.split("_")
     uid = str(call.from_user.id)
 
     user_data = await db.get_user_data(uid)
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_info = doctors_list.get(d_id, {})
-    d_name = doc_info.get("name", "Врач")
+    d_name = doc_info.get("name", _("doctor-fallback-name"))
     d_spec = doc_info.get("specialty", "")
 
     # Применяем псевдонимы для отображения
@@ -747,7 +739,7 @@ async def toggle_doctor(
                 bot,
                 call.message,
                 nav_type,
-                f"⚙️ Мониторинг для {d_name_display} отключен.",
+                _("monitoring-disabled-for").format(name=d_name_display),
                 get_doctor_selection(
                     p_id,
                     clinic_id,
@@ -761,13 +753,12 @@ async def toggle_doctor(
         return
 
     # Сразу отправляем "загрузочное" сообщение — пользователь видит, что бот работает
-    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
+    p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
     d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
     loading_msg = await call.message.answer(
-        f"{spec_text}🧑‍⚕️ {d_name_display}\n"
-        f"👤 {p_label}\n⏳ Проверяю наличие номерков..."
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{_('checking-slots')}"
     )
 
     await call.answer()
@@ -782,7 +773,7 @@ async def toggle_doctor(
     monitored = user_data["monitoring"].get(p_id, {})
 
     has_slots = bool(slots)
-    status_text = "✅ есть номерки!" if has_slots else "Пока номерков нет 🤷‍♂️"
+    status_text = _("slots-available-status") if has_slots else _("slots-empty-status")
 
     if has_slots and slots:
         slot_lines = format_slots(
@@ -792,9 +783,9 @@ async def toggle_doctor(
         )
         slots_display = "\n".join(slot_lines)
     else:
-        slots_display = "Как только появятся, я сразу дам знать!"
+        slots_display = _("slots-will-notify")
 
-    link = f"\n\n🔗 [Записаться]({settings.SIGNUP_URL})" if has_slots else ""
+    link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
 
     text = format_notification_text(
         p_label, d_name_display, spec_text, status_text, slots_display, link
@@ -833,7 +824,7 @@ async def toggle_doctor(
             bot,
             call.message,
             nav_type,
-            f"⚙️ Мониторинг для {d_name_display} включен.",
+            _("monitoring-enabled-for").format(name=d_name_display),
             get_doctor_selection(
                 p_id,
                 clinic_id,
@@ -845,7 +836,7 @@ async def toggle_doctor(
             db=db,
         )
 
-    await call.answer("Готово!")
+    await call.answer(_("done-toast"))
 
 
 @router.callback_query(F.data.startswith("stop_patient_"))
@@ -892,13 +883,13 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
             cities = await db._db.get_distinct_cities()
             p_info = user_data.get("patients", {}).get(p_id, {})
 
-            selected_city, _ = _decode_city_from_idx(str(city_idx), cities)
+            selected_city, __ = _decode_city_from_idx(str(city_idx), cities)
 
             await _send_nav_photo(
                 bot,
                 call.message,
                 "clinic",
-                "✅ Мониторинг для пациента сброшен.",
+                _("monitoring-reset-patient"),
                 get_clinic_selection(
                     p_id,
                     p_info.get("bday", settings.DEFAULT_BIRTHDAY),
@@ -918,7 +909,7 @@ async def stop_patient_monitoring(call: CallbackQuery, db: DatabaseManager, bot:
                 bot,
                 call.message,
                 "clinic",
-                "✅ Мониторинг для пациента сброшен.",
+                _("monitoring-reset-patient"),
                 get_city_selection(
                     p_id,
                     cities=cities,
@@ -981,7 +972,7 @@ async def stop_clinic_monitoring(call: CallbackQuery, db: DatabaseManager, bot: 
             bot,
             call.message,
             nav_type,
-            "✅ Мониторинг для клиники сброшен.",
+            _("monitoring-reset-clinic"),
             get_doctor_selection(
                 p_id,
                 clinic_id,
@@ -1018,7 +1009,7 @@ async def stop_all_monitoring(call: CallbackQuery, db: DatabaseManager, bot: Bot
             bot,
             call.message,
             "patient",
-            "✅ Весь мониторинг остановлен.",
+            _("monitoring-stopped-all"),
             get_patient_selection(user_data["patients"], user_data["monitoring"]),
             db=db,
         )
@@ -1040,7 +1031,7 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
 
     if action == "ask" and isinstance(call.message, Message):
         await call.message.edit_text(
-            "Вы уверены, что хотите удалить этого пациента?",
+            _("confirm-delete-patient"),
             reply_markup=get_confirm_deletion(p_id),
         )
     elif action == "yes" and isinstance(call.message, Message):
@@ -1056,16 +1047,10 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
         )
         await db.delete_patient(uid, p_id)
         if not user_data.get("patients"):
-            text = (
-                "👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
-                "У тебя пока нет добавленных пациентов. Давай добавим первого!"
-            )
+            text = _("no-patients-welcome")
             reply_markup = get_patient_selection({}, {})
         else:
-            text = (
-                "📋 **Список пациентов:**\n---\n"
-                "Выберите пациента\nдля настройки мониторинга"
-            )
+            text = _("patient-list-after-delete")
             reply_markup = get_patient_selection(
                 user_data["patients"], user_data["monitoring"]
             )
@@ -1102,22 +1087,17 @@ async def cmd_export(message: Message, db: DatabaseManager):
     monitoring = user_data.get("monitoring", {})
 
     if not patients and not monitoring:
-        await message.answer(
-            "📭 Нет данных для экспорта.\n\n"
-            "Добавьте пациентов и настройте мониторинг, "
-            "чтобы появилась информация для выгрузки."
-        )
+        await message.answer(_("export-no-data"))
         return
 
     # Inline-клавиатура выбора формата
     builder = InlineKeyboardBuilder()
-    builder.button(text="📄 CSV", callback_data="export_csv")
-    builder.button(text="📋 JSON", callback_data="export_json")
+    builder.button(text=_("btn-csv"), callback_data="export_csv")
+    builder.button(text=_("btn-json"), callback_data="export_json")
     builder.adjust(2)
 
     await message.answer(
-        "📊 **Выберите формат экспорта:**\n\n"
-        "Будут выгружены данные по всем пациентам и истории мониторинга.",
+        _("export-format-prompt"),
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )
@@ -1131,25 +1111,23 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
 
     # Ограничиваем команду только для администраторов
     if not await IsAdmin()(call.message):
-        await call.answer(
-            "Эта команда доступна только администраторам.", show_alert=True
-        )
+        await call.answer(_("admin-only-export"), show_alert=True)
         return
 
     uid = str(call.from_user.id)
     chat_id = call.message.chat.id
     is_csv = call.data == "export_csv"
 
-    await call.answer("⏳ Генерирую файл...")
+    await call.answer(_("export-generating"))
 
     filepath: str | None = None
     try:
         if is_csv:
             filepath = await export_monitoring_csv(db, int(uid))
-            caption = "📄 **Экспорт данных мониторинга (CSV)**"
+            caption = _("export-csv-caption")
         else:
             filepath = await export_monitoring_json(db, int(uid))
-            caption = "📋 **Экспорт данных мониторинга (JSON)**"
+            caption = _("export-json-caption")
 
         # Отправляем файл
         document = FSInputFile(filepath)
@@ -1165,7 +1143,7 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
         return
     except Exception as e:
         logger.error(f"Ошибка экспорта для uid={uid}: {e}")
-        await bot.send_message(chat_id, "❌ Произошла ошибка при генерации файла.")
+        await bot.send_message(chat_id, _("export-error"))
         return
     finally:
         # Удаляем временный файл

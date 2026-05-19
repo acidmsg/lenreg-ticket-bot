@@ -7,7 +7,7 @@
 Пример использования:
     parts = call.data.split("_")
     city_idx = _parse_callback_arg(parts, 4, "all")
-"""  # noqa: RUF002
+"""
 
 
 def _parse_callback_arg(parts: list[str], index: int, default: str = "all") -> str:

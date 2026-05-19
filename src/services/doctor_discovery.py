@@ -1,6 +1,5 @@
 import asyncio
 import random
-from typing import List
 
 from loguru import logger
 
@@ -12,7 +11,7 @@ from src.database.database import Database
 
 async def fetch_specialties(
     api: ZdravClient, patient_id: str, clinic_id: str, limiter=None
-) -> List[SpecialityItem]:
+) -> list[SpecialityItem]:
     """Получает список специальностей (ID и имя) для данной клиники и пациента."""
     try:
         response = await api.fetch_speciality_list(

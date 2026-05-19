@@ -19,7 +19,7 @@ from src.utils.helpers import extract_msg_id
 async def cleanup_loop(bot: Bot, db: DatabaseManager):
     """Фоновый цикл: проверяет last_messages и удаляет просроченные."""
     logger.info(
-        "Цикл очистки старых сообщений запущен (TTL=%d с, интервал=%d с)",
+        "Цикл очистки старых сообщений запущен (TTL={} с, интервал={} с)",
         settings.MESSAGE_TTL_SECONDS,
         settings.CLEANUP_INTERVAL,
     )
@@ -77,7 +77,7 @@ async def _cleanup_pass(bot: Bot, db: DatabaseManager):
                 changed = True
                 total_deleted += 1
                 logger.debug(
-                    "Удалено сообщение msg_id=%d для uid=%s (key=%s, возраст=%.1fч)",
+                    "Удалено сообщение msg_id={} для uid={} (key={}, возраст={:.1f}ч)",
                     msg_id,
                     uid,
                     key,
@@ -88,4 +88,4 @@ async def _cleanup_pass(bot: Bot, db: DatabaseManager):
             await db.update_user(uid, {"last_messages": last_messages})
 
     if total_deleted:
-        logger.info("Очистка завершена: удалено %d сообщений", total_deleted)
+        logger.info("Очистка завершена: удалено {} сообщений", total_deleted)

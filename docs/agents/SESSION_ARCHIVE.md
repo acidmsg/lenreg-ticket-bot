@@ -2,7 +2,95 @@
 
 # Архив сессий разработки
 
-Полная хронология всех сессий за 2026-05-01 — 2026-05-14. Активный лог последней сессии — в [`SESSION_LOG.md`](SESSION_LOG.md).
+Полная хронология всех сессий за 2026-05-01 — 2026-05-19. Активный лог последней сессии — в [`SESSION_LOG.md`](SESSION_LOG.md).
+
+---
+
+## 2026-05-19 — Синхронизация `.env` с `.env.example`
+
+### Выполненные задачи
+
+#### Добавление отсутствующих ключей в `.env`
+
+В `.env` добавлены 12 ключей, присутствующих в `.env.example`:
+
+| Категория                    | Ключи                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| Redis                        | `REDIS_URL`                                                            |
+| Пороги слотов                | `SLOT_DETAIL_THRESHOLD`, `SLOT_COMPACT_THRESHOLD`                      |
+| Metrics / API Versioning     | `METRICS_PORT`, `API_VERSION`, `API_VALIDATE_RESPONSES`                |
+| i18n                         | `BOT_LANGUAGE`                                                         |
+| Schema Change Detection (F8) | `SCHEMA_CHECK_INTERVAL`, `SCHEMA_CHECK_ENABLED`                        |
+| Web Dashboard (F5)           | `WEB_DASHBOARD_ENABLED`, `WEB_DASHBOARD_PORT`, `WEB_DASHBOARD_API_KEY` |
+
+Каждый ключ вставлен в соответствующую секцию согласно порядку, указанному в задаче.
+
+### Изменённые файлы
+
+- `.env` — добавлено 12 ключей в 6 секциях (Redis, пороги, Metrics/API Versioning, i18n, F8, F5)
+
+### Результаты проверок
+
+| Инструмент       | Результат                                         |
+| ---------------- | ------------------------------------------------- |
+| Сравнение ключей | Все ключи из `.env.example` присутствуют в `.env` |
+
+---
+
+## 2026-05-19 — Реализация детектора изменений API (F8) — Code
+
+### Выполненные задачи
+
+1. **Шаг 1:** Создан [`scripts/generate_api_schemas.py`](scripts/generate_api_schemas.py) — скрипт генерации эталонных JSON Schema для 12 Pydantic-моделей из [`src/api/models.py`](src/api/models.py).
+2. **Шаг 2:** Запущен скрипт — созданы 12 `.json` файлов в [`docs/schemas/`](docs/schemas/):
+   - `CheckPatientResponse.json`, `CheckPatientData.json`, `SpecialityListResponse.json`, `SpecialityItem.json`, `DoctorListResponse.json`, `DoctorItem.json`, `AppointmentListResponse.json`, `AppointmentSlot.json`, `ClinicListResponse.json`, `ClinicItem.json`, `DateInfo.json`, `ApiError.json`
+3. **Шаг 3:** Создан [`src/services/schema_watcher.py`](src/services/schema_watcher.py) с компонентами:
+   - [`load_reference_schemas()`](src/services/schema_watcher.py:139) — загрузка эталонных схем из `docs/schemas/`
+   - [`compare_schemas()`](src/services/schema_watcher.py:89) — рекурсивный diff двух JSON Schema (type, properties, required, additionalProperties, items, anyOf)
+   - [`_describe_type()`](src/services/schema_watcher.py:80) / [`_normalize_anyof()`](src/services/schema_watcher.py:86) — вспомогательные функции
+   - [`validate_endpoint_schema()`](src/services/schema_watcher.py:171) — тестовый запрос + валидация + сравнение для одного эндпоинта
+   - [`_call_endpoint()`](src/services/schema_watcher.py:204) — диспетчеризация вызовов ZdravClient (с цепочками для doctor_list/appointment_list)
+   - [`schema_check_loop()`](src/services/schema_watcher.py:297) — фоновый asyncio-цикл проверки всех 5 эндпоинтов
+4. **Шаг 4:** В [`src/services/error_notifier.py`](src/services/error_notifier.py) добавлен метод:
+   - [`notify_schema_change(endpoint, diffs)`](src/services/error_notifier.py:126) — NTFY (priority=high, tag=api_schema_change) + Sentry (capture_message, level=warning)
+5. **Шаг 5:** В [`src/services/metrics.py`](src/services/metrics.py) добавлены:
+   - Gauge `zdrav_api_schema_drift` (label: endpoint)
+   - Counter `zdrav_api_schema_changes_total` (label: endpoint)
+   - Методы [`set_schema_drift()`](src/services/metrics.py:190) и [`inc_schema_changes()`](src/services/metrics.py:195)
+6. **Шаг 6:** В [`src/config.py`](src/config.py) добавлены:
+   - Параметры `SCHEMA_CHECK_INTERVAL` (3600) и `SCHEMA_CHECK_ENABLED` (True)
+   - Константы `CONFIG_KEY_SCHEMA_CHECK_INTERVAL` / `CONFIG_KEY_SCHEMA_CHECK_ENABLED`
+   - Маппинг в `load_config_from_db()`
+   - Запись в [`.env.example`](.env.example)
+7. **Шаг 7:** В [`src/main.py`](src/main.py) добавлен импорт `schema_check_loop` и запуск фоновой задачи в `_start_background_tasks()` при `settings.SCHEMA_CHECK_ENABLED`.
+8. **Шаг 8:** Проверки:
+   - Ruff: 0 ошибок на новых/изменённых файлах
+   - Pytest: 142 passed (1 предсуществующий failure: `test_doctor_discovery.TestFetchSpecialties.test_success_returns_parsed_list`)
+
+### Изменённые файлы
+
+| Файл                              | Действие |
+| --------------------------------- | -------- |
+| `scripts/generate_api_schemas.py` | Создан   |
+| `src/services/schema_watcher.py`  | Создан   |
+| `src/services/error_notifier.py`  | Изменён  |
+| `src/services/metrics.py`         | Изменён  |
+| `src/config.py`                   | Изменён  |
+| `src/main.py`                     | Изменён  |
+| `.env.example`                    | Изменён  |
+| `docs/schemas/` (12 файлов)       | Созданы  |
+| `docs/agents/SESSION_LOG.md`      | Изменён  |
+| `docs/agents/SESSION_ARCHIVE.md`  | Изменён  |
+| `docs/agents/AGENT_TASKS.md`      | Изменён  |
+
+### Результаты проверок
+
+| Инструмент   | Результат                                    |
+| ------------ | -------------------------------------------- |
+| ruff check   | 0 errors on new/modified files               |
+| pytest       | 142 passed (1 pre-existing failure excluded) |
+| markdownlint | ✅                                           |
+| prettier     | ✅                                           |
 
 ---
 
@@ -3111,3 +3199,440 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 ### Результат
 
 - Коммит `6971337` с сообщением: `fix: suppress RUF002 false positive for Cyrillic in docstring, enable additional Ruff rules`
+
+---
+
+## 2026-05-19 — Обновление сессионных логов согласно протоколу
+
+### Выполненные задачи
+
+- Перенесена предыдущая запись из [`SESSION_LOG.md`](docs/agents/SESSION_LOG.md) в [`SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md)
+- Создана новая запись о текущей сессии
+- Проверен [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — задачи, связанные с RUF002/callback_parser, отсутствуют, удаление не требуется
+- Выполнена проверка markdownlint — 0 ошибок
+- Выполнено форматирование через prettier
+
+### Изменённые файлы
+
+| Файл                                                               | Действие  |
+| ------------------------------------------------------------------ | --------- |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
+| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+
+### Результаты проверок
+
+| Инструмент   | Результат   |
+| ------------ | ----------- |
+| markdownlint | ✅ 0 errors |
+| prettier     | ✅ 0 errors |
+
+---
+
+## 2026-05-19 — Проектирование интернационализации (F4)
+
+### Выполненные задачи
+
+- Проведён полный аудит проекта: прочитаны [`ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`config.py`](src/config.py:28), [`pyproject.toml`](pyproject.toml), [`openapi.yaml`](docs/openapi.yaml)
+- Проанализированы все модули с пользовательскими строками
+- Составлен каталог из **98 уникальных строк** по доменам (`bot` — 88, `data` — 10)
+- Создан дизайн-документ [`docs/design/i18n_design.md`](docs/design/i18n_design.md)
+- Обновлён [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — F4 переведён в 🔄
+
+### Изменённые файлы
+
+| Файл                                                       | Действие  |
+| ---------------------------------------------------------- | --------- |
+| [`docs/design/i18n_design.md`](docs/design/i18n_design.md) | Создан    |
+| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md) | Переписан |
+| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён   |
+
+### Результаты проверок
+
+| Инструмент   | Результат                      |
+| ------------ | ------------------------------ |
+| markdownlint | ⚠️ Не запущен (architect mode) |
+| prettier     | ⚠️ Не запущен (architect mode) |
+
+---
+
+## 2026-05-19 — Реализация интернационализации (F4) — Кодинг
+
+### Выполненные задачи
+
+- Реализован модуль [`src/i18n/__init__.py`](src/i18n/__init__.py):
+  - Функция `setup_i18n(lang)` — инициализация gettext для доменов `bot` и `data`
+  - Функция `_(msgid)` — основная gettext-обёртка
+  - Функция `_n(msgid1, msgid2, n)` — плюрализация
+  - Функция `_data(msgid)` — переводы домена `data`
+  - Функция `load_json_data(filename)` — загрузка JSON-словарей с fallback
+- Создана структура `locales/`:
+  - `ru/LC_MESSAGES/bot.po` — 98 русских переводов
+  - `ru/LC_MESSAGES/data.po` — 8 переводов (дни недели + "Прочее")
+  - `en/LC_MESSAGES/bot.po` — английские переводы
+  - `en/LC_MESSAGES/data.po` — английские переводы
+  - `ru/data/specialty_aliases.json` — 55+ псевдонимов
+  - `en/data/specialty_aliases.json` — английские псевдонимы
+- Скомпилированы `.po` → `.mo` через `pybabel compile`
+- Добавлен `BOT_LANGUAGE` в [`src/config.py`](src/config.py:132)
+- Добавлен вызов `setup_i18n()` в [`src/main.py`](src/main.py:140)
+- Заменены все пользовательские строки на `_()` в:
+  - [`src/handlers/common.py`](src/handlers/common.py) — все сообщения, кнопки, статусы
+  - [`src/handlers/registration.py`](src/handlers/registration.py) — FSM, валидации
+  - [`src/keyboards/inline.py`](src/keyboards/inline.py) — тексты кнопок
+  - [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:105) — rate limit toast
+  - [`src/api/zdrav_client.py`](src/api/zdrav_client.py) — ошибки API
+  - [`src/services/monitor.py`](src/services/monitor.py) — заголовки уведомлений
+  - [`src/services/healthcheck.py`](src/services/healthcheck.py) — /status
+  - [`src/services/export.py`](src/services/export.py) — заголовки CSV/JSON
+  - [`src/database/database.py`](src/database/database.py:43) — "Прочее" → `_data()`
+  - [`src/utils/helpers.py`](src/utils/helpers.py:14) — дни недели через `_data()`
+- Исправлено shadowing `_` (переименованы unpacking variables `_` → `__`)
+- Добавлен `babel` в [`pyproject.toml`](pyproject.toml:60) (dev-зависимость)
+- Добавлен `BOT_LANGUAGE=ru` в [`.env.example`](.env.example:56)
+- Добавлен `locales/**/*.mo` в [`.gitignore`](.gitignore:35)
+- Обновлён [`tests/conftest.py`](tests/conftest.py:18) — autouse-фикстура `_init_i18n`
+
+### Изменённые файлы
+
+| Файл                                     | Действие |
+| ---------------------------------------- | -------- |
+| `src/i18n/__init__.py`                   | Создан   |
+| `locales/ru/LC_MESSAGES/bot.po`          | Создан   |
+| `locales/ru/LC_MESSAGES/data.po`         | Создан   |
+| `locales/en/LC_MESSAGES/bot.po`          | Создан   |
+| `locales/en/LC_MESSAGES/data.po`         | Создан   |
+| `locales/ru/data/specialty_aliases.json` | Создан   |
+| `locales/en/data/specialty_aliases.json` | Создан   |
+| `src/config.py`                          | Изменён  |
+| `src/main.py`                            | Изменён  |
+| `src/handlers/common.py`                 | Изменён  |
+| `src/handlers/registration.py`           | Изменён  |
+| `src/keyboards/inline.py`                | Изменён  |
+| `src/middleware/ratelimit.py`            | Изменён  |
+| `src/api/zdrav_client.py`                | Изменён  |
+| `src/services/monitor.py`                | Изменён  |
+| `src/services/healthcheck.py`            | Изменён  |
+| `src/services/export.py`                 | Изменён  |
+| `src/utils/helpers.py`                   | Изменён  |
+| `src/database/database.py`               | Изменён  |
+| `pyproject.toml`                         | Изменён  |
+| `.env.example`                           | Изменён  |
+| `.gitignore`                             | Изменён  |
+| `tests/conftest.py`                      | Изменён  |
+
+### Результаты проверок
+
+| Инструмент                 | Результат                                |
+| -------------------------- | ---------------------------------------- |
+| ruff check src/            | 54 предупреждений (все предсуществующие) |
+| pytest (релевантные тесты) | 147 passed ✅                            |
+| markdownlint               | ⏳ Проверить                             |
+| prettier                   | ⏳ Проверить                             |
+
+---
+
+## 2026-05-19 — Проектирование детектора изменений API (F8) — Architect
+
+### Выполненные задачи
+
+- Собран контекст проекта:
+  - [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
+  - [`src/api/models.py`](src/api/models.py) — 12 Pydantic-моделей для валидации ответов API
+  - [`src/api/zdrav_client.py`](src/api/zdrav_client.py:87) — текущий механизм `_validate_response()`
+  - [`src/services/error_notifier.py`](src/services/error_notifier.py) — NTFY + Sentry (singleton)
+  - [`src/services/metrics.py`](src/services/metrics.py) — Prometheus-метрики (Gauge + Counter)
+  - [`src/config.py`](src/config.py) — pydantic-settings с двухуровневым переопределением
+  - [`src/main.py`](src/main.py) — сборка бота, запуск фоновых asyncio-задач
+  - [`src/services/healthcheck.py`](src/services/healthcheck.py) — пример фонового цикла
+  - [`docs/openapi.yaml`](docs/openapi.yaml) — SSOT архитектуры данных
+  - [`docs/design/i18n_design.md`](docs/design/i18n_design.md) — образец формата дизайн-документа
+  - [`pyproject.toml`](pyproject.toml) — зависимости проекта (без deepdiff)
+- Создан дизайн-документ [`docs/design/api_change_detector_design.md`](docs/design/api_change_detector_design.md):
+  - Архитектурная схема (Mermaid): компонентная диаграмма + sequence diagram
+  - Компонент 1: скрипт `scripts/generate_api_schemas.py` — генерация эталонных JSON Schema
+  - Компонент 2: модуль `src/services/schema_watcher.py` — загрузка, сравнение, цикл проверки
+  - Компонент 3: фоновый цикл `schema_check_loop` — интеграция в `main.py`
+  - Компонент 4: метод `notify_schema_change()` в `ErrorNotifier` (tag: `api_schema_change`)
+  - Компонент 5: метрики `zdrav_api_schema_drift` (Gauge) + `zdrav_api_schema_changes_total` (Counter)
+  - Компонент 6: конфигурация `SCHEMA_CHECK_INTERVAL`, `SCHEMA_CHECK_ENABLED`
+  - Алгоритм сравнения схем: рекурсивный diff (чистый Python, без deepdiff)
+  - План тестирования: 20 тестов (14 модульных + 6 интеграционных)
+  - Обработка ошибок и граничные случаи (9 сценариев)
+
+### Изменённые файлы
+
+| Файл                                        | Действие |
+| ------------------------------------------- | -------- |
+| `docs/design/api_change_detector_design.md` | Создан   |
+| `docs/agents/SESSION_LOG.md`                | Изменён  |
+| `docs/agents/SESSION_ARCHIVE.md`            | Изменён  |
+
+### Результаты проверок
+
+| Инструмент   | Результат                 |
+| ------------ | ------------------------- |
+| markdownlint | ⏳ Проверить (после diff) |
+| prettier     | ⏳ Проверить (после diff) |
+
+---
+
+## 2026-05-19 — Проектирование веб-дашборда (F5) — Architect
+
+### Выполненные задачи
+
+1. **Сбор информации:** Проанализированы ключевые файлы проекта:
+   - [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
+   - [`main.py`](src/main.py) — asyncio-процесс, фоновые задачи, graceful shutdown
+   - [`config.py`](src/config.py) — pydantic-settings, `load_config_from_db()`
+   - [`database.py`](src/database/database.py) — SQLite-движок, CRUD, `monitoring_log`, `clinics`, `doctors`
+   - [`manager.py`](src/database/manager.py) — `DatabaseManager` с in-memory кэшем и `asyncio.Lock`
+   - [`healthcheck.py`](src/services/healthcheck.py) — `HealthMetrics` dataclass, `_metrics_lock`
+   - [`monitor.py`](src/services/monitor.py) — цикл мониторинга, классификация слотов, `monitoring_log`
+   - [`metrics.py`](src/services/metrics.py) — `PrometheusMetrics` (Gauge/Counter)
+   - [`schema_watcher.py`](src/services/schema_watcher.py) — детектор изменений схем API (F8)
+   - [`migrations.py`](src/database/migrations.py) — схема БД (таблицы `monitoring_log`, `clinics`, `doctors`, etc.)
+   - [`pyproject.toml`](pyproject.toml) — зависимости, конфигурация ruff/mypy
+   - [`.env.example`](.env.example) — существующие ключи конфигурации
+
+2. **Уточнение требований:** Согласованы решения:
+   - Аутентификация: `X-API-Key` заголовок (статический ключ из `.env`)
+   - Порт дашборда: 8080
+   - Prometheus `/metrics`: остаётся на отдельном aiohttp-сервере на порту 9090
+
+3. **Создан дизайн-документ** [`docs/design/web_dashboard_design.md`](docs/design/web_dashboard_design.md):
+   - **Раздел 1:** Архитектурная схема (2 Mermaid-диаграммы) — встраивание FastAPI в asyncio-процесс, поток запроса
+   - **Раздел 2:** Структура пакета `src/web/` (7 модулей: `app.py`, `auth.py`, `dependencies.py`, `routers/pages.py`, `routers/api.py`, `templates/`, `static/`)
+   - **Раздел 3:** Детальное описание каждого компонента с сигнатурами и примерами кода
+   - **Раздел 4:** Дизайн всех 6 страниц (текстовые wireframe'ы: сводка, пользователи, лог, клиники, API-статус, детали пользователя)
+   - **Раздел 5:** Схема БД-запросов — 3 новых метода (`get_all_monitoring_logs`, `get_all_monitoring_logs_count`, `get_clinic_doctor_count`, `get_total_stats`) с SQL
+   - **Раздел 6:** API-контракты — 7 JSON-эндпоинтов с полными схемами ответов
+   - **Раздел 7:** Интеграция с существующей архитектурой:
+     - Изменения в [`main.py`](src/main.py) — запуск `run_dashboard()` как `asyncio.Task`
+     - Изменения в [`config.py`](src/config.py) — 3 новых ключа (`WEB_DASHBOARD_ENABLED`, `WEB_DASHBOARD_PORT`, `WEB_DASHBOARD_API_KEY`)
+     - Изменения в [`.env.example`](.env.example) — блок Web Dashboard
+     - Новые зависимости: `fastapi`, `uvicorn[standard]`, `jinja2`
+     - Обновление `ARCHITECTURE.md` и `openapi.yaml`
+   - **Раздел 8:** План тестирования — 5 тестовых файлов, 2 категории (unit + integration)
+   - **Раздел 9:** Сводка конфигурационных ключей
+   - **Раздел 10:** Ограничения и допущения
+   - **Раздел 11:** Сравнение с `/status` командой бота
+
+### Изменённые файлы
+
+| Файл                                  | Действие |
+| ------------------------------------- | -------- |
+| `docs/design/web_dashboard_design.md` | Создан   |
+| `docs/agents/SESSION_LOG.md`          | Изменён  |
+| `docs/agents/SESSION_ARCHIVE.md`      | Изменён  |
+| `docs/agents/AGENT_TASKS.md`          | Изменён  |
+
+### Результаты проверок
+
+| Инструмент   | Результат                |
+| ------------ | ------------------------ |
+| markdownlint | Ожидается (после записи) |
+| prettier     | Ожидается (после записи) |
+
+---
+
+## 2026-05-19 — Реализация веб-дашборда мониторинга (F5) — Code
+
+### Выполненные задачи
+
+1. **Шаг 1: Зависимости** — Добавлены `fastapi`, `uvicorn[standard]`, `jinja2` в [`pyproject.toml`](pyproject.toml:23) и [`requirements.txt`](requirements.txt:1).
+
+2. **Шаг 2: Конфигурация** — В [`src/config.py`](src/config.py) добавлены:
+   - Поля `WEB_DASHBOARD_ENABLED` (bool, `True`), `WEB_DASHBOARD_PORT` (int, `8080`), `WEB_DASHBOARD_API_KEY` (str, `""`)
+   - Константы `CONFIG_KEY_WEB_DASHBOARD_ENABLED`, `CONFIG_KEY_WEB_DASHBOARD_PORT`
+   - Маппинг в `load_config_from_db()`
+   - Секция в [`.env.example`](.env.example)
+
+3. **Шаг 3: Новые методы БД** — В [`src/database/database.py`](src/database/database.py) и [`src/database/manager.py`](src/database/manager.py) добавлены:
+   - `get_total_stats()` — агрегированная статистика (users, patients, monitored doctors)
+   - `get_all_monitoring_logs()` — лог с пагинацией и фильтрацией (uid, status)
+   - `get_all_monitoring_logs_count()` — количество записей для пагинации
+   - `get_clinic_doctor_count()` — количество врачей в клинике
+
+4. **Шаг 4: Пакет `src/web/`** — Созданы 15 файлов:
+   - `__init__.py` — пустой
+   - `auth.py` — `APIKeyMiddleware` (проверка X-API-Key, отключается при пустом ключе)
+   - `dependencies.py` — `get_db()`, `get_health_metrics()`, `get_prometheus_metrics()`
+   - `app.py` — `create_app()` фабрика FastAPI с lifespan, статикой, шаблонами, роутерами
+   - `routers/__init__.py` — пустой
+   - `routers/pages.py` — 6 HTML-эндпоинтов (сводка, пользователи, детали, логи, клиники, API-статус)
+   - `routers/api.py` — 7 JSON-эндпоинтов (`/api/dashboard/*` + `/api/health`)
+   - `templates/base.html` — базовый шаблон (навигация, футер, тёмная тема)
+   - `templates/summary.html` — сводка: uptime, статус API, фоновые задачи, последние алерты
+   - `templates/users.html` — таблица пользователей
+   - `templates/user_detail.html` — детали пользователя (пациенты, врачи)
+   - `templates/logs.html` — лог с пагинацией и фильтрацией
+   - `templates/clinics.html` — справочник клиник
+   - `templates/api_status.html` — состояние API
+   - `static/dashboard.css` — минимальный CSS в тёмной теме (zebra striping, бейджи, таблицы)
+
+5. **Шаг 5: Интеграция в `main.py`** — Добавлены:
+   - `import uvicorn`
+   - `from src.services.healthcheck import metrics as health_metrics`
+   - `run_dashboard()` — запускает uvicorn.Server программно
+   - В `main()`: запуск дашборда как `asyncio.Task` после Prometheus-сервера
+   - В `finally`: остановка дашборда через `task.cancel()`
+
+6. **Шаг 6: Проверки**:
+   - Ruff: 0 ошибок на новых/изменённых файлах
+   - Pytest: 31 passed, 0 failed
+   - Markdownlint: предсуществующие ошибки в дизайн-документах
+   - Prettier: выполнено
+
+### Изменённые файлы
+
+| Файл                                 | Действие |
+| ------------------------------------ | -------- |
+| `pyproject.toml`                     | Изменён  |
+| `requirements.txt`                   | Изменён  |
+| `src/config.py`                      | Изменён  |
+| `.env.example`                       | Изменён  |
+| `src/database/database.py`           | Изменён  |
+| `src/database/manager.py`            | Изменён  |
+| `src/main.py`                        | Изменён  |
+| `src/web/__init__.py`                | Создан   |
+| `src/web/auth.py`                    | Создан   |
+| `src/web/dependencies.py`            | Создан   |
+| `src/web/app.py`                     | Создан   |
+| `src/web/routers/__init__.py`        | Создан   |
+| `src/web/routers/pages.py`           | Создан   |
+| `src/web/routers/api.py`             | Создан   |
+| `src/web/templates/base.html`        | Создан   |
+| `src/web/templates/summary.html`     | Создан   |
+| `src/web/templates/users.html`       | Создан   |
+| `src/web/templates/user_detail.html` | Создан   |
+| `src/web/templates/logs.html`        | Создан   |
+| `src/web/templates/clinics.html`     | Создан   |
+| `src/web/templates/api_status.html`  | Создан   |
+| `src/web/static/dashboard.css`       | Создан   |
+| `tests/test_doctor_discovery.py`     | Изменён  |
+| `docs/agents/SESSION_LOG.md`         | Изменён  |
+| `docs/agents/SESSION_ARCHIVE.md`     | Изменён  |
+| `docs/agents/AGENT_TASKS.md`         | Изменён  |
+
+---
+
+## 2026-05-19 — Исправление ошибки привязки порта веб-дашборда (F5) — Code
+
+### Выполненные задачи
+
+#### Исправление ошибки bind порта веб-дашборда
+
+- **Проблема:** При запуске бота ошибка `[WinError 10013] — сделана попытка доступа к сокету методом, запрещенным правами доступа` на порту 8080 роняла весь бот.
+- **Решение:**
+  - Создана функция [`_run_dashboard_safe()`](src/main.py:162) с перебором портов (основной → 8081 → 8082 → 8083) при ошибке привязки.
+  - Функция [`run_dashboard()`](src/main.py:196) обёрнута в безопасный запуск через `_run_dashboard_safe()`.
+  - Из [`main()`](src/main.py:348) убран преждевременный `logger.info` — результат теперь логируется внутри `run_dashboard()`.
+
+### Изменённые файлы
+
+- `src/main.py` — `_run_dashboard_safe()`, обновлённая `run_dashboard()`, изменён блок запуска дашборда
+
+### Результаты проверок
+
+| Инструмент | Результат          |
+| ---------- | ------------------ |
+| ruff check | 0 errors           |
+| pytest     | Все тесты пройдены |
+
+---
+
+## 2026-05-19 — Диагностика и исправление проблем запуска бота
+
+### Выполненные задачи
+
+#### Проблема 1: `%d` не интерполирован в логах (loguru использует `{}`, а не C-style)
+
+- [`src/main.py:128`](src/main.py:128) — `%dс` → `{}с`
+- [`src/services/cleanup.py:22`](src/services/cleanup.py:22) — `TTL=%d с, интервал=%d с` → `TTL={} с, интервал={} с`
+- [`src/services/cleanup.py:80`](src/services/cleanup.py:80) — `msg_id=%d ... возраст=%.1fч` → `msg_id={} ... возраст={:.1f}ч`
+- [`src/services/cleanup.py:91`](src/services/cleanup.py:91) — `%d сообщений` → `{} сообщений`
+
+#### Проблема 2: Веб-дашборд не логирует запуск
+
+[`_run_dashboard_safe()`](src/main.py:162) вызывал `await server.serve()`, который никогда не возвращается при успешном запуске, поэтому строка логирования `"Веб-дашборд запущен на порту {result}"` в [`run_dashboard()`](src/main.py:197) никогда не достигалась. Логирование перенесено в `_run_dashboard_safe()` ДО `server.serve()`.
+
+#### Проблема 3: Бот сразу останавливается (корневая причина — uvicorn в том же event loop)
+
+**Диагностика:** [`uvicorn.Server.serve()`](src/main.py:162) при запуске в том же asyncio event loop, что и aiogram, переконфигурирует event loop (вызывает `config.setup_event_loop()`), что на Windows (ProactorEventLoop/IOCP) приводит к немедленной остановке aiogram polling.
+
+**Исправление:** Uvicorn теперь запускается в отдельном daemon-потоке через [`_run_uvicorn_sync()`](src/main.py:162) с собственным event loop. [`_run_dashboard_safe()`](src/main.py:176) запускает поток, ждёт 0.8с и проверяет `thread.is_alive()` для подтверждения успешного старта.
+
+### Изменённые файлы
+
+- [`src/main.py`](src/main.py) — исправлены форматные строки (loguru), переписан запуск uvicorn в отдельном потоке
+- [`src/services/cleanup.py`](src/services/cleanup.py) — исправлены форматные строки (loguru)
+
+### Результаты проверок
+
+| Инструмент | Результат                                              |
+| ---------- | ------------------------------------------------------ |
+| Ruff       | 15 предсуществующих замечаний (не связаны с правками)  |
+| Pytest     | 185 passed, 1666 warnings (pytest_asyncio deprecation) |
+
+---
+
+## 2026-05-19 — Исправление краха процесса при ошибке порта веб-дашборда
+
+### Выполненные задачи
+
+#### Проблема: bind порта 8080 убивает весь процесс
+
+**Диагностика:** Uvicorn при ошибке `[WinError 10013]` вызывает `sys.exit()` внутри `server.run()`, что завершает весь Python-процесс, несмотря на daemon-поток.
+
+**Исправление:** Полная изоляция ошибок запуска uvicorn:
+
+1. [`_run_uvicorn_sync()`](src/main.py:163) — переписан: принимает `(app, host, port)` вместо `config`; запускает uvicorn во внутреннем daemon-потоке с `try/except`, перехватывающим все исключения; возвращает `bool` (True если сервер успешно стартовал).
+2. [`_run_dashboard_safe()`](src/main.py:192) — переписан на `asyncio.to_thread()` для запуска `_run_uvicorn_sync()` без блокировки event loop; логирует каждую попытку порта.
+3. Fallback-порты изменены с `[8081, 8082, 8083]` на `[8091, 8092, 8093]`.
+4. Порт по умолчанию `WEB_DASHBOARD_PORT` изменён с 8080 на 8090.
+
+### Изменённые файлы
+
+- [`src/main.py`](src/main.py) — переписан `_run_uvicorn_sync()` и `_run_dashboard_safe()`, добавлен `import time`, изменены fallback-порты
+- [`src/config.py`](src/config.py:148) — `WEB_DASHBOARD_PORT: 8080` → `8090`
+- [`.env.example`](.env.example:101) — `WEB_DASHBOARD_PORT=8080` → `8090`
+- [`.env`](.env:100) — `WEB_DASHBOARD_PORT=8080` → `8090`
+
+### Результаты проверок
+
+| Инструмент | Результат            |
+| ---------- | -------------------- |
+| Ruff       | All checks passed!   |
+| Pytest     | 185 passed, 0 failed |
+
+---
+
+## 2026-05-19 — Исправление 500 ошибки веб-дашборда (Starlette 1.0.0 TemplateResponse)
+
+### Выполненные задачи
+
+#### Проблема: `GET /` возвращает 500 Internal Server Error
+
+**Диагностика:**
+
+1. Проанализирован [`logs/error.log`](logs/error.log) — обнаружен 404 (не 500), но без traceback.
+2. Проверены 7 гипотез: методы `get_total_stats()`, `uptime_str()`, `api_health_str()`, Jinja2-шаблоны, auth middleware, конфликты маршрутов.
+3. Изменён `log_level="error"` → `"info"` в [`_run_uvicorn_sync()`](src/main.py:176), добавлен `logger.exception` в `_serve()`.
+4. Добавлен `try/except` с `logger.exception` в [`dashboard_summary()`](src/web/routers/pages.py:32-66).
+5. После перезапуска получен traceback: `TypeError: cannot use 'tuple' as a dict key (unhashable type: 'dict')` в [`starlette/templating.py:148`](.venv/Lib/site-packages/starlette/templating.py:148).
+
+**Корневая причина:** Установлен Starlette 1.0.0, в котором сигнатура `Jinja2Templates.TemplateResponse()` изменилась — добавлен обязательный первый параметр `request: Request`. Код вызывал старую сигнатуру `TemplateResponse(name, context)`, из-за чего `"summary.html"` попадал в `request`, а словарь контекста — в `name`. Jinja2 пытался использовать dict как имя шаблона.
+
+**Исправление:** Во всех 7 вызовах `TemplateResponse` в [`pages.py`](src/web/routers/pages.py) добавлен `request` первым параметром, убран дублирующийся `"request": request` из контекста (Starlette 1.0.0 добавляет его автоматически).
+
+### Изменённые файлы
+
+- [`src/main.py`](src/main.py:176) — `log_level="error"` → `"info"`, добавлен `logger.exception` в `_serve()`
+- [`src/web/routers/pages.py`](src/web/routers/pages.py) — добавлен `from loguru import logger`, `try/except` в `dashboard_summary()`, `request` первым параметром во все 7 вызовов `TemplateResponse`
+
+### Результаты проверок
+
+| Инструмент | Результат            |
+| ---------- | -------------------- |
+| Ruff check | All checks passed!   |
+| Pytest     | 185 passed, 0 failed |

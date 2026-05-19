@@ -15,14 +15,12 @@
 
   "terminal.integrated.defaultProfile.windows": "PowerShell 7",
   "terminal.integrated.profiles.windows": {
-      "PowerShell 7": {
-          "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-          "args": ["-NoLogo", "-NoExit"]
-      }
+    "PowerShell 7": {
+      "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "args": ["-NoLogo", "-NoExit"]
+    }
   },
-  "mypy-type-checker.args": [
-    "--config-file=${workspaceFolder}/pyproject.toml"
-  ],
+  "mypy-type-checker.args": ["--config-file=${workspaceFolder}/pyproject.toml"],
   "mypy-type-checker.importStrategy": "fromEnvironment",
   "[python]": {
     "editor.formatOnSave": true,
@@ -31,5 +29,6 @@
       "source.organizeImports": "explicit"
     }
   },
-  "markdown.validate.enabled": false
+  "markdown.validate.enabled": false,
+  "makefile.configureOnOpen": false
 }

@@ -1,7 +1,9 @@
 import asyncio
 import os
-from typing import Optional
+import threading
+import time
 
+import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.redis import RedisStorage
@@ -13,6 +15,7 @@ from src.config import settings
 from src.database.database import Database
 from src.database.manager import DatabaseManager
 from src.handlers import common, registration
+from src.i18n import setup_i18n
 from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
 from src.middleware.ratelimit import UserRateLimitMiddleware
@@ -20,9 +23,16 @@ from src.middleware.userdata import UserDataPreloadMiddleware
 from src.services.cleanup import cleanup_loop
 from src.services.doctor_discovery import discovery_loop, sync_clinic_names
 from src.services.error_notifier import error_notifier
-from src.services.healthcheck import _safe_set, healthcheck_loop
+from src.services.healthcheck import (
+    _safe_set,
+    healthcheck_loop,
+)
+from src.services.healthcheck import (
+    metrics as health_metrics,
+)
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import monitor_loop
+from src.services.schema_watcher import schema_check_loop
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
     check_proxy_connectivity,
@@ -45,7 +55,7 @@ async def _bot_me_with_retry(
 
     Если прокси временно недоступен, даёт ему шанс восстановиться между попытками.
     """
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
             logger.info(
@@ -104,6 +114,25 @@ async def _start_background_tasks(
     tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))
     tasks.append(asyncio.create_task(cleanup_loop(bot, db)))
 
+    # API Schema Change Detection (F8)
+    if settings.SCHEMA_CHECK_ENABLED:
+        tasks.append(
+            asyncio.create_task(
+                schema_check_loop(
+                    api,
+                    error_notifier,
+                    prometheus_metrics,
+                    interval=settings.SCHEMA_CHECK_INTERVAL,
+                )
+            )
+        )
+        logger.info(
+            "Запущена проверка схем API (интервал: {}с)",
+            settings.SCHEMA_CHECK_INTERVAL,
+        )
+    else:
+        logger.info("Проверка схем API отключена (SCHEMA_CHECK_ENABLED=False)")
+
     logger.info(f"Запущено {len(tasks)} фоновых задач")
     return tasks
 
@@ -132,14 +161,106 @@ async def _start_metrics_server(
     return runner, site
 
 
+def _run_uvicorn_sync(app, host: str, port: int) -> bool:
+    """
+    Запускает uvicorn в daemon-потоке. Возвращает True, если сервер成功но запущен.
+
+    Внутри потока все исключения перехватываются, чтобы предотвратить
+    завершение основного процесса при ошибке привязки порта (например,
+    [WinError 10013] на Windows).
+    """
+    result: dict[str, object] = {"success": False, "exception": None}
+
+    def _serve() -> None:
+        try:
+            config = uvicorn.Config(app, host=host, port=port, log_level="info")
+            server = uvicorn.Server(config)
+            server.run()  # синхронный run(), блокирует поток навсегда при успехе
+        except Exception as e:
+            result["exception"] = e
+            logger.exception("uvicorn Server.run() завершился с ошибкой")
+
+    thread = threading.Thread(target=_serve, daemon=True)
+    thread.start()
+
+    # Ждём 1.5 секунды — если поток жив, значит bind прошёл успешно
+    time.sleep(1.5)
+
+    if thread.is_alive():
+        result["success"] = True
+        return True
+
+    # Поток умер — bind не удался
+    exc = result["exception"]
+    logger.warning("Дашборд не смог занять порт {}: {}", port, exc)
+    return False
+
+
+async def _run_dashboard_safe(
+    web_app,
+    port: int,
+    fallback_ports: list[int],
+    logger,
+) -> int | None:
+    """
+    Запускает uvicorn-сервер веб-дашборда с перебором портов при ошибке привязки.
+
+    Uvicorn запускается через asyncio.to_thread в отдельном потоке (daemon),
+    чтобы не вмешиваться в основной event loop aiogram (критично для Windows/IOCP).
+
+    Все исключения внутри потока перехватываются — процесс не падает.
+    """
+    ports_to_try = [port, *fallback_ports]
+
+    for p in ports_to_try:
+        logger.info("Пробую запустить дашборд на порту {}...", p)
+        success = await asyncio.to_thread(_run_uvicorn_sync, web_app, "0.0.0.0", p)
+        if success:
+            logger.info("Веб-дашборд запущен на порту {}", p)
+            return p
+
+    logger.warning("Веб-дашборд не запущен: все порты заняты.")
+    return None
+
+
+async def run_dashboard(
+    db: DatabaseManager,
+    health_metrics,
+    prometheus_metrics,
+    config,
+    host: str = "0.0.0.0",
+    port: int = 8080,
+):
+    """
+    Запускает uvicorn-сервер веб-дашборда как asyncio-задачу (автоподбор порта).
+
+    Uvicorn работает в отдельном daemon-потоке, поэтому run_dashboard()
+    возвращает управление сразу после успешного запуска сервера.
+    """
+    from src.web.app import create_app
+
+    web_app = create_app(db, health_metrics, prometheus_metrics, config)
+
+    fallback_ports = [8091, 8092, 8093]
+    result = await _run_dashboard_safe(web_app, port, fallback_ports, logger)
+
+    if result is None:
+        logger.warning(
+            f"Веб-дашборд не запущен ни на одном порту из: {[port, *fallback_ports]}"
+        )
+
+
 async def main():
     # Настройка логирования (Loguru)
     setup_logging()
 
+    # Инициализация интернационализации (i18n)
+    setup_i18n(settings.BOT_LANGUAGE)
+
     # Убедимся, что каталог 'data' существует
     data_dir = os.path.dirname(settings.SQLITE_DB_PATH)
     if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
-        os.makedirs(data_dir)  # noqa: ASYNC240
+        os.makedirs(data_dir)
 
     # Инициализация Redis (до FSM-хранилища)
     # Не падает при недоступности Redis: переходит в режим graceful degradation
@@ -199,7 +320,7 @@ async def main():
         await check_proxy_connectivity(proxy_url)
 
         # Создание AiohttpSession с retry при падении прокси
-        last_session_error: Optional[Exception] = None
+        last_session_error: Exception | None = None
         for attempt in range(1, _PROXY_RETRIES + 1):
             try:
                 session = AiohttpSession(proxy=proxy_url)
@@ -253,7 +374,23 @@ async def main():
     background_tasks = await _start_background_tasks(bot, api, db, database)
 
     # Запуск Prometheus HTTP-сервера
-    metrics_runner, metrics_site = await _start_metrics_server(db)
+    metrics_runner, _metrics_site = await _start_metrics_server(db)
+
+    # Запуск веб-дашборда (F5)
+    dashboard_task: asyncio.Task | None = None
+    if settings.WEB_DASHBOARD_ENABLED:
+        dashboard_task = asyncio.create_task(
+            run_dashboard(
+                db,
+                health_metrics,
+                prometheus_metrics,
+                settings,
+                port=settings.WEB_DASHBOARD_PORT,
+            )
+        )
+        # Логирование результата — внутри run_dashboard / _run_dashboard_safe
+    else:
+        logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")
 
     logger.info("Бот запущен и готов помогать!")
 
@@ -269,6 +406,12 @@ async def main():
         for task in background_tasks:
             task.cancel()
         await asyncio.gather(*background_tasks, return_exceptions=True)
+
+        # Остановка веб-дашборда
+        if dashboard_task is not None:
+            dashboard_task.cancel()
+            await asyncio.gather(dashboard_task, return_exceptions=True)
+            logger.info("Веб-дашборд остановлен")
 
         # Остановка Prometheus HTTP-сервера
         await metrics_runner.cleanup()

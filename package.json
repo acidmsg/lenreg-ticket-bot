@@ -23,6 +23,8 @@
   },
   "homepage": "https://github.com/acidmsg/lenreg_ticket_bot#readme",
   "devDependencies": {
-    "markdownlint-cli": "^0.48.0"
+    "markdownlint-cli": "^0.48.0",
+    "stylelint": "^17.11.1",
+    "stylelint-config-standard": "^40.0.0"
   }
 }

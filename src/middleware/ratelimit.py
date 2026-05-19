@@ -16,6 +16,7 @@ from aiogram.types import CallbackQuery, Message
 from loguru import logger
 
 from src.config import settings
+from src.i18n import _
 from src.utils.redis import get_redis
 
 
@@ -101,7 +102,7 @@ class UserRateLimitMiddleware(BaseMiddleware):
             # Silently drop (or optionally answer callback to dismiss spinner)
             if isinstance(event, CallbackQuery):
                 try:
-                    await event.answer("⏳ Слишком много запросов, подождите...")
+                    await event.answer(_("rate-limit-toast"))
                 except TelegramAPIError:
                     pass
             return

@@ -27,9 +27,7 @@ class UserDataPreloadMiddleware(BaseMiddleware):
         db: DatabaseManager | None = data.get("db")
         uid: str | None = None
 
-        if isinstance(event, Message):
-            uid = str(event.from_user.id) if event.from_user else None
-        elif isinstance(event, CallbackQuery):
+        if isinstance(event, Message) or isinstance(event, CallbackQuery):
             uid = str(event.from_user.id) if event.from_user else None
 
         if uid and db:

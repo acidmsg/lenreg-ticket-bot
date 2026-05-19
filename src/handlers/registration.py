@@ -9,6 +9,7 @@ from loguru import logger
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.i18n import _
 from src.keyboards.inline import get_patient_selection, get_registration_keyboard
 
 router = Router()
@@ -25,7 +26,7 @@ async def start_add_patient(call: CallbackQuery, state: FSMContext):
     await state.set_state(Registration.wait_fio)
     if isinstance(call.message, Message):
         await call.message.edit_text(
-            "Введите ФИО (Фамилия Имя Отчество):",
+            _("enter-full-name"),
             reply_markup=get_registration_keyboard(step="fio"),
         )
 
@@ -38,10 +39,7 @@ async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
     parts = message.text.split()
     if len(parts) != 3:
         await message.answer(
-            "Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество).\n\n"
-            "💡 Если у вас двойная фамилия, введите её через дефис "
-            "(например: *Салтыков-Щедрин Михаил Евграфович*).\n"
-            "Если у вас двойное имя — введите все слова полностью.",
+            _("fio-3-words-error"),
             reply_markup=get_registration_keyboard(step="fio"),
         )
         return
@@ -50,7 +48,7 @@ async def process_fio(message: Message, state: FSMContext, db: DatabaseManager):
     await state.set_state(Registration.wait_bday)
 
     await message.answer(
-        "Введите дату рождения (дд.мм.гггг):",
+        _("enter-birthday"),
         reply_markup=get_registration_keyboard(step="bday"),
     )
 
@@ -66,8 +64,7 @@ async def process_bday(
             raise ValueError("Вне диапазона")
     except ValueError:
         await message.answer(
-            "Неверная дата. Введите корректную дату "
-            "в формате дд.мм.гггг (с 01.01.1900 по сегодня).",
+            _("invalid-date"),
             reply_markup=get_registration_keyboard(step="bday"),
         )
         return
@@ -113,8 +110,7 @@ async def process_bday(
         await state.update_data(p_id=p_id, bday=str(date.date()))
         await state.set_state(Registration.wait_alias)
         await message.answer(
-            "✅ Нашли в базе! Введите псевдоним "
-            "(например, 'Мама', до 25 симв.) или пропустите:",
+            _("patient-found-in-db"),
             reply_markup=get_registration_keyboard(step="alias"),
         )
     else:
@@ -129,7 +125,7 @@ async def process_bday(
 async def process_alias(message: Message, state: FSMContext, db: DatabaseManager):
     if message.text and len(message.text) > 25:
         await message.answer(
-            "Ошибка! Псевдоним не должен превышать 25 символов.",
+            _("alias-too-long"),
             reply_markup=get_registration_keyboard(step="alias"),
         )
         return
@@ -147,9 +143,7 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
 
         user_data = await db.get_user_data(uid)
         await message.answer(
-            "✅ Пациент успешно добавлен!\n\n"
-            "📋 **Список пациентов:**\n---\n"
-            "Выберите пациента\nдля настройки мониторинга",
+            _("patient-added-success"),
             reply_markup=get_patient_selection(
                 user_data["patients"], user_data["monitoring"]
             ),
@@ -159,7 +153,7 @@ async def process_alias(message: Message, state: FSMContext, db: DatabaseManager
         logger.exception("Ошибка при добавлении пациента {} для uid={}", p_id, uid)
         await state.clear()
         await message.answer(
-            "⚠️ Произошла ошибка при сохранении пациента. Попробуйте снова.",
+            _("patient-save-error"),
             reply_markup=get_registration_keyboard(step="fio"),
         )
 
@@ -182,9 +176,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
         user_data = await db.get_user_data(uid)
         if isinstance(call.message, Message):
             await call.message.edit_text(
-                "✅ Пациент успешно добавлен!\n\n"
-                "📋 **Список пациентов:**\n---\n"
-                "Выберите пациента\nдля настройки мониторинга",
+                _("patient-added-success"),
                 reply_markup=get_patient_selection(
                     user_data["patients"], user_data["monitoring"]
                 ),
@@ -195,7 +187,7 @@ async def skip_alias(call: CallbackQuery, state: FSMContext, db: DatabaseManager
         await state.clear()
         if isinstance(call.message, Message):
             await call.message.edit_text(
-                "⚠️ Произошла ошибка при сохранении. Попробуйте снова.",
+                _("patient-save-error-short"),
                 reply_markup=get_registration_keyboard(step="fio"),
             )
 
@@ -209,7 +201,7 @@ async def cancel_registration(
     user_data = await db.get_user_data(uid)
     if isinstance(call.message, Message):
         await call.message.edit_text(
-            "📋 **Ваши пациенты:**\n---\nВыберите пациента для настройки мониторинга",
+            _("your-patients-header"),
             reply_markup=get_patient_selection(
                 user_data["patients"], user_data["monitoring"]
             ),

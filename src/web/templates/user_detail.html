@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Пользователь {{ uid }} — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Пользователь <code>{{ uid }}</code></h1>
+
+{% if not_found %}
+<p class="text-muted">Пользователь <code>{{ uid }}</code> не найден в БД</p>
+{% else %}
+
+<div class="card">
+  <h2>Пациенты ({{ patients|length }})</h2>
+  {% if patients %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>p_id</th>
+        <th>ФИО</th>
+        <th>ДР</th>
+        <th>Клиники</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p_id, p_info in patients.items() %}
+      <tr>
+        <td><code>{{ p_id }}</code></td>
+        <td>{{ p_info.fio }}</td>
+        <td>{{ p_info.bday }}</td>
+        <td>{{ p_info.confirmed_clinics|join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Нет пациентов</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Отслеживаемые врачи</h2>
+  {% if monitoring %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>p_id</th>
+        <th>Врач</th>
+        <th>Специальность</th>
+        <th>Клиника</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p_id, doctors in monitoring.items() %}
+      {% for d_id, d_info in doctors.items() %}
+      <tr>
+        <td><code>{{ p_id }}</code></td>
+        <td>{{ d_info.name }}</td>
+        <td>{{ d_info.specialty }}</td>
+        <td>{{ d_info.clinic_id }}</td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Нет отслеживаемых врачей</p>
+  {% endif %}
+</div>
+
+{% endif %}
+{% endblock %}

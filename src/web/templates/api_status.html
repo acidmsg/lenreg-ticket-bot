@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}API Status — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Состояние API zdrav.lenreg.ru</h1>
+
+<div class="grid-2col">
+  <div class="card">
+    <h2>Статус</h2>
+    <table class="info-table">
+      <tr>
+        <td>Последняя проверка</td>
+        <td>{{ seconds_ago }}с назад</td>
+      </tr>
+      <tr>
+        <td>Статус</td>
+        <td>
+          {% if api_ok %}
+          <span class="badge badge-ok">✅ Доступен</span>
+          {% else %}
+          <span class="badge badge-err">❌ Недоступен</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>Длительность</td>
+        <td>{{ "%.2f"|format(check_duration) }}с</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Статистика</h2>
+    <table class="info-table">
+      <tr>
+        <td>Всего проверок</td>
+        <td>{{ checks_total }}</td>
+      </tr>
+      <tr>
+        <td>Успешных</td>
+        <td>{{ checks_total - errors_total }}</td>
+      </tr>
+      <tr>
+        <td>Ошибок</td>
+        <td>{{ errors_total }}</td>
+      </tr>
+      <tr>
+        <td>Доступность</td>
+        <td>{{ "%.2f"|format(availability) }}%</td>
+      </tr>
+      <tr>
+        <td>Последняя ошибка</td>
+        <td>{{ last_error or '—' }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Фоновые задачи</h2>
+    <table class="info-table">
+      <tr>
+        <td>healthcheck_loop</td>
+        <td>
+          {% if healthcheck_alive %}
+          <span class="badge badge-ok">✅ alive</span>
+          {% else %}
+          <span class="badge badge-err">❌ dead</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>monitor_loop</td>
+        <td>
+          {% if monitor_alive %}
+          <span class="badge badge-ok">✅ alive</span>
+          {% else %}
+          <span class="badge badge-err">❌ dead</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>discovery_tasks</td>
+        <td>
+          {% if discovery_alive > 0 %}
+          <span class="badge badge-ok">✅ {{ discovery_alive }}</span>
+          {% else %}
+          <span class="badge badge-err">❌ 0</span>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Схемы API (schema_watcher)</h2>
+    {% if schema_status %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Endpoint</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for endpoint, has_drift in schema_status.items() %}
+        <tr>
+          <td><code>{{ endpoint }}</code></td>
+          <td>
+            {% if has_drift %}
+            <span class="badge badge-err">⚠️ Расхождение</span>
+            {% else %}
+            <span class="badge badge-ok">✅ Совпадает</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">
+      Проверка схем API ещё не выполнялась (ожидание первого цикла schema_watcher)
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

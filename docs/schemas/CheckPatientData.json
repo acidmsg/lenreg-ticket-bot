@@ -1,0 +1,31 @@
+{
+  "description": "response.check_patient.",
+  "properties": {
+    "history_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "History Id"
+    },
+    "patient_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Patient Id"
+    }
+  },
+  "title": "CheckPatientData",
+  "type": "object"
+}

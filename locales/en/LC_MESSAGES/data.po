@@ -1,0 +1,49 @@
+# English translations for domain data (format strings, weekdays).
+# Copyright (C) 2026 zdrav.lenreg
+# This file is distributed under the same license as the zdrav.lenreg package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zdrav.lenreg 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-19 12:00+0300\n"
+"PO-Revision-Date: 2026-05-19 12:00+0300\n"
+"Last-Translator: \n"
+"Language-Team: English <en@li.org>\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/utils/helpers.py:14
+msgid "weekday-mon"
+msgstr "Mon"
+
+#: src/utils/helpers.py:14
+msgid "weekday-tue"
+msgstr "Tue"
+
+#: src/utils/helpers.py:14
+msgid "weekday-wed"
+msgstr "Wed"
+
+#: src/utils/helpers.py:14
+msgid "weekday-thu"
+msgstr "Thu"
+
+#: src/utils/helpers.py:14
+msgid "weekday-fri"
+msgstr "Fri"
+
+#: src/utils/helpers.py:14
+msgid "weekday-sat"
+msgstr "Sat"
+
+#: src/utils/helpers.py:14
+msgid "weekday-sun"
+msgstr "Sun"
+
+#: src/database/database.py:43, 112
+msgid "city-fallback-other"
+msgstr "Other"

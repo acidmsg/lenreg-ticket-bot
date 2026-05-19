@@ -10,7 +10,6 @@
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from aiogram import Bot
 from loguru import logger
@@ -18,6 +17,7 @@ from loguru import logger
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
+from src.i18n import _
 
 
 @dataclass
@@ -35,7 +35,7 @@ class HealthMetrics:
     # Снапшот последнего цикла healthcheck (бинарный: доступен/недоступен)
     last_api_check_time: float = 0.0  # 0.0 = ещё ни разу
     last_api_ok: bool = False
-    last_api_error_time: Optional[float] = None
+    last_api_error_time: float | None = None
     last_api_error_message: str = ""
 
     # Длительность последней проверки (для Prometheus)
@@ -44,7 +44,7 @@ class HealthMetrics:
     # Статистика мониторинга
     monitoring_slots_checked: int = 0
     monitoring_notifications_sent: int = 0
-    last_monitoring_cycle_time: Optional[float] = None
+    last_monitoring_cycle_time: float | None = None
 
     # Состояние фоновых задач
     discovery_tasks_alive: int = 0
@@ -52,7 +52,7 @@ class HealthMetrics:
     healthcheck_loop_alive: bool = False
 
     # Ошибки
-    last_error_time: Optional[float] = None
+    last_error_time: float | None = None
     last_error_message: str = ""
 
     def uptime_seconds(self) -> float:
@@ -230,34 +230,37 @@ async def format_status_report(db: DatabaseManager) -> str:
         monitor_alive = metrics.monitor_loop_alive
         discovery_tasks = metrics.discovery_tasks_alive
 
+    healthcheck_status = "✅" if healthcheck_alive else "❌"
+    monitor_status = "✅" if monitor_alive else "❌"
+
     lines = [
-        "🤖 **lenreg_ticket_bot**",
+        _("status-report-title"),
         "———",
-        f"⏱ **Аптайм:** {uptime}",
+        _("status-uptime").format(uptime=uptime),
         "",
-        f"📊 **Пользователи:** {total_users}",
-        f"├ Пациентов: {total_patients}",
-        f"├ В мониторинге: {active_monitorings}",
-        f"└ Врачей под мониторингом: {total_monitored_doctors}",
+        _("status-users").format(n=total_users),
+        _("status-patients").format(n=total_patients),
+        _("status-monitored").format(n=active_monitorings),
+        _("status-doctors-monitored").format(n=total_monitored_doctors),
         "",
-        "🌐 **API zdrav.lenreg.ru:**",
+        _("status-api-header"),
         f"{api_health}",
         "",
-        "🔄 **Фоновые задачи:**",
-        f"├ Healthcheck: {'✅' if healthcheck_alive else '❌'}",
-        f"├ Monitor: {'✅' if monitor_alive else '❌'}",
-        f"└ Discovery: {discovery_tasks} задач",
+        _("status-tasks-header"),
+        _("status-task-healthcheck").format(status=healthcheck_status),
+        _("status-task-monitor").format(status=monitor_status),
+        _("status-task-discovery").format(n=discovery_tasks),
         "",
-        "⚙️ **Настройки:**",
-        f"├ Интервал проверки: {settings.CHECK_INTERVAL}с",
-        f"├ Discovery: {settings.DISCOVERY_INTERVAL}с",
-        (
-            f"├ Порог слотов: {settings.SLOT_THRESHOLD_ABSOLUTE} шт"
-            f" / {settings.SLOT_THRESHOLD_PERCENTAGE * 100:.0f}%"
+        _("status-config-header"),
+        _("status-config-check-interval").format(n=settings.CHECK_INTERVAL),
+        _("status-config-discovery").format(n=settings.DISCOVERY_INTERVAL),
+        _("status-config-threshold").format(
+            abs=settings.SLOT_THRESHOLD_ABSOLUTE,
+            pct=settings.SLOT_THRESHOLD_PERCENTAGE * 100,
         ),
-        f"└ Клиника по умолчанию: {settings.DEFAULT_CLINIC_ID}",
+        _("status-config-default-clinic").format(id=settings.DEFAULT_CLINIC_ID),
         "",
-        f"⚠️ **Последняя ошибка:** {last_error}",
+        _("status-last-error").format(err=last_error),
     ]
 
     return "\n".join(lines)

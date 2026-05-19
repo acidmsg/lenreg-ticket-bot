@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "ApiError": {
+      "additionalProperties": true,
+      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
+      "properties": {},
+      "title": "ApiError",
+      "type": "object"
+    },
+    "ClinicItem": {
+      "description": "Одна клиника из списка.",
+      "properties": {
+        "IdLPU": {
+          "default": "",
+          "title": "Idlpu",
+          "type": "string"
+        },
+        "LpuName": {
+          "default": "",
+          "title": "Lpuname",
+          "type": "string"
+        },
+        "LPUShortName": {
+          "default": "",
+          "title": "Lpushortname",
+          "type": "string"
+        }
+      },
+      "title": "ClinicItem",
+      "type": "object"
+    }
+  },
+  "description": "Ответ /api/clinic_list/.",
+  "properties": {
+    "response": {
+      "items": {
+        "$ref": "#/$defs/ClinicItem"
+      },
+      "title": "Response",
+      "type": "array"
+    },
+    "success": {
+      "default": false,
+      "title": "Success",
+      "type": "boolean"
+    },
+    "error": {
+      "$ref": "#/$defs/ApiError"
+    }
+  },
+  "title": "ClinicListResponse",
+  "type": "object"
+}

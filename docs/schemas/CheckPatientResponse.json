@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "ApiError": {
+      "additionalProperties": true,
+      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
+      "properties": {},
+      "title": "ApiError",
+      "type": "object"
+    },
+    "CheckPatientData": {
+      "description": "response.check_patient.",
+      "properties": {
+        "history_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "History Id"
+        },
+        "patient_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Patient Id"
+        }
+      },
+      "title": "CheckPatientData",
+      "type": "object"
+    }
+  },
+  "description": "Ответ /api/check_patient/.",
+  "properties": {
+    "response": {
+      "$ref": "#/$defs/CheckPatientData"
+    },
+    "success": {
+      "default": false,
+      "title": "Success",
+      "type": "boolean"
+    },
+    "error": {
+      "$ref": "#/$defs/ApiError"
+    }
+  },
+  "title": "CheckPatientResponse",
+  "type": "object"
+}

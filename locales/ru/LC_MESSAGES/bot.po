@@ -1,0 +1,439 @@
+# Русские переводы для домена bot (пользовательские сообщения).
+# Copyright (C) 2026 zdrav.lenreg
+# This file is distributed under the same license as the zdrav.lenreg package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zdrav.lenreg 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-19 12:00+0300\n"
+"PO-Revision-Date: 2026-05-19 12:00+0300\n"
+"Last-Translator: \n"
+"Language-Team: Russian <ru@li.org>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#: src/handlers/common.py:59
+msgid "all-clinics"
+msgstr "Все клиники"
+
+#: src/handlers/common.py:59
+msgid "clinic-prefix"
+msgstr "🏥 {city}"
+
+#: src/handlers/common.py:363
+msgid "monitoring-summary-header"
+msgstr "\n📊 **Активный мониторинг:**"
+
+#: src/handlers/common.py:367
+msgid "patient-fallback-name"
+msgstr "Пациент"
+
+#: src/handlers/common.py:422-424
+msgid "no-patients-welcome"
+msgstr ""
+"👋 Привет! Я помогу тебе мониторить наличие талонов к врачам.\n\n"
+"У тебя пока нет добавленных пациентов. Давай добавим первого!"
+
+#: src/handlers/common.py:431-433
+msgid "patient-list-header"
+msgstr ""
+"📋 **Ваши пациенты:**\n---\n"
+"Выберите пациента для настройки мониторинга"
+
+#: src/handlers/common.py:517, 584
+msgid "select-city-prompt"
+msgstr "📍 Сначала выберите город/район:"
+
+#: src/handlers/common.py:683
+msgid "select-doctors-prompt"
+msgstr "⚙️ Выберите врачей для мониторинга:{clinic_line}"
+
+#: src/handlers/common.py:669
+msgid "loading-doctors"
+msgstr "⏳ Загружаю список врачей..."
+
+#: src/handlers/common.py:750
+msgid "monitoring-disabled-for"
+msgstr "⚙️ Мониторинг для {name} отключен."
+
+#: src/handlers/common.py:836
+msgid "monitoring-enabled-for"
+msgstr "⚙️ Мониторинг для {name} включен."
+
+#: src/handlers/common.py:770
+msgid "checking-slots"
+msgstr "⏳ Проверяю наличие номерков..."
+
+#: src/handlers/common.py:785
+msgid "slots-available-status"
+msgstr "✅ есть номерки!"
+
+#: src/handlers/common.py:785
+msgid "slots-empty-status"
+msgstr "Пока номерков нет 🤷‍♂️"
+
+#: src/handlers/common.py:795
+msgid "slots-will-notify"
+msgstr "Как только появятся, я сразу дам знать!"
+
+#: src/handlers/common.py:797
+msgid "signup-link-text"
+msgstr "\n\n🔗 [Записаться]({url})"
+
+#: src/handlers/common.py:848
+msgid "done-toast"
+msgstr "Готово!"
+
+#: src/handlers/common.py:901, 921
+msgid "monitoring-reset-patient"
+msgstr "✅ Мониторинг для пациента сброшен."
+
+#: src/handlers/common.py:984
+msgid "monitoring-reset-clinic"
+msgstr "✅ Мониторинг для клиники сброшен."
+
+#: src/handlers/common.py:1021
+msgid "monitoring-stopped-all"
+msgstr "✅ Весь мониторинг остановлен."
+
+#: src/handlers/common.py:1043
+msgid "confirm-delete-patient"
+msgstr "Вы уверены, что хотите удалить этого пациента?"
+
+#: src/handlers/common.py:1065-1068
+msgid "patient-list-after-delete"
+msgstr ""
+"📋 **Список пациентов:**\n---\n"
+"Выберите пациента\nдля настройки мониторинга"
+
+#: src/handlers/common.py:1106-1109
+msgid "export-no-data"
+msgstr ""
+"📭 Нет данных для экспорта.\n\n"
+"Добавьте пациентов и настройте мониторинг, "
+"чтобы появилась информация для выгрузки."
+
+#: src/handlers/common.py:1119-1121
+msgid "export-format-prompt"
+msgstr ""
+"📊 **Выберите формат экспорта:**\n\n"
+"Будут выгружены данные по всем пациентам и истории мониторинга."
+
+#: src/handlers/common.py:1143
+msgid "export-generating"
+msgstr "⏳ Генерирую файл..."
+
+#: src/handlers/common.py:1149
+msgid "export-csv-caption"
+msgstr "📄 **Экспорт данных мониторинга (CSV)**"
+
+#: src/handlers/common.py:1152
+msgid "export-json-caption"
+msgstr "📋 **Экспорт данных мониторинга (JSON)**"
+
+#: src/handlers/common.py:1168
+msgid "export-error"
+msgstr "❌ Произошла ошибка при генерации файла."
+
+#: src/handlers/common.py:1135
+msgid "admin-only-export"
+msgstr "Эта команда доступна только администраторам."
+
+#: src/handlers/registration.py:28
+msgid "enter-full-name"
+msgstr "Введите ФИО (Фамилия Имя Отчество):"
+
+#: src/handlers/registration.py:41-45
+msgid "fio-3-words-error"
+msgstr ""
+"Ошибка! ФИО должно состоять строго из 3 слов (Фамилия Имя Отчество).\n\n"
+"💡 Если у вас двойная фамилия, введите её через дефис "
+"(например: *Салтыков-Щедрин Михаил Евграфович*).\n"
+"Если у вас двойное имя — введите все слова полностью."
+
+#: src/handlers/registration.py:53
+msgid "enter-birthday"
+msgstr "Введите дату рождения (дд.мм.гггг):"
+
+#: src/handlers/registration.py:68-71
+msgid "invalid-date"
+msgstr ""
+"Неверная дата. Введите корректную дату "
+"в формате дд.мм.гггг (с 01.01.1900 по сегодня)."
+
+#: src/handlers/registration.py:116-118
+msgid "patient-found-in-db"
+msgstr ""
+"✅ Нашли в базе! Введите псевдоним "
+"(например, 'Мама', до 25 симв.) или пропустите:"
+
+#: src/handlers/registration.py:150-152, 185-187
+msgid "patient-added-success"
+msgstr ""
+"✅ Пациент успешно добавлен!\n\n"
+"📋 **Список пациентов:**\n---\n"
+"Выберите пациента\nдля настройки мониторинга"
+
+#: src/handlers/registration.py:132
+msgid "alias-too-long"
+msgstr "Ошибка! Псевдоним не должен превышать 25 символов."
+
+#: src/handlers/registration.py:162
+msgid "patient-save-error"
+msgstr "⚠️ Произошла ошибка при сохранении пациента. Попробуйте снова."
+
+#: src/handlers/registration.py:198
+msgid "patient-save-error-short"
+msgstr "⚠️ Произошла ошибка при сохранении. Попробуйте снова."
+
+#: src/handlers/registration.py:212
+msgid "your-patients-header"
+msgstr ""
+"📋 **Ваши пациенты:**\n---\n"
+"Выберите пациента для настройки мониторинга"
+
+#: src/keyboards/inline.py:26
+msgid "btn-add-patient"
+msgstr "➕ Добавить пациента"
+
+#: src/keyboards/inline.py:32
+msgid "btn-reset-all-monitoring"
+msgstr "🛑 Сбросить весь мониторинг"
+
+#: src/keyboards/inline.py:113
+msgid "btn-back-to-clinics"
+msgstr "⬅️ К выбору клиники"
+
+#: src/keyboards/inline.py:116, 206, 279
+msgid "btn-back-to-list"
+msgstr "⬅️ Назад к списку"
+
+#: src/keyboards/inline.py:126
+msgid "btn-reset-clinic-monitoring"
+msgstr "🛑 Сбросить мониторинг этой клиники"
+
+#: src/keyboards/inline.py:136
+msgid "btn-yes-delete"
+msgstr "✅ Да, удалить"
+
+#: src/keyboards/inline.py:137
+msgid "btn-no"
+msgstr "❌ Нет"
+
+#: src/keyboards/inline.py:193
+msgid "btn-all-clinics"
+msgstr "🏥 Все клиники"
+
+#: src/keyboards/inline.py:203
+msgid "btn-all-cities"
+msgstr "🏥 Все"
+
+#: src/keyboards/inline.py:203
+msgid "btn-all-cities-with-count"
+msgstr "🏥 Все ({count})"
+
+#: src/keyboards/inline.py:198
+msgid "btn-city-with-count"
+msgstr "📍 {city} ({count})"
+
+#: src/keyboards/inline.py:198
+msgid "btn-city"
+msgstr "📍 {city}"
+
+#: src/keyboards/inline.py:209-210, 285-286
+msgid "btn-reset-patient-monitoring"
+msgstr "🛑 Сбросить мониторинг этого пациента"
+
+#: src/keyboards/inline.py:276
+msgid "btn-back-to-cities"
+msgstr "⬅️ К выбору города"
+
+#: src/keyboards/inline.py:296
+msgid "btn-skip"
+msgstr "Пропустить"
+
+#: src/keyboards/inline.py:297
+msgid "btn-cancel-registration"
+msgstr "❌ Отмена регистрации"
+
+#: src/keyboards/inline.py:1114
+msgid "btn-csv"
+msgstr "📄 CSV"
+
+#: src/keyboards/inline.py:1115
+msgid "btn-json"
+msgstr "📋 JSON"
+
+#: src/keyboards/inline.py:381
+msgid "doctor-fallback-name"
+msgstr "Врач"
+
+#: src/api/zdrav_client.py:137-141
+msgid "api-fio-3-words-error"
+msgstr ""
+"Пожалуйста, введите ФИО (3 слова) полностью через пробел.\n\n"
+"💡 Если у вас двойная фамилия, введите её через дефис "
+"(например: Салтыков-Щедрин Михаил Евграфович).\n"
+"Если у вас двойное имя — введите все слова полностью."
+
+#: src/api/zdrav_client.py:175-177
+msgid "api-patient-not-found"
+msgstr ""
+"Пациент не найден в базе поликлиники. "
+"Проверьте правильность введенных данных."
+
+#: src/api/zdrav_client.py:181-183
+msgid "api-blocked"
+msgstr "Портал временно недоступен (защита от ботов). Попробуйте позже."
+
+#: src/api/zdrav_client.py:184
+msgid "api-temp-unavailable"
+msgstr "Портал временно недоступен ({status})"
+
+#: src/api/zdrav_client.py:187, 197
+msgid "api-timeout"
+msgstr "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
+
+#: src/api/zdrav_client.py:190
+msgid "api-network-error"
+msgstr "Сервер zdrav.lenreg.ru не отвечает (Сетевая ошибка)"
+
+#: src/api/zdrav_client.py:193
+msgid "api-parse-error"
+msgstr "Сервер zdrav.lenreg.ru не отвечает (Ошибка парсинга)"
+
+#: src/middleware/ratelimit.py:104
+msgid "rate-limit-toast"
+msgstr "⏳ Слишком много запросов, подождите..."
+
+#: src/services/monitor.py:69
+msgid "slots-disappeared-header"
+msgstr "**Номерков в данный момент нет** 🤷‍♂️"
+
+#: src/services/monitor.py:74
+msgid "slots-appeared-header"
+msgstr "🎉 **Появились свободные номерки!**"
+
+#: src/services/monitor.py:87
+msgid "slots-new-header"
+msgstr "🎉 **Появились НОВЫЕ номерки!**"
+
+#: src/services/monitor.py:104-106
+msgid "slots-decreased-header"
+msgstr "⚠️ **Количество номерков уменьшилось до {new} (было {old})**"
+
+#: src/services/monitor.py:268
+msgid "slots-disappeared-body"
+msgstr "Мы уведомим вас, когда появятся."
+
+#: src/services/healthcheck.py:234
+msgid "status-report-title"
+msgstr "🤖 **lenreg_ticket_bot**"
+
+#: src/services/healthcheck.py:236
+msgid "status-uptime"
+msgstr "⏱ **Аптайм:** {uptime}"
+
+#: src/services/healthcheck.py:238
+msgid "status-users"
+msgstr "📊 **Пользователи:** {n}"
+
+#: src/services/healthcheck.py:239
+msgid "status-patients"
+msgstr "├ Пациентов: {n}"
+
+#: src/services/healthcheck.py:240
+msgid "status-monitored"
+msgstr "├ В мониторинге: {n}"
+
+#: src/services/healthcheck.py:241
+msgid "status-doctors-monitored"
+msgstr "└ Врачей под мониторингом: {n}"
+
+#: src/services/healthcheck.py:243
+msgid "status-api-header"
+msgstr "🌐 **API zdrav.lenreg.ru:**"
+
+#: src/services/healthcheck.py:246
+msgid "status-tasks-header"
+msgstr "🔄 **Фоновые задачи:**"
+
+#: src/services/healthcheck.py:247
+msgid "status-task-healthcheck"
+msgstr "├ Healthcheck: {status}"
+
+#: src/services/healthcheck.py:248
+msgid "status-task-monitor"
+msgstr "├ Monitor: {status}"
+
+#: src/services/healthcheck.py:249
+msgid "status-task-discovery"
+msgstr "└ Discovery: {n} задач"
+
+#: src/services/healthcheck.py:251
+msgid "status-config-header"
+msgstr "⚙️ **Настройки:**"
+
+#: src/services/healthcheck.py:252
+msgid "status-config-check-interval"
+msgstr "├ Интервал проверки: {n}с"
+
+#: src/services/healthcheck.py:253
+msgid "status-config-discovery"
+msgstr "├ Discovery: {n}с"
+
+#: src/services/healthcheck.py:254-256
+msgid "status-config-threshold"
+msgstr "├ Порог слотов: {abs} шт / {pct}%"
+
+#: src/services/healthcheck.py:258
+msgid "status-config-default-clinic"
+msgstr "└ Клиника по умолчанию: {id}"
+
+#: src/services/healthcheck.py:260
+msgid "status-last-error"
+msgstr "⚠️ **Последняя ошибка:** {err}"
+
+#: src/services/export.py:63
+msgid "export-csv-header-patient"
+msgstr "Пациент (ФИО)"
+
+#: src/services/export.py:64
+msgid "export-csv-header-specialty"
+msgstr "Специальность"
+
+#: src/services/export.py:65
+msgid "export-csv-header-doctor"
+msgstr "Врач"
+
+#: src/services/export.py:66
+msgid "export-csv-header-clinic"
+msgstr "Клиника"
+
+#: src/services/export.py:67
+msgid "export-csv-header-slot"
+msgstr "Дата/время слота"
+
+#: src/services/export.py:68
+msgid "export-csv-header-status"
+msgstr "Статус"
+
+#: src/services/export.py:69
+msgid "export-csv-header-timestamp"
+msgstr "Временная метка"
+
+#: src/services/export.py:119, 215
+msgid "export-status-active"
+msgstr "активен"
+
+#: src/services/export.py:230
+msgid "export-status-inactive"
+msgstr "неактивен"
+
+#: src/services/export.py:44, 157
+msgid "export-no-data-error"
+msgstr "Нет данных для экспорта."

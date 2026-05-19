@@ -5,10 +5,12 @@
 import json
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiosqlite
 from loguru import logger
+
+from src.i18n import _data
 
 
 def detect_clinic_type(name: str) -> str:
@@ -40,7 +42,7 @@ def detect_clinic_city(name: str) -> str:
     потом определяем по ЛПУ (часть в кавычках).
     """
     if not name:
-        return "Прочее"
+        return _data("city-fallback-other")
 
     lower = name.lower()
 
@@ -109,7 +111,7 @@ def detect_clinic_city(name: str) -> str:
     if "медицентр" in lpu:
         return "Медицентр"
 
-    return "Прочее"
+    return _data("city-fallback-other")
 
 
 class Database:
@@ -117,10 +119,10 @@ class Database:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self._conn: Optional[aiosqlite.Connection] = None
+        self._conn: aiosqlite.Connection | None = None
 
     @property
-    def conn(self) -> Optional[aiosqlite.Connection]:
+    def conn(self) -> aiosqlite.Connection | None:
         """Активное соединение с БД или None, если не установлено."""
         return self._conn
 
@@ -130,7 +132,7 @@ class Database:
         data_dir = os.path.dirname(self.db_path)
         if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
             try:
-                os.makedirs(data_dir)  # noqa: ASYNC240
+                os.makedirs(data_dir)
                 logger.info(f"Каталог '{data_dir}' создан для базы данных.")
             except OSError as e:
                 logger.error(f"Не удалось создать каталог '{data_dir}': {e}")
@@ -213,7 +215,7 @@ class Database:
                 logger.info(f"Миграция v{version} применена")
 
     # ── Пользователи ────────────────────────────────────────
-    async def get_user(self, uid: str) -> Optional[Dict[str, Any]]:
+    async def get_user(self, uid: str) -> dict[str, Any] | None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -270,7 +272,7 @@ class Database:
 
     async def get_last_message(
         self, uid: str, p_id: str, d_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         c = self._conn
         if c is None:
             return None
@@ -286,7 +288,7 @@ class Database:
 
     # ── Пациенты (user_patients) ────────────────────────────
 
-    async def get_user_patients(self, uid: str) -> Dict[str, Dict[str, Any]]:
+    async def get_user_patients(self, uid: str) -> dict[str, dict[str, Any]]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -378,7 +380,7 @@ class Database:
 
     async def get_user_monitoring(
         self, uid: str
-    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    ) -> dict[str, dict[str, dict[str, Any]]]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -388,7 +390,7 @@ class Database:
             (uid,),
         )
         rows = await cursor.fetchall()
-        result: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        result: dict[str, dict[str, dict[str, Any]]] = {}
         for row in rows:
             p_id = row["p_id"]
             if p_id not in result:
@@ -442,7 +444,7 @@ class Database:
 
     # ── Врачи ───────────────────────────────────────────────
 
-    async def get_clinic_doctors(self, clinic_id: str) -> Dict[str, Dict[str, str]]:
+    async def get_clinic_doctors(self, clinic_id: str) -> dict[str, dict[str, str]]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -488,7 +490,7 @@ class Database:
         )
         await c.commit()
 
-    async def merge_doctors(self, clinic_id: str, doctors: list[Dict]):
+    async def merge_doctors(self, clinic_id: str, doctors: list[dict]):
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -516,7 +518,7 @@ class Database:
         rows = await cursor.fetchall()
         return [row["clinic_id"] for row in rows]
 
-    async def get_clinic_name(self, clinic_id: str) -> Optional[str]:
+    async def get_clinic_name(self, clinic_id: str) -> str | None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -536,7 +538,7 @@ class Database:
 
     # ── Клиники: расширенные методы ─────────────────────────
 
-    async def get_clinic_type(self, clinic_id: str) -> Optional[str]:
+    async def get_clinic_type(self, clinic_id: str) -> str | None:
         """Возвращает тип клиники (adult/child/all)."""
         c = self._conn
         if c is None:
@@ -817,6 +819,95 @@ class Database:
         cursor = await c.execute(
             "SELECT COUNT(*) as cnt FROM monitoring_log WHERE uid = ?",
             (uid,),
+        )
+        row = await cursor.fetchone()
+        return row["cnt"] if row else 0
+
+    # ── Мониторинг Лог: глобальные запросы (для дашборда) ─────
+
+    async def get_all_monitoring_logs(
+        self, limit: int = 50, offset: int = 0,
+        uid: str | None = None, status: str | None = None
+    ) -> list[dict]:
+        """Возвращает логи мониторинга с пагинацией и фильтрацией."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT id, uid, p_id, d_id, doctor_name, patient_name, "
+            "specialty, clinic_name, slot_date, status, ts "
+            "FROM monitoring_log "
+            "WHERE (uid = ? OR ? IS NULL) "
+            "AND (status = ? OR ? IS NULL) "
+            "ORDER BY ts DESC LIMIT ? OFFSET ?",
+            (uid, uid, status, status, limit, offset),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "uid": row["uid"],
+                "p_id": row["p_id"],
+                "d_id": row["d_id"],
+                "doctor_name": row["doctor_name"],
+                "patient_name": row["patient_name"],
+                "specialty": row["specialty"],
+                "clinic_name": row["clinic_name"],
+                "slot_date": row["slot_date"],
+                "status": row["status"],
+                "ts": row["ts"],
+            }
+            for row in rows
+        ]
+
+    async def get_all_monitoring_logs_count(
+        self, uid: str | None = None, status: str | None = None
+    ) -> int:
+        """Возвращает количество записей лога мониторинга (с фильтрами)."""
+        c = self._conn
+        if c is None:
+            return 0
+        cursor = await c.execute(
+            "SELECT COUNT(*) as cnt FROM monitoring_log "
+            "WHERE (uid = ? OR ? IS NULL) "
+            "AND (status = ? OR ? IS NULL)",
+            (uid, uid, status, status),
+        )
+        row = await cursor.fetchone()
+        return row["cnt"] if row else 0
+
+    # ── Статистика (для дашборда) ────────────────────────────
+
+    async def get_total_stats(self) -> dict:
+        """Агрегированная статистика для главной страницы дашборда."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute("""
+            SELECT
+              (SELECT COUNT(DISTINCT uid) FROM (
+                SELECT uid FROM user_patients
+                UNION
+                SELECT uid FROM user_monitoring
+              )) as total_users,
+              (SELECT COUNT(*) FROM user_patients) as total_patients,
+              (SELECT COUNT(*) FROM user_monitoring) as total_monitored_doctors
+        """)
+        row = await cursor.fetchone()
+        return {
+            "total_users": row["total_users"] if row else 0,
+            "total_patients": row["total_patients"] if row else 0,
+            "total_monitored_doctors": row["total_monitored_doctors"] if row else 0,
+        }
+
+    async def get_clinic_doctor_count(self, clinic_id: str) -> int:
+        """Возвращает количество врачей в клинике."""
+        c = self._conn
+        if c is None:
+            return 0
+        cursor = await c.execute(
+            "SELECT COUNT(*) as cnt FROM doctors WHERE clinic_id = ?",
+            (clinic_id,),
         )
         row = await cursor.fetchone()
         return row["cnt"] if row else 0

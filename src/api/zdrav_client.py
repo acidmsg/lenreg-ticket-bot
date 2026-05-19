@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import json
 import random
-from typing import Any, List, Optional, Tuple, TypeVar
+from typing import Any, TypeVar
 
 import aiolimiter
 import httpx
@@ -17,6 +17,7 @@ from src.api.models import (
     SpecialityListResponse,
 )
 from src.config import settings
+from src.i18n import _
 
 # TypeVar для сохранения конкретного типа Pydantic-модели в _validate_response
 M = TypeVar("M", bound=BaseModel)
@@ -57,7 +58,7 @@ class ZdravClient:
             "Origin": settings.ORIGIN_URL,
             "X-Client-Version": settings.API_VERSION,
         }
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     def _get_headers(self):
         return {
@@ -128,16 +129,13 @@ class ZdravClient:
         fio: str,
         bday_date: datetime.date,
         clinic_id: str,
-        limiter: Optional[aiolimiter.AsyncLimiter] = None,
-    ) -> Tuple[Optional[str], Optional[str]]:
+        limiter: aiolimiter.AsyncLimiter | None = None,
+    ) -> tuple[str | None, str | None]:
         parts = [p.strip() for p in fio.split() if p.strip()]
         if len(parts) != 3:
             return (
                 None,
-                "Пожалуйста, введите ФИО (3 слова) полностью через пробел.\n\n"
-                "💡 Если у вас двойная фамилия, введите её через дефис "
-                "(например: Салтыков-Щедрин Михаил Евграфович).\n"
-                "Если у вас двойное имя — введите все слова полностью.",
+                _("api-fio-3-words-error"),
             )
 
         iso_bday = bday_date.strftime("%Y-%m-%dT00:00:00.000Z")
@@ -172,36 +170,34 @@ class ZdravClient:
                         return str(p_id), None
                     return (
                         None,
-                        "Пациент не найден в базе поликлиники. "
-                        "Проверьте правильность введенных данных.",
+                        _("api-patient-not-found"),
                     )
                 elif res.status_code in [403, 429]:
                     return (
                         None,
-                        "Портал временно недоступен (защита от ботов). "
-                        "Попробуйте позже.",
+                        _("api-blocked"),
                     )
-                return None, f"Портал временно недоступен ({res.status_code})"
+                return None, _("api-temp-unavailable").format(status=res.status_code)
             except httpx.TimeoutException as e:
                 logger.error(f"Таймаут API (fetch_patient_id): {e!r}")
-                return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
+                return None, _("api-timeout")
             except httpx.NetworkError as e:
                 logger.error(f"Сетевая ошибка API (fetch_patient_id): {e!r}")
-                return None, "Сервер zdrav.lenreg.ru не отвечает (Сетевая ошибка)"
+                return None, _("api-network-error")
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.error(f"Ошибка парсинга API (fetch_patient_id): {e!r}")
-                return None, "Сервер zdrav.lenreg.ru не отвечает (Ошибка парсинга)"
+                return None, _("api-parse-error")
             except Exception as e:
                 exc_repr = repr(e) if not str(e) else str(e)
                 logger.error(f"Неожиданная ошибка API (fetch_patient_id): {exc_repr}")
-                return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
+                return None, _("api-timeout")
 
     async def fetch_speciality_list(
         self,
         patient_id: str,
         clinic_id: str,
-        limiter: Optional[aiolimiter.AsyncLimiter] = None,
-    ) -> List[dict]:
+        limiter: aiolimiter.AsyncLimiter | None = None,
+    ) -> list[dict]:
         payload = {
             "clinic_form-clinic_id": clinic_id,
             "clinic_form-history_id": "",
@@ -268,8 +264,8 @@ class ZdravClient:
         doc_id: str,
         patient_id: str,
         clinic_id: str,
-        limiter: Optional[aiolimiter.AsyncLimiter] = None,
-    ) -> Optional[List[str]]:
+        limiter: aiolimiter.AsyncLimiter | None = None,
+    ) -> list[str] | None:
         """Проверяет доступные слоты для записи к указанному врачу.
 
         Выполняет POST-запрос к эндпоинту /appointment_list/ и возвращает
@@ -363,8 +359,8 @@ class ZdravClient:
         specialty_id: str,
         patient_id: str,
         clinic_id: str,
-        limiter: Optional[aiolimiter.AsyncLimiter] = None,
-    ) -> List[dict]:
+        limiter: aiolimiter.AsyncLimiter | None = None,
+    ) -> list[dict]:
         payload = {
             "speciality_form-speciality_id": specialty_id,
             "speciality_form-clinic_id": clinic_id,
@@ -425,7 +421,7 @@ class ZdravClient:
     async def fetch_clinic_list(
         self,
         district_id: str = settings.DISTRICT_ID,
-        limiter: Optional[aiolimiter.AsyncLimiter] = None,
+        limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
         """Получает список клиник для указанного района через /clinic_list/."""
         payload = {

@@ -11,6 +11,7 @@ from src.assets.utils import get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.handlers.common import _send_or_update_message
+from src.i18n import _
 from src.services.healthcheck import _safe_set
 from src.utils.cache import swap_cache_key
 from src.utils.helpers import (
@@ -66,12 +67,12 @@ def _classify_slot_change(
         if old_slots_data is None:
             # Первое обнаружение -- состояние синхронизировано через handlers/common.py
             return None
-        header = "**Номерков в данный момент нет** 🤷‍♂️"
+        header = _("slots-disappeared-header")
         return header, None, "empty"
 
     # Есть слоты
     if old_slots_data == "NONE" or old_slots_data is None:
-        return "🎉 **Появились свободные номерки!**", slots, "available"
+        return _("slots-appeared-header"), slots, "available"
 
     # Слоты были и раньше -- проверяем изменения
     old_list = old_slots_data if isinstance(old_slots_data, list) else []
@@ -84,7 +85,7 @@ def _classify_slot_change(
                 display_slots.append(f"[NEW] {s}")
             else:
                 display_slots.append(s)
-        return "🎉 **Появились НОВЫЕ номерки!**", display_slots, "new"
+        return _("slots-new-header"), display_slots, "new"
 
     # Проверяем уменьшение
     old_count = len(old_list)
@@ -100,10 +101,7 @@ def _classify_slot_change(
                 should_notify = True
 
         if should_notify:
-            header = (
-                f"⚠️ **Количество номерков уменьшилось до {new_count}"
-                f" (было {old_count})**"
-            )
+            header = _("slots-decreased-header").format(new=new_count, old=old_count)
             return header, slots, "decreased"
 
     return None  # Нет значимых изменений
@@ -137,7 +135,7 @@ async def _check_single_doctor(
 
     # Извлекаем данные врача
     if isinstance(d_info, dict):
-        d_name = d_info.get("name", "Врач")
+        d_name = d_info.get("name", _("doctor-fallback-name"))
         d_spec = d_info.get("specialty", "")
         clinic_id = d_info.get(
             "clinic_id",
@@ -209,8 +207,12 @@ async def _check_single_doctor(
         if slots:
             slot_date = slots[0].split(",")[0].strip() if "," in slots[0] else slots[0]
 
-        p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
-        d_name = d_info.get("name", "Врач") if isinstance(d_info, dict) else str(d_info)
+        p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
+        d_name = (
+            d_info.get("name", _("doctor-fallback-name"))
+            if isinstance(d_info, dict)
+            else str(d_info)
+        )
         d_spec = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
         clinic_id = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
 
@@ -251,12 +253,12 @@ async def _check_single_doctor(
         )
         return
 
-    p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
+    p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
     d_name_display = shorten_fio(d_name)
     d_spec_display = shorten_specialty(d_spec)
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
     has_slots = bool(slots)
-    link = f"\n\n🔗 [Записаться]({settings.SIGNUP_URL})" if has_slots else ""
+    link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
 
     if display_slots is None:
         # Номерки исчезли
@@ -265,7 +267,7 @@ async def _check_single_doctor(
             d_name_display,
             spec_text,
             header,
-            "Мы уведомим вас, когда появятся.",
+            _("slots-disappeared-body"),
         )
     else:
         slot_lines = format_slots(

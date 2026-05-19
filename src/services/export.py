@@ -9,11 +9,13 @@ import csv
 import json
 import tempfile
 import time
+from datetime import UTC
 from typing import Any
 
 from loguru import logger
 
 from src.database.manager import DatabaseManager
+from src.i18n import _
 
 
 async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> str:
@@ -41,7 +43,7 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
     monitoring = user_data.get("monitoring", {})
 
     if not patients and not monitoring:
-        raise ValueError("Нет данных для экспорта.")
+        raise ValueError(_("export-no-data-error"))
 
     # Получаем логи мониторинга
     logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
@@ -60,13 +62,13 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
         writer = csv.writer(tmp)
         writer.writerow(
             [
-                "Пациент (ФИО)",
-                "Специальность",
-                "Врач",
-                "Клиника",
-                "Дата/время слота",
-                "Статус",
-                "Временная метка",
+                _("export-csv-header-patient"),
+                _("export-csv-header-specialty"),
+                _("export-csv-header-doctor"),
+                _("export-csv-header-clinic"),
+                _("export-csv-header-slot"),
+                _("export-csv-header-status"),
+                _("export-csv-header-timestamp"),
             ]
         )
 
@@ -95,7 +97,9 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
 
             for p_id, doctors in monitoring.items():
                 p_info = patients.get(p_id, {})
-                p_name = p_info.get("alias") or p_info.get("fio", "Пациент")
+                p_name = p_info.get("alias") or p_info.get(
+                    "fio", _("patient-fallback-name")
+                )
 
                 for d_id, d_info in doctors.items():
                     if isinstance(d_info, dict):
@@ -116,7 +120,7 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
                             d_name,
                             clinic_name,
                             "",
-                            "активен",
+                            _("export-status-active"),
                             now_str,
                         ]
                     )
@@ -155,7 +159,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
     monitoring = user_data.get("monitoring", {})
 
     if not patients and not monitoring:
-        raise ValueError("Нет данных для экспорта.")
+        raise ValueError(_("export-no-data-error"))
 
     # Получаем логи мониторинга
     logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
@@ -187,7 +191,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
 
     for p_id, doctors in monitoring.items():
         p_info = patients.get(p_id, {})
-        p_name = p_info.get("alias") or p_info.get("fio", "Пациент")
+        p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
 
         patient_entry: dict[str, Any] = {
             "patient_id": p_id,
@@ -212,7 +216,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
                 "doctor_name": d_name,
                 "specialty": d_spec,
                 "clinic_name": clinic_name,
-                "status": "активен",
+                "status": _("export-status-active"),
                 "history": log_by_patient.get(p_id, {}).get(d_id, []),
             }
             patient_entry["doctors"].append(doctor_entry)
@@ -227,7 +231,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
                         "doctor_name": first.get("doctor_name", ""),
                         "specialty": first.get("specialty", ""),
                         "clinic_name": first.get("clinic_name", ""),
-                        "status": "неактивен",
+                        "status": _("export-status-inactive"),
                         "history": entries,
                     }
                     patient_entry["doctors"].append(doctor_entry)
@@ -258,7 +262,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
 
 def _format_timestamp(ts: float) -> str:
     """Форматирует timestamp в читаемую дату/время."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+    dt = datetime.fromtimestamp(ts, tz=UTC)
     return dt.strftime("%Y-%m-%d %H:%M:%S UTC")

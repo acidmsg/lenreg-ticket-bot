@@ -5,7 +5,7 @@ Pydantic-модели для ответов API zdrav.lenreg.ru.
 на типизированный доступ с понятными сообщениями об ошибках.
 """
 
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, Field
 
@@ -44,8 +44,8 @@ class ApiError(BaseModel):
 class CheckPatientData(BaseModel):
     """response.check_patient."""
 
-    history_id: Optional[str] = None
-    patient_id: Optional[str] = None
+    history_id: str | None = None
+    patient_id: str | None = None
 
 
 class CheckPatientResponse(BaseModel):
@@ -74,15 +74,15 @@ class SpecialityItem(BaseModel):
         default="", alias="IdSpesiality"
     )
     CountFreeTicket: int = 0
-    LastDate: Optional[DateInfo] = None
-    NearestDate: Optional[DateInfo] = None
+    LastDate: DateInfo | None = None
+    NearestDate: DateInfo | None = None
     CountFreeParticipantIE: int = 0
 
 
 class SpecialityListResponse(BaseModel):
     """Ответ /api/speciality_list/."""
 
-    response: List[SpecialityItem] = Field(default_factory=list)
+    response: list[SpecialityItem] = Field(default_factory=list)
     success: bool = False
     error: ApiError = Field(default_factory=ApiError)
 
@@ -93,12 +93,12 @@ class SpecialityListResponse(BaseModel):
 class DoctorItem(BaseModel):
     """Один врач из списка."""
 
-    AriaNumber: Optional[str] = None
+    AriaNumber: str | None = None
     Name: Annotated[str, BeforeValidator(_coerce_str)] = ""
     IdDoc: Annotated[str, BeforeValidator(_coerce_str)] = ""
     CountFreeTicket: int = 0
-    LastDate: Optional[DateInfo] = None
-    NearestDate: Optional[DateInfo] = None
+    LastDate: DateInfo | None = None
+    NearestDate: DateInfo | None = None
     CountFreeParticipantIE: int = 0
     # Добавляется кодом, а не API:
     SpesialityName: str = ""
@@ -107,7 +107,7 @@ class DoctorItem(BaseModel):
 class DoctorListResponse(BaseModel):
     """Ответ /api/doctor_list/."""
 
-    response: List[DoctorItem] = Field(default_factory=list)
+    response: list[DoctorItem] = Field(default_factory=list)
     success: bool = False
     error: ApiError = Field(default_factory=ApiError)
 
@@ -130,8 +130,8 @@ class AppointmentListResponse(BaseModel):
     {"2026-05-19": [{...slot...}, ...]}
     """
 
-    response: Dict[str, List[AppointmentSlot]] = Field(default_factory=dict)
-    success: Optional[bool] = None  # не всегда приходит в этом эндпоинте
+    response: dict[str, list[AppointmentSlot]] = Field(default_factory=dict)
+    success: bool | None = None  # не всегда приходит в этом эндпоинте
     error: ApiError = Field(default_factory=ApiError)
 
 
@@ -149,6 +149,6 @@ class ClinicItem(BaseModel):
 class ClinicListResponse(BaseModel):
     """Ответ /api/clinic_list/."""
 
-    response: List[ClinicItem] = Field(default_factory=list)
+    response: list[ClinicItem] = Field(default_factory=list)
     success: bool = False
     error: ApiError = Field(default_factory=ApiError)

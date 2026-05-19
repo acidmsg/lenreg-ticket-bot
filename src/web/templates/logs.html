@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Лог мониторинга — ZdravLenReg Dashboard{% endblock %}
+{% block content %}
+<h1>Лог мониторинга</h1>
+
+<div class="card">
+  <form method="GET" action="/logs" class="filter-form">
+    <label>UID: <input type="text" name="uid" value="{{ uid_filter }}" placeholder="Фильтр по UID"></label>
+    <label>Статус:
+      <select name="status">
+        <option value="">все</option>
+        <option value="появился" {% if status_filter=='появился' %}selected{% endif %}>появился</option>
+        <option value="исчез" {% if status_filter=='исчез' %}selected{% endif %}>исчез</option>
+        <option value="увеличилось" {% if status_filter=='увеличилось' %}selected{% endif %}>увеличилось</option>
+        <option value="уменьшилось" {% if status_filter=='уменьшилось' %}selected{% endif %}>уменьшилось</option>
+      </select>
+    </label>
+    <button type="submit" class="btn">Показать</button>
+    {% if uid_filter or status_filter %}
+    <a href="/logs" class="btn-link">Сбросить</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if logs %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>UID</th>
+      <th>Пациент</th>
+      <th>Врач</th>
+      <th>Специальность</th>
+      <th>Клиника</th>
+      <th>Дата</th>
+      <th>Статус</th>
+      <th>Время</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+    <tr>
+      <td><code>{{ log.uid }}</code></td>
+      <td>{{ log.patient_name }}</td>
+      <td>{{ log.doctor_name }}</td>
+      <td>{{ log.specialty }}</td>
+      <td>{{ log.clinic_name }}</td>
+      <td>{{ log.slot_date }}</td>
+      <td>
+        {% if log.status == 'появился' or log.status == 'увеличилось' %}
+        <span class="badge badge-ok">{{ log.status }}</span>
+        {% elif log.status == 'исчез' or log.status == 'уменьшилось' %}
+        <span class="badge badge-warn">{{ log.status }}</span>
+        {% else %}
+        <span class="badge">{{ log.status }}</span>
+        {% endif %}
+      </td>
+      <td class="cell-nowrap">{{ log.ts|int|strftime }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="pagination">
+  {% if offset > 0 %}
+  {% set prev_offset = offset - limit if offset >= limit else 0 %}
+  <a href="?offset={{ prev_offset }}&limit={{ limit }}{% if uid_filter %}&uid={{ uid_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+    class="btn-link">← Предыдущая</a>
+  {% endif %}
+  {% set total_pages = ((total + limit - 1) // limit) if total > 0 else 1 %}
+  <span class="page-info">Стр. {{ (offset // limit) + 1 }}/{{ total_pages }} ({{ total }} записей)</span>
+  {% if offset + limit < total %} <a
+    href="?offset={{ offset + limit }}&limit={{ limit }}{% if uid_filter %}&uid={{ uid_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+    class="btn-link">Следующая →</a>
+    {% endif %}
+</div>
+{% else %}
+<p class="text-muted">Нет записей в логе мониторинга</p>
+{% endif %}
+{% endblock %}

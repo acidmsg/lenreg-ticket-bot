@@ -5,13 +5,22 @@
 import re
 from collections import defaultdict
 from datetime import datetime, time
-from typing import Optional
+
+from src.i18n import _data
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
 
 # ── Дни недели (сокращения для отображения) ─────────────────────
-_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+_WEEKDAYS = [
+    _data("weekday-mon"),
+    _data("weekday-tue"),
+    _data("weekday-wed"),
+    _data("weekday-thu"),
+    _data("weekday-fri"),
+    _data("weekday-sat"),
+    _data("weekday-sun"),
+]
 
 
 async def load_specialty_aliases_from_db(db):
@@ -152,7 +161,7 @@ def shorten_specialty(specialty: str) -> str:
     return SPECIALTY_ALIASES.get(specialty, specialty)
 
 
-def extract_msg_id(value) -> Optional[int]:
+def extract_msg_id(value) -> int | None:
     """
     Извлекает message_id из значения last_messages.
     Принимает как старый формат (int), так и новый (dict с msg_id/ts).

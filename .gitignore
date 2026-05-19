@@ -30,6 +30,9 @@ logs/
 .pytest_cache/
 .pytest_output.txt
 
+# === i18n compiled files ===
+locales/**/*.mo
+
 # === Temporary files (check output, scratch) ===
 .tmp_*
 *.tmp
@@ -37,4 +40,4 @@ logs/
 # === Node / npm ===
 node_modules/
 package-lock.json
-.vscode/settings.json
+$null
