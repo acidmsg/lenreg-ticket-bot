@@ -56,6 +56,9 @@ async def api_summary(request: Request):
         last_check = health_metrics.last_api_check_time
         checks_total = health_metrics.api_checks_total
         errors_total = health_metrics.api_errors_total
+        monitor_loop_alive = health_metrics.monitor_loop_alive
+        discovery_tasks_alive = health_metrics.discovery_tasks_alive
+        healthcheck_loop_alive = health_metrics.healthcheck_loop_alive
 
     seconds_ago = int(time.time() - last_check) if last_check else 0
     availability = 0.0
@@ -94,11 +97,9 @@ async def api_summary(request: Request):
             "availability_pct": availability,
         },
         "background_tasks": {
-            "monitor_loop": "alive" if health_metrics.monitor_loop_alive else "dead",
-            "discovery_tasks": health_metrics.discovery_tasks_alive,
-            "healthcheck_loop": (
-                "alive" if health_metrics.healthcheck_loop_alive else "dead"
-            ),
+            "monitor_loop": "alive" if monitor_loop_alive else "dead",
+            "discovery_tasks": discovery_tasks_alive,
+            "healthcheck_loop": ("alive" if healthcheck_loop_alive else "dead"),
             "cleanup_loop": "alive",  # нет отдельного флага, подразумевается
             "schema_check_loop": "alive",
         },

@@ -1,6 +1,9 @@
 from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from dateutil.relativedelta import (
+    relativedelta,
+)
 
 from src.config import settings
 from src.i18n import _
@@ -250,7 +253,7 @@ def get_clinic_selection(
 
     try:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
-        age = (datetime.now() - bday).days // 365
+        age = relativedelta(datetime.now(), bday).years
     except (ValueError, TypeError):
         age = 18
 

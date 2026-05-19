@@ -1021,7 +1021,9 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
     uid = str(call.from_user.id)
 
     if action == "ask" and isinstance(call.message, Message):
-        await call.message.edit_text(
+        with contextlib.suppress(Exception):
+            await call.message.delete()
+        await call.message.answer(
             _("confirm-delete-patient"),
             reply_markup=get_confirm_deletion(p_id),
         )

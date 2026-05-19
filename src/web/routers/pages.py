@@ -43,6 +43,12 @@ async def dashboard_summary(request: Request):
         async with _metrics_lock:
             uptime = health_metrics.uptime_str()
             api_health = health_metrics.api_health_str()
+            monitor_alive = health_metrics.monitor_loop_alive
+            discovery_alive = health_metrics.discovery_tasks_alive
+            healthcheck_alive = health_metrics.healthcheck_loop_alive
+            api_checks = health_metrics.api_checks_total
+            api_errors = health_metrics.api_errors_total
+            notifications = health_metrics.monitoring_notifications_sent
 
         return request.app.state.templates.TemplateResponse(
             request,
@@ -52,12 +58,12 @@ async def dashboard_summary(request: Request):
                 "active_monitorings": active_monitorings,
                 "uptime": uptime,
                 "api_health": api_health,
-                "monitor_alive": health_metrics.monitor_loop_alive,
-                "discovery_alive": health_metrics.discovery_tasks_alive,
-                "healthcheck_alive": health_metrics.healthcheck_loop_alive,
-                "api_checks": health_metrics.api_checks_total,
-                "api_errors": health_metrics.api_errors_total,
-                "notifications": health_metrics.monitoring_notifications_sent,
+                "monitor_alive": monitor_alive,
+                "discovery_alive": discovery_alive,
+                "healthcheck_alive": healthcheck_alive,
+                "api_checks": api_checks,
+                "api_errors": api_errors,
+                "notifications": notifications,
                 "recent_alerts": recent_alerts,
             },
         )
@@ -204,6 +210,9 @@ async def api_status(request: Request):
         checks_total = health_metrics.api_checks_total
         errors_total = health_metrics.api_errors_total
         last_error = health_metrics.last_error_message
+        monitor_alive = health_metrics.monitor_loop_alive
+        healthcheck_alive = health_metrics.healthcheck_loop_alive
+        discovery_alive = health_metrics.discovery_tasks_alive
 
     seconds_ago = int(time.time() - last_check) if last_check else 0
     availability = 0.0
@@ -230,9 +239,9 @@ async def api_status(request: Request):
             "errors_total": errors_total,
             "availability": availability,
             "last_error": last_error,
-            "monitor_alive": health_metrics.monitor_loop_alive,
-            "healthcheck_alive": health_metrics.healthcheck_loop_alive,
-            "discovery_alive": health_metrics.discovery_tasks_alive,
+            "monitor_alive": monitor_alive,
+            "healthcheck_alive": healthcheck_alive,
+            "discovery_alive": discovery_alive,
             "schema_status": schema_status,
             "schema_drift_details": schema_drift_details,
         },

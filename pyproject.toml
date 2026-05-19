@@ -42,6 +42,8 @@ dependencies = [
     "fastapi>=0.115,<1.0",
     "uvicorn[standard]>=0.34,<1.0",
     "jinja2>=3.1,<4.0",
+    # === Date/Time utilities ===
+    "python-dateutil>=2.9,<3.0",
     # === Error Notifications (M2) ===
     "sentry-sdk>=2.0,<3.0",
 ]
@@ -64,6 +66,7 @@ babel = ">=2.14,<3.0"
 # === Pre-commit ===
 pre-commit = ">=4.0,<5.0"
 pre-commit-hooks = ">=6.0,<7.0"
+types-python-dateutil = "^2.9.0.20260518"
 
 [tool.ruff]
 src = ["src"]

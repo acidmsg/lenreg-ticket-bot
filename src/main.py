@@ -419,7 +419,7 @@ async def main():
 
         await api.close()
 
-        if bot.session:
+        if bot.session and not getattr(bot.session, "closed", False):
             await bot.session.close()
 
         # Закрытие Redis

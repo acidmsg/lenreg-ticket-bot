@@ -62,7 +62,7 @@ def main() -> None:
     SCHEMAS_DIR.mkdir(parents=True, exist_ok=True)
 
     for model in MODELS:
-        schema = model.model_json_schema()
+        schema = model.model_json_schema()  # type: ignore[attr-defined]
         filepath = SCHEMAS_DIR / f"{model.__name__}.json"
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(schema, f, indent=2, ensure_ascii=False)

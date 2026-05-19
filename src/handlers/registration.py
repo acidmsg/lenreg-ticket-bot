@@ -1,3 +1,4 @@
+import contextlib
 from datetime import datetime
 
 from aiogram import F, Router
@@ -25,7 +26,9 @@ class Registration(StatesGroup):
 async def start_add_patient(call: CallbackQuery, state: FSMContext):
     await state.set_state(Registration.wait_fio)
     if isinstance(call.message, Message):
-        await call.message.edit_text(
+        with contextlib.suppress(Exception):
+            await call.message.delete()
+        await call.message.answer(
             _("enter-full-name"),
             reply_markup=get_registration_keyboard(step="fio"),
         )

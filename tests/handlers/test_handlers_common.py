@@ -14,7 +14,7 @@
 from unittest.mock import AsyncMock
 
 # ── Reuse фабрик из test_handlers_registration ─────────────────────────
-from tests.test_handlers_registration import (
+from tests.handlers.test_handlers_registration import (
     TEST_USER_ID,
     make_callback,
     make_message,

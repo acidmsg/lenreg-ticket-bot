@@ -3779,3 +3779,102 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 ### Результаты тестов
 
 Не запускались (диагностика без изменений кода).
+
+---
+
+## 2026-05-19 — Исправление 22 ruff-ошибок
+
+### Выполненные задачи
+
+1. Исправлены 13 ошибок **E501** (line too long) в [`tests/test_monitor_full.py`](../tests/test_monitor_full.py) — длинные строки разбиты с обёрткой в `(` `)` и правильными отступами.
+2. Исправлены 4 ошибки **RUF012** (mutable default) в [`tests/test_keyboards.py`](../tests/test_keyboards.py) — добавлена аннотация `ClassVar` для классовых атрибутов + импорт `from typing import ClassVar`.
+3. Исправлены 2 ошибки **SIM115** (context manager) в [`src/services/export.py`](../src/services/export.py) — `NamedTemporaryFile` обёрнут в `with`-контекстный менеджер.
+4. Исправлены 2 ошибки **B904** (raise ... from e) в [`src/utils/proxy_discovery.py`](../src/utils/proxy_discovery.py) — добавлено `from exc` / `from e` в `except`-блоках.
+5. Исправлена 1 ошибка **SIM105** (try-except-pass) в [`src/services/cleanup.py`](../src/services/cleanup.py) — заменено на `with suppress(TelegramAPIError)`.
+
+### Результаты проверок
+
+- `ruff check src tests` — **0 ошибок**
+- `pytest tests/ -v` — **185 passed, 0 failed**
+
+---
+
+## 2026-05-19 — TD-TST-001: Реорганизация структуры `tests/` — зеркалирование `src/`
+
+### Выполненные задачи
+
+1. Созданы поддиректории `tests/api/`, `tests/database/`, `tests/handlers/`, `tests/keyboards/`, `tests/services/`, `tests/utils/`.
+2. В каждую поддиректорию добавлен пустой `__init__.py`.
+3. Перемещены 10 тестовых файлов согласно таблице зеркалирования пакетов `src/`:
+   - `tests/api/test_zdrav_client.py`
+   - `tests/database/test_database_manager.py`
+   - `tests/handlers/test_handlers_common.py`
+   - `tests/handlers/test_handlers_registration.py`
+   - `tests/keyboards/test_keyboards.py`
+   - `tests/services/test_doctor_discovery.py`
+   - `tests/services/test_export.py`
+   - `tests/services/test_monitor_classify.py`
+   - `tests/services/test_monitor_full.py`
+   - `tests/utils/test_cache.py`
+4. Исправлен относительный импорт в [`tests/handlers/test_handlers_common.py:17`](../tests/handlers/test_handlers_common.py:17): `from tests.test_handlers_registration` → `from tests.handlers.test_handlers_registration`.
+5. Проверен `pytest.ini` (`pythonpath = .`) — покрывает и `src/`, и `tests/`, изменений не требуется.
+6. `tests/conftest.py` не содержит жёстких путей — фикстуры применяются ко всем поддиректориям автоматически.
+
+### Результаты проверок
+
+- `pytest tests/ -x --tb=short` — **185 passed, 0 failed** ✅
+
+---
+
+## 2026-05-19 — Закрытие технического долга (5 задач)
+
+### Выполненные задачи
+
+| Задача      | Описание                                       | Файлы                                                                                                            |
+| ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| TD-KEY-001  | Замена `.days // 365` на `relativedelta`       | [`inline.py:4,255`](src/keyboards/inline.py:4), [`pyproject.toml:46`](pyproject.toml:46)                         |
+| TD-TST-001  | Реорганизация `tests/` — зеркалирование `src/` | 6 поддиректорий, 10 файлов перемещены, [`test_handlers_common.py:17`](tests/handlers/test_handlers_common.py:17) |
+| TD-TST-002  | Подавление loguru в тестах                     | [`conftest.py:297-305`](tests/conftest.py:297)                                                                   |
+| TD-MAIN-001 | `_metrics_lock` для чтений в веб-роутерах      | [`api.py:59-61`](src/web/routers/api.py:59), [`pages.py:47-51,208-210`](src/web/routers/pages.py:47)             |
+| TD-MAIN-002 | Проверка `bot.session.closed` перед close      | [`main.py:422`](src/main.py:422)                                                                                 |
+
+### Изменённые файлы
+
+- `src/keyboards/inline.py` — импорт `relativedelta`, переписан расчёт возраста
+- `pyproject.toml` — добавлена зависимость `python-dateutil`
+- `tests/conftest.py` — фикстура `_silence_loguru`
+- `src/web/routers/api.py` — чтения метрик под `_metrics_lock`
+- `src/web/routers/pages.py` — чтения метрик под `_metrics_lock` (2 блока)
+- `src/main.py` — проверка `bot.session.closed`
+- `tests/` — созданы поддиректории `api/`, `database/`, `handlers/`, `keyboards/`, `services/`, `utils/`; 10 тестовых файлов перемещены; исправлен импорт в `test_handlers_common.py`
+
+### Результаты тестов
+
+**185 passed, 0 failed** — все тесты проходят на обновлённой структуре.
+
+### Проверки
+
+- `ruff check` — All checks passed
+
+---
+
+## 2026-05-19 — Установка type stubs для dateutil
+
+### Выполненные задачи
+
+| Задача  | Описание                                                                      | Файлы                                      |
+| ------- | ----------------------------------------------------------------------------- | ------------------------------------------ |
+| TYP-001 | Установка `types-python-dateutil` как dev-зависимости                         | [`pyproject.toml`](pyproject.toml)         |
+| TYP-002 | Удаление `# pyright: ignore[reportMissingModuleSource]` из импорта `dateutil` | [`inline.py:4`](src/keyboards/inline.py:4) |
+| TYP-003 | Удаление `[[tool.mypy.overrides]]` для `dateutil.*`                           | [`pyproject.toml:98`](pyproject.toml:98)   |
+
+### Изменённые файлы
+
+- `pyproject.toml` — добавлена зависимость `types-python-dateutil`; удалён mypy override для `dateutil.*`
+- `src/keyboards/inline.py` — убран `# pyright: ignore[reportMissingModuleSource]`
+
+### Результаты проверок
+
+| Инструмент                     | Результат                                    |
+| ------------------------------ | -------------------------------------------- |
+| `mypy src/keyboards/inline.py` | ✅ Success: no issues found in 1 source file |

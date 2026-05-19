@@ -291,3 +291,15 @@ def pytest_sessionfinish(session, exitstatus):
         import shutil
 
         shutil.rmtree(TEST_DATA_DIR, ignore_errors=True)
+
+
+# ── Подавление логов loguru в тестах ──────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _silence_loguru() -> None:
+    """Отключает вывод loguru в тестах, оставляя только ERROR."""
+    from loguru import logger
+
+    logger.remove()
+    logger.add(lambda _: None, level="ERROR")
