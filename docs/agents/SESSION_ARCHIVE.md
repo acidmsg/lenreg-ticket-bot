@@ -3636,3 +3636,99 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 | ---------- | -------------------- |
 | Ruff check | All checks passed!   |
 | Pytest     | 185 passed, 0 failed |
+
+---
+
+## 2026-05-19 — Убрана заглушка на странице API-статуса дашборда
+
+### Выполненные задачи
+
+#### Проблема: на странице `/api-status` отображается «требуется F8 schema_watcher»
+
+**Диагностика:**
+
+1. Прочитан [`src/web/routers/pages.py`](src/web/routers/pages.py:194) — `api_status()` содержит пустой блок `try/except` (строки 216-224), который не читает schema-метрики. `schema_status` и `schema_drift_details` всегда передаются как пустые `{}`.
+2. Прочитан [`src/web/templates/api_status.html`](src/web/templates/api_status.html:95) — проверка `{% if schema_status %}` на пустой dict falsy, поэтому показывается заглушка.
+3. Прочитан [`src/services/metrics.py`](src/services/metrics.py:197) — `PrometheusMetrics` имеет `set_schema_drift()` для записи в Gauge, но нет метода для чтения текущего состояния.
+4. Прочитан [`src/services/schema_watcher.py`](src/services/schema_watcher.py:440) — `schema_check_loop` корректно вызывает `metrics.set_schema_drift()` при каждом цикле проверки.
+
+**Исправления:**
+
+1. В [`src/services/metrics.py`](src/services/metrics.py:68) добавлено поле `self._schema_status: dict[str, bool] = {}` для хранения состояния схем.
+2. В [`src/services/metrics.py`](src/services/metrics.py:201) `set_schema_drift()` теперь сохраняет значение не только в Gauge, но и в `_schema_status[endpoint]`.
+3. В [`src/services/metrics.py:209`](src/services/metrics.py:209) добавлен метод `get_schema_status() -> dict[str, bool]` — возвращает копию `_schema_status`.
+4. В [`src/web/routers/pages.py:218`](src/web/routers/pages.py:218) пустой блок `try/except` заменён на вызов `pm.get_schema_status()`.
+5. В [`src/web/templates/api_status.html:95-114`](src/web/templates/api_status.html:95) заглушка заменена на реальные бейджи: ✅ Совпадает / ⚠️ Расхождение.
+
+### Изменённые файлы
+
+- [`src/services/metrics.py`](src/services/metrics.py:68) — добавлен `_schema_status`, обновлён `set_schema_drift()`, добавлен `get_schema_status()`
+- [`src/web/routers/pages.py`](src/web/routers/pages.py:218) — пустой try/except заменён на реальный вызов `pm.get_schema_status()`
+- [`src/web/templates/api_status.html`](src/web/templates/api_status.html:95) — заглушка заменена на данные с бейджами
+
+### Результаты проверок
+
+| Инструмент | Результат            |
+| ---------- | -------------------- |
+| Ruff check | All checks passed!   |
+| Pytest     | 185 passed, 0 failed |
+
+---
+
+## 2026-05-19 — Добавлен `.gitattributes` для подавления CRLF-предупреждений
+
+### Выполненные задачи
+
+#### Проблема: Git при коммите выдаёт 12 warnings вида `LF will be replaced by CRLF` для JSON-файлов в `docs/schemas/`
+
+**Исправления:**
+
+1. Создан [`.gitattributes`](.gitattributes:1) с правилом `*.json text eol=lf` — явное указание LF для всех JSON-файлов.
+2. Выполнен `git add --renormalize docs/schemas/*.json` — применение нового атрибута к уже отслеживаемым файлам.
+3. Выполнен коммит `chore: add .gitattributes — LF for JSON files`.
+
+### Изменённые файлы
+
+- [`.gitattributes`](.gitattributes:1) — создан, правило LF для JSON
+
+### Результаты проверок
+
+| Инструмент | Результат                                    |
+| ---------- | -------------------------------------------- |
+| git status | Working tree clean, 1 commit ahead of origin |
+
+---
+
+## 2026-05-19 — Замена `%s`/`%d` на `{}` в logger-вызовах loguru
+
+### Выполненные задачи
+
+1. Замена `%s`/`%d` на `{}` во всех вызовах `logger.info()`, `logger.error()`, `logger.warning()`, `logger.debug()` в 4 файлах.
+
+### Изменённые файлы
+
+- [`src/services/doctor_discovery.py:113`](../src/services/doctor_discovery.py:112) — `%s` → `{}`
+- [`src/services/error_notifier.py:177`](../src/services/error_notifier.py:177) — `%s` → `{}`
+- [`src/services/error_notifier.py:199`](../src/services/error_notifier.py:199) — `%s` → `{}`
+- [`src/utils/logging.py:133`](../src/utils/logging.py:132) — `%s` → `{}`
+- [`src/services/schema_watcher.py:216`](../src/services/schema_watcher.py:216) — `%s` → `{}`
+- [`src/services/schema_watcher.py:225`](../src/services/schema_watcher.py:225) — `%s` → `{}`
+- [`src/services/schema_watcher.py:227`](../src/services/schema_watcher.py:227) — `%d` → `{}`
+- [`src/services/schema_watcher.py:252`](../src/services/schema_watcher.py:252) — `%s` → `{}`
+- [`src/services/schema_watcher.py:257`](../src/services/schema_watcher.py:257) — `%s` → `{}`
+- [`src/services/schema_watcher.py:266`](../src/services/schema_watcher.py:266) — `%s` → `{}`
+- [`src/services/schema_watcher.py:272`](../src/services/schema_watcher.py:272) — `%s` → `{}`
+- [`src/services/schema_watcher.py:284`](../src/services/schema_watcher.py:284) — `%s` → `{}`
+- [`src/services/schema_watcher.py:384`](../src/services/schema_watcher.py:384) — `%s` → `{}`
+- [`src/services/schema_watcher.py:414`](../src/services/schema_watcher.py:414) — `%d` → `{}`
+- [`src/services/schema_watcher.py:426`](../src/services/schema_watcher.py:426) — `%s`/`%d` → `{}`
+- [`src/services/schema_watcher.py:431`](../src/services/schema_watcher.py:431) — `%s` → `{}`
+- [`src/services/schema_watcher.py:443`](../src/services/schema_watcher.py:443) — `%s` → `{}`
+- [`src/services/schema_watcher.py:448`](../src/services/schema_watcher.py:448) — `%s` → `{}`
+- [`src/services/schema_watcher.py:461`](../src/services/schema_watcher.py:461) — `%s` → `{}`
+
+### Результаты проверок
+
+| Инструмент                 | Результат              |
+| -------------------------- | ---------------------- |
+| `%s`/`%d` в logger-вызовах | 0 остаточных вхождений |

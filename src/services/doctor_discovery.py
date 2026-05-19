@@ -110,7 +110,7 @@ async def discovery_loop(
                 if all_doctors_with_specialty:
                     await database.merge_doctors(cid, all_doctors_with_specialty)
                     logger.info(
-                        "Обновлен список врачей для %s: всего %s записей",
+                        "Обновлен список врачей для {}: всего {} записей",
                         cid,
                         len(all_doctors_with_specialty),
                     )

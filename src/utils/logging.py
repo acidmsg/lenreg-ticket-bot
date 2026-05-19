@@ -130,5 +130,5 @@ def setup_logging(
         lib_logger.propagate = False
 
     logger.info(
-        "Loguru logging initialised (level=%s, file=%s)", level, log_path / log_file
+        "Loguru logging initialised (level={}, file={})", level, log_path / log_file
     )

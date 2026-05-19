@@ -174,7 +174,7 @@ class ErrorNotifier:
                     },
                 )
         except Exception as e:
-            logger.error("Failed to send NTFY schema change notification: %s", e)
+            logger.error("Failed to send NTFY schema change notification: {}", e)
 
     def _notify_schema_change_sentry(
         self,
@@ -196,7 +196,7 @@ class ErrorNotifier:
                     level="warning",
                 )
         except Exception as e:
-            logger.error("Failed to send Sentry schema change notification: %s", e)
+            logger.error("Failed to send Sentry schema change notification: {}", e)
 
 
 # Singleton

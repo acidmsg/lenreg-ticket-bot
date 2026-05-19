@@ -84,9 +84,7 @@ def _describe_type(prop: dict[str, Any]) -> str:
     if "$ref" in prop:
         return f"$ref:{prop['$ref'].split('/')[-1]}"
     if "anyOf" in prop:
-        types: list[str] = [
-            str(t.get("type", "?")) for t in prop["anyOf"]
-        ]
+        types: list[str] = [str(t.get("type", "?")) for t in prop["anyOf"]]
         return f"anyOf[{', '.join(types)}]"
     return str(prop.get("type", "?"))
 
@@ -213,7 +211,7 @@ def load_reference_schemas(
     schemas: dict[str, dict[str, Any]] = {}
 
     if not schemas_dir.is_dir():
-        logger.warning("Директория эталонных схем не найдена: %s", schemas_dir)
+        logger.warning("Директория эталонных схем не найдена: {}", schemas_dir)
         return schemas
 
     for filepath in sorted(schemas_dir.glob("*.json")):
@@ -222,9 +220,9 @@ def load_reference_schemas(
             with open(filepath, encoding="utf-8") as f:
                 schemas[model_name] = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            logger.error("Ошибка загрузки эталонной схемы %s: %s", filepath, e)
+            logger.error("Ошибка загрузки эталонной схемы {}: {}", filepath, e)
 
-    logger.info("Загружено %d эталонных схем из %s", len(schemas), schemas_dir)
+    logger.info("Загружено {} эталонных схем из {}", len(schemas), schemas_dir)
     return schemas
 
 
@@ -249,12 +247,12 @@ async def validate_endpoint_schema(
     """
     model_class = _ENDPOINT_MODELS.get(endpoint)
     if model_class is None:
-        logger.warning("schema_check: неизвестный эндпоинт '%s'", endpoint)
+        logger.warning("schema_check: неизвестный эндпоинт '{}'", endpoint)
         return []
 
     ref_schema = reference_schemas.get(model_class.__name__)
     if ref_schema is None:
-        logger.warning("schema_check: нет эталонной схемы для %s", model_class.__name__)
+        logger.warning("schema_check: нет эталонной схемы для {}", model_class.__name__)
         return []
 
     try:
@@ -263,13 +261,13 @@ async def validate_endpoint_schema(
 
         # Если API вернул None или ошибку — пропускаем проверку схемы
         if result is None:
-            logger.warning("schema_check: %s — API вернул None, пропускаем", endpoint)
+            logger.warning("schema_check: {} — API вернул None, пропускаем", endpoint)
             return []
 
         # Если результат — кортеж (patient_id, error) и patient_id=None
         if isinstance(result, tuple) and result[0] is None:
             logger.warning(
-                "schema_check: %s — API не нашёл данные, пропускаем", endpoint
+                "schema_check: {} — API не нашёл данные, пропускаем", endpoint
             )
             return []
 
@@ -281,7 +279,7 @@ async def validate_endpoint_schema(
         return diffs
 
     except Exception as e:
-        logger.error("schema_check: ошибка проверки %s: %s", endpoint, e)
+        logger.error("schema_check: ошибка проверки {}: {}", endpoint, e)
         # Не фатально — возвращаем пустой список
         return []
 
@@ -381,7 +379,7 @@ async def _call_endpoint(client: Any, endpoint: str) -> Any:
             limiter=limiter,
         )
 
-    logger.warning("schema_check: неизвестный эндпоинт '%s'", endpoint)
+    logger.warning("schema_check: неизвестный эндпоинт '{}'", endpoint)
     return None
 
 
@@ -411,7 +409,7 @@ async def schema_check_loop(
         logger.error("Эталонные схемы не найдены, проверка схем API отключена")
         return
 
-    logger.info("Цикл проверки схем API запущен (интервал: %dс)", interval)
+    logger.info("Цикл проверки схем API запущен (интервал: {}с)", interval)
 
     while True:
         try:
@@ -423,12 +421,12 @@ async def schema_check_loop(
 
                     if diffs:
                         logger.error(
-                            "Обнаружено расхождение схемы API: %s (%d расхождений)",
+                            "Обнаружено расхождение схемы API: {} ({} расхождений)",
                             endpoint,
                             len(diffs),
                         )
                         for d in diffs:
-                            logger.error("  %s", d)
+                            logger.error("  {}", d)
 
                         # Алерт через ErrorNotifier
                         await error_notifier.notify_schema_change(
@@ -440,12 +438,12 @@ async def schema_check_loop(
                         metrics.set_schema_drift(endpoint, True)
                         metrics.inc_schema_changes(endpoint, count=len(diffs))
                     else:
-                        logger.debug("schema_check: %s — схемы совпадают", endpoint)
+                        logger.debug("schema_check: {} — схемы совпадают", endpoint)
                         metrics.set_schema_drift(endpoint, False)
 
                 except Exception as e:
                     logger.error(
-                        "schema_check: ошибка проверки %s: %s",
+                        "schema_check: ошибка проверки {}: {}",
                         endpoint,
                         e,
                     )
@@ -458,5 +456,5 @@ async def schema_check_loop(
             logger.info("Цикл проверки схем API остановлен (cancelled)")
             break
         except Exception as e:
-            logger.error("Ошибка в цикле проверки схем: %s", e, exc_info=True)
+            logger.error("Ошибка в цикле проверки схем: {}", e, exc_info=True)
             await asyncio.sleep(60)  # пауза перед retry

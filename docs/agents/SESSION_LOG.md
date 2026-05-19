@@ -1,35 +1,20 @@
 # SESSION LOG
 
-## 2026-05-19 — Убрана заглушка на странице API-статуса дашборда
+## 2026-05-19 — Диагностика и исправление `%s`/`%d` в loguru
 
 ### Выполненные задачи
 
-#### Проблема: на странице `/api-status` отображается «требуется F8 schema_watcher»
-
-**Диагностика:**
-
-1. Прочитан [`src/web/routers/pages.py`](src/web/routers/pages.py:194) — `api_status()` содержит пустой блок `try/except` (строки 216-224), который не читает schema-метрики. `schema_status` и `schema_drift_details` всегда передаются как пустые `{}`.
-2. Прочитан [`src/web/templates/api_status.html`](src/web/templates/api_status.html:95) — проверка `{% if schema_status %}` на пустой dict falsy, поэтому показывается заглушка.
-3. Прочитан [`src/services/metrics.py`](src/services/metrics.py:197) — `PrometheusMetrics` имеет `set_schema_drift()` для записи в Gauge, но нет метода для чтения текущего состояния.
-4. Прочитан [`src/services/schema_watcher.py`](src/services/schema_watcher.py:440) — `schema_check_loop` корректно вызывает `metrics.set_schema_drift()` при каждом цикле проверки.
-
-**Исправления:**
-
-1. В [`src/services/metrics.py`](src/services/metrics.py:68) добавлено поле `self._schema_status: dict[str, bool] = {}` для хранения состояния схем.
-2. В [`src/services/metrics.py`](src/services/metrics.py:201) `set_schema_drift()` теперь сохраняет значение не только в Gauge, но и в `_schema_status[endpoint]`.
-3. В [`src/services/metrics.py:209`](src/services/metrics.py:209) добавлен метод `get_schema_status() -> dict[str, bool]` — возвращает копию `_schema_status`.
-4. В [`src/web/routers/pages.py:218`](src/web/routers/pages.py:218) пустой блок `try/except` заменён на вызов `pm.get_schema_status()`.
-5. В [`src/web/templates/api_status.html:95-114`](src/web/templates/api_status.html:95) заглушка заменена на реальные бейджи: ✅ Совпадает / ⚠️ Расхождение.
+1. Диагностирован баг: Loguru 0.7.3 не поддерживает `%s`/`%d`-форматирование при вызове `logger.info/error/warning/debug()` с позиционными аргументами. Все `%s`-плейсхолдеры в проекте выводились буквально, без подстановки аргументов.
+2. Заменены все `%s` и `%d` на `{}` в вызовах `loguru.logger` в 4 файлах (см. ниже).
+3. Финишная проверка `Select-String` подтвердила 0 остаточных вхождений `%s`/`%d` в logger-вызовах.
 
 ### Изменённые файлы
 
-- [`src/services/metrics.py`](src/services/metrics.py:68) — добавлен `_schema_status`, обновлён `set_schema_drift()`, добавлен `get_schema_status()`
-- [`src/web/routers/pages.py`](src/web/routers/pages.py:218) — пустой try/except заменён на реальный вызов `pm.get_schema_status()`
-- [`src/web/templates/api_status.html`](src/web/templates/api_status.html:95) — заглушка заменена на данные с бейджами
+- [`src/services/doctor_discovery.py:113`](../src/services/doctor_discovery.py:113) — `%s` → `{}` (1 вызов)
+- [`src/services/error_notifier.py:177,199`](../src/services/error_notifier.py:177) — `%s` → `{}` (2 вызова)
+- [`src/services/schema_watcher.py:216,225,227,252,257,266,272,284,384,414,426,431,443,448,461`](../src/services/schema_watcher.py:216) — `%s`/`%d` → `{}` (15 вызовов)
+- [`src/utils/logging.py:133`](../src/utils/logging.py:133) — `%s` → `{}` (1 вызов)
 
-### Результаты проверок
+### Результаты тестов
 
-| Инструмент | Результат            |
-| ---------- | -------------------- |
-| Ruff check | All checks passed!   |
-| Pytest     | 185 passed, 0 failed |
+Не запускались (изменения чисто строковые, не затрагивают логику).
