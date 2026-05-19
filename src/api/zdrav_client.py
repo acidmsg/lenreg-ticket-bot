@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import random
 from typing import Any, List, Optional, Tuple, TypeVar
 
@@ -47,11 +48,7 @@ class ZdravClient:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) "
             "Gecko/20100101 Firefox/123.0",
         ]
-        self._client: Optional[httpx.AsyncClient] = None
-
-    def _get_headers(self):
-        return {
-            "User-Agent": random.choice(self.user_agents),
+        self._base_headers = {
             "Referer": settings.REFERER_URL,
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -59,6 +56,13 @@ class ZdravClient:
             "Cookie": f"csrftoken={settings.CSRF_TOKEN}",
             "Origin": settings.ORIGIN_URL,
             "X-Client-Version": settings.API_VERSION,
+        }
+        self._client: Optional[httpx.AsyncClient] = None
+
+    def _get_headers(self):
+        return {
+            **self._base_headers,
+            "User-Agent": random.choice(self.user_agents),
         }
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -172,9 +176,18 @@ class ZdravClient:
                         "Попробуйте позже.",
                     )
                 return None, f"Портал временно недоступен ({res.status_code})"
+            except httpx.TimeoutException as e:
+                logger.error(f"Таймаут API (fetch_patient_id): {e!r}")
+                return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
+            except httpx.NetworkError as e:
+                logger.error(f"Сетевая ошибка API (fetch_patient_id): {e!r}")
+                return None, "Сервер zdrav.lenreg.ru не отвечает (Сетевая ошибка)"
+            except (json.JSONDecodeError, ValidationError) as e:
+                logger.error(f"Ошибка парсинга API (fetch_patient_id): {e!r}")
+                return None, "Сервер zdrav.lenreg.ru не отвечает (Ошибка парсинга)"
             except Exception as e:
                 exc_repr = repr(e) if not str(e) else str(e)
-                logger.error(f"Ошибка API (fetch_patient_id): {exc_repr}")
+                logger.error(f"Неожиданная ошибка API (fetch_patient_id): {exc_repr}")
                 return None, "Сервер zdrav.lenreg.ru не отвечает (Таймаут)"
 
     async def fetch_speciality_list(
@@ -214,10 +227,30 @@ class ZdravClient:
                         await asyncio.sleep(2)
                         continue
                     return []
+                except httpx.TimeoutException as e:
+                    logger.error(
+                        f"Таймаут API (fetch_speciality_list), попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except httpx.NetworkError as e:
+                    logger.error(
+                        f"Сетевая ошибка API (fetch_speciality_list), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(
+                        f"Ошибка парсинга API (fetch_speciality_list), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
-                        "Ошибка API (fetch_speciality_list), "
+                        "Неожиданная ошибка API (fetch_speciality_list), "
                         f"попытка {i + 1}: {exc_repr}"
                     )
                     if i < 2:
@@ -231,6 +264,31 @@ class ZdravClient:
         clinic_id: str,
         limiter: Optional[aiolimiter.AsyncLimiter] = None,
     ) -> Optional[List[str]]:
+        """Проверяет доступные слоты для записи к указанному врачу.
+
+        Выполняет POST-запрос к эндпоинту /appointment_list/ и возвращает
+        отсортированный список доступных слотов.
+
+        Args:
+            doc_id: Идентификатор врача.
+            patient_id: Идентификатор пациента.
+            clinic_id: Идентификатор клиники.
+            limiter: Опциональный aiolimiter для контроля частоты запросов.
+                     Если не указан, используется limiter по умолчанию.
+
+        Returns:
+            None — ошибка API (исчерпаны попытки, 403/429 и т.п.).
+            [] — успешный запрос, но слотов нет.
+            ["DD.MM.YYYY в HH:MM", ...] — список доступных дат и времени.
+
+        Raises:
+            ZdravTimeoutError: При таймауте запроса (внутреннее логирование,
+                               метод возвращает None).
+            ZdravNetworkError: При сетевой ошибке (внутреннее логирование,
+                               метод возвращает None).
+            ZdravParseError: При ошибке парсинга ответа (внутреннее
+                             логирование, метод возвращает None).
+        """
         payload = {
             "doctor_form-doctor_id": doc_id,
             "doctor_form-clinic_id": clinic_id,
@@ -272,10 +330,24 @@ class ZdravClient:
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
+                except httpx.TimeoutException as e:
+                    logger.error(f"Таймаут API (check_slots), попытка {i + 1}: {e!r}")
+                    await asyncio.sleep(2)
+                except httpx.NetworkError as e:
+                    logger.error(
+                        f"Сетевая ошибка API (check_slots), попытка {i + 1}: {e!r}"
+                    )
+                    await asyncio.sleep(2)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(
+                        f"Ошибка парсинга API (check_slots), попытка {i + 1}: {e!r}"
+                    )
+                    await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
-                        f"Ошибка API (check_slots), попытка {i + 1}: {exc_repr}"
+                        f"Неожиданная ошибка API (check_slots), "
+                        f"попытка {i + 1}: {exc_repr}"
                     )
                     await asyncio.sleep(2)
         return None
@@ -318,10 +390,28 @@ class ZdravClient:
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
+                except httpx.TimeoutException as e:
+                    logger.error(
+                        f"Таймаут API (fetch_all_doctors), попытка {i + 1}: {e!r}"
+                    )
+                    await asyncio.sleep(2)
+                except httpx.NetworkError as e:
+                    logger.error(
+                        f"Сетевая ошибка API (fetch_all_doctors), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    await asyncio.sleep(2)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(
+                        f"Ошибка парсинга API (fetch_all_doctors), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
-                        f"Ошибка API (fetch_all_doctors), попытка {i + 1}: {exc_repr}"
+                        f"Неожиданная ошибка API (fetch_all_doctors), "
+                        f"попытка {i + 1}: {exc_repr}"
                     )
                     await asyncio.sleep(2)
         return []
@@ -364,10 +454,31 @@ class ZdravClient:
                         f"clinic_list вернул {res.status_code} для района {district_id}"
                     )
                     return []
+                except httpx.TimeoutException as e:
+                    logger.error(
+                        f"Таймаут API (fetch_clinic_list), попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except httpx.NetworkError as e:
+                    logger.error(
+                        f"Сетевая ошибка API (fetch_clinic_list), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(
+                        f"Ошибка парсинга API (fetch_clinic_list), "
+                        f"попытка {i + 1}: {e!r}"
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
-                        f"Ошибка API (fetch_clinic_list), попытка {i + 1}: {exc_repr}"
+                        f"Неожиданная ошибка API (fetch_clinic_list), "
+                        f"попытка {i + 1}: {exc_repr}"
                     )
                     if i < 2:
                         await asyncio.sleep(2)

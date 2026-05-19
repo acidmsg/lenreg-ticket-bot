@@ -62,9 +62,17 @@ class CheckPatientResponse(BaseModel):
 class SpecialityItem(BaseModel):
     """Один элемент списка специальностей."""
 
-    NameSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
-    FerIdSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
-    IdSpesiality: Annotated[str, BeforeValidator(_coerce_str)] = ""
+    model_config = {"populate_by_name": True}
+
+    specialty_name: Annotated[str, BeforeValidator(_coerce_str)] = Field(
+        default="", alias="NameSpesiality"
+    )
+    fer_id_specialty: Annotated[str, BeforeValidator(_coerce_str)] = Field(
+        default="", alias="FerIdSpesiality"
+    )
+    specialty_id: Annotated[str, BeforeValidator(_coerce_str)] = Field(
+        default="", alias="IdSpesiality"
+    )
     CountFreeTicket: int = 0
     LastDate: Optional[DateInfo] = None
     NearestDate: Optional[DateInfo] = None

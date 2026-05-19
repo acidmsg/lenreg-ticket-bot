@@ -78,7 +78,7 @@ class TestFetchSpecialties:
 
         result = await fetch_specialties(api, "p123", "272")
         assert len(result) == 1
-        assert result[0]["NameSpesiality"] == "Хирургия"
+        assert result[0].specialty_name == "Хирургия"
 
     async def test_filters_missing_namespesiality(self):
         """Записи без NameSpesiality отфильтровываются."""
@@ -91,7 +91,7 @@ class TestFetchSpecialties:
 
         result = await fetch_specialties(api, "p123", "272")
         assert len(result) == 1
-        assert result[0]["NameSpesiality"] == "Хирургия"
+        assert result[0].specialty_name == "Хирургия"
 
     async def test_converts_non_string_values_to_string(self):
         """Числовые значения приводятся к строке."""
@@ -102,10 +102,10 @@ class TestFetchSpecialties:
 
         result = await fetch_specialties(api, "p123", "272")
         assert len(result) == 1
-        assert result[0]["IdSpesiality"] == "42"
-        assert result[0]["NameSpesiality"] == "12345"
-        assert isinstance(result[0]["IdSpesiality"], str)
-        assert isinstance(result[0]["NameSpesiality"], str)
+        assert result[0].specialty_id == "42"
+        assert result[0].specialty_name == "12345"
+        assert isinstance(result[0].specialty_id, str)
+        assert isinstance(result[0].specialty_name, str)
 
 
 # ── _get_clinic_type_from_db ────────────────────────────────────────────────

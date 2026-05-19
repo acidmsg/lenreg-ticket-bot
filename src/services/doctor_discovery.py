@@ -1,9 +1,10 @@
 import asyncio
 import random
-from typing import Dict, List
+from typing import List
 
 from loguru import logger
 
+from src.api.models import SpecialityItem
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
@@ -11,20 +12,17 @@ from src.database.database import Database
 
 async def fetch_specialties(
     api: ZdravClient, patient_id: str, clinic_id: str, limiter=None
-) -> List[Dict[str, str]]:
+) -> List[SpecialityItem]:
     """Получает список специальностей (ID и имя) для данной клиники и пациента."""
     try:
         response = await api.fetch_speciality_list(
             patient_id, clinic_id, limiter=limiter
         )
-        # Приводим к типу List[Dict[str, str]], гарантируя, что значения - строки
+        # Конвертируем сырые dict-ы в SpecialityItem для атрибутного доступа
         return [
-            {
-                "IdSpesiality": str(s.get("IdSpesiality", "")),
-                "NameSpesiality": str(s.get("NameSpesiality", "")),
-            }
-            for s in response
-            if s.get("IdSpesiality") and s.get("NameSpesiality")
+            SpecialityItem(**item)
+            for item in response
+            if item.get("IdSpesiality") and item.get("NameSpesiality")
         ]
     except Exception as e:
         logger.error(
@@ -95,8 +93,8 @@ async def discovery_loop(
                     )
 
                     for specialty_info in specialties_data:
-                        spec_id = specialty_info["IdSpesiality"]
-                        spec_name = specialty_info["NameSpesiality"]
+                        spec_id = specialty_info.specialty_id
+                        spec_name = specialty_info.specialty_name
 
                         doctors = await api.fetch_all_doctors(
                             specialty_id=spec_id,

@@ -132,9 +132,36 @@ async def migrate_v5_seed_new_config_keys(db):
     logger.info("Миграция v5: config заполнен дефолтными значениями")
 
 
+async def migrate_v6_monitoring_log(db):
+    """Создаёт таблицу monitoring_log для истории изменений слотов."""
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS monitoring_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid         TEXT NOT NULL,
+    p_id        TEXT NOT NULL,
+    d_id        TEXT NOT NULL,
+    doctor_name TEXT NOT NULL DEFAULT '',
+    patient_name TEXT NOT NULL DEFAULT '',
+    specialty   TEXT NOT NULL DEFAULT '',
+    clinic_name TEXT NOT NULL DEFAULT '',
+    slot_date   TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT '',
+    ts          REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_monitoring_log_uid ON monitoring_log(uid);
+CREATE INDEX IF NOT EXISTS idx_monitoring_log_ts ON monitoring_log(ts);
+""")
+    await c.commit()
+    logger.info("Миграция v6: создана таблица monitoring_log")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
     (2, migrate_v2_clinics_columns),
     (5, migrate_v5_seed_new_config_keys),
+    (6, migrate_v6_monitoring_log),
 ]

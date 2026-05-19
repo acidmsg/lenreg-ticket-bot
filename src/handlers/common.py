@@ -5,6 +5,7 @@ from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
@@ -20,6 +21,7 @@ from src.keyboards.inline import (
     get_patient_selection,
 )
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
+from src.services.export import export_monitoring_csv, export_monitoring_json
 from src.services.healthcheck import format_status_report
 from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
 from src.utils.helpers import (
@@ -121,8 +123,8 @@ async def _discover_doctors_on_demand(
                 continue  # пробуем следующего пациента
 
             for spec_info in specialties_data:
-                spec_id = spec_info["IdSpesiality"]
-                spec_name = spec_info["NameSpesiality"]
+                spec_id = spec_info.specialty_id
+                spec_name = spec_info.specialty_name
                 doctors = await api.fetch_all_doctors(
                     specialty_id=spec_id,
                     patient_id=current_patient_id,
@@ -1055,11 +1057,114 @@ async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager):
                 user_data["patients"], user_data["monitoring"]
             )
 
-        await _send_nav_photo(
-            call.bot,
-            call.message,
-            "patient",
-            text,
-            reply_markup,
-            db=db,
+        if call.bot and isinstance(call.message, Message):
+            await _send_nav_photo(
+                call.bot,
+                call.message,
+                "patient",
+                text,
+                reply_markup,
+                db=db,
+            )
+
+
+# ── Экспорт данных мониторинга ──────────────────────────────
+
+
+@router.message(Command("export"), IsAdmin())
+async def cmd_export(message: Message, db: DatabaseManager):
+    """Экспорт данных мониторинга в CSV или JSON.
+
+    Показывает пользователю inline-клавиатуру с выбором формата.
+    После выбора генерирует файл и отправляет его.
+    """
+    if not message.from_user:
+        return
+
+    uid = str(message.from_user.id)
+    user_data = await db.get_user_data(uid)
+
+    # Проверяем, есть ли данные для экспорта
+    patients = user_data.get("patients", {})
+    monitoring = user_data.get("monitoring", {})
+
+    if not patients and not monitoring:
+        await message.answer(
+            "📭 Нет данных для экспорта.\n\n"
+            "Добавьте пациентов и настройте мониторинг, "
+            "чтобы появилась информация для выгрузки."
         )
+        return
+
+    # Inline-клавиатура выбора формата
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📄 CSV", callback_data="export_csv")
+    builder.button(text="📋 JSON", callback_data="export_json")
+    builder.adjust(2)
+
+    await message.answer(
+        "📊 **Выберите формат экспорта:**\n\n"
+        "Будут выгружены данные по всем пациентам и истории мониторинга.",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown",
+    )
+
+
+@router.callback_query(F.data.in_({"export_csv", "export_json"}))
+async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot):
+    """Генерация и отправка файла экспорта."""
+    if not call.from_user or not isinstance(call.message, Message):
+        return
+
+    # Ограничиваем команду только для администраторов
+    if not await IsAdmin()(call.message):
+        await call.answer(
+            "Эта команда доступна только администраторам.", show_alert=True
+        )
+        return
+
+    uid = str(call.from_user.id)
+    chat_id = call.message.chat.id
+    is_csv = call.data == "export_csv"
+
+    await call.answer("⏳ Генерирую файл...")
+
+    filepath: str | None = None
+    try:
+        if is_csv:
+            filepath = await export_monitoring_csv(db, int(uid))
+            caption = "📄 **Экспорт данных мониторинга (CSV)**"
+        else:
+            filepath = await export_monitoring_json(db, int(uid))
+            caption = "📋 **Экспорт данных мониторинга (JSON)**"
+
+        # Отправляем файл
+        document = FSInputFile(filepath)
+        await bot.send_document(
+            chat_id,
+            document,
+            caption=caption,
+            parse_mode="Markdown",
+        )
+
+    except ValueError as e:
+        await bot.send_message(chat_id, f"❌ {e}")
+        return
+    except Exception as e:
+        logger.error(f"Ошибка экспорта для uid={uid}: {e}")
+        await bot.send_message(chat_id, "❌ Произошла ошибка при генерации файла.")
+        return
+    finally:
+        # Удаляем временный файл
+        try:
+            if filepath:
+                Path(filepath).unlink(missing_ok=True)  # noqa: ASYNC240
+        except Exception as e:
+            logger.debug(f"Не удалось удалить временный файл {filepath}: {e}")
+
+    # Удаляем сообщение с выбором формата
+    try:
+        if isinstance(call.message, Message):
+            await call.message.delete()
+    except Exception:
+        pass

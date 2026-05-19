@@ -1,41 +1,27 @@
 # SESSION_LOG.md
 
-## 2026-05-19 (T-README — Актуализация README.md)
+## 2026-05-19 — Техдолг API + Экспорт данных
 
-### Задача
+### Выполненные задачи
 
-Обновлён [`README.md`](README.md) — главный файл документации проекта. Добавлены разделы Troubleshooting Guide, FAQ, полная таблица команд бота, архитектура, Docker-развёртывание.
-
-### Выполненные шаги
-
-1. Прочитаны [`README.md`](README.md), [`src/handlers/common.py`](src/handlers/common.py), [`src/handlers/registration.py`](src/handlers/registration.py), [`.env.example`](.env.example), [`docker-compose.yml`](docker-compose.yml), [`pyproject.toml`](pyproject.toml).
-2. Написан новый [`README.md`](README.md) со структурой из 11 разделов:
-   - Название и краткое описание
-   - Функциональность (8 пунктов)
-   - Команды бота (таблица `/start`, `/status` + интерактивные callback-действия)
-   - Архитектура (схема модулей `src/`, таблица ключевых технологий)
-   - Требования (Python 3.11+, Redis, прокси)
-   - Быстрый старт (5 шагов: клонирование → `.env` → зависимости → Redis → запуск)
-   - Docker-развёртывание (`docker compose up -d`)
-   - Troubleshooting Guide (5 сценариев: бот не запускается, нет слотов, ошибки валидации API, Redis, SQLite блокировки)
-   - FAQ (8 вопросов)
-   - Разработка (тесты, линтинг, типизация, CI/CD)
-   - Лицензия
-3. Обновлён [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — удалена задача T-README.
-4. Перенесена предыдущая запись в [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md).
+- **TD-API-001** — Кастомные исключения ZdravApiError/NetworkError/TimeoutError/ParseError. Создан [`src/api/exceptions.py`](src/api/exceptions.py), все методы `ZdravClient` используют цепочку конкретных except вместо голого `Exception`.
+- **TD-API-002** — Кэширование статических заголовков. Вынесены в `self._base_headers` (инициализация в `__init__`), `_get_headers()` возвращает `{**self._base_headers, "User-Agent": ...}`.
+- **TD-API-003** — Документирование контракта `check_slots()`. Добавлен Google-style docstring с описанием всех вариантов возврата (None / [] / ["DD.MM.YYYY", ...]).
+- **TD-API-005** — Алиасы полей `SpecialityItem`. `NameSpesiality` → `specialty_name`, `IdSpesiality` → `specialty_id`, `FerIdSpesiality` → `fer_id_specialty` через `Field(alias=...)` с `populate_by_name=True`. Заменены строковые обращения в `handlers/common.py` и `doctor_discovery.py`.
+- **F6** — Экспорт данных мониторинга в CSV/JSON. Создан [`src/services/export.py`](src/services/export.py), команда `/export` в [`src/handlers/common.py`](src/handlers/common.py), таблица `monitoring_log` (миграция v6), тесты в [`tests/test_export.py`](tests/test_export.py).
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие                                       |
-| ------------------------------------------------------------------ | ---------------------------------------------- |
-| [`README.md`](README.md)                                           | Полностью переписан (31 → ~310 строк)          |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Удалена задача T-README                        |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Новая запись о T-README                        |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Добавлена предыдущая запись (T-API-VERSIONING) |
-
-### Результаты проверок
-
-| Инструмент     | Результат                |
-| -------------- | ------------------------ |
-| `markdownlint` | Ожидается 0 errors       |
-| `prettier`     | Ожидается форматирование |
+- [`src/api/exceptions.py`](src/api/exceptions.py) — новый файл
+- [`src/api/zdrav_client.py`](src/api/zdrav_client.py) — кастомные исключения, кэш заголовков, docstring
+- [`src/api/models.py`](src/api/models.py) — алиасы полей SpecialityItem
+- [`src/api/__init__.py`](src/api/__init__.py) — экспорт исключений
+- [`src/services/export.py`](src/services/export.py) — новый файл
+- [`src/services/__init__.py`](src/services/__init__.py) — экспорт функций
+- [`src/services/monitor.py`](src/services/monitor.py) — запись в monitoring_log
+- [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py) — атрибутный доступ к SpecialityItem
+- [`src/database/database.py`](src/database/database.py) — методы monitoring_log
+- [`src/database/manager.py`](src/database/manager.py) — прокси-методы monitoring_log
+- [`src/database/migrations.py`](src/database/migrations.py) — миграция v6
+- [`src/handlers/common.py`](src/handlers/common.py) — команда /export, атрибутный доступ
+- [`tests/test_export.py`](tests/test_export.py) — новый файл

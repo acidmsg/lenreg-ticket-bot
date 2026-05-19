@@ -1,5 +1,6 @@
 import asyncio
 import random
+import time
 from pathlib import Path
 
 from aiogram import Bot
@@ -190,10 +191,56 @@ async def _check_single_doctor(
 
     result = _classify_slot_change(slots, old_slots_data)
 
-    if result is None:
-        return
+    # Логируем изменение в monitoring_log независимо от initial_sync
+    if result is not None:
+        header, display_slots, notify_type = result
 
-    header, display_slots, notify_type = result
+        # Определяем статус для лога
+        status_map = {
+            "available": "появился",
+            "new": "появился",
+            "empty": "исчез",
+            "decreased": "уменьшился",
+        }
+        log_status = status_map.get(notify_type, notify_type)
+
+        # Берём первую дату слота (если есть) для slot_date
+        slot_date = ""
+        if slots:
+            slot_date = slots[0].split(",")[0].strip() if "," in slots[0] else slots[0]
+
+        p_label = p_info.get("alias") or p_info.get("fio", "Пациент")
+        d_name = d_info.get("name", "Врач") if isinstance(d_info, dict) else str(d_info)
+        d_spec = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
+        clinic_id = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
+
+        # Получаем название клиники
+        clinic_name = ""
+        if clinic_id:
+            try:
+                name = await db.get_clinic_name(clinic_id)
+                if name:
+                    clinic_name = name
+            except Exception:
+                pass
+
+        try:
+            await db.add_monitoring_log(
+                uid=uid,
+                p_id=p_id,
+                d_id=d_id,
+                doctor_name=d_name,
+                patient_name=p_label,
+                specialty=d_spec,
+                clinic_name=clinic_name,
+                slot_date=slot_date,
+                status=log_status,
+                ts=time.time(),
+            )
+        except Exception as e:
+            logger.debug(f"Не удалось записать лог мониторинга: {e}")
+    else:
+        return
 
     # Initial sync: только заполняем кэш, уведомления не отправляем
     if initial_sync:

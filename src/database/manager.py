@@ -256,3 +256,42 @@ class DatabaseManager:
     async def load(self):
         await self._db.connect()
         await self.refresh_cache()
+
+    # ── Monitoring Log ───────────────────────────────────────
+
+    async def add_monitoring_log(
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        doctor_name: str,
+        patient_name: str,
+        specialty: str,
+        clinic_name: str,
+        slot_date: str,
+        status: str,
+        ts: float,
+    ):
+        """Добавляет запись в лог мониторинга."""
+        return await self._db.add_monitoring_log(
+            uid=uid,
+            p_id=p_id,
+            d_id=d_id,
+            doctor_name=doctor_name,
+            patient_name=patient_name,
+            specialty=specialty,
+            clinic_name=clinic_name,
+            slot_date=slot_date,
+            status=status,
+            ts=ts,
+        )
+
+    async def get_user_monitoring_logs(
+        self, uid: str, limit: int = 5000, offset: int = 0
+    ) -> list[dict]:
+        """Возвращает логи мониторинга пользователя."""
+        return await self._db.get_user_monitoring_logs(uid, limit=limit, offset=offset)
+
+    async def get_user_monitoring_logs_count(self, uid: str) -> int:
+        """Возвращает количество записей лога пользователя."""
+        return await self._db.get_user_monitoring_logs_count(uid)
