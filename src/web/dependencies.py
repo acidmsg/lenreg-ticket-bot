@@ -4,6 +4,8 @@
 Предоставляют доступ к singleton-объектам через app.state.
 """
 
+from typing import cast
+
 from fastapi import Request
 
 from src.database.manager import DatabaseManager
@@ -13,14 +15,14 @@ from src.services.metrics import PrometheusMetrics
 
 def get_db(request: Request) -> DatabaseManager:
     """Возвращает DatabaseManager из app.state."""
-    return request.app.state.db
+    return cast(DatabaseManager, request.app.state.db)
 
 
 def get_health_metrics(request: Request) -> HealthMetrics:
     """Возвращает HealthMetrics из app.state."""
-    return request.app.state.health_metrics
+    return cast(HealthMetrics, request.app.state.health_metrics)
 
 
 def get_prometheus_metrics(request: Request) -> PrometheusMetrics:
     """Возвращает PrometheusMetrics из app.state."""
-    return request.app.state.prometheus_metrics
+    return cast(PrometheusMetrics, request.app.state.prometheus_metrics)

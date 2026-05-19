@@ -199,9 +199,7 @@ class PrometheusMetrics:
 
     def set_schema_drift(self, endpoint: str, has_drift: bool) -> None:
         """Устанавливает Gauge расхождения схемы для эндпоинта."""
-        self._schema_drift.labels(endpoint=endpoint).set(
-            1.0 if has_drift else 0.0
-        )
+        self._schema_drift.labels(endpoint=endpoint).set(1.0 if has_drift else 0.0)
         # Сохраняем в dict для веб-дашборда
         self._schema_status[endpoint] = has_drift
 

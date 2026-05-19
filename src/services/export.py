@@ -53,12 +53,10 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
         log_by_key.setdefault(key, []).append(entry)
 
     # Создаём временный CSV-файл
-    tmp = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         delete=False, suffix=".csv", mode="w", newline="", encoding="utf-8-sig"
-    )
-    filepath: str = tmp.name
-
-    try:
+    ) as tmp:
+        filepath: str = tmp.name
         writer = csv.writer(tmp)
         writer.writerow(
             [
@@ -101,7 +99,7 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
                     "fio", _("patient-fallback-name")
                 )
 
-                for d_id, d_info in doctors.items():
+                for _d_id, d_info in doctors.items():
                     if isinstance(d_info, dict):
                         d_name = d_info.get("name", "")
                         d_spec = d_info.get("specialty", "")
@@ -131,8 +129,6 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
             uid,
             rows_written,
         )
-    finally:
-        tmp.close()
 
     return filepath
 
@@ -239,23 +235,19 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
         export_data["patients"].append(patient_entry)
 
     # Создаём временный JSON-файл
-    tmp = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         delete=False,
         suffix=".json",
         mode="w",
         encoding="utf-8",
-    )
-    filepath: str = tmp.name
-
-    try:
+    ) as tmp:
+        filepath: str = tmp.name
         json.dump(export_data, tmp, ensure_ascii=False, indent=2, default=str)
         logger.info(
             "JSON-экспорт для uid={}: {} пациентов",
             uid,
             len(export_data["patients"]),
         )
-    finally:
-        tmp.close()
 
     return filepath
 

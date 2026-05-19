@@ -6,6 +6,7 @@
 
 import asyncio
 import time
+from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
@@ -69,10 +70,8 @@ async def _cleanup_pass(bot: Bot, db: DatabaseManager):
 
             age = now - ts
             if age >= ttl:
-                try:
+                with suppress(TelegramAPIError):
                     await bot.delete_message(int(uid), msg_id)
-                except TelegramAPIError:
-                    pass  # сообщение уже могло быть удалено
                 del last_messages[key]
                 changed = True
                 total_deleted += 1

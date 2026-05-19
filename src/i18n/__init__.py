@@ -16,13 +16,14 @@
 import json
 import os
 from gettext import GNUTranslations, NullTranslations, translation
+from typing import cast
 
 # Текущий язык (устанавливается при старте)
 _current_lang: str = "ru"
 
 # Gettext-обёртки (устанавливаются через setup_i18n)
-_translations_bot: "GNUTranslations | NullTranslations" = NullTranslations()  # type: ignore[assignment]
-_translations_data: "GNUTranslations | NullTranslations" = NullTranslations()  # type: ignore[assignment]
+_translations_bot: "GNUTranslations | NullTranslations" = NullTranslations()
+_translations_data: "GNUTranslations | NullTranslations" = NullTranslations()
 
 
 def setup_i18n(lang: str) -> None:
@@ -44,6 +45,7 @@ def setup_i18n(lang: str) -> None:
     )
 
     # Домен bot
+    t_bot: GNUTranslations | NullTranslations
     try:
         t_bot = translation(
             "bot",
@@ -67,9 +69,10 @@ def setup_i18n(lang: str) -> None:
         except FileNotFoundError:
             pass
 
-    _translations_bot = t_bot  # type: ignore[assignment]
+    _translations_bot = t_bot
 
     # Домен data
+    t_data: GNUTranslations | NullTranslations
     try:
         t_data = translation(
             "data",
@@ -93,7 +96,7 @@ def setup_i18n(lang: str) -> None:
         except FileNotFoundError:
             pass
 
-    _translations_data = t_data  # type: ignore[assignment]
+    _translations_data = t_data
 
 
 def _(msgid: str) -> str:
@@ -152,7 +155,7 @@ def load_json_data(filename: str, lang: str | None = None) -> dict[str, str]:
     path = os.path.join(locales_dir, target_lang, "data", filename)
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            return cast(dict[str, str], json.load(f))
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
@@ -161,7 +164,7 @@ def load_json_data(filename: str, lang: str | None = None) -> dict[str, str]:
         ru_path = os.path.join(locales_dir, "ru", "data", filename)
         try:
             with open(ru_path, encoding="utf-8") as f:
-                return json.load(f)
+                return cast(dict[str, str], json.load(f))
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 

@@ -255,12 +255,14 @@ class TestMonitorLoop:
     async def test_monitors_doctor_slots_disappeared(self, monkeypatch):
         """Slots disappear (was a list, now empty) → notification sent."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=[],
-            swap_cache_return=["2026-05-15 в 10:00"],
-            sleep_raises_on_call=6,
+        bot, api, db, swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=[],
+                swap_cache_return=["2026-05-15 в 10:00"],
+                sleep_raises_on_call=6,
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -277,11 +279,13 @@ class TestMonitorLoop:
     async def test_monitors_doctor_no_change(self, monkeypatch):
         """Slots unchanged → no notification sent."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=["2026-05-15 в 10:00"],
+        bot, api, db, swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=["2026-05-15 в 10:00"],
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -292,11 +296,13 @@ class TestMonitorLoop:
     async def test_monitors_doctor_first_discovery(self, monkeypatch):
         """First discovery (old=None, slots present) → notification sent."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -307,11 +313,13 @@ class TestMonitorLoop:
     ):
         """First discovery (old=None, slots empty) → no notification."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=[],
-            swap_cache_return=None,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=[],
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -320,11 +328,13 @@ class TestMonitorLoop:
     async def test_monitors_doctor_already_empty_no_duplicate(self, monkeypatch):
         """Already NONE, still empty → no notification (suppress duplicate)."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=[],
-            swap_cache_return="NONE",
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=[],
+                swap_cache_return="NONE",
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -336,12 +346,14 @@ class TestMonitorLoop:
         """Empty slots acted upon only after 3 consecutive empty responses."""
         user_data = _make_user_data()
         # sleep_raises_on_call=6: per-doc sleep (3×) + jitter (3×) → raise on 6th
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=[],
-            swap_cache_return=["2026-05-10 в 10:00"],
-            sleep_raises_on_call=6,
+        bot, api, db, swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=[],
+                swap_cache_return=["2026-05-10 в 10:00"],
+                sleep_raises_on_call=6,
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -357,11 +369,13 @@ class TestMonitorLoop:
     async def test_api_error_skips_doctor(self, monkeypatch):
         """When API returns None, doctor is skipped (no notification)."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=None,
-            swap_cache_return=None,
+        bot, api, db, swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=None,
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db)
@@ -375,11 +389,13 @@ class TestMonitorLoop:
     async def test_cancelled_error_breaks_loop(self, monkeypatch):
         """CancelledError is caught internally and loop exits cleanly."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -421,12 +437,14 @@ class TestMonitorLoop:
         }
 
         # sleep_raises_on_call=5: 3 per-doctor + 1 jitter = 4, raise on 5th
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
-            sleep_raises_on_call=5,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+                sleep_raises_on_call=5,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -446,11 +464,13 @@ class TestMonitorLoop:
             }
         }
 
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -463,11 +483,13 @@ class TestMonitorLoop:
     async def test_patient_alias_used_in_notification(self, monkeypatch):
         """Patient alias is preferred over fio in notification text."""
         user_data = _make_user_data(p_alias="Петя")
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -529,11 +551,13 @@ class TestMonitorLoop:
         new_slots = ["2026-05-10 в 10:00", "2026-05-11 в 11:00"]
 
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=new_slots,
-            swap_cache_return=old_slots,
+        bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=new_slots,
+                swap_cache_return=old_slots,
+            )
         )
 
         await monitor_loop(bot, api, db, initial_sync=False)
@@ -548,11 +572,13 @@ class TestMonitorLoop:
     async def test_initial_sync_suppresses_notifications(self, monkeypatch):
         """При initial_sync=True уведомления не отправляются, кэш заполняется."""
         user_data = _make_user_data()
-        bot, api, db, swap_mock, safe_set_mock, notify_mock = self._setup_monitor_mocks(
-            monkeypatch,
-            user_data,
-            check_slots_return=["2026-05-15 в 10:00"],
-            swap_cache_return=None,
+        bot, api, db, swap_mock, _safe_set_mock, notify_mock = (
+            self._setup_monitor_mocks(
+                monkeypatch,
+                user_data,
+                check_slots_return=["2026-05-15 в 10:00"],
+                swap_cache_return=None,
+            )
         )
 
         # initial_sync=True по умолчанию — первый цикл без уведомлений

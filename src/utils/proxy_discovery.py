@@ -115,11 +115,11 @@ async def check_proxy_connectivity(
         writer.close()
         await writer.wait_closed()
         logger.info(f"Прокси {host}:{port} доступен")
-    except TimeoutError:
+    except TimeoutError as exc:
         msg = f"Таймаут соединения с прокси {host}:{port} ({connect_timeout}с)"
         logger.error(msg)
-        raise ConnectionError(msg)
+        raise ConnectionError(msg) from exc
     except OSError as e:
         msg = f"Прокси {host}:{port} недоступен: {e}"
         logger.error(msg)
-        raise ConnectionError(msg)
+        raise ConnectionError(msg) from e

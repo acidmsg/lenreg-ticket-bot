@@ -183,7 +183,7 @@ def get_city_selection(
 
     # Считаем, сколько мониторингов в каждом городе
     city_counts: dict[str, int] = {}
-    for d_id, d_info in p_monitoring.items():
+    for _d_id, d_info in p_monitoring.items():
         if isinstance(d_info, dict):
             c_id = d_info.get("clinic_id", "")
             city = clinic_city.get(c_id, _("city-fallback-other"))

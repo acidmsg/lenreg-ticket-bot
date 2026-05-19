@@ -2,6 +2,8 @@
 Тесты для keyboards/inline.py — T4.
 """
 
+from typing import ClassVar
+
 
 def _extract_buttons(markup):
     """Извлекает список (text, callback_data) из InlineKeyboardMarkup."""
@@ -127,7 +129,7 @@ class TestShortClinicLabel:
 class TestPatientSelection:
     """Тесты get_patient_selection."""
 
-    SAMPLE_PATIENTS = {
+    SAMPLE_PATIENTS: ClassVar[dict] = {
         "p1": {"alias": "Мама", "fio": "Иванова Анна Петровна"},
         "p2": {"alias": None, "fio": "Петров Иван Сидорович"},
         "p3": {"alias": "Сын", "fio": "Сидоров Пётр Александрович"},
@@ -288,7 +290,7 @@ class TestCitySelection:
 class TestDoctorSelection:
     """Тесты get_doctor_selection."""
 
-    DOCTORS = {
+    DOCTORS: ClassVar[dict] = {
         "d1": {"name": "Иванов Иван Иванович", "specialty": "Терапия"},
         "d2": {"name": "Петров Пётр Петрович", "specialty": "Хирургия"},
         "d3": {"name": "Сидоров Алексей Борисович", "specialty": "Терапия"},
@@ -404,7 +406,7 @@ class TestDoctorSelection:
 class TestClinicSelection:
     """Тесты get_clinic_selection."""
 
-    CLINICS_DATA = [
+    CLINICS_DATA: ClassVar[list] = [
         {
             "clinic_id": "271",
             "name": 'ГБУЗ "Поликлиника №1" Взрослое отделение',
@@ -431,7 +433,7 @@ class TestClinicSelection:
         },
     ]
 
-    CLINIC_NAMES = {
+    CLINIC_NAMES: ClassVar[dict] = {
         "271": "Поликлиника №1",
         "272": "Стоматология №1",
         "161": "Детская поликлиника",

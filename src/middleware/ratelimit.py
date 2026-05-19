@@ -8,6 +8,7 @@ Per-user rate limiting middleware for aiogram (Redis-backed).
 При недоступности Redis пропускает запросы без ограничений (graceful degradation).
 """
 
+import contextlib
 import time
 
 from aiogram import BaseMiddleware
@@ -101,10 +102,8 @@ class UserRateLimitMiddleware(BaseMiddleware):
         if await self._is_limited(user_id, is_callback):
             # Silently drop (or optionally answer callback to dismiss spinner)
             if isinstance(event, CallbackQuery):
-                try:
+                with contextlib.suppress(TelegramAPIError):
                     await event.answer(_("rate-limit-toast"))
-                except TelegramAPIError:
-                    pass
             return
 
         return await handler(event, data)

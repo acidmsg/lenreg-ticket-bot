@@ -826,8 +826,11 @@ class Database:
     # ── Мониторинг Лог: глобальные запросы (для дашборда) ─────
 
     async def get_all_monitoring_logs(
-        self, limit: int = 50, offset: int = 0,
-        uid: str | None = None, status: str | None = None
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        uid: str | None = None,
+        status: str | None = None,
     ) -> list[dict]:
         """Возвращает логи мониторинга с пагинацией и фильтрацией."""
         c = self._conn

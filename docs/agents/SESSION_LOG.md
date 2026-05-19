@@ -1,20 +1,16 @@
 # SESSION LOG
 
-## 2026-05-19 — Диагностика и исправление `%s`/`%d` в loguru
+## 2026-05-19 — Исправление 22 ruff-ошибок
 
 ### Выполненные задачи
 
-1. Диагностирован баг: Loguru 0.7.3 не поддерживает `%s`/`%d`-форматирование при вызове `logger.info/error/warning/debug()` с позиционными аргументами. Все `%s`-плейсхолдеры в проекте выводились буквально, без подстановки аргументов.
-2. Заменены все `%s` и `%d` на `{}` в вызовах `loguru.logger` в 4 файлах (см. ниже).
-3. Финишная проверка `Select-String` подтвердила 0 остаточных вхождений `%s`/`%d` в logger-вызовах.
+1. Исправлены 13 ошибок **E501** (line too long) в [`tests/test_monitor_full.py`](../tests/test_monitor_full.py) — длинные строки разбиты с обёрткой в `(` `)` и правильными отступами.
+2. Исправлены 4 ошибки **RUF012** (mutable default) в [`tests/test_keyboards.py`](../tests/test_keyboards.py) — добавлена аннотация `ClassVar` для классовых атрибутов + импорт `from typing import ClassVar`.
+3. Исправлены 2 ошибки **SIM115** (context manager) в [`src/services/export.py`](../src/services/export.py) — `NamedTemporaryFile` обёрнут в `with`-контекстный менеджер.
+4. Исправлены 2 ошибки **B904** (raise ... from e) в [`src/utils/proxy_discovery.py`](../src/utils/proxy_discovery.py) — добавлено `from exc` / `from e` в `except`-блоках.
+5. Исправлена 1 ошибка **SIM105** (try-except-pass) в [`src/services/cleanup.py`](../src/services/cleanup.py) — заменено на `with suppress(TelegramAPIError)`.
 
-### Изменённые файлы
+### Результаты проверок
 
-- [`src/services/doctor_discovery.py:113`](../src/services/doctor_discovery.py:113) — `%s` → `{}` (1 вызов)
-- [`src/services/error_notifier.py:177,199`](../src/services/error_notifier.py:177) — `%s` → `{}` (2 вызова)
-- [`src/services/schema_watcher.py:216,225,227,252,257,266,272,284,384,414,426,431,443,448,461`](../src/services/schema_watcher.py:216) — `%s`/`%d` → `{}` (15 вызовов)
-- [`src/utils/logging.py:133`](../src/utils/logging.py:133) — `%s` → `{}` (1 вызов)
-
-### Результаты тестов
-
-Не запускались (изменения чисто строковые, не затрагивают логику).
+- `ruff check src tests` — **0 ошибок**
+- `pytest tests/ -v` — **185 passed, 0 failed**

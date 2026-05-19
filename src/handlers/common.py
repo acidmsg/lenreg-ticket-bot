@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from pathlib import Path
 
 from aiogram import Bot, F, Router
@@ -177,10 +178,8 @@ async def _delete_cleanup_msg_entry(
 
     msg_id = extract_msg_id(value)
     if msg_id:
-        try:
+        with contextlib.suppress(TelegramAPIError):
             await bot.delete_message(uid, msg_id)
-        except TelegramAPIError:
-            pass
     del last_messages[key]
     return True
 
@@ -225,16 +224,12 @@ async def _send_or_update_message(
 
     last_msg_id = await db.get_last_message_id(uid, cache_key1, cache_key2)
     if last_msg_id:
-        try:
+        with contextlib.suppress(TelegramAPIError):
             await bot.delete_message(chat_id, last_msg_id)
-        except TelegramAPIError:
-            pass
 
     if old_message is not None:
-        try:
+        with contextlib.suppress(Exception):
             await old_message.delete()
-        except Exception:
-            pass
 
     if photo_path is not None:
         photo = FSInputFile(photo_path)
@@ -302,10 +297,8 @@ async def _send_nav_photo(
 
         # Путь без БД или fallback при ошибке хелпера:
         # удаляем call.message вручную и отправляем без кэширования
-        try:
+        with contextlib.suppress(Exception):
             await msg.delete()
-        except Exception:
-            pass
 
         try:
             if photo_path is not None:
@@ -378,7 +371,7 @@ def build_monitoring_summary(patients: dict, monitoring: dict) -> str:
             doctors.items(),
             key=lambda x: x[1].get("name", "") if isinstance(x[1], dict) else str(x[1]),
         )
-        for i, (d_id, d_info) in enumerate(sorted_docs):
+        for i, (_d_id, d_info) in enumerate(sorted_docs):
             is_last = i == len(sorted_docs) - 1
             prefix = "  ┗" if is_last else "  ┣"
             if isinstance(d_info, dict):
@@ -792,10 +785,8 @@ async def toggle_doctor(
     )
 
     # Удаляем загрузочное сообщение
-    try:
+    with contextlib.suppress(Exception):
         await loading_msg.delete()
-    except Exception:
-        pass
 
     # Отправляем финальный результат с изображением-заголовком
     notify_type = "available" if has_slots else "empty"
