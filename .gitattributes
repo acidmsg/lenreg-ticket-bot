@@ -1,2 +1,18 @@
-# Явно указываем LF для JSON (схемы, конфиги) — избегаем CRLF-предупреждений на Windows
-*.json text eol=lf
+# Все текстовые файлы — LF (Unix), проект кросс-платформенный
+* text eol=lf
+
+# Бинарные файлы — не трогать
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mo binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
