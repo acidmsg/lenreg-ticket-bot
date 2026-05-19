@@ -148,8 +148,6 @@ class DatabaseManager:
             val = user_data["last_messages"].get(key)
             if isinstance(val, dict):
                 return val.get("msg_id")
-            if isinstance(val, int):
-                return val
             return None
 
     async def add_patient(self, uid: str, p_id: str, p_info: Dict[str, Any]):

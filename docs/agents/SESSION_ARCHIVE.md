@@ -2902,3 +2902,104 @@ ruff check src/ — All checks passed!
 | -------------- | ------------------------ |
 | `markdownlint` | Ожидается 0 errors       |
 | `prettier`     | Ожидается форматирование |
+
+---
+
+## 2026-05-19 — Техдолг API + Экспорт данных
+
+### Выполненные задачи
+
+- **TD-API-001** — Кастомные исключения ZdravApiError/NetworkError/TimeoutError/ParseError. Создан [`src/api/exceptions.py`](src/api/exceptions.py), все методы `ZdravClient` используют цепочку конкретных except вместо голого `Exception`.
+- **TD-API-002** — Кэширование статических заголовков. Вынесены в `self._base_headers` (инициализация в `__init__`), `_get_headers()` возвращает `{**self._base_headers, "User-Agent": ...}`.
+- **TD-API-003** — Документирование контракта `check_slots()`. Добавлен Google-style docstring с описанием всех вариантов возврата (None / [] / ["DD.MM.YYYY", ...]).
+- **TD-API-005** — Алиасы полей `SpecialityItem`. `NameSpesiality` → `specialty_name`, `IdSpesiality` → `specialty_id`, `FerIdSpesiality` → `fer_id_specialty` через `Field(alias=...)` с `populate_by_name=True`. Заменены строковые обращения в `handlers/common.py` и `doctor_discovery.py`.
+- **F6** — Экспорт данных мониторинга в CSV/JSON. Создан [`src/services/export.py`](src/services/export.py), команда `/export` в [`src/handlers/common.py`](src/handlers/common.py), таблица `monitoring_log` (миграция v6), тесты в [`tests/test_export.py`](tests/test_export.py).
+
+### Изменённые файлы
+
+- [`src/api/exceptions.py`](src/api/exceptions.py) — новый файл
+- [`src/api/zdrav_client.py`](src/api/zdrav_client.py) — кастомные исключения, кэш заголовков, docstring
+- [`src/api/models.py`](src/api/models.py) — алиасы полей SpecialityItem
+- [`src/api/__init__.py`](src/api/__init__.py) — экспорт исключений
+- [`src/services/export.py`](src/services/export.py) — новый файл
+- [`src/services/__init__.py`](src/services/__init__.py) — экспорт функций
+- [`src/services/monitor.py`](src/services/monitor.py) — запись в monitoring_log
+- [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py) — атрибутный доступ к SpecialityItem
+- [`src/database/database.py`](src/database/database.py) — методы monitoring_log
+- [`src/database/manager.py`](src/database/manager.py) — прокси-методы monitoring_log
+- [`src/database/migrations.py`](src/database/migrations.py) — миграция v6
+- [`src/handlers/common.py`](src/handlers/common.py) — команда /export, атрибутный доступ
+- [`tests/test_export.py`](tests/test_export.py) — новый файл
+
+---
+
+## 2026-05-19 — Сужение `except Exception` в `migrate_v2_clinics_columns()`
+
+### Выполненные задачи
+
+- Добавлен `import sqlite3` в [`src/database/migrations.py`](src/database/migrations.py:11).
+- В функции `migrate_v2_clinics_columns()` заменён `except Exception` на `except sqlite3.OperationalError` ([`src/database/migrations.py:90`](src/database/migrations.py:90)).
+
+### Обоснование
+
+Историческая миграция v2 добавляет колонки в таблицу `clinics` через `ALTER TABLE ADD COLUMN`. Для новых БД колонки уже существуют (созданы миграцией v1), поэтому при повторном выполнении `ALTER` выбрасывается `sqlite3.OperationalError`. Сужение типа перехватываемого исключения предотвращает проглатывание других потенциальных ошибок.
+
+### Изменённые файлы
+
+- [`src/database/migrations.py`](src/database/migrations.py) — добавлен `import sqlite3`, заменён `except Exception` → `except sqlite3.OperationalError`
+
+---
+
+## 2026-05-19 — Консолидация миграций + исправление TD-DB-001
+
+### Выполненные задачи
+
+- **migrations.py — дополнение v1:** В `migrate_v1_initial_schema()` в `CREATE TABLE IF NOT EXISTS clinics` добавлены 3 колонки: `city`, `discovery_patient_adult`, `discovery_patient_child` ([`src/database/migrations.py:33`](src/database/migrations.py:33)).
+- **migrations.py — удаление v2:** Удалена функция `migrate_v2_clinics_columns()` — её логика (ALTER TABLE) теперь избыточна, т.к. колонки создаются в v1.
+- **migrations.py — удаление v5:** Удалена функция `migrate_v5_seed_new_config_keys()` — полностью дублируется вызовом `seed_config_from_defaults()` в `main.py`.
+- **migrations.py — очистка импортов:** Удалён `import sqlite3` (больше не используется в файле).
+- **migrations.py — список MIGRATIONS:** Удалены записи `(2, migrate_v2_clinics_columns)` и `(5, migrate_v5_seed_new_config_keys)`. Актуальный список: `v1, v6`.
+- **database.py — TD-DB-001:** В `seed_specialty_aliases_from_fallback()` и `seed_config_from_defaults()` заменён `logger.warning` → `logger.error` в блоках `except Exception` ([`src/database/database.py:628`](src/database/database.py:628), [`src/database/database.py:676`](src/database/database.py:676)).
+
+### Обоснование
+
+v1 не содержала колонки `city`, `discovery_patient_adult`, `discovery_patient_child` — они добавлялись через `ALTER TABLE` в v2. После дополнения v1 этими колонками v2 становится избыточной. v5 (`INSERT OR IGNORE INTO config`) полностью дублируется вызовом `seed_config_from_defaults()` в `main.py`, который содержит больше ключей. TD-DB-001: обе функции сидирования используют `try/except Exception: logger.warning`, из-за чего ошибки незаметны — заменено на `logger.error`.
+
+### Изменённые файлы
+
+- [`src/database/migrations.py`](src/database/migrations.py) — дополнена v1 (3 колонки), удалены v2, v5, `import sqlite3`, обновлён список MIGRATIONS
+- [`src/database/database.py`](src/database/database.py) — `logger.warning` → `logger.error` в двух seed-функциях
+
+---
+
+## 2026-05-19 — Аудит TECH_DEBT.md + консолидация миграций + исправление TD-DB-001
+
+### Выполненные задачи
+
+- **Аудит TECH_DEBT.md** — проверены 7 записей TD-DB-001..007 в [`src/database/database.py`](src/database/database.py), [`src/database/manager.py`](src/database/manager.py), [`src/database/migrations.py`](src/database/migrations.py).
+
+- **TD-DB-006 (миграции):** Сужен `except Exception` → `except sqlite3.OperationalError` в `migrate_v2_clinics_columns()`. Позже функция удалена полностью.
+
+- **Анализ системы миграций:** Установлено, что v1 не содержит 3 колонки (`city`, `discovery_patient_adult`, `discovery_patient_child`), v2 избыточна после дополнения v1, v5 дублируется `seed_config_from_defaults()`, v3/v4 уже удалены.
+
+- **Консолидация миграций** в [`src/database/migrations.py`](src/database/migrations.py):
+  - `migrate_v1_initial_schema()`: добавлены колонки `city`, `discovery_patient_adult`, `discovery_patient_child` в `CREATE TABLE clinics`
+  - Удалены функции `migrate_v2_clinics_columns()` и `migrate_v5_seed_new_config_keys()`
+  - Удалён `import sqlite3`
+  - Список MIGRATIONS: v1, v6
+
+- **TD-DB-001** в [`src/database/database.py`](src/database/database.py): `logger.warning` → `logger.error` в `seed_specialty_aliases_from_fallback()` и `seed_config_from_defaults()`.
+
+- **Обновление [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md):**
+  - Удалены TD-DB-001 (исправлено), TD-DB-002 (не баг), TD-DB-003 (не баг), TD-DB-004 (не баг), TD-DB-006 (исправлено), TD-DB-007 (исправлено)
+  - Обновлена TD-DB-005: строки и приоритет
+
+### Обоснование
+
+Аудит TECH_DEBT.md выявил, что из 7 записей TD-DB-001..007 три были реальными багами (TD-DB-001, TD-DB-006, TD-DB-007), три — не багами, а штатным поведением (TD-DB-002, TD-DB-003, TD-DB-004), и одна (TD-DB-005) — действующая. В ходе консолидации миграций v1 дополнена недостающими колонками, v2 и v5 удалены как избыточные.
+
+### Изменённые файлы
+
+- [`src/database/migrations.py`](src/database/migrations.py) — дополнена v1 (3 колонки), удалены v2, v5, `import sqlite3`, обновлён список MIGRATIONS
+- [`src/database/database.py`](src/database/database.py) — `logger.warning` → `logger.error` в двух seed-функциях
+- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены 6 записей, обновлена TD-DB-005

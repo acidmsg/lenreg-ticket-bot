@@ -625,7 +625,7 @@ class Database:
                 len(SPECIALTY_ALIASES),
             )
         except Exception as e:
-            logger.warning(f"Не удалось заполнить specialty_aliases из fallback: {e}")
+            logger.error(f"Не удалось заполнить specialty_aliases из fallback: {e}")
 
     async def seed_config_from_defaults(self):
         """
@@ -673,7 +673,7 @@ class Database:
                 len(defaults),
             )
         except Exception as e:
-            logger.warning(f"Не удалось заполнить config из defaults: {e}")
+            logger.error(f"Не удалось заполнить config из defaults: {e}")
 
     async def get_active_clinic_ids(self) -> list[str]:
         """Возвращает список clinic_id активных клиник (is_active = 1)."""

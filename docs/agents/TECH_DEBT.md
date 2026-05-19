@@ -1,28 +1,18 @@
 # Технический долг (Technical Debt)
 
-> **Последнее обновление:** 2026-05-18
+> **Последнее обновление:** 2026-05-19
 > **Источники:** [`code_review.md`](code_review.md) (2026-05-14), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md) (2026-05-11), [`docs/code_review_optimization.md`](docs/code_review_optimization.md) (2026-05-15)
 >
 > **Это НЕ план работ.** Это каталог известных проблем, которые будут исправляться по мере возможности.
 > Активные задачи (CRITICAL, HIGH, MEDIUM, FEATURES) вынесены в [`AGENT_TASKS.md`](AGENT_TASKS.md).
 > **Статус:** ⬜ — не начато. Исправленные пункты удаляются из списка.
-> **Верификация:** 2026-05-18 — сверка против кода. 6 оптимизаций выполнено и удалено, 2 дубликата объединено.
+> **Верификация:** 2026-05-19 — сверка против кода. 6 оптимизаций выполнено и удалено, 2 дубликата объединено, 7 записей техдолга БД очищено (включая TD-DB-005).
 
 ---
 
 ## 🟢 LOW / TECH DEBT
 
 ### src/database/
-
-| ID        | Задача                                                                                                                                           | Файл:строка                                                                              | Примечание                                         |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| TD-DB-001 | `seed_specialty_aliases_from_fallback()` и `seed_config_from_defaults()` падают тихо (только warning) — бот продолжит работу с неполными данными | [`database.py`](src/database/database.py)                                                | Риск скрытых ошибок сидирования                    |
-| TD-DB-002 | `detect_clinic_city()` — дублирующиеся записи "всеволож" и "всеволожск" в маппинге settlements                                                   | [`database.py:58-59`](src/database/database.py:58)                                       | Не критично, но неаккуратно                        |
-| TD-DB-003 | `_replace_patients()` и `_replace_monitoring()` — DELETE + INSERT вместо `INSERT OR REPLACE`, потенциальный race condition                       | [`manager.py:59,74`](src/database/manager.py:59)                                         | Требует рефакторинга с учётом lock                 |
-| TD-DB-004 | `update_user()` — ручное управление BEGIN/COMMIT/ROLLBACK вместо context manager, риск зависшей транзакции                                       | [`manager.py:102-128`](src/database/manager.py:102)                                      | Заменить на `async with db._db._conn.execute(...)` |
-| TD-DB-005 | `get_last_message_id()` — поддержка legacy-формата (int вместо dict), усложняет код                                                              | [`manager.py:153-154`](src/database/manager.py:153)                                      | Можно удалить после миграции всех пользователей    |
-| TD-DB-006 | `migrate_v2_clinics_columns()` — голый `except Exception: pass`, скрывает ошибки миграции                                                        | [`migrations.py:89`](src/database/migrations.py:89)                                      | Низкий риск, миграция уже применена                |
-| TD-DB-007 | Дублирование `migrate_v5_seed_new_config_keys` и `database.seed_config_from_defaults()` — разное поведение (INSERT OR IGNORE vs REPLACE)         | [`migrations.py`](src/database/migrations.py), [`database.py`](src/database/database.py) | Унифицировать                                      |
 
 ### src/handlers/
 
