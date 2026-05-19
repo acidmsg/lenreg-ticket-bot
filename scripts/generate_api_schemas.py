@@ -16,6 +16,8 @@ import logging
 import sys
 from pathlib import Path
 
+from pydantic import BaseModel
+
 # Добавляем корень проекта в sys.path для импорта src.*
 _project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_project_root))
@@ -38,7 +40,7 @@ from src.api.models import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 # Список Pydantic-моделей для генерации схем
-MODELS = [
+MODELS: list[type[BaseModel]] = [
     CheckPatientResponse,
     CheckPatientData,
     SpecialityListResponse,
@@ -62,7 +64,7 @@ def main() -> None:
     SCHEMAS_DIR.mkdir(parents=True, exist_ok=True)
 
     for model in MODELS:
-        schema = model.model_json_schema()  # type: ignore[attr-defined]
+        schema = model.model_json_schema()
         filepath = SCHEMAS_DIR / f"{model.__name__}.json"
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(schema, f, indent=2, ensure_ascii=False)
