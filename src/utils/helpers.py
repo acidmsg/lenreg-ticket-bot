@@ -117,32 +117,88 @@ def is_cabinet(name: str) -> bool:
     """
     Определяет, является ли запись 'кабинетом' (не врачом-человеком).
 
-    Критерий: если name состоит из трёх слов, каждое из которых начинается
-    с заглавной буквы и содержит только русские буквы — это ФИО (человек).
-    Иначе — кабинет / процедура.
+    Комбинированная эвристика:
+    1. Ключевые слова кабинетов/отделений → сразу кабинет.
+    2. Наличие цифр или № → кабинет.
+    3. Проверка на ФИО (2 или 3 слова, русские буквы, заглавные).
     """
     if not name:
         return True
-    words = name.strip().split()
+
+    # Шаг 1: ключевые слова-индикаторы кабинета/отделения
+    cabinet_keywords = [
+        "кабинет",
+        "отделение",
+        "лаборатория",
+        "процедурный",
+        "прививочный",
+        "смотровой",
+        "доврачебный",
+        "центр",
+    ]
+    lower_name = name.lower()
+    for kw in cabinet_keywords:
+        if kw in lower_name:
+            return True
+
+    # Шаг 2: наличие цифр или знака номера
+    if re.search(r"[0-9№#N]", name):
+        return True
+
+    # Шаг 3: проверка на ФИО
+    # Фильтруем пустые части (двойные пробелы)
+    words = [w for w in name.strip().split() if w]
+    # Паттерн: слово с заглавной русской буквы, допускается дефис внутри
+    russian_word = re.compile(r"^[А-ЯЁ][а-яё-]+$")
+
     if len(words) == 3:
-        # Проверяем, похоже ли на ФИО Иванов Иван Иванович
-        russian_word = re.compile(r"^[А-ЯЁ][а-яё]+$")
         if all(russian_word.match(w) for w in words):
-            return False  # это человек
-    return True  # это кабинет
+            # Дополнительная проверка: третье слово похоже на отчество
+            third = words[2].lower()
+            patronymic_endings = ("вич", "вна", "ич", "инична")
+            if third.endswith(patronymic_endings):
+                return False  # точно человек
+            # Если не похоже на отчество, но все 3 слова русские —
+            # всё равно считаем человеком (может быть редкое отчество)
+            return False
+        return True
+
+    if len(words) == 2:
+        return not all(russian_word.match(w) for w in words)
+
+    # 1 слово или >3 слов
+    return True
 
 
 def shorten_fio(name: str) -> str:
     """
     Сокращает ФИО до вида: "Бранчель Н. П."
-    Если имя не похоже на ФИО — возвращает как есть.
+
+    - 3 слова: "Иванов Иван Иванович" → "Иванов И. И."
+    - 2 слова: "Иванов Иван" → "Иванов И."
+    - Пустые части фильтруются, fallback — фамилия или исходная строка.
     """
-    parts = name.strip().split()
+    # Отбрасываем пустые части (двойные пробелы)
+    parts = [p for p in name.strip().split() if p]
+    if not parts:
+        return name  # пустая строка — как есть
+
     if len(parts) == 3:
         surname = parts[0]
         first = parts[1][0] if parts[1] else ""
         middle = parts[2][0] if parts[2] else ""
-        return f"{surname} {first}. {middle}."
+        if first and middle:
+            return f"{surname} {first}. {middle}."
+        elif first:
+            return f"{surname} {first}."
+        else:
+            return surname  # fallback: только фамилия
+
+    if len(parts) == 2:
+        # Фамилия Имя (без отчества)
+        return f"{parts[0]} {parts[1][0]}." if parts[1] else parts[0]
+
+    # 1 слово или >3 — возвращаем как есть
     return name
 
 

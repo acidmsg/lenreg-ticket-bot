@@ -5,11 +5,20 @@
 import json
 import os
 import re
-from typing import Any
 
+import aiofiles.os
 import aiosqlite
 from loguru import logger
 
+from src.database.types import (
+    ClinicInfo,
+    DoctorEntry,
+    LastMessageEntry,
+    MonitoringEntry,
+    MonitoringLogEntry,
+    PatientInfo,
+    UserData,
+)
 from src.i18n import _data
 
 
@@ -72,7 +81,7 @@ def detect_clinic_city(name: str) -> str:
         ("вартемяги", "Вартемяги"),
         ("куйвози", "Куйвози"),
         ("лесколово", "Лесколово"),
-        ("сте – клянный", "Стеклянный"),
+        ("стеклянный", "Стеклянный"),
         ("пери", "Пери"),
         ("лесное", "Лесное"),
         ("юкки", "Юкки"),
@@ -130,9 +139,9 @@ class Database:
     async def connect(self):
         """Открыть соединение и создать таблицы."""
         data_dir = os.path.dirname(self.db_path)
-        if data_dir and not os.path.exists(data_dir):  # noqa: ASYNC240
+        if data_dir and not await aiofiles.os.path.exists(data_dir):
             try:
-                os.makedirs(data_dir)
+                await aiofiles.os.makedirs(data_dir)
                 logger.info(f"Каталог '{data_dir}' создан для базы данных.")
             except OSError as e:
                 logger.error(f"Не удалось создать каталог '{data_dir}': {e}")
@@ -215,7 +224,7 @@ class Database:
                 logger.info(f"Миграция v{version} применена")
 
     # ── Пользователи ────────────────────────────────────────
-    async def get_user(self, uid: str) -> dict[str, Any] | None:
+    async def get_user(self, uid: str) -> UserData | None:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -227,7 +236,7 @@ class Database:
             (uid,),
         )
         lm_rows = await lm_cursor.fetchall()
-        last_messages = {}
+        last_messages: dict[str, LastMessageEntry] = {}
         for lmr in lm_rows:
             key = f"{lmr['p_id']}_{lmr['d_id']}"
             last_messages[key] = {"msg_id": lmr["msg_id"], "ts": lmr["ts"]}
@@ -235,11 +244,12 @@ class Database:
         if not patients and not monitoring and not last_messages:
             return None
 
-        return {
+        user_data: UserData = {
             "patients": patients,
             "monitoring": monitoring,
             "last_messages": last_messages,
         }
+        return user_data
 
     async def get_all_user_ids(self) -> list[str]:
         c = self._conn
@@ -272,7 +282,7 @@ class Database:
 
     async def get_last_message(
         self, uid: str, p_id: str, d_id: str
-    ) -> dict[str, Any] | None:
+    ) -> LastMessageEntry | None:
         c = self._conn
         if c is None:
             return None
@@ -283,12 +293,13 @@ class Database:
         )
         row = await cursor.fetchone()
         if row:
-            return {"msg_id": row["msg_id"], "ts": row["ts"]}
+            entry: LastMessageEntry = {"msg_id": row["msg_id"], "ts": row["ts"]}
+            return entry
         return None
 
     # ── Пациенты (user_patients) ────────────────────────────
 
-    async def get_user_patients(self, uid: str) -> dict[str, dict[str, Any]]:
+    async def get_user_patients(self, uid: str) -> dict[str, PatientInfo]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -298,12 +309,12 @@ class Database:
             (uid,),
         )
         rows = await cursor.fetchall()
-        result = {}
+        result: dict[str, PatientInfo] = {}
         for row in rows:
             confirmed = (
                 json.loads(row["confirmed_clinics"]) if row["confirmed_clinics"] else []
             )
-            p_info = {
+            p_info: PatientInfo = {
                 "fio": row["fio"],
                 "bday": row["bday"],
                 "alias": row["alias"],
@@ -380,7 +391,7 @@ class Database:
 
     async def get_user_monitoring(
         self, uid: str
-    ) -> dict[str, dict[str, dict[str, Any]]]:
+    ) -> dict[str, dict[str, MonitoringEntry]]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -390,7 +401,7 @@ class Database:
             (uid,),
         )
         rows = await cursor.fetchall()
-        result: dict[str, dict[str, dict[str, Any]]] = {}
+        result: dict[str, dict[str, MonitoringEntry]] = {}
         for row in rows:
             p_id = row["p_id"]
             if p_id not in result:
@@ -444,7 +455,7 @@ class Database:
 
     # ── Врачи ───────────────────────────────────────────────
 
-    async def get_clinic_doctors(self, clinic_id: str) -> dict[str, dict[str, str]]:
+    async def get_clinic_doctors(self, clinic_id: str) -> dict[str, DoctorEntry]:
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -570,7 +581,7 @@ class Database:
             )
         return ("", "")
 
-    async def get_active_clinics(self) -> list[dict]:
+    async def get_active_clinics(self) -> list[ClinicInfo]:
         """Возвращает список активных клиник с полными данными (включая city)."""
         c = self._conn
         if c is None:
@@ -781,7 +792,7 @@ class Database:
 
     async def get_user_monitoring_logs(
         self, uid: str, limit: int = 5000, offset: int = 0
-    ) -> list[dict]:
+    ) -> list[MonitoringLogEntry]:
         """Возвращает логи мониторинга для пользователя, отсортированные по времени."""
         c = self._conn
         if c is None:
@@ -831,7 +842,7 @@ class Database:
         offset: int = 0,
         uid: str | None = None,
         status: str | None = None,
-    ) -> list[dict]:
+    ) -> list[MonitoringLogEntry]:
         """Возвращает логи мониторинга с пагинацией и фильтрацией."""
         c = self._conn
         if c is None:

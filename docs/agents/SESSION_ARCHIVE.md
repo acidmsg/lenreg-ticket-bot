@@ -3994,3 +3994,129 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | ------------------- | ----------------- |
 | `ruff` (pre-commit) | ✅ Passed         |
 | `git commit`        | ✅ Успешно создан |
+
+---
+
+## 2026-05-19 — Техдолг src/services/ (TD-SVC-001..008)
+
+**Задача:** Устранение 8 пунктов технического долга из секции `src/services/` согласно [`TECH_DEBT.md`](TECH_DEBT.md).
+
+### Выполненные задачи
+
+| ID         | Описание                                                                                                    | Файл                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| TD-SVC-001 | Рефакторинг `_classify_slot_change()` → `_handle_disappeared()`, `_handle_appeared()`, `_handle_decrease()` | [`monitor.py:54-113`](src/services/monitor.py:54)                     |
+| TD-SVC-002 | Частичное сохранение врачей в `discovery_loop` (per-specialty commit)                                       | [`doctor_discovery.py:87-114`](src/services/doctor_discovery.py:87)   |
+| TD-SVC-003 | Фиксированная пауза 0.7с вместо `random.uniform(1,3)`                                                       | [`doctor_discovery.py:116`](src/services/doctor_discovery.py:116)     |
+| TD-SVC-004 | `exc_info=False` после 3 последовательных ошибок в `sync_clinic_names()`                                    | [`doctor_discovery.py:139-169`](src/services/doctor_discovery.py:139) |
+| TD-SVC-005 | Per-metric `asyncio.Lock` вместо глобального lock                                                           | [`healthcheck.py:101-106`](src/services/healthcheck.py:101)           |
+| TD-SVC-006 | Пакетная обработка (батчи по 50) вместо загрузки всех пользователей                                         | [`cleanup.py:40`](src/services/cleanup.py:40)                         |
+| TD-SVC-007 | Валидация `uid` через `try/except (ValueError, TypeError)` перед `int()`                                    | [`cleanup.py:81`](src/services/cleanup.py:81)                         |
+| TD-SVC-008 | Обрезка traceback с начала: `tb_str[:2000]` вместо `tb_str[-2000:]`                                         | [`error_notifier.py:78`](src/services/error_notifier.py:78)           |
+
+### Изменённые файлы
+
+- [`src/services/monitor.py`](src/services/monitor.py)
+- [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py)
+- [`src/services/healthcheck.py`](src/services/healthcheck.py)
+- [`src/services/cleanup.py`](src/services/cleanup.py)
+- [`src/services/error_notifier.py`](src/services/error_notifier.py)
+- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены выполненные строки
+
+### Результаты проверок
+
+- `ruff check src/services/` — All checks passed!
+- `markdownlint` — без ошибок
+- `prettier` — отформатировано
+
+---
+
+## 2026-05-19 — Выполнение техдолга (TD-UTL-003, TD-UTL-004, TD-OTHER-001..004)
+
+### Выполненные задачи
+
+| ID           | Описание                                         | Файлы                                                                                                                                                                 | Результат                                                                              |
+| ------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| TD-OTHER-001 | Синхронизация pyproject.toml с requirements.txt  | `pyproject.toml:31`, `poetry.lock`                                                                                                                                    | `prometheus-client` добавлен, `requirements.txt` оставлен (используется Dockerfile/CI) |
+| TD-UTL-003   | Импорт `redis.asyncio.Redis` под `TYPE_CHECKING` | `src/utils/redis.py:23-24,112`                                                                                                                                        | Тип `Any` заменён на `Redis`, импорт под `TYPE_CHECKING`                               |
+| TD-OTHER-002 | Добавить цели `heal`/`heal-types` в Makefile     | `Makefile:17-18,23,65-69`                                                                                                                                             | Цели `apply-heuristics`, `apply-heuristic-types`                                       |
+| TD-OTHER-004 | Пароль Redis в docker-compose                    | `docker-compose.yml:8-10`, `.env:17`, `.env.example:18`, `src/config.py:47,152-163`                                                                                   | `REDIS_PASSWORD` прокинут через все слои                                               |
+| TD-OTHER-003 | `before_send` фильтрация в Sentry                | `src/services/error_notifier.py:8-15,21,66`                                                                                                                           | 6 категорий несущественных ошибок фильтруются                                          |
+| TD-UTL-004   | TypedDict вместо строковых литералов             | `src/database/types.py` (новый), `src/database/manager.py`, `src/services/monitor.py`, `src/handlers/common.py`, `src/web/routers/api.py`, `src/web/routers/pages.py` | 8 TypedDict, ruff 0 errors                                                             |
+
+### Изменённые файлы
+
+- `pyproject.toml`
+- `poetry.lock`
+- `src/utils/redis.py`
+- `Makefile`
+- `docker-compose.yml`
+- `.env`
+- `.env.example`
+- `src/config.py`
+- `src/services/error_notifier.py`
+- `src/database/types.py` (новый)
+- `src/database/manager.py`
+- `src/services/monitor.py`
+- `src/handlers/common.py`
+- `src/web/routers/api.py`
+- `src/web/routers/pages.py`
+- `docs/agents/TECH_DEBT.md`
+- `docs/design/td-utl-004-typeddict-design.md` (новый)
+
+### Результаты проверок
+
+- `ruff check` целевых файлов: 0 errors
+- `poetry check`: All set!
+
+---
+
+## Лог сессии
+
+## 2026-05-19 — Выполнение техдолга (TD-UTL-003, TD-UTL-004, TD-OTHER-001..004)
+
+### Выполненные задачи
+
+| ID           | Описание                                                                                 | Файлы                                                                                                                                                                                                                                                                                  | Результат                                                              |
+| ------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| TD-OTHER-001 | Синхронизация pyproject.toml; перевод Dockerfile/CI на Poetry; удаление requirements.txt | `pyproject.toml:31`, `poetry.lock`, `Dockerfile:33-34`, `.github/workflows/ci.yml`                                                                                                                                                                                                     | Poetry вместо pip, prometheus-client добавлен, requirements.txt удалён |
+| TD-UTL-003   | Импорт `redis.asyncio.Redis` под `TYPE_CHECKING`                                         | `src/utils/redis.py:23-24,112`                                                                                                                                                                                                                                                         | Тип `Any` заменён на `Redis`                                           |
+| TD-OTHER-002 | Цели в Makefile для heuristic-скриптов                                                   | `Makefile:17-18,23,65-69`                                                                                                                                                                                                                                                              | `apply-heuristics`, `apply-heuristic-types`                            |
+| TD-OTHER-004 | Пароль Redis                                                                             | `docker-compose.yml:8-10`, `.env:17`, `.env.example:18`, `src/config.py:47,152-163`                                                                                                                                                                                                    | `REDIS_PASSWORD` прокинут через все слои                               |
+| TD-OTHER-003 | Sentry `before_send` фильтрация                                                          | `src/services/error_notifier.py:8-15,21,66`                                                                                                                                                                                                                                            | 6 категорий несущественных ошибок фильтруются                          |
+| TD-UTL-004   | TypedDict вместо строковых литералов                                                     | `src/database/types.py` (новый), `src/database/database.py`, `src/database/manager.py`, `src/services/monitor.py`, `src/handlers/common.py`, `src/handlers/registration.py`, `src/services/export.py`, `src/web/routers/api.py`, `src/web/routers/pages.py`, `src/keyboards/inline.py` | 8 TypedDict, 10 файлов, все cast() убраны                              |
+
+### Аудит кодовой базы
+
+- **mypy:** 5 pre-existing ошибок исправлено → **0 errors**
+- **ruff:** **0 errors**
+- **Подавления:** 10 `# type: ignore` (все легитимны), 3 `# noqa` (все легитимны)
+- **`except Exception: pass`:** 2 заменены на логирование
+- Мёртвый код `log_by_key` удалён из `src/services/export.py`
+
+### Изменённые файлы (24 файла)
+
+- `pyproject.toml`
+- `poetry.lock`
+- `Dockerfile`
+- `.github/workflows/ci.yml`
+- `Makefile`
+- `docker-compose.yml`
+- `.env`
+- `.env.example`
+- `src/config.py`
+- `src/utils/redis.py`
+- `src/services/error_notifier.py`
+- `src/services/monitor.py`
+- `src/services/export.py`
+- `src/database/types.py` (новый)
+- `src/database/database.py`
+- `src/database/manager.py`
+- `src/handlers/common.py`
+- `src/handlers/registration.py`
+- `src/keyboards/inline.py`
+- `src/web/routers/api.py`
+- `src/web/routers/pages.py`
+- `docs/agents/TECH_DEBT.md`
+- `docs/design/td-utl-004-typeddict-design.md` (новый)
+- `requirements.txt` (удалён)

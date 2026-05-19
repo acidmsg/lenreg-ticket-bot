@@ -60,7 +60,12 @@ class CheckPatientResponse(BaseModel):
 
 
 class SpecialityItem(BaseModel):
-    """Один элемент списка специальностей."""
+    """
+    Один элемент списка специальностей.
+
+    Поля NameSpesiality, FerIdSpesiality, IdSpesiality — опечатка
+    внешнего API (zdrav.lenreg.ru), не контролируется нашей стороной.
+    """
 
     model_config = {"populate_by_name": True}
 
