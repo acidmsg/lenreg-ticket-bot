@@ -5,9 +5,11 @@ HTML-страницы веб-дашборда.
 """
 
 import time
+from typing import cast
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse, TemplateResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from loguru import logger
 
 from src.database.types import UserData
@@ -28,7 +30,7 @@ def _count_active_monitorings(db_data: dict[str, UserData]) -> int:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard_summary(request: Request) -> TemplateResponse:
+async def dashboard_summary(request: Request) -> HTMLResponse:
     """Главная страница — сводка."""
     try:
         db = request.app.state.db
@@ -51,7 +53,8 @@ async def dashboard_summary(request: Request) -> TemplateResponse:
             api_errors = health_metrics.api_errors_total
             notifications = health_metrics.monitoring_notifications_sent
 
-        return request.app.state.templates.TemplateResponse(
+        templates = cast(Jinja2Templates, request.app.state.templates)
+        return templates.TemplateResponse(
             request,
             "summary.html",
             {
@@ -74,7 +77,7 @@ async def dashboard_summary(request: Request) -> TemplateResponse:
 
 
 @router.get("/users", response_class=HTMLResponse)
-async def users_list(request: Request) -> TemplateResponse:
+async def users_list(request: Request) -> HTMLResponse:
     """Список пользователей."""
     db = request.app.state.db
     db_data = db.data
@@ -96,7 +99,8 @@ async def users_list(request: Request) -> TemplateResponse:
     # Сортируем по UID
     users_data.sort(key=lambda u: u["uid"])
 
-    return request.app.state.templates.TemplateResponse(
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
         request,
         "users.html",
         {
@@ -107,14 +111,15 @@ async def users_list(request: Request) -> TemplateResponse:
 
 
 @router.get("/users/{uid}", response_class=HTMLResponse)
-async def user_detail(request: Request, uid: str) -> TemplateResponse:
+async def user_detail(request: Request, uid: str) -> HTMLResponse:
     """Детали пользователя."""
     db = request.app.state.db
     db_data = db.data
 
+    templates = cast(Jinja2Templates, request.app.state.templates)
     user_info = db_data.get(uid)
     if user_info is None:
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "user_detail.html",
             {
@@ -126,7 +131,7 @@ async def user_detail(request: Request, uid: str) -> TemplateResponse:
             },
         )
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "user_detail.html",
         {
@@ -146,7 +151,7 @@ async def monitoring_logs(
     limit: int = Query(50, ge=1, le=500),
     uid: str | None = Query(None),
     status: str | None = Query(None),
-) -> TemplateResponse:
+) -> HTMLResponse:
     """Лог мониторинга с пагинацией и фильтрацией."""
     db = request.app.state.db
     logs = await db.get_all_monitoring_logs(
@@ -154,7 +159,8 @@ async def monitoring_logs(
     )
     total = await db.get_all_monitoring_logs_count(uid=uid, status=status)
 
-    return request.app.state.templates.TemplateResponse(
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
         request,
         "logs.html",
         {
@@ -169,7 +175,7 @@ async def monitoring_logs(
 
 
 @router.get("/clinics", response_class=HTMLResponse)
-async def clinics_list(request: Request) -> TemplateResponse:
+async def clinics_list(request: Request) -> HTMLResponse:
     """Список клиник."""
     db = request.app.state.db
     clinics = await db._db.get_active_clinics()
@@ -188,7 +194,8 @@ async def clinics_list(request: Request) -> TemplateResponse:
             }
         )
 
-    return request.app.state.templates.TemplateResponse(
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
         request,
         "clinics.html",
         {
@@ -199,7 +206,7 @@ async def clinics_list(request: Request) -> TemplateResponse:
 
 
 @router.get("/api-status", response_class=HTMLResponse)
-async def api_status(request: Request) -> TemplateResponse:
+async def api_status(request: Request) -> HTMLResponse:
     """Состояние внешнего API."""
     pm = request.app.state.prometheus_metrics
 
@@ -228,7 +235,8 @@ async def api_status(request: Request) -> TemplateResponse:
     except Exception:
         logger.exception("Ошибка получения статуса схем API")
 
-    return request.app.state.templates.TemplateResponse(
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
         request,
         "api_status.html",
         {
