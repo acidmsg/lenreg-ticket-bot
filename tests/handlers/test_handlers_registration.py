@@ -111,7 +111,7 @@ class TestStartAddPatient:
     """Начало FSM-сценария: переход в состояние wait_fio."""
 
     async def test_sets_wait_fio_state(self):
-        """Корректный callback — состояние wait_fio, сообщение отредактировано."""
+        """Корректный callback — состояние wait_fio, сообщение отправлено."""
         from src.handlers.registration import start_add_patient
 
         call = make_callback("start_add_p")
@@ -120,10 +120,10 @@ class TestStartAddPatient:
         await start_add_patient(call, state=fsm)
 
         assert fsm._state == Registration.wait_fio
-        call.message.edit_text.assert_called_once()
+        call.message.answer.assert_called_once()
 
     async def test_edit_text_called_with_correct_text(self):
-        """Проверяем, что edit_text вызван с корректным текстом."""
+        """Проверяем, что answer вызван с корректным текстом."""
         from src.handlers.registration import start_add_patient
 
         call = make_callback("start_add_p")
@@ -131,8 +131,8 @@ class TestStartAddPatient:
 
         await start_add_patient(call, state=fsm)
 
-        call.message.edit_text.assert_called_once()
-        args = call.message.edit_text.call_args[0]
+        call.message.answer.assert_called_once()
+        args = call.message.answer.call_args[0]
         assert "ФИО" in args[0]
 
 

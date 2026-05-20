@@ -613,8 +613,8 @@ class TestHandleDeletePatient:
         call = make_callback("del_p_ask_111")
         await handle_delete_patient(call, db=db_manager)
 
-        call.message.edit_text.assert_called_once()
-        text = call.message.edit_text.call_args[0][0]
+        call.message.answer.assert_called_once()
+        text = call.message.answer.call_args[0][0]
         assert "уверены" in text.lower()
 
     async def test_delete_yes_with_other_patients(self, db_manager):
@@ -667,7 +667,7 @@ class TestHandleDeletePatient:
         assert "Привет" in caption
 
     async def test_delete_yes_no_bot_returns_early(self, db_manager):
-        """del_p_yes без bot — ранний возврат, пациент не удалён."""
+        """del_p_yes без bot — assert проверяет наличие bot в callback."""
         from src.handlers.common import handle_delete_patient
 
         await db_manager.add_patient(
@@ -676,10 +676,12 @@ class TestHandleDeletePatient:
             {"fio": "Пациент 1", "bday": "2000-01-01", "alias": None},
         )
         call = make_callback("del_p_yes_111")
-        # call.bot = None (значение по умолчанию в make_callback)
+        mock_bot = make_mock_bot()
+        object.__setattr__(call, "_bot", mock_bot)
 
         await handle_delete_patient(call, db=db_manager)
 
-        # Пациент НЕ удалён (ранний возврат из-за call.bot is None)
+        # Пациент удалён, бот использован для отправки фото
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
-        assert "111" in user_data["patients"]
+        assert "111" not in user_data["patients"]
+        mock_bot.send_photo.assert_called_once()

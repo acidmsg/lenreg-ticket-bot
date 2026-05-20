@@ -141,7 +141,7 @@ async def api_users(request: Request) -> dict[str, Any]:
 
 
 @router.get("/dashboard/users/{uid}")
-async def api_user_detail(request: Request, uid: str) -> dict[str, Any]:
+async def api_user_detail(request: Request, uid: str) -> dict[str, Any] | JSONResponse:
     """JSON-детали пользователя."""
     db = request.app.state.db
     db_data = db.data
