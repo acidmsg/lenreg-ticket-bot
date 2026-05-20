@@ -36,7 +36,9 @@ jobs:
           poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
-        run: python -m babel.messages.frontend compile -d locales
+        run: |
+          python -m babel.messages.frontend compile -d locales -D bot
+          python -m babel.messages.frontend compile -d locales -D data
 
       - name: Lint with Ruff
         run: ruff check src
@@ -63,7 +65,9 @@ jobs:
           poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
-        run: python -m babel.messages.frontend compile -d locales
+        run: |
+          python -m babel.messages.frontend compile -d locales -D bot
+          python -m babel.messages.frontend compile -d locales -D data
 
       - name: Type check with Mypy
         run: mypy --ignore-missing-imports --check-untyped-defs --explicit-package-bases -p src -p scripts -p tests
@@ -101,7 +105,9 @@ jobs:
           poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
-        run: python -m babel.messages.frontend compile -d locales
+        run: |
+          python -m babel.messages.frontend compile -d locales -D bot
+          python -m babel.messages.frontend compile -d locales -D data
 
       - name: Run tests with pytest
         run: pytest
