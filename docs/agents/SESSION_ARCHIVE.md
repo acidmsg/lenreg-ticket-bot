@@ -4168,4 +4168,45 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 ### Результаты проверок
 
 - **Ruff**: 0 errors
+
+---
+
+## 2026-05-20
+
+### Выполненные задачи
+
+- **Коммит и пуш проекта** — зафиксированы изменения в [`pages.py`](src/web/routers/pages.py) (рефакторинг `TemplateResponse` → `HTMLResponse`, явный `cast` к `Jinja2Templates`), удалён [`TECH_DEBT.md`](docs/agents/TECH_DEBT.md). Коммит [`0202d7f`](https://github.com/acidmsg/lenreg_ticket_bot.git).
+
+### Изменённые файлы
+
+| Файл                       | Действие |
+| -------------------------- | -------- |
+| `src/web/routers/pages.py` | Изменён  |
+| `docs/agents/TECH_DEBT.md` | Удалён   |
+
+### Результаты
+
+- Коммит `0202d7f` отправлен в `origin/main` (22 insertions, 64 deletions)
 - **Pytest**: 181 passed, 4 failed (pre-existing, не связаны с изменениями)
+
+---
+
+## 2026-05-19 — Исправление F821 Undefined name и arg-type ошибок в тестах
+
+### Выполненные задачи
+
+- **F821** — Исправлена ошибка `Undefined name` в [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py):
+  - Проблема: использовались неопределённые имена `_seed_clinic` и `_seed_doctors`. В `conftest.py` функции называются `seed_clinic` и `seed_doctors` (без префиксного подчёркивания).
+  - Добавлен импорт с алиасами: `seed_clinic as _seed_clinic, seed_doctors as _seed_doctors`
+- **arg-type** — Исправлена ошибка типизации в [`tests/keyboards/test_keyboards.py`](tests/keyboards/test_keyboards.py):
+  - Проблема: `get_city_selection()` ожидает `list[ClinicInfo] | None`, а тесты передавали `list[dict[str, str]]`.
+  - Заменены вызовы на корректно типизированные `list[ClinicInfo]` с импортом `ClinicInfo` из `src.database.types`.
+
+### Изменённые файлы
+
+- [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py) — добавлены импорты с алиасами
+- [`tests/keyboards/test_keyboards.py`](tests/keyboards/test_keyboards.py) — исправлены типы аргументов
+
+### Результаты проверок
+
+- **Ruff**: 0 errors

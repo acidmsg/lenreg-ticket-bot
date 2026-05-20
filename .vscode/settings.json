@@ -30,5 +30,8 @@
     }
   },
   "markdown.validate.enabled": false,
-  "makefile.configureOnOpen": false
+  "makefile.configureOnOpen": false,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
