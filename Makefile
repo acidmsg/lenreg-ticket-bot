@@ -51,10 +51,27 @@ check:
 run:
 	python -m src.main
 
+# Platform detection for clean target (Windows PowerShell vs Unix)
+ifeq ($(OS),Windows_NT)
+CLEAN_CACHE_DIRS  = powershell -NoProfile -Command "Remove-Item -Recurse -Force -Path __pycache__, .pytest_cache, .mypy_cache, .ruff_cache, logs -ErrorAction SilentlyContinue"
+CLEAN_PYCACHE_ALL = powershell -NoProfile -Command "Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
+CLEAN_PYC         = powershell -NoProfile -Command "Get-ChildItem -Recurse -Filter *.pyc | Remove-Item -Force -ErrorAction SilentlyContinue"
+CLEAN_DB          = powershell -NoProfile -Command "Remove-Item -Force -Path data/*.db -ErrorAction SilentlyContinue"
+CLEAN_TMP         = powershell -NoProfile -Command "Remove-Item -Force -Path .tmp_* -ErrorAction SilentlyContinue"
+else
+CLEAN_CACHE_DIRS  = rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache logs
+CLEAN_PYCACHE_ALL = find . -type d -name __pycache__ -exec rm -rf {} +
+CLEAN_PYC         = find . -type f -name '*.pyc' -delete
+CLEAN_DB          = rm -f data/*.db
+CLEAN_TMP         = rm -f .tmp_*
+endif
+
 clean:
-	rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache
-	find src -type d -name __pycache__ -exec rm -rf {} +
-	find tests -type d -name __pycache__ -exec rm -rf {} +
+	$(CLEAN_CACHE_DIRS)
+	$(CLEAN_PYCACHE_ALL)
+	$(CLEAN_PYC)
+	$(CLEAN_DB)
+	$(CLEAN_TMP)
 
 lock:
 	$(POETRY) lock

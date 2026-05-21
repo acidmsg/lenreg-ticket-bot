@@ -1,0 +1,39 @@
+{
+  "description": "Агрегированные данные пользователя в in-memory кэше DatabaseManager",
+  "properties": {
+    "patients": {
+      "type": "object",
+      "description": "Словарь пациентов: ключ — p_id",
+      "additionalProperties": {
+        "$ref": "DB_Patient.json"
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Словарь мониторинга: p_id → {d_id → info}",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "DB_MonitoringEntry.json"
+        }
+      }
+    },
+    "last_messages": {
+      "type": "object",
+      "description": "Словарь последних сообщений: ключ — '{p_id}_{d_id}'",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "msg_id": {
+            "type": "integer"
+          },
+          "ts": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  },
+  "title": "DB_User",
+  "type": "object"
+}

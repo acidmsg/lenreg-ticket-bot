@@ -50,7 +50,7 @@
       "type": "object"
     },
     "SpecialityItem": {
-      "description": "Один элемент списка специальностей.",
+      "description": "Один элемент списка специальностей.\n\nПоля NameSpesiality, FerIdSpesiality, IdSpesiality — опечатка\nвнешнего API (zdrav.lenreg.ru), не контролируется нашей стороной.",
       "properties": {
         "NameSpesiality": {
           "default": "",

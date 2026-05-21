@@ -54,8 +54,10 @@ LABEL org.opencontainers.image.source="https://github.com/acidmsg/zdrav.lenreg"
 RUN --mount=type=cache,target=/var/cache/apt \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-  # ps для healthcheck
+  # ps/pgrep для healthcheck
   procps \
+  # redis-cli для проверки Redis
+  redis-tools \
   # sqlite3 — опционально, для отладки
   sqlite3 \
   && rm -rf /var/lib/apt/lists/*
@@ -69,8 +71,8 @@ RUN groupadd -r appuser && \
 # ---------------------------------------------------------------------------
 # Копирование зависимостей из builder-слоя
 # ---------------------------------------------------------------------------
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Копирование Python-пакетов из builder-слоя (установлены системно)
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
 # ---------------------------------------------------------------------------
 # Копирование исходного кода
@@ -91,12 +93,12 @@ RUN mkdir -p /app/data && \
 USER appuser
 
 # ---------------------------------------------------------------------------
-# Healthcheck — проверяет, что процесс python жив и читаем SQLite
+# Healthcheck — проверяет процесс бота и доступность Redis
 # ---------------------------------------------------------------------------
 EXPOSE 9090
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD python -c "import os; os.access('data/bot.db', os.R_OK | os.W_OK) or exit(1)" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD pgrep -f "python -m src.main" > /dev/null 2>&1 && redis-cli -h redis ping > /dev/null 2>&1 || exit 1
 
 # ---------------------------------------------------------------------------
 # Точка входа

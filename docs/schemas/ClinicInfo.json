@@ -1,0 +1,17 @@
+{
+  "description": "Информация о клинике для дашборда",
+  "properties": {
+    "clinic_id": { "type": "string", "description": "ID поликлиники" },
+    "name": { "type": "string", "description": "Название поликлиники" },
+    "type": {
+      "type": "string",
+      "enum": ["adult", "child", "all"],
+      "description": "Тип клиники"
+    },
+    "city": { "type": "string", "description": "Город/район" },
+    "is_active": { "type": "integer", "description": "Активна (1) / неактивна (0)" },
+    "doctor_count": { "type": "integer", "description": "Количество врачей в клинике" }
+  },
+  "title": "ClinicInfo",
+  "type": "object"
+}

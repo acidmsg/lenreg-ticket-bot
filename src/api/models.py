@@ -1,8 +1,9 @@
 """
-Pydantic-модели для ответов API zdrav.lenreg.ru.
+Pydantic-модели для запросов и ответов API zdrav.lenreg.ru.
 
-Каждая модель валидирует форму ответа, заменяя сырые .get()-вызовы
-на типизированный доступ с понятными сообщениями об ошибках.
+Модели ответов валидируют форму ответа API.
+Модели запросов (`*Request`) типизируют payload POST-запросов,
+заменяя сырые dict-конструкторы.
 """
 
 from typing import Annotated, Any
@@ -36,6 +37,65 @@ class ApiError(BaseModel):
     """Объект ошибки (пока не документирован, оставляем гибким)."""
 
     model_config = {"extra": "allow"}
+
+
+# ── Request models ────────────────────────────────────────────
+
+
+class CheckPatientRequest(BaseModel):
+    """Payload для /api/check_patient/."""
+
+    first_name: str = Field(default="", alias="patient_form-first_name")
+    last_name: str = Field(default="", alias="patient_form-last_name")
+    middle_name: str = Field(default="", alias="patient_form-middle_name")
+    insurance_series: str = Field(default="", alias="patient_form-insurance_series")
+    insurance_number: str = Field(default="", alias="patient_form-insurance_number")
+    birthday: str = Field(default="", alias="patient_form-birthday")
+    clinic_id: str = Field(default="", alias="patient_form-clinic_id")
+    csrfmiddlewaretoken: str = Field(default="")
+
+    model_config = {"populate_by_name": True}
+
+
+class SpecialityListRequest(BaseModel):
+    """Payload для /api/speciality_list/."""
+
+    clinic_id: str = Field(default="", alias="clinic_form-clinic_id")
+    history_id: str = Field(default="", alias="clinic_form-history_id")
+    patient_id: str = Field(default="", alias="clinic_form-patient_id")
+
+    model_config = {"populate_by_name": True}
+
+
+class DoctorListRequest(BaseModel):
+    """Payload для /api/doctor_list/."""
+
+    speciality_id: str = Field(default="", alias="speciality_form-speciality_id")
+    clinic_id: str = Field(default="", alias="speciality_form-clinic_id")
+    patient_id: str = Field(default="", alias="speciality_form-patient_id")
+    history_id: str = Field(default="", alias="speciality_form-history_id")
+
+    model_config = {"populate_by_name": True}
+
+
+class AppointmentListRequest(BaseModel):
+    """Payload для /api/appointment_list/."""
+
+    doctor_id: str = Field(default="", alias="doctor_form-doctor_id")
+    clinic_id: str = Field(default="", alias="doctor_form-clinic_id")
+    patient_id: str = Field(default="", alias="doctor_form-patient_id")
+    history_id: str = Field(default="", alias="doctor_form-history_id")
+    appointment_type: str = Field(default="", alias="doctor_form-appointment_type")
+
+    model_config = {"populate_by_name": True}
+
+
+class ClinicListRequest(BaseModel):
+    """Payload для /api/clinic_list/."""
+
+    district_id: str = Field(default="", alias="district_form-district_id")
+
+    model_config = {"populate_by_name": True}
 
 
 # ── check_patient ─────────────────────────────────────────────

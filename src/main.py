@@ -1,13 +1,17 @@
+"""
+Точка входа в Telegram-бота zdrav.lenreg.
+
+Запускает aiogram-поллинг, фоновые задачи (мониторинг, discovery,
+healthcheck, очистка), Prometheus-метрики и веб-дашборд.
+"""
+
 import asyncio
 import os
 import threading
 import time
 
 import aiofiles.os
-import uvicorn
 from aiogram import Bot, Dispatcher
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.fsm.storage.redis import RedisStorage
 from aiohttp import web
 from loguru import logger
 
@@ -15,7 +19,6 @@ from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
 from src.database.manager import DatabaseManager
-from src.handlers import common, registration
 from src.i18n import setup_i18n
 from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
@@ -24,18 +27,14 @@ from src.middleware.userdata import UserDataPreloadMiddleware
 from src.services.cleanup import cleanup_loop
 from src.services.doctor_discovery import discovery_loop, sync_clinic_names
 from src.services.error_notifier import error_notifier
-from src.services.healthcheck import (
-    _safe_set,
-    healthcheck_loop,
-)
-from src.services.healthcheck import (
-    metrics as health_metrics,
-)
+from src.services.healthcheck import _safe_set, healthcheck_loop
+from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import monitor_loop
 from src.services.schema_watcher import schema_check_loop
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
+    _parse_proxy_host_port,
     check_proxy_connectivity,
     discover_proxy,
 )
@@ -86,15 +85,11 @@ async def _bot_me_with_retry(
 async def _start_background_tasks(
     bot: Bot, api: ZdravClient, db: DatabaseManager, database: Database
 ) -> list[asyncio.Task[object]]:
-    """
-    Запускает все фоновые задачи (monitor, discovery, healthcheck, cleanup).
+    """Запускает все фоновые задачи.
 
     Вызывается ТОЛЬКО после успешной проверки связи с Telegram API,
     чтобы снизить нагрузку на IOCP в момент старта и избежать конкуренции
     с прокси-соединением.
-
-    Discovery теперь запускается как один агрегированный цикл, который сам
-    итерирует активные clinic_ids из БД (вместо N per-clinic задач).
     """
     tasks: list[asyncio.Task[object]] = []
 
@@ -142,11 +137,8 @@ async def _start_background_tasks(
 async def _start_metrics_server(
     db: DatabaseManager,
 ) -> tuple[web.AppRunner, web.TCPSite]:
-    """
-    Запускает aiohttp-сервер с Prometheus /metrics endpoint.
+    """Запускает aiohttp-сервер с Prometheus /metrics endpoint."""
 
-    Возвращает (runner, site) для корректной остановки в finally.
-    """
     app = web.Application()
 
     async def metrics_handler(request: web.Request) -> web.Response:
@@ -164,20 +156,16 @@ async def _start_metrics_server(
 
 
 def _run_uvicorn_sync(app, host: str, port: int) -> bool:
-    """
-    Запускает uvicorn в daemon-потоке. Возвращает True, если сервер成功но запущен.
+    """Запускает uvicorn в daemon-потоке."""
+    import uvicorn
 
-    Внутри потока все исключения перехватываются, чтобы предотвратить
-    завершение основного процесса при ошибке привязки порта (например,
-    [WinError 10013] на Windows).
-    """
     result: dict[str, object] = {"success": False, "exception": None}
 
     def _serve() -> None:
         try:
             config = uvicorn.Config(app, host=host, port=port, log_level="info")
             server = uvicorn.Server(config)
-            server.run()  # синхронный run(), блокирует поток навсегда при успехе
+            server.run()
         except Exception as e:
             result["exception"] = e
             logger.exception("uvicorn Server.run() завершился с ошибкой")
@@ -185,14 +173,12 @@ def _run_uvicorn_sync(app, host: str, port: int) -> bool:
     thread = threading.Thread(target=_serve, daemon=True)
     thread.start()
 
-    # Ждём 1.5 секунды — если поток жив, значит bind прошёл успешно
     time.sleep(1.5)
 
     if thread.is_alive():
         result["success"] = True
         return True
 
-    # Поток умер — bind не удался
     exc = result["exception"]
     logger.warning("Дашборд не смог занять порт {}: {}", port, exc)
     return False
@@ -204,14 +190,7 @@ async def _run_dashboard_safe(
     fallback_ports: list[int],
     logger,
 ) -> int | None:
-    """
-    Запускает uvicorn-сервер веб-дашборда с перебором портов при ошибке привязки.
-
-    Uvicorn запускается через asyncio.to_thread в отдельном потоке (daemon),
-    чтобы не вмешиваться в основной event loop aiogram (критично для Windows/IOCP).
-
-    Все исключения внутри потока перехватываются — процесс не падает.
-    """
+    """Запускает uvicorn-сервер веб-дашборда с перебором портов."""
     ports_to_try = [port, *fallback_ports]
 
     for p in ports_to_try:
@@ -233,12 +212,7 @@ async def run_dashboard(
     host: str = "0.0.0.0",
     port: int = 8080,
 ) -> None:
-    """
-    Запускает uvicorn-сервер веб-дашборда как asyncio-задачу (автоподбор порта).
-
-    Uvicorn работает в отдельном daemon-потоке, поэтому run_dashboard()
-    возвращает управление сразу после успешного запуска сервера.
-    """
+    """Запускает uvicorn-сервер веб-дашборда как asyncio-задачу."""
     from src.web.app import create_app
 
     web_app = create_app(db, health_metrics, prometheus_metrics, config)
@@ -253,6 +227,7 @@ async def run_dashboard(
 
 
 async def main() -> None:
+    """Основная функция запуска бота."""
     # Настройка логирования (Loguru)
     setup_logging()
 
@@ -265,7 +240,6 @@ async def main() -> None:
         await aiofiles.os.makedirs(data_dir)
 
     # Инициализация Redis (до FSM-хранилища)
-    # Не падает при недоступности Redis: переходит в режим graceful degradation
     redis_client = await RedisClient.get_instance()
 
     # Инициализация SQLite
@@ -282,22 +256,19 @@ async def main() -> None:
     # Сидирование конфигов из defaults settings (если таблица config пуста)
     await database.seed_config_from_defaults()
 
-    # Загрузка конфигов из БД (переопределяет значения из settings).
-    # Выполняется ДО sync_clinic_names, чтобы переопределённый в БД API_BASE_URL
-    # применился до первого обращения к API.
+    # Загрузка конфигов из БД (переопределяет значения из settings)
     try:
         from src.config import load_config_from_db
         from src.utils.helpers import load_specialty_aliases_from_db
 
         await load_config_from_db(database)
-        # Обновляем base_url у API-клиента после загрузки из БД
         api.base_url = settings.API_BASE_URL
         await load_specialty_aliases_from_db(database)
         logger.info("Конфиги и псевдонимы специальностей загружены из БД")
     except Exception as e:
         logger.warning(f"Не удалось загрузить данные из БД: {e}")
 
-    # Синхронизация названий клиник из API (обновляет только имя)
+    # Синхронизация названий клиник из API
     await sync_clinic_names(api, database)
 
     # --- Инициализация бота с прокси (если настроен) ---
@@ -313,7 +284,7 @@ async def main() -> None:
                 "Ожидается URL вида http://user:pass@host:port"
             )
 
-        from src.utils.proxy_discovery import _parse_proxy_host_port
+        from aiogram.client.session.aiohttp import AiohttpSession
 
         # Разрешение прокси: если хост = "auto" — автоопределение IP
         proxy_url = settings.PROXY_URL
@@ -356,6 +327,8 @@ async def main() -> None:
 
     # FSM-хранилище: Redis если доступен, иначе MemoryStorage (graceful degradation)
     if redis_client.is_available:
+        from aiogram.fsm.storage.redis import RedisStorage
+
         dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
         logger.info("FSM-хранилище: Redis")
     else:
@@ -365,21 +338,18 @@ async def main() -> None:
         logger.warning("FSM-хранилище: MemoryStorage (Redis недоступен)")
 
     # Регистрация middleware (порядок важен: outer выполняется первым)
-    # 1. Error boundary — самая внешняя, ловит все исключения
     dp.update.outer_middleware(ErrorBoundaryMiddleware())
-    # 2. Rate limiter — отсекает спам до всей остальной обработки
     dp.update.outer_middleware(UserRateLimitMiddleware())
-    # 3. User data preload — загружает user_data один раз для всех handler'ов
     dp.update.outer_middleware(UserDataPreloadMiddleware())
-    # 4. Activity log — логирует каждое событие (DEBUG)
     dp.update.outer_middleware(ActivityLogMiddleware())
 
     # Регистрация роутеров
+    from src.handlers import common, registration
+
     dp.include_router(common.router)
     dp.include_router(registration.router)
 
     # Проверка связи с Telegram API до запуска фоновых задач
-    # (снижает нагрузку на IOCP и даёт понятную ошибку при недоступности прокси)
     await _bot_me_with_retry(bot)
 
     # Запуск фоновых задач только после подтверждения связи с Telegram
@@ -400,7 +370,6 @@ async def main() -> None:
                 port=settings.WEB_DASHBOARD_PORT,
             )
         )
-        # Логирование результата — внутри run_dashboard / _run_dashboard_safe
     else:
         logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")
 

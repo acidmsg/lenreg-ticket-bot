@@ -6,14 +6,88 @@ Provides:
 - File logging with rotation (auto-cleanup old logs)
 - JSON logging (optional, disabled by default)
 - InterceptHandler to bridge all standard-library logging calls into Loguru
+- ``sensitive_filter`` — маскирует PII, cookie, CSRF-токены в логах
 """
 
+from __future__ import annotations
+
 import logging
+import re
 import sys
 import types
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from loguru import Record
+
+
+#: Регулярное выражение для поиска чисел, похожих на user ID (от 5 до 15 цифр)
+_RE_USER_ID = re.compile(r"\b\d{5,15}\b")
+#: Регулярное выражение для поиска Cookie-строк
+_RE_COOKIE = re.compile(
+    r"(?i)(cookie|Cookie)\s*[=:]\s*[^\s;]+",
+)
+#: Регулярное выражение для поиска CSRF-токенов в теле запроса
+_RE_CSRF_TOKEN = re.compile(
+    r"(?i)(csrf_token|csrfmiddlewaretoken|csrftoken)\s*[=:]\s*[^\s&;]+",
+)
+#: Query-параметры, содержащие чувствительные данные
+_SENSITIVE_QUERY_PARAMS = {"token", "api_key", "secret", "password", "auth", "session"}
+
+
+def _mask_sensitive_query_params(message: str) -> str:
+    """
+    Маскирует значения query-параметров, имена которых
+    входят в ``_SENSITIVE_QUERY_PARAMS``.
+
+    Пример::
+
+        ?token=abc123&foo=bar  →  ?token=***&foo=bar
+    """
+    def _replace_param(m: re.Match) -> str:
+        name = m.group(1)
+        return f"{name}=***"
+
+    pattern = r"([?&])(" + "|".join(_SENSITIVE_QUERY_PARAMS) + r")=[^&\s]+"
+    return re.sub(pattern, _replace_param, message, flags=re.IGNORECASE)
+
+
+def _sensitive_filter(record: Record) -> bool:
+    """
+    Loguru-фильтр, маскирующий чувствительные данные в сообщениях логов.
+
+    Маскирует:
+    - User IDs (последовательности из 5+ цифр)
+    - Строки Cookie целиком
+    - CSRF-токены (по именам: csrf_token, csrfmiddlewaretoken, csrftoken)
+    - Чувствительные query-параметры в URL (token, api_key, secret, …)
+    """
+    message: str = record.get("message", "")
+    if not message:
+        return True
+
+    masked = message
+
+    # 1. Маскируем Cookie-строки целиком
+    masked = _RE_COOKIE.sub("Cookie=[FILTERED]", masked)
+
+    # 2. Маскируем CSRF-токены
+    masked = _RE_CSRF_TOKEN.sub(r"\1=[FILTERED]", masked)
+
+    # 3. Маскируем чувствительные query-параметры в URL
+    masked = _mask_sensitive_query_params(masked)
+
+    # 4. Маскируем user IDs (цифровые последовательности 5+ символов).
+    #    Выполняется после остальных замен, чтобы не маскировать
+    #    уже заменённые значения и не задеть числа в осмысленном контексте
+    #    (пороги, таймауты и т.п.), которые встречаются как отдельные токены.
+    masked = _RE_USER_ID.sub("***", masked)
+
+    record["message"] = masked
+    return True
 
 
 class InterceptHandler(logging.Handler):
@@ -76,6 +150,7 @@ def setup_logging(
     # Remove any default Loguru sink
     logger.remove()
 
+
     # --- Console sink (colorful, human-readable) ---
     logger.add(
         sys.stdout,
@@ -87,6 +162,7 @@ def setup_logging(
         ),
         level=level.upper(),
         colorize=True,
+        filter=_sensitive_filter,
     )
 
     # --- File sink (plain text, with rotation) ---
@@ -100,6 +176,7 @@ def setup_logging(
         rotation=rotation,
         retention=retention,
         encoding="utf-8",
+        filter=_sensitive_filter,
     )
 
     # --- Optional JSON sink ---
@@ -111,6 +188,7 @@ def setup_logging(
             retention=retention,
             serialize=True,
             encoding="utf-8",
+            filter=_sensitive_filter,
         )
 
     # --- Bridge standard ``logging`` → Loguru ---

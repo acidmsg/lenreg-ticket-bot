@@ -70,7 +70,7 @@ class ErrorNotifier:
         except ImportError:
             logger.warning("Sentry SDK not installed, skipping Sentry integration")
         except Exception as e:
-            logger.error(f"Failed to initialize Sentry: {e}")
+            logger.error(f"Failed to initialize Sentry: {e}", exc_info=True)
 
     async def notify(
         self,
@@ -129,8 +129,13 @@ class ErrorNotifier:
                         "Tags": "rotating_light,bot",
                     },
                 )
+        except (TimeoutError, httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Failed to send NTFY notification: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"Failed to send NTFY notification: {e}")
+            # Последний fallback для неожиданных ошибок (кодировка, память и т.п.)
+            logger.error(
+                f"Unexpected error in NTFY notification: {e}", exc_info=True
+            )
 
     def _notify_sentry(
         self,
@@ -147,7 +152,9 @@ class ErrorNotifier:
                         scope.set_extra(k, v)
                 sentry_sdk.capture_exception(error)
         except Exception as e:
-            logger.error(f"Failed to send Sentry notification: {e}")
+            logger.error(
+                f"Failed to send Sentry notification: {e}", exc_info=True
+            )
 
     # ── Schema Change Notifications (F8) ───────────────────────────
 
@@ -202,8 +209,17 @@ class ErrorNotifier:
                         "Tags": "api_schema_change,rotating_light",
                     },
                 )
+        except (TimeoutError, httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(
+                "Failed to send NTFY schema change notification: {}", e, exc_info=True
+            )
         except Exception as e:
-            logger.error("Failed to send NTFY schema change notification: {}", e)
+            # Последний fallback для неожиданных ошибок
+            logger.error(
+                "Unexpected error in NTFY schema change notification: {}",
+                e,
+                exc_info=True,
+            )
 
     def _notify_schema_change_sentry(
         self,
@@ -225,7 +241,11 @@ class ErrorNotifier:
                     level="warning",
                 )
         except Exception as e:
-            logger.error("Failed to send Sentry schema change notification: {}", e)
+            logger.error(
+                "Failed to send Sentry schema change notification: {}",
+                e,
+                exc_info=True,
+            )
 
 
 # Singleton

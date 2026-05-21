@@ -4244,3 +4244,127 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - **ruff:** All checks passed (68 файлов)
 - **mypy:** Success: no issues found (47 файлов)
 - **pytest:** 185 passed, 0 failed
+
+---
+
+## 2026-05-20 — Комплексный аудит проекта (7 фаз, 6 делегаций)
+
+**Модель:** zoo.deepseek (orchestrator)
+**Режим:** orchestrator (координация 6 подзадач)
+
+### Выполненные задачи
+
+**Результат:** 80 проблем (6 critical, 37 major, 37 minor) + 4 уязвимости в зависимостях.
+
+#### Фаза 1: Сбор контекста (project-research)
+
+- Прочитан [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — критически устарел (45/100).
+- Прочитан [`openapi.yaml`](docs/openapi.yaml) v1.0.0 — 5 внешних API, 3 bot-эндпоинта, 4 сервиса, 30+ схем.
+- Выявлены расхождения: отсутствуют модули `filters/`, `i18n/`, `web/`, 15+ файлов не отражены.
+
+#### Фаза 2: Автоматические проверки (code)
+
+- **Ruff lint:** 0 ошибок.
+- **Ruff format:** 0 файлов требуют форматирования.
+- **mypy:** 0 ошибок в 44 файлах.
+- **pytest:** 185/185 passed (22.43s).
+- **markdownlint:** 0 ошибок.
+- **pip audit:** 4 уязвимости (idna 3.13→3.15, pytest 8.4.2→9.0.3, urllib3 2.6.3→2.7.0 ×2).
+
+#### Фаза 3: Spec-First Compliance (architect)
+
+- 15 расхождений (2 critical, 7 major, 6 minor).
+- Compliance score: 78/100.
+- Critical: нет retry в `fetch_patient_id` ([`zdrav_client.py:156`](src/api/zdrav_client.py:156)), пропущены поля `doctor_form-history_id` и `doctor_form-appointment_type` ([`zdrav_client.py:294`](src/api/zdrav_client.py:294)).
+
+#### Фаза 4: Code Quality (debug)
+
+- 12 проблем (0 critical, 6 major, 6 minor).
+- Major: синхронный I/O в export, полное подавление типов в redis.py, отсутствие exc_info в API-клиенте.
+
+#### Фаза 5: Documentation (documentation-writer)
+
+- 18 проблем (11 major, 7 minor).
+- ARCHITECTURE.md: 45/100. openapi.yaml: 70/100. README.md: 85/100.
+
+#### Фаза 6: Test Coverage (debug)
+
+- 14 проблем (3 major, 11 minor).
+- Покрытие модулей: 31.6% (12/38). Критические пробелы: healthcheck, middleware, schema_watcher, web.
+
+#### Фаза 7: Infrastructure & Security (architect)
+
+- 21 проблема (4 critical, 10 major, 7 minor).
+- Critical: Docker multistage-сборка сломана, CI использует несуществующие Actions, хардкод PII в config.py.
+
+### Созданные файлы
+
+- [`docs/agents/zoo.deepseek_2026-05-20_audit_report.md`](docs/agents/zoo.deepseek_2026-05-20_audit_report.md) — полный отчёт аудита.
+
+## 2026-05-20 (Блок 9: Инструменты / Инфраструктура) — SESSION LOG
+
+**Режим:** Orchestrator (🪃) → делегирование в Code (💻) и Documentation Writer (✍️)
+**Контекст:** Выполнение задач блока 9 из AUDIT
+**Всего задач в блоке:** 8
+**Выполнено:** 8
+
+---
+
+## Выполненные задачи
+
+### T-TOOL-01 🟠 — prettier в devDependencies
+
+- Файл: [`package.json:27`](package.json:27) — добавлен `"prettier": "^3.4.2"` (установлена 3.8.3)
+- `npm install` выполнен успешно
+
+### T-TOOL-02 🟠 — Makefile clean Windows-совместимость
+
+- Файл: [`Makefile:54-74`](Makefile:54-74) — платформенная диспетчеризация `ifeq ($(OS),Windows_NT)`
+- PowerShell: `Remove-Item`, `Get-ChildItem`; Unix: `rm -rf`, `find`
+- Расширен состав очистки: `*.pyc`, `data/*.db`, `logs/`, `.tmp_*`
+
+### T-TOOL-03 🟡 — Node 18 требование в README
+
+- Файл: [`README.md:80`](README.md:80) — добавлена строка «Node.js 18+ (для markdownlint-cli и prettier при разработке)»
+
+### T-TOOL-04 🟡 — DeprecationWarning в pytest
+
+- Файл: [`pyproject.toml:121`](pyproject.toml:121) — глобальное `ignore::DeprecationWarning` заменено на точечное `ignore::DeprecationWarning:pytest_asyncio.*`
+
+### T-TOOL-05 🟡 — Дублирование filterwarnings
+
+- Дублирования не обнаружено — filterwarnings были только в pyproject.toml
+
+### T-TOOL-06 🟡 — pyright basic → standard
+
+- Файл: [`pyrightconfig.json:6`](pyrightconfig.json:6) — `typeCheckingMode` повышен до `"standard"`
+- Результат: 0 errors, 0 warnings, 0 informations
+
+### T-TOOL-07 🟡 — Конфликт pytest-конфигурации
+
+- Файл: `pytest.ini` — удалён полностью
+- Файл: [`pyproject.toml:109`](pyproject.toml:109) — все настройки (`asyncio_mode`, `pythonpath`, `filterwarnings`) консолидированы в `[tool.pytest.ini_options]`
+- `minversion` скорректирован с `"9.0"` на `"8.0"` (реальная версия pytest 8.4.2)
+- 185 тестов проходят, 0 warnings
+
+### T-TOOL-08 🟡 — package.json placeholder-поля
+
+- Поля `description` и `repository` уже содержали осмысленные значения — изменений не потребовалось
+
+---
+
+## Изменённые файлы
+
+- [`package.json`](package.json) — prettier devDependency
+- [`Makefile`](Makefile) — платформенная диспетчеризация clean
+- [`README.md`](README.md) — Node 18 требование
+- [`pyproject.toml`](pyproject.toml) — консолидация pytest-конфигурации
+- [`pyrightconfig.json`](pyrightconfig.json) — typeCheckingMode standard
+- [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — удаление блока 9
+- `pytest.ini` — удалён
+- `package-lock.json` — обновлён (npm install)
+
+## Результаты проверок
+
+- `python -m pytest tests/ -x` — 185 passed, 0 warnings
+- `npx pyright src/` — 0 errors, 0 warnings

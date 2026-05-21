@@ -6,12 +6,13 @@
 """
 
 import csv
+import io
 import json
-import tempfile
 import time
 from datetime import UTC
 from typing import Any
 
+import aiofiles
 from loguru import logger
 
 from src.database.manager import DatabaseManager
@@ -49,86 +50,92 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
     # Получаем логи мониторинга
     logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
 
-    # Создаём временный CSV-файл
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=".csv", mode="w", newline="", encoding="utf-8-sig"
-    ) as tmp:
-        filepath: str = tmp.name
-        writer = csv.writer(tmp)
-        writer.writerow(
-            [
-                _("export-csv-header-patient"),
-                _("export-csv-header-specialty"),
-                _("export-csv-header-doctor"),
-                _("export-csv-header-clinic"),
-                _("export-csv-header-slot"),
-                _("export-csv-header-status"),
-                _("export-csv-header-timestamp"),
-            ]
-        )
+    # Создаём временный CSV-файл (асинхронно)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            _("export-csv-header-patient"),
+            _("export-csv-header-specialty"),
+            _("export-csv-header-doctor"),
+            _("export-csv-header-clinic"),
+            _("export-csv-header-slot"),
+            _("export-csv-header-status"),
+            _("export-csv-header-timestamp"),
+        ]
+    )
 
-        # Сначала пишем логи мониторинга (если есть)
-        rows_written = 0
-        if logs:
-            for entry in logs:
-                ts_str = _format_timestamp(entry["ts"])
+    # Сначала пишем логи мониторинга (если есть)
+    rows_written = 0
+    if logs:
+        for entry in logs:
+            ts_str = _format_timestamp(entry["ts"])
+            writer.writerow(
+                [
+                    entry.get("patient_name", ""),
+                    entry.get("specialty", ""),
+                    entry.get("doctor_name", ""),
+                    entry.get("clinic_name", ""),
+                    entry.get("slot_date", ""),
+                    entry.get("status", ""),
+                    ts_str,
+                ]
+            )
+            rows_written += 1
+
+    # Если логов нет, пишем текущую конфигурацию мониторинга
+    if not rows_written:
+        clinic_names = await db_manager.get_all_clinic_names()
+        now_str = _format_timestamp(time.time())
+
+        for p_id, doctors in monitoring.items():
+            raw_p = patients.get(p_id)
+            if raw_p is None:
+                continue
+            p_info: PatientInfo = raw_p
+            p_name = p_info.get("alias") or p_info.get(
+                "fio", _("patient-fallback-name")
+            )
+
+            for _d_id, d_info in doctors.items():
+                if isinstance(d_info, dict):
+                    d_name = d_info.get("name", "")
+                    d_spec = d_info.get("specialty", "")
+                    clinic_id = d_info.get("clinic_id", "")
+                else:
+                    d_name = str(d_info)
+                    d_spec = ""
+                    clinic_id = ""
+
+                clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
+
                 writer.writerow(
                     [
-                        entry.get("patient_name", ""),
-                        entry.get("specialty", ""),
-                        entry.get("doctor_name", ""),
-                        entry.get("clinic_name", ""),
-                        entry.get("slot_date", ""),
-                        entry.get("status", ""),
-                        ts_str,
+                        p_name,
+                        d_spec,
+                        d_name,
+                        clinic_name,
+                        "",
+                        _("export-status-active"),
+                        now_str,
                     ]
                 )
                 rows_written += 1
 
-        # Если логов нет, пишем текущую конфигурацию мониторинга
-        if not rows_written:
-            clinic_names = await db_manager.get_all_clinic_names()
-            now_str = _format_timestamp(time.time())
+    # Асинхронная запись временного файла
+    import os
+    import tempfile
 
-            for p_id, doctors in monitoring.items():
-                raw_p = patients.get(p_id)
-                if raw_p is None:
-                    continue
-                p_info: PatientInfo = raw_p
-                p_name = p_info.get("alias") or p_info.get(
-                    "fio", _("patient-fallback-name")
-                )
+    fd, filepath = tempfile.mkstemp(suffix=".csv")
+    os.close(fd)
+    async with aiofiles.open(filepath, mode="w", newline="", encoding="utf-8-sig") as f:
+        await f.write(buffer.getvalue())
 
-                for _d_id, d_info in doctors.items():
-                    if isinstance(d_info, dict):
-                        d_name = d_info.get("name", "")
-                        d_spec = d_info.get("specialty", "")
-                        clinic_id = d_info.get("clinic_id", "")
-                    else:
-                        d_name = str(d_info)
-                        d_spec = ""
-                        clinic_id = ""
-
-                    clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
-
-                    writer.writerow(
-                        [
-                            p_name,
-                            d_spec,
-                            d_name,
-                            clinic_name,
-                            "",
-                            _("export-status-active"),
-                            now_str,
-                        ]
-                    )
-                    rows_written += 1
-
-        logger.info(
-            "CSV-экспорт для uid={}: {} строк",
-            uid,
-            rows_written,
-        )
+    logger.info(
+        "CSV-экспорт для uid={}: {} строк",
+        uid,
+        rows_written,
+    )
 
     return filepath
 
@@ -237,20 +244,21 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
 
         export_data["patients"].append(patient_entry)
 
-    # Создаём временный JSON-файл
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".json",
-        mode="w",
-        encoding="utf-8",
-    ) as tmp:
-        filepath: str = tmp.name
-        json.dump(export_data, tmp, ensure_ascii=False, indent=2, default=str)
-        logger.info(
-            "JSON-экспорт для uid={}: {} пациентов",
-            uid,
-            len(export_data["patients"]),
-        )
+    # Создаём временный JSON-файл (асинхронно)
+    import os
+    import tempfile
+
+    fd, filepath = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    json_content = json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+    async with aiofiles.open(filepath, mode="w", encoding="utf-8") as f:
+        await f.write(json_content)
+
+    logger.info(
+        "JSON-экспорт для uid={}: {} пациентов",
+        uid,
+        len(export_data["patients"]),
+    )
 
     return filepath
 

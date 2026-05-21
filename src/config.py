@@ -1,7 +1,9 @@
+import sqlite3
 from collections.abc import Callable
 from typing import Any
 
 from loguru import logger
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Ключи конфигов, которые можно хранить в таблице config
@@ -67,8 +69,9 @@ class Settings(BaseSettings):
     SLOT_COMPACT_THRESHOLD: int = 15
 
     # ID пациентов для discovery (используются для получения списка специальностей)
-    DISCOVERY_PATIENT_ID_ADULT: str = "2343192"
-    DISCOVERY_PATIENT_ID_CHILD: str = "2509768"
+    # Задаются через .env: DISCOVERY_PATIENT_ID_ADULT, DISCOVERY_PATIENT_ID_CHILD
+    DISCOVERY_PATIENT_ID_ADULT: str = ""
+    DISCOVERY_PATIENT_ID_CHILD: str = ""
 
     # === Вынесенные хардкоды ===
 
@@ -79,7 +82,9 @@ class Settings(BaseSettings):
     REFERER_URL: str = "https://zdrav.lenreg.ru/signup/free/"
 
     # CSRF-токен (технический, всегда одинаковый)
-    CSRF_TOKEN: str = "NOTPROVIDED"
+    # Default — пустая строка (будет WARNING в логах, если не задан).
+    # Переопределяется через .env (значение NOTPROVIDED — корректное).
+    CSRF_TOKEN: str = ""
 
     # Клиника по умолчанию для первичного поиска пациента
     DEFAULT_CLINIC_ID: str = "272"
@@ -162,6 +167,17 @@ class Settings(BaseSettings):
             scheme, rest = self.REDIS_URL.split("://", 1)
             self.REDIS_URL = f"{scheme}://:{self.REDIS_PASSWORD}@{rest}"
 
+    # Валидация: если CSRF_TOKEN пустой — логируем WARNING
+    @field_validator("CSRF_TOKEN")
+    @classmethod
+    def warn_empty_csrf(cls, v: str) -> str:
+        if not v:
+            logger.warning(
+                "CSRF_TOKEN не задан! Укажите его в .env для корректной работы API. "
+                "Допустимое значение: NOTPROVIDED"
+            )
+        return v
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -172,6 +188,9 @@ async def load_config_from_db(database) -> None:
     """
     Загружает настройки из таблицы config БД и переопределяет значения settings.
     Вызывается при старте бота после инициализации БД.
+
+    При недоступности БД логирует WARNING и продолжает работу
+    с default-значениями из .env.
     """
     try:
         mapping: dict[str, tuple[str, Callable[[str], Any]]] = {
@@ -245,5 +264,20 @@ async def load_config_from_db(database) -> None:
 
         if loaded:
             logger.info(f"Загружено {loaded} настроек из таблицы config")
+    except RuntimeError:
+        logger.warning(
+            "Соединение с БД не установлено — загрузка конфигурации из БД "
+            "пропущена, используются default-значения из .env"
+        )
+    except sqlite3.DatabaseError as e:
+        logger.warning(
+            "Ошибка БД при загрузке конфигурации: {} — используются "
+            "default-значения из .env",
+            e,
+        )
     except Exception as e:
-        logger.warning(f"Не удалось загрузить настройки из config: {e}")
+        logger.warning(
+            "Не удалось загрузить настройки из config: {} — используются "
+            "default-значения из .env",
+            e,
+        )

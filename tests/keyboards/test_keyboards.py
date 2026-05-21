@@ -4,6 +4,24 @@
 
 from typing import ClassVar
 
+from src.handlers.callbacks import (
+    AddPatient,
+    BackToCities,
+    BackToClinics,
+    BackToMain,
+    CancelRegistration,
+    CitySelect,
+    ClinicSelect,
+    DeletePatientAsk,
+    DeletePatientConfirm,
+    PatientSelect,
+    SkipAlias,
+    StopAllMonitoring,
+    StopClinicMonitoring,
+    StopPatientMonitoring,
+    ToggleDoctor,
+)
+
 
 def _extract_buttons(markup):
     """Извлекает список (text, callback_data) из InlineKeyboardMarkup."""
@@ -33,24 +51,24 @@ class TestRegistrationKeyboard:
 
         mk = get_registration_keyboard(step="alias")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", "skip_alias") in buttons
-        assert ("❌ Отмена регистрации", "cancel_registration") in buttons
+        assert ("Пропустить", SkipAlias().pack()) in buttons
+        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
 
     def test_fio_step_no_skip_button(self):
         from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="fio")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", "skip_alias") not in buttons
-        assert ("❌ Отмена регистрации", "cancel_registration") in buttons
+        assert ("Пропустить", SkipAlias().pack()) not in buttons
+        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
 
     def test_bday_step_no_skip_button(self):
         from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="bday")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", "skip_alias") not in buttons
-        assert ("❌ Отмена регистрации", "cancel_registration") in buttons
+        assert ("Пропустить", SkipAlias().pack()) not in buttons
+        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
 
 
 # ── T4.2 get_confirm_deletion ─────────────────────────────────────────
@@ -64,14 +82,16 @@ class TestConfirmDeletion:
 
         mk = get_confirm_deletion("patient_123")
         buttons = _extract_buttons(mk)
-        assert ("✅ Да, удалить", "del_p_yes_patient_123") in buttons
-        assert ("❌ Нет", "sel_p_patient_123") in buttons
+        assert (
+            "✅ Да, удалить",
+            DeletePatientConfirm(p_id="patient_123").pack(),
+        ) in buttons
+        assert ("❌ Нет", PatientSelect(p_id="patient_123").pack()) in buttons
 
     def test_returns_markup(self):
         from src.keyboards.inline import get_confirm_deletion
 
         mk = get_confirm_deletion("abc")
-        # Две кнопки в одном ряду (adjust(2))
         rows = _extract_rows(mk)
         assert len(rows) == 1
         assert len(rows[0]) == 2
@@ -119,7 +139,6 @@ class TestShortClinicLabel:
 
         name = 'ГБУЗ ""'
         result = _short_clinic_label(name, 1)
-        # После последней кавычки пусто — fallback на полное имя (короткое)
         assert result == 'ГБУЗ "" (1)'
 
 
@@ -141,24 +160,24 @@ class TestPatientSelection:
         mk = get_patient_selection({}, {})
         buttons = _extract_buttons(mk)
         assert len(buttons) == 1
-        assert buttons[0] == ("➕ Добавить пациента", "start_add_p")
+        assert buttons[0] == ("➕ Добавить пациента", AddPatient().pack())
 
     def test_patients_sorted_by_display_name(self):
-        """Сортировка по alias (если есть) или fio, алфавитно."""
         from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         buttons = _extract_buttons(mk)
 
-        # Ожидаемый порядок: Мама (p1), Петров Иван Сидорович (p2), Сын (p3)
-        # Плюс кнопка "Добавить"
-        assert buttons[0] == ("👤 Мама", "sel_p_p1")
-        assert buttons[1] == ("🗑", "del_p_ask_p1")
-        assert buttons[2] == ("👤 Петров Иван Сидорович", "sel_p_p2")
-        assert buttons[3] == ("🗑", "del_p_ask_p2")
-        assert buttons[4] == ("👤 Сын", "sel_p_p3")
-        assert buttons[5] == ("🗑", "del_p_ask_p3")
-        assert buttons[6] == ("➕ Добавить пациента", "start_add_p")
+        assert buttons[0] == ("👤 Мама", PatientSelect(p_id="p1").pack())
+        assert buttons[1] == ("🗑", DeletePatientAsk(p_id="p1").pack())
+        assert buttons[2] == (
+            "👤 Петров Иван Сидорович",
+            PatientSelect(p_id="p2").pack(),
+        )
+        assert buttons[3] == ("🗑", DeletePatientAsk(p_id="p2").pack())
+        assert buttons[4] == ("👤 Сын", PatientSelect(p_id="p3").pack())
+        assert buttons[5] == ("🗑", DeletePatientAsk(p_id="p3").pack())
+        assert buttons[6] == ("➕ Добавить пациента", AddPatient().pack())
 
     def test_monitoring_count_shown(self):
         from src.keyboards.inline import get_patient_selection
@@ -169,9 +188,12 @@ class TestPatientSelection:
         }
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
         buttons = _extract_buttons(mk)
-        assert buttons[0] == ("👤 Мама (2)", "sel_p_p1")
-        assert buttons[2] == ("👤 Петров Иван Сидорович", "sel_p_p2")  # no count
-        assert buttons[4] == ("👤 Сын (1)", "sel_p_p3")
+        assert buttons[0] == ("👤 Мама (2)", PatientSelect(p_id="p1").pack())
+        assert buttons[2] == (
+            "👤 Петров Иван Сидорович",
+            PatientSelect(p_id="p2").pack(),
+        )
+        assert buttons[4] == ("👤 Сын (1)", PatientSelect(p_id="p3").pack())
 
     def test_stop_all_button_when_active_monitoring(self):
         from src.keyboards.inline import get_patient_selection
@@ -179,22 +201,23 @@ class TestPatientSelection:
         monitoring: dict[str, dict[str, dict]] = {"p1": {"d1": {}}}
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
         buttons = _extract_buttons(mk)
-        assert ("🛑 Сбросить весь мониторинг", "stop_all") in buttons
+        assert ("🛑 Сбросить весь мониторинг", StopAllMonitoring().pack()) in buttons
 
     def test_no_stop_all_when_no_monitoring(self):
         from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         buttons = _extract_buttons(mk)
-        assert ("🛑 Сбросить весь мониторинг", "stop_all") not in buttons
+        assert (
+            "🛑 Сбросить весь мониторинг",
+            StopAllMonitoring().pack(),
+        ) not in buttons
 
     def test_row_structure_patients_in_pairs(self):
-        """Каждый пациент — 2 кнопки в ряду, затем 1 кнопка добавить."""
         from src.keyboards.inline import get_patient_selection
 
         mk = get_patient_selection(self.SAMPLE_PATIENTS, {})
         rows = _extract_rows(mk)
-        # 3 пациента → 3 ряда по 2 кнопки + 1 ряд с кнопкой "Добавить"
         assert len(rows) == 4
         for i in range(3):
             assert len(rows[i]) == 2
@@ -215,14 +238,11 @@ class TestCitySelection:
             cities=["Москва", "Санкт-Петербург", "Казань"],
         )
         buttons = _extract_buttons(mk)
-        # Города с 1-based индексами
-        assert ("📍 Москва", "sel_cty_p1_1") in buttons
-        assert ("📍 Санкт-Петербург", "sel_cty_p1_2") in buttons
-        assert ("📍 Казань", "sel_cty_p1_3") in buttons
-        # Все города
-        assert ("🏥 Все", "sel_cty_p1_all") in buttons
-        # Навигация
-        assert ("⬅️ Назад к списку", "back_to_main") in buttons
+        assert ("📍 Москва", CitySelect(p_id="p1", idx="1").pack()) in buttons
+        assert ("📍 Санкт-Петербург", CitySelect(p_id="p1", idx="2").pack()) in buttons
+        assert ("📍 Казань", CitySelect(p_id="p1", idx="3").pack()) in buttons
+        assert ("🏥 Все", CitySelect(p_id="p1", idx="all").pack()) in buttons
+        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
 
     def test_monitoring_counts_per_city(self):
         from src.keyboards.inline import get_city_selection
@@ -259,9 +279,9 @@ class TestCitySelection:
             clinics_data=clinics_data,
         )
         buttons = _extract_buttons(mk)
-        assert ("📍 Москва (2)", "sel_cty_p1_1") in buttons
-        assert ("📍 Казань (1)", "sel_cty_p1_2") in buttons
-        assert ("🏥 Все (3)", "sel_cty_p1_all") in buttons
+        assert ("📍 Москва (2)", CitySelect(p_id="p1", idx="1").pack()) in buttons
+        assert ("📍 Казань (1)", CitySelect(p_id="p1", idx="2").pack()) in buttons
+        assert ("🏥 Все (3)", CitySelect(p_id="p1", idx="all").pack()) in buttons
 
     def test_stop_patient_button_when_monitoring(self):
         from src.keyboards.inline import get_city_selection
@@ -287,7 +307,7 @@ class TestCitySelection:
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить мониторинг этого пациента",
-            "stop_patient_p1_city",
+            StopPatientMonitoring(p_id="p1", origin="city").pack(),
         ) in buttons
 
     def test_no_stop_button_when_no_monitoring(self):
@@ -297,7 +317,7 @@ class TestCitySelection:
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить мониторинг этого пациента",
-            "stop_patient_p1_city",
+            StopPatientMonitoring(p_id="p1", origin="city").pack(),
         ) not in buttons
 
     def test_no_cities_all_button_only(self):
@@ -305,7 +325,7 @@ class TestCitySelection:
 
         mk = get_city_selection(p_id="p1")
         buttons = _extract_buttons(mk)
-        assert ("🏥 Все клиники", "sel_cty_p1_all") in buttons
+        assert ("🏥 Все клиники", CitySelect(p_id="p1", idx="all").pack()) in buttons
 
 
 # ── T4.6 get_doctor_selection ─────────────────────────────────────────
@@ -318,8 +338,8 @@ class TestDoctorSelection:
         "d1": {"name": "Иванов Иван Иванович", "specialty": "Терапия"},
         "d2": {"name": "Петров Пётр Петрович", "specialty": "Хирургия"},
         "d3": {"name": "Сидоров Алексей Борисович", "specialty": "Терапия"},
-        "d4": {"name": "Кабинет УЗИ", "specialty": ""},  # кабинет
-        "d5": {"name": "Процедурный кабинет", "specialty": ""},  # кабинет
+        "d4": {"name": "Кабинет УЗИ", "specialty": ""},
+        "d5": {"name": "Процедурный кабинет", "specialty": ""},
     }
 
     def test_doctors_sorted_by_specialty_then_name(self):
@@ -327,15 +347,9 @@ class TestDoctorSelection:
 
         mk = get_doctor_selection("p1", "271", self.DOCTORS, {})
         buttons = _extract_buttons(mk)
-        # Врачи должны идти раньше кабинетов
-        # Терапия: Иванов → Сидоров, Хирургия: Петров
-        # Затем кабинеты по алфавиту: Кабинет УЗИ → Процедурный кабинет
-        assert (
-            buttons[0][0] == "▫️ [Терапевт] Иванов И. И."
-        )  # shorten_fio + shorten_specialty
+        assert buttons[0][0] == "▫️ [Терапевт] Иванов И. И."
         assert buttons[1][0] == "▫️ [Терапевт] Сидоров А. Б."
         assert buttons[2][0] == "▫️ [Хирург] Петров П. П."
-        # Кабинеты
         assert buttons[3][0] == "▫️ Кабинет УЗИ"
         assert buttons[4][0] == "▫️ Процедурный кабинет"
 
@@ -352,15 +366,21 @@ class TestDoctorSelection:
 
         mk = get_doctor_selection("p_abc", "300", self.DOCTORS, {})
         buttons = _extract_buttons(mk)
-        assert buttons[0][1] == "tgl_p_abc_300_d1"
+        assert (
+            buttons[0][1]
+            == ToggleDoctor(p_id="p_abc", clinic_id="300", d_id="d1").pack()
+        )
 
     def test_navigation_buttons(self):
         from src.keyboards.inline import get_doctor_selection
 
         mk = get_doctor_selection("p1", "271", self.DOCTORS, {}, city_idx="2")
         buttons = _extract_buttons(mk)
-        assert ("⬅️ К выбору клиники", "back_to_clinics_p1_2") in buttons
-        assert ("⬅️ Назад к списку", "back_to_main") in buttons
+        assert (
+            "⬅️ К выбору клиники",
+            BackToClinics(p_id="p1", city_idx="2").pack(),
+        ) in buttons
+        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
 
     def test_stop_clinic_button_when_monitoring_in_clinic(self):
         from src.keyboards.inline import get_doctor_selection
@@ -371,22 +391,23 @@ class TestDoctorSelection:
         }
         mk = get_doctor_selection("p1", "271", self.DOCTORS, monitored)
         buttons = _extract_buttons(mk)
-        # d1 в клинике 271 — кнопка сброса должна быть
-        assert ("🛑 Сбросить мониторинг этой клиники", "stop_clinic_p1_271") in buttons
+        assert (
+            "🛑 Сбросить мониторинг этой клиники",
+            StopClinicMonitoring(p_id="p1", clinic_id="271").pack(),
+        ) in buttons
 
     def test_no_stop_clinic_when_no_monitoring_in_that_clinic(self):
         from src.keyboards.inline import get_doctor_selection
 
-        monitored = {"d9": {"name": "Y", "clinic_id": "999"}}  # другая клиника
+        monitored = {"d9": {"name": "Y", "clinic_id": "999"}}
         mk = get_doctor_selection("p1", "271", self.DOCTORS, monitored)
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить мониторинг этой клиники",
-            "stop_clinic_p1_271",
+            StopClinicMonitoring(p_id="p1", clinic_id="271").pack(),
         ) not in buttons
 
     def test_dental_clinic_filters_child_specialties(self):
-        """Клиника 272: для детей — только 'детск' специальности."""
         from src.keyboards.inline import get_doctor_selection
 
         doctors = {
@@ -397,16 +418,17 @@ class TestDoctorSelection:
             "d2": {"name": "Петров Пётр Петрович", "specialty": "Детская стоматология"},
             "d3": {"name": "Сидоров Алексей Борисович", "specialty": "Ортодонтия"},
         }
-        # Ребёнок (bday 2020-01-01 → ~6 лет)
         mk = get_doctor_selection("p1", "272", doctors, {}, bday_str="2020-01-01")
         buttons = _extract_buttons(mk)
-        # Только d2 (Детская стоматология) — содержит "детск"
-        doctor_texts = [b[0] for b in buttons if b[1].startswith("tgl_")]
+        tgl_prefix = (
+            ToggleDoctor(p_id="p1", clinic_id="272", d_id="").pack().rsplit(":", 1)[0]
+            + ":"
+        )
+        doctor_texts = [b[0] for b in buttons if b[1].startswith(tgl_prefix)]
         assert len(doctor_texts) == 1
         assert "Дет. стоматолог" in doctor_texts[0]
 
     def test_dental_clinic_filters_adult_specialties(self):
-        """Клиника 272: для взрослых — исключаем 'детск'."""
         from src.keyboards.inline import get_doctor_selection
 
         doctors = {
@@ -416,10 +438,13 @@ class TestDoctorSelection:
             },
             "d2": {"name": "Петров Пётр Петрович", "specialty": "Детская стоматология"},
         }
-        # Взрослый (bday 1990-01-01 → ~36 лет)
         mk = get_doctor_selection("p1", "272", doctors, {}, bday_str="1990-01-01")
         buttons = _extract_buttons(mk)
-        doctor_texts = [b[0] for b in buttons if b[1].startswith("tgl_")]
+        tgl_prefix = (
+            ToggleDoctor(p_id="p1", clinic_id="272", d_id="").pack().rsplit(":", 1)[0]
+            + ":"
+        )
+        doctor_texts = [b[0] for b in buttons if b[1].startswith(tgl_prefix)]
         assert len(doctor_texts) == 1
         assert "Стоматолог" in doctor_texts[0]
 
@@ -464,39 +489,40 @@ class TestClinicSelection:
         "300": "Другая поликлиника",
     }
 
+    def _sel_c(self, p_id: str, clinic_id: str, city_idx: str = "all") -> str:
+        return ClinicSelect(p_id=p_id, clinic_id=clinic_id, city_idx=city_idx).pack()
+
     def test_adult_sees_adult_and_all_clinics(self):
-        """Возраст >= 18 — видны adult и all, не видны child."""
         from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
-            bday_str="1990-01-01",  # ~36 лет
+            bday_str="1990-01-01",
             clinics_data=self.CLINICS_DATA,
             clinic_names=self.CLINIC_NAMES,
         )
         buttons = _extract_buttons(mk)
         callbacks = [b[1] for b in buttons]
-        assert "sel_c_p1_271_all" in callbacks  # adult — видна
-        assert "sel_c_p1_272_all" in callbacks  # all — видна
-        assert "sel_c_p1_300_all" in callbacks  # adult — видна
-        assert "sel_c_p1_161_all" not in callbacks  # child — не видна
+        assert self._sel_c("p1", "271") in callbacks
+        assert self._sel_c("p1", "272") in callbacks
+        assert self._sel_c("p1", "300") in callbacks
+        assert self._sel_c("p1", "161") not in callbacks
 
     def test_child_sees_child_and_all_clinics(self):
-        """Возраст < 18 — видны child и all, не видны adult."""
         from src.keyboards.inline import get_clinic_selection
 
         mk = get_clinic_selection(
             p_id="p1",
-            bday_str="2020-01-01",  # ~6 лет
+            bday_str="2020-01-01",
             clinics_data=self.CLINICS_DATA,
             clinic_names=self.CLINIC_NAMES,
         )
         buttons = _extract_buttons(mk)
         callbacks = [b[1] for b in buttons]
-        assert "sel_c_p1_161_all" in callbacks  # child — видна
-        assert "sel_c_p1_272_all" in callbacks  # all — видна
-        assert "sel_c_p1_271_all" not in callbacks  # adult — не видна
-        assert "sel_c_p1_300_all" not in callbacks  # adult — не видна
+        assert self._sel_c("p1", "161") in callbacks
+        assert self._sel_c("p1", "272") in callbacks
+        assert self._sel_c("p1", "271") not in callbacks
+        assert self._sel_c("p1", "300") not in callbacks
 
     def test_city_filter(self):
         from src.keyboards.inline import get_clinic_selection
@@ -510,10 +536,9 @@ class TestClinicSelection:
         )
         buttons = _extract_buttons(mk)
         callbacks = [b[1] for b in buttons]
-        # Только клиники Казани (300 — adult, видна для взрослого)
-        assert "sel_c_p1_300_all" in callbacks
-        assert "sel_c_p1_271_all" not in callbacks
-        assert "sel_c_p1_272_all" not in callbacks
+        assert self._sel_c("p1", "300") in callbacks
+        assert self._sel_c("p1", "271") not in callbacks
+        assert self._sel_c("p1", "272") not in callbacks
 
     def test_monitoring_counts(self):
         from src.keyboards.inline import get_clinic_selection
@@ -533,11 +558,9 @@ class TestClinicSelection:
             clinic_names=self.CLINIC_NAMES,
         )
         buttons = _extract_buttons(mk)
-        # 271: "Поликлиника №1 (2)"
-        assert ("Поликлиника №1 (2)", "sel_c_p1_271_all") in buttons
-        assert ("Другая поликлиника (1)", "sel_c_p1_300_all") in buttons
-        # 272: без мониторинга
-        assert ("Стоматология №1", "sel_c_p1_272_all") in buttons
+        assert ("Поликлиника №1 (2)", self._sel_c("p1", "271")) in buttons
+        assert ("Другая поликлиника (1)", self._sel_c("p1", "300")) in buttons
+        assert ("Стоматология №1", self._sel_c("p1", "272")) in buttons
 
     def test_navigation_buttons(self):
         from src.keyboards.inline import get_clinic_selection
@@ -549,8 +572,8 @@ class TestClinicSelection:
             clinic_names=self.CLINIC_NAMES,
         )
         buttons = _extract_buttons(mk)
-        assert ("⬅️ К выбору города", "back_to_cities_p1") in buttons
-        assert ("⬅️ Назад к списку", "back_to_main") in buttons
+        assert ("⬅️ К выбору города", BackToCities(p_id="p1").pack()) in buttons
+        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
 
     def test_stop_patient_button_when_monitoring(self):
         from src.keyboards.inline import get_clinic_selection
@@ -566,7 +589,7 @@ class TestClinicSelection:
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить мониторинг этого пациента",
-            "stop_patient_p1_clinic_all",
+            StopPatientMonitoring(p_id="p1", origin="clinic", city_idx="all").pack(),
         ) in buttons
 
     def test_no_stop_button_when_no_monitoring(self):
@@ -581,7 +604,7 @@ class TestClinicSelection:
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить мониторинг этого пациента",
-            "stop_patient_p1_clinic_all",
+            StopPatientMonitoring(p_id="p1", origin="clinic", city_idx="all").pack(),
         ) not in buttons
 
     def test_city_idx_passed_to_callback(self):
@@ -597,7 +620,8 @@ class TestClinicSelection:
             monitoring=monitoring,
         )
         buttons = _extract_buttons(mk)
-        # callback содержит city_idx
-        assert ("sel_c_p1_271_3") in [b[1] for b in buttons]
-        # Стоп тоже содержит city_idx
-        assert ("stop_patient_p1_clinic_3") in [b[1] for b in buttons]
+        assert self._sel_c("p1", "271", "3") in [b[1] for b in buttons]
+        assert (
+            StopPatientMonitoring(p_id="p1", origin="clinic", city_idx="3").pack()
+            in [b[1] for b in buttons]
+        )

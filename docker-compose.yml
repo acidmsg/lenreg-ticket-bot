@@ -39,7 +39,7 @@ services:
     volumes:
       - bot_data:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.access('data/bot.db', os.R_OK | os.W_OK) or exit(1)"]
+      test: ["CMD-SHELL", "pgrep -f 'python -m src.main' > /dev/null 2>&1 && redis-cli -h redis ping > /dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 60s

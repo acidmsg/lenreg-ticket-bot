@@ -1,0 +1,15 @@
+{
+  "description": "Запись таблицы config (key-value хранилище настроек)",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Ключ настройки (PK)"
+    },
+    "value": {
+      "type": "string",
+      "description": "Значение (всегда строка, преобразуется при загрузке)"
+    }
+  },
+  "title": "DB_Config",
+  "type": "object"
+}

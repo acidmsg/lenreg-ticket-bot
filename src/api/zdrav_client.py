@@ -10,10 +10,15 @@ from loguru import logger
 from pydantic import BaseModel, ValidationError
 
 from src.api.models import (
+    AppointmentListRequest,
     AppointmentListResponse,
+    CheckPatientRequest,
     CheckPatientResponse,
+    ClinicListRequest,
     ClinicListResponse,
+    DoctorListRequest,
     DoctorListResponse,
+    SpecialityListRequest,
     SpecialityListResponse,
 )
 from src.config import settings
@@ -139,7 +144,7 @@ class ZdravClient:
             )
 
         iso_bday = bday_date.strftime("%Y-%m-%dT00:00:00.000Z")
-        payload = {
+        payload = CheckPatientRequest.model_validate({
             "patient_form-first_name": parts[1],
             "patient_form-last_name": parts[0],
             "patient_form-middle_name": parts[2],
@@ -148,49 +153,83 @@ class ZdravClient:
             "patient_form-birthday": iso_bday,
             "patient_form-clinic_id": clinic_id,
             "csrfmiddlewaretoken": settings.CSRF_TOKEN,
-        }
+        }).model_dump(by_alias=True)
 
         async with limiter or self.limiter:
             client = await self._get_client()
-            try:
-                res = await client.post(
-                    f"{self.base_url}/check_patient/",
-                    data=payload,
-                    headers=self._get_headers(),
-                )
-                if res.status_code == 200:
-                    model = self._validate_response(
-                        res.json(),
-                        CheckPatientResponse,
-                        "check_patient",
+            for i in range(3):
+                try:
+                    res = await client.post(
                         f"{self.base_url}/check_patient/",
+                        data=payload,
+                        headers=self._get_headers(),
                     )
-                    p_id = model.response.patient_id
-                    if p_id:
-                        return str(p_id), None
-                    return (
-                        None,
-                        _("api-patient-not-found"),
+                    if res.status_code == 200:
+                        model = self._validate_response(
+                            res.json(),
+                            CheckPatientResponse,
+                            "check_patient",
+                            f"{self.base_url}/check_patient/",
+                        )
+                        p_id = model.response.patient_id
+                        if p_id:
+                            return str(p_id), None
+                        return (
+                            None,
+                            _("api-patient-not-found"),
+                        )
+                    elif res.status_code == 403:
+                        logger.error(
+                            "Доступ запрещён (fetch_patient_id): статус 403, "
+                            "возможно истекла сессия/CSRF",
+                            exc_info=True,
+                        )
+                        return None, _("api-forbidden")
+                    elif res.status_code == 429:
+                        logger.warning(
+                            "Превышен лимит запросов (fetch_patient_id): статус 429",
+                            exc_info=True,
+                        )
+                        return None, _("api-rate-limited")
+                    elif res.status_code >= 500:
+                        await asyncio.sleep(2)
+                        continue
+                    return None, _("api-temp-unavailable").format(
+                        status=res.status_code
                     )
-                elif res.status_code in [403, 429]:
-                    return (
-                        None,
-                        _("api-blocked"),
+                except httpx.TimeoutException as e:
+                    logger.error(
+                        f"Таймаут API (fetch_patient_id), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
-                return None, _("api-temp-unavailable").format(status=res.status_code)
-            except httpx.TimeoutException as e:
-                logger.error(f"Таймаут API (fetch_patient_id): {e!r}")
-                return None, _("api-timeout")
-            except httpx.NetworkError as e:
-                logger.error(f"Сетевая ошибка API (fetch_patient_id): {e!r}")
-                return None, _("api-network-error")
-            except (json.JSONDecodeError, ValidationError) as e:
-                logger.error(f"Ошибка парсинга API (fetch_patient_id): {e!r}")
-                return None, _("api-parse-error")
-            except Exception as e:
-                exc_repr = repr(e) if not str(e) else str(e)
-                logger.error(f"Неожиданная ошибка API (fetch_patient_id): {exc_repr}")
-                return None, _("api-timeout")
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except httpx.NetworkError as e:
+                    logger.error(
+                        f"Сетевая ошибка API (fetch_patient_id), "
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(
+                        f"Ошибка парсинга API (fetch_patient_id), "
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+                except Exception as e:
+                    exc_repr = repr(e) if not str(e) else str(e)
+                    logger.error(
+                        "Неожиданная ошибка API (fetch_patient_id), "
+                        f"попытка {i + 1}: {exc_repr}",
+                        exc_info=True,
+                    )
+                    if i < 2:
+                        await asyncio.sleep(2)
+            return None, _("api-timeout")
 
     async def fetch_speciality_list(
         self,
@@ -198,11 +237,11 @@ class ZdravClient:
         clinic_id: str,
         limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
-        payload = {
+        payload = SpecialityListRequest.model_validate({
             "clinic_form-clinic_id": clinic_id,
             "clinic_form-history_id": "",
             "clinic_form-patient_id": patient_id,
-        }
+        }).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -225,27 +264,44 @@ class ZdravClient:
                                 item.model_dump(by_alias=True)
                                 for item in model.response
                             ]
+                    elif res.status_code == 403:
+                        logger.error(
+                            "Доступ запрещён (fetch_speciality_list): статус 403, "
+                            "возможно истекла сессия/CSRF",
+                            exc_info=True,
+                        )
+                        return []
+                    elif res.status_code == 429:
+                        logger.warning(
+                            "Превышен лимит запросов (fetch_speciality_list): "
+                            "статус 429",
+                            exc_info=True,
+                        )
+                        return []
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
                     return []
                 except httpx.TimeoutException as e:
                     logger.error(
-                        f"Таймаут API (fetch_speciality_list), попытка {i + 1}: {e!r}"
+                        f"Таймаут API (fetch_speciality_list), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
                 except httpx.NetworkError as e:
                     logger.error(
                         f"Сетевая ошибка API (fetch_speciality_list), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
                 except (json.JSONDecodeError, ValidationError) as e:
                     logger.error(
                         f"Ошибка парсинга API (fetch_speciality_list), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
@@ -253,7 +309,8 @@ class ZdravClient:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
                         "Неожиданная ошибка API (fetch_speciality_list), "
-                        f"попытка {i + 1}: {exc_repr}"
+                        f"попытка {i + 1}: {exc_repr}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
@@ -291,11 +348,13 @@ class ZdravClient:
             ZdravParseError: При ошибке парсинга ответа (внутреннее
                              логирование, метод возвращает None).
         """
-        payload = {
+        payload = AppointmentListRequest.model_validate({
             "doctor_form-doctor_id": doc_id,
             "doctor_form-clinic_id": clinic_id,
             "doctor_form-patient_id": patient_id,
-        }
+            "doctor_form-history_id": "",
+            "doctor_form-appointment_type": "",
+        }).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -312,7 +371,9 @@ class ZdravClient:
                             "appointment_list",
                             f"{self.base_url}/appointment_list/",
                         )
-                        logger.info(f"API response for {doc_id}: {model.response}")
+                        logger.info(
+                            f"API response for {doc_id}: {model.response}"
+                        )
                         slots = []
                         for date, items in model.response.items():
                             for s in items:
@@ -326,30 +387,37 @@ class ZdravClient:
                         return slots
                     elif res.status_code in [403, 429]:
                         logger.warning(
-                            f"Заблокировано API (check_slots): {res.status_code}"
+                            f"Заблокировано API (check_slots): {res.status_code}",
+                            exc_info=True,
                         )
                         return None
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
                 except httpx.TimeoutException as e:
-                    logger.error(f"Таймаут API (check_slots), попытка {i + 1}: {e!r}")
+                    logger.error(
+                        f"Таймаут API (check_slots), попытка {i + 1}: {e!r}",
+                        exc_info=True,
+                    )
                     await asyncio.sleep(2)
                 except httpx.NetworkError as e:
                     logger.error(
-                        f"Сетевая ошибка API (check_slots), попытка {i + 1}: {e!r}"
+                        f"Сетевая ошибка API (check_slots), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
                 except (json.JSONDecodeError, ValidationError) as e:
                     logger.error(
-                        f"Ошибка парсинга API (check_slots), попытка {i + 1}: {e!r}"
+                        f"Ошибка парсинга API (check_slots), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
                         f"Неожиданная ошибка API (check_slots), "
-                        f"попытка {i + 1}: {exc_repr}"
+                        f"попытка {i + 1}: {exc_repr}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
         return None
@@ -361,12 +429,12 @@ class ZdravClient:
         clinic_id: str,
         limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
-        payload = {
+        payload = DoctorListRequest.model_validate({
             "speciality_form-speciality_id": specialty_id,
             "speciality_form-clinic_id": clinic_id,
             "speciality_form-patient_id": patient_id,
             "speciality_form-history_id": "",
-        }
+        }).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -389,31 +457,49 @@ class ZdravClient:
                                 item.model_dump(by_alias=True)
                                 for item in model.response
                             ]
+                    elif res.status_code == 403:
+                        logger.error(
+                            "Доступ запрещён (fetch_all_doctors): статус 403, "
+                            "возможно истекла сессия/CSRF",
+                            exc_info=True,
+                        )
+                        return []
+                    elif res.status_code == 429:
+                        logger.warning(
+                            "Превышен лимит запросов (fetch_all_doctors): "
+                            "статус 429",
+                            exc_info=True,
+                        )
+                        return []
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
                 except httpx.TimeoutException as e:
                     logger.error(
-                        f"Таймаут API (fetch_all_doctors), попытка {i + 1}: {e!r}"
+                        f"Таймаут API (fetch_all_doctors), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
                 except httpx.NetworkError as e:
                     logger.error(
                         f"Сетевая ошибка API (fetch_all_doctors), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
                 except (json.JSONDecodeError, ValidationError) as e:
                     logger.error(
                         f"Ошибка парсинга API (fetch_all_doctors), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
                         f"Неожиданная ошибка API (fetch_all_doctors), "
-                        f"попытка {i + 1}: {exc_repr}"
+                        f"попытка {i + 1}: {exc_repr}",
+                        exc_info=True,
                     )
                     await asyncio.sleep(2)
         return []
@@ -424,9 +510,9 @@ class ZdravClient:
         limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
         """Получает список клиник для указанного района через /clinic_list/."""
-        payload = {
+        payload = ClinicListRequest.model_validate({
             "district_form-district_id": district_id,
-        }
+        }).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -449,30 +535,49 @@ class ZdravClient:
                                 item.model_dump(by_alias=True)
                                 for item in model.response
                             ]
+                    elif res.status_code == 403:
+                        logger.error(
+                            "Доступ запрещён (fetch_clinic_list): статус 403, "
+                            "возможно истекла сессия/CSRF",
+                            exc_info=True,
+                        )
+                        return []
+                    elif res.status_code == 429:
+                        logger.warning(
+                            "Превышен лимит запросов (fetch_clinic_list): "
+                            "статус 429",
+                            exc_info=True,
+                        )
+                        return []
                     elif res.status_code >= 500:
                         await asyncio.sleep(2)
                         continue
                     logger.warning(
-                        f"clinic_list вернул {res.status_code} для района {district_id}"
+                        f"clinic_list вернул {res.status_code} для района "
+                        f"{district_id}",
+                        exc_info=True,
                     )
                     return []
                 except httpx.TimeoutException as e:
                     logger.error(
-                        f"Таймаут API (fetch_clinic_list), попытка {i + 1}: {e!r}"
+                        f"Таймаут API (fetch_clinic_list), попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
                 except httpx.NetworkError as e:
                     logger.error(
                         f"Сетевая ошибка API (fetch_clinic_list), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
                 except (json.JSONDecodeError, ValidationError) as e:
                     logger.error(
                         f"Ошибка парсинга API (fetch_clinic_list), "
-                        f"попытка {i + 1}: {e!r}"
+                        f"попытка {i + 1}: {e!r}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)
@@ -480,7 +585,8 @@ class ZdravClient:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
                         f"Неожиданная ошибка API (fetch_clinic_list), "
-                        f"попытка {i + 1}: {exc_repr}"
+                        f"попытка {i + 1}: {exc_repr}",
+                        exc_info=True,
                     )
                     if i < 2:
                         await asyncio.sleep(2)

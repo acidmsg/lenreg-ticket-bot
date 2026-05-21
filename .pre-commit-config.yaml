@@ -1,4 +1,9 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+
   - repo: local
     hooks:
       - id: trailing-whitespace
@@ -82,7 +87,7 @@ repos:
             -p,
             scripts,
             -p,
-            tests,
+            tests
           ]
         pass_filenames: false
         always_run: true

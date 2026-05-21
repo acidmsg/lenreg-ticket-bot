@@ -1,6 +1,7 @@
 import asyncio
 import random
 
+from aiolimiter import AsyncLimiter
 from loguru import logger
 
 from src.api.models import SpecialityItem
@@ -10,7 +11,10 @@ from src.database.database import Database
 
 
 async def fetch_specialties(
-    api: ZdravClient, patient_id: str, clinic_id: str, limiter=None
+    api: ZdravClient,
+    patient_id: str,
+    clinic_id: str,
+    limiter: AsyncLimiter | None = None,
 ) -> list[SpecialityItem]:
     """Получает список специальностей (ID и имя) для данной клиники и пациента."""
     try:

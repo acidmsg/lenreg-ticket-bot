@@ -177,7 +177,10 @@ class Database:
             try:
                 await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except Exception:
-                logger.debug("Не удалось выполнить WAL checkpoint при закрытии БД")
+                logger.debug(
+                    "Не удалось выполнить WAL checkpoint при закрытии БД",
+                    exc_info=True,
+                )
             await self._conn.close()
             self._conn = None
 
@@ -638,7 +641,10 @@ class Database:
                 len(SPECIALTY_ALIASES),
             )
         except Exception as e:
-            logger.error(f"Не удалось заполнить specialty_aliases из fallback: {e}")
+            logger.error(
+                f"Не удалось заполнить specialty_aliases из fallback: {e}",
+                exc_info=True,
+            )
 
     async def seed_config_from_defaults(self) -> None:
         """
@@ -686,7 +692,10 @@ class Database:
                 len(defaults),
             )
         except Exception as e:
-            logger.error(f"Не удалось заполнить config из defaults: {e}")
+            logger.error(
+                f"Не удалось заполнить config из defaults: {e}",
+                exc_info=True,
+            )
 
     async def get_active_clinic_ids(self) -> list[str]:
         """Возвращает список clinic_id активных клиник (is_active = 1)."""

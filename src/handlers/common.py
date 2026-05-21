@@ -17,6 +17,10 @@ from src.database.manager import DatabaseManager
 from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo
 from src.filters.admin import IsAdmin
 from src.handlers.callback_parser import _parse_callback_arg
+from src.handlers.callbacks import (
+    ExportCSV,
+    ExportJSON,
+)
 from src.i18n import _
 from src.keyboards.inline import (
     get_city_selection,
@@ -1122,8 +1126,8 @@ async def cmd_export(message: Message, db: DatabaseManager) -> None:
 
     # Inline-клавиатура выбора формата
     builder = InlineKeyboardBuilder()
-    builder.button(text=_("btn-csv"), callback_data="export_csv")
-    builder.button(text=_("btn-json"), callback_data="export_json")
+    builder.button(text=_("btn-csv"), callback_data=ExportCSV().pack())
+    builder.button(text=_("btn-json"), callback_data=ExportJSON().pack())
     builder.adjust(2)
 
     await message.answer(
@@ -1133,7 +1137,7 @@ async def cmd_export(message: Message, db: DatabaseManager) -> None:
     )
 
 
-@router.callback_query(F.data.in_({"export_csv", "export_json"}))
+@router.callback_query(F.data.in_({ExportCSV().pack(), ExportJSON().pack()}))
 async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> None:
     """Генерация и отправка файла экспорта."""
     if not call.from_user or not isinstance(call.message, Message):
@@ -1146,7 +1150,7 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> 
 
     uid = str(call.from_user.id)
     chat_id = call.message.chat.id
-    is_csv = call.data == "export_csv"
+    is_csv = call.data == ExportCSV().pack()
 
     await call.answer(_("export-generating"))
 

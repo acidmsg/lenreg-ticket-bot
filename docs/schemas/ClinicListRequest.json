@@ -1,0 +1,12 @@
+{
+  "description": "Тело запроса /api/clinic_list/ — ID района",
+  "required": ["district_form-district_id"],
+  "properties": {
+    "district_form-district_id": {
+      "type": "string",
+      "description": "ID района (по умолчанию '4')"
+    }
+  },
+  "title": "ClinicListRequest",
+  "type": "object"
+}

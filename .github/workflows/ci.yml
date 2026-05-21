@@ -20,20 +20,23 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: poetry.lock
 
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.4.1
+          virtualenvs-create: false
+
       - name: Install dependencies
-        run: |
-          pip install poetry==2.4.1
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi --with dev
+        run: poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
         run: |
@@ -43,26 +46,46 @@ jobs:
       - name: Lint with Ruff
         run: ruff check src
 
+      - name: Check Python formatting (ruff)
+        run: python -m ruff format --check src/ tests/
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Lint Markdown
+        run: npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+
+      - name: Check formatting (Prettier)
+        run: npx prettier --check "docs/**/*.md" ".roo/**/*.md" "*.md"
+
+      - name: Build Docker image
+        run: docker build -t zdrav-bot .
+
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: poetry.lock
 
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.4.1
+          virtualenvs-create: false
+
       - name: Install dependencies
-        run: |
-          pip install poetry==2.4.1
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi --with dev
+        run: poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
         run: |
@@ -89,20 +112,23 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: poetry.lock
 
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.4.1
+          virtualenvs-create: false
+
       - name: Install dependencies
-        run: |
-          pip install poetry==2.4.1
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi --with dev
+        run: poetry install --no-interaction --no-ansi --with dev
 
       - name: Compile translations
         run: |

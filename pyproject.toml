@@ -107,14 +107,17 @@ module = "tests.test_handlers_common"
 disable_error_code = ["union-attr", "attr-defined"]
 
 [tool.pytest.ini_options]
-minversion = "9.0"
+minversion = "8.0"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = ["-v", "--tb=short", "--strict-markers"]
+pythonpath = ["."]
 filterwarnings = [
-    "ignore::DeprecationWarning",
+    # pytest-asyncio использует устаревшие asyncio.set_event_loop_policy /
+    # get_event_loop_policy, удаляемые в Python 3.16 (известная проблема)
+    "ignore::DeprecationWarning:pytest_asyncio.*",
     "ignore::pytest.PytestDeprecationWarning",
 ]

@@ -1,0 +1,27 @@
+{
+  "description": "Логика классификации изменений слотов — определяет, нужно ли отправлять уведомление",
+  "properties": {
+    "appeared": {
+      "type": "string",
+      "description": "🎉 Появились свободные номерки! — слотов не было, стали > 0"
+    },
+    "new_slots": {
+      "type": "string",
+      "description": "🎉 Появились НОВЫЕ номерки! — добавились даты, которых не было"
+    },
+    "decreased": {
+      "type": "string",
+      "description": "⚠️ Количество номерков уменьшилось до N (было M) — срабатывает при: new_count < SLOT_THRESHOLD_ABSOLUTE ИЛИ уменьшение ≥ SLOT_THRESHOLD_PERCENTAGE"
+    },
+    "disappeared": {
+      "type": "string",
+      "description": "Номерков в данный момент нет — были, стали 0 (после 3 подтверждений)"
+    },
+    "unchanged": {
+      "type": "string",
+      "description": "Изменений нет — уведомление не отправляется"
+    }
+  },
+  "title": "SlotChangeClassification",
+  "type": "object"
+}

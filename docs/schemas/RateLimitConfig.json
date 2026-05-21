@@ -1,0 +1,47 @@
+{
+  "description": "Двухуровневый rate limiting: API-клиент (aiolimiter) и Telegram-хендлеры (sliding window)",
+  "properties": {
+    "limiter_monitor": {
+      "type": "object",
+      "description": "Лимитер фонового мониторинга: max_rate=10, time_period=60",
+      "properties": {
+        "max_rate": { "type": "integer" },
+        "time_period": { "type": "integer" }
+      }
+    },
+    "limiter_discovery": {
+      "type": "object",
+      "description": "Лимитер discovery: max_rate=5, time_period=60",
+      "properties": {
+        "max_rate": { "type": "integer" },
+        "time_period": { "type": "integer" }
+      }
+    },
+    "limiter_healthcheck": {
+      "type": "object",
+      "description": "Лимитер healthcheck: max_rate=30, time_period=60",
+      "properties": {
+        "max_rate": { "type": "integer" },
+        "time_period": { "type": "integer" }
+      }
+    },
+    "limiter_user": {
+      "type": "object",
+      "description": "Лимитер пользовательских запросов: max_rate=10, time_period=60",
+      "properties": {
+        "max_rate": { "type": "integer" },
+        "time_period": { "type": "integer" }
+      }
+    },
+    "user_message_limit": {
+      "type": "object",
+      "description": "Per-user через скользящее окно: USER_RATE_LIMIT_MAX сообщений за USER_RATE_LIMIT_PERIOD секунд",
+      "properties": {
+        "max_req": { "type": "integer" },
+        "period": { "type": "integer" }
+      }
+    }
+  },
+  "title": "RateLimitConfig",
+  "type": "object"
+}

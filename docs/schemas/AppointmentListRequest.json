@@ -1,0 +1,32 @@
+{
+  "description": "Тело запроса /api/appointment_list/ — ID врача, клиники и пациента",
+  "required": [
+    "doctor_form-doctor_id",
+    "doctor_form-clinic_id",
+    "doctor_form-patient_id"
+  ],
+  "properties": {
+    "doctor_form-doctor_id": {
+      "type": "string",
+      "description": "ID врача"
+    },
+    "doctor_form-clinic_id": {
+      "type": "string",
+      "description": "ID поликлиники"
+    },
+    "doctor_form-patient_id": {
+      "type": "string",
+      "description": "ID пациента"
+    },
+    "doctor_form-history_id": {
+      "type": "string",
+      "description": "ID истории (пустая строка)"
+    },
+    "doctor_form-appointment_type": {
+      "type": "string",
+      "description": "Тип записи (пустая строка)"
+    }
+  },
+  "title": "AppointmentListRequest",
+  "type": "object"
+}

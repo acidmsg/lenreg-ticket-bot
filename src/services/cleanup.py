@@ -48,13 +48,13 @@ async def _cleanup_pass(bot: Bot, db: DatabaseManager) -> None:
     total_deleted = 0
     batch_size = 50
 
-    user_ids = await db._db.get_all_user_ids()
+    user_ids = await db.get_all_user_ids()
 
     for i in range(0, len(user_ids), batch_size):
         batch = user_ids[i : i + batch_size]
 
         for uid in batch:
-            user_data = await db._db.get_user(uid)
+            user_data = await db.get_user(uid)
             if user_data is None:
                 continue
 

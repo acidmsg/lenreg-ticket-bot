@@ -336,6 +336,14 @@ class DatabaseManager:
         """Количество записей лога мониторинга."""
         return await self._db.get_all_monitoring_logs_count(uid=uid, status=status)
 
+    async def get_all_user_ids(self) -> list[str]:
+        """Возвращает список всех UID пользователей."""
+        return await self._db.get_all_user_ids()
+
+    async def get_user(self, uid: str) -> UserData | None:
+        """Возвращает сырые данные пользователя из БД (минуя кэш)."""
+        return await self._db.get_user(uid)
+
     async def get_clinic_doctor_count(self, clinic_id: str) -> int:
         """Количество врачей в клинике."""
         return await self._db.get_clinic_doctor_count(clinic_id)

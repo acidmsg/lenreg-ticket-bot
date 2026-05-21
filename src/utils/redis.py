@@ -5,13 +5,6 @@
 пулом соединений и корректным завершением работы.
 """
 
-# pyright: reportGeneralTypeIssues=false, reportAttributeAccessIssue=false, reportReturnType=false
-# mypy: ignore-errors
-# redis-py 7.x использует Protocol для Redis.asyncio.Redis — pyright и mypy
-# некорректно разрешают Awaitable[X] | X при await и не видят атрибут client.
-# Сигнатуры методов возвращают Awaitable[X] | X, из-за чего статические
-# анализаторы не могут сузить возвращаемый тип до bool/int/list[str].
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -25,8 +18,7 @@ if TYPE_CHECKING:
 
 
 class RedisClient:
-    """
-    Singleton-клиент Redis с asyncio-поддержкой и graceful degradation.
+    """Singleton-клиент Redis с asyncio-поддержкой и graceful degradation.
 
     Управляет пулом соединений, предоставляет атомарные операции
     и корректное завершение работы. При недоступности Redis возвращает
@@ -40,17 +32,16 @@ class RedisClient:
     """
 
     _instance: RedisClient | None = None
-    _lock: Any = None  # asyncio.Lock, инициализируется при первом вызове
+    _lock: Any = None
 
     def __init__(self) -> None:
-        self._redis: Any = None  # aioredis.Redis (ленивый импорт)
+        self._redis: Any = None
         self._url: str = settings.REDIS_URL
         self._available: bool = False
 
     @classmethod
     async def get_instance(cls) -> RedisClient:
-        """
-        Возвращает singleton-экземпляр RedisClient.
+        """Возвращает singleton-экземпляр RedisClient.
 
         Если Redis недоступен, экземпляр всё равно создаётся, но переходит
         в режим graceful degradation (is_available = False). Все методы
@@ -95,7 +86,6 @@ class RedisClient:
         except Exception as e:
             logger.warning(f"Не удалось подключиться к Redis ({self._url}): {e}")
             self._available = False
-            # Закрываем неудачное соединение, если оно было создано
             if self._redis is not None:
                 try:
                     await self._redis.aclose()
@@ -110,8 +100,7 @@ class RedisClient:
 
     @property
     def client(self) -> Redis:
-        """
-        Возвращает экземпляр aioredis.Redis.
+        """Возвращает экземпляр aioredis.Redis.
 
         Вызывает RuntimeError, если клиент не инициализирован (Redis был доступен,
         но _redis = None) или если Redis недоступен. Перед обращением к client
@@ -127,80 +116,78 @@ class RedisClient:
         """Получает значение по ключу. Возвращает None при недоступности Redis."""
         if not self._available:
             return None
-        return await self.client.get(key)
+        return await self.client.get(key)  # type: ignore[no-any-return]
 
     async def set(self, key: str, value: str, ex: int | None = None) -> bool:
         """Устанавливает значение. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.set(key, value, ex=ex)
+        return await self.client.set(key, value, ex=ex)  # type: ignore[no-any-return]
 
     async def delete(self, *keys: str) -> int:
         """Удаляет ключи. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.delete(*keys)
+        return await self.client.delete(*keys)  # type: ignore[no-any-return]
 
     async def exists(self, *keys: str) -> int:
         """Проверяет существование ключей. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.exists(*keys)
+        return await self.client.exists(*keys)  # type: ignore[no-any-return]
 
     async def expire(self, key: str, seconds: int) -> bool:
         """Устанавливает TTL. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.expire(key, seconds)
+        return await self.client.expire(key, seconds)  # type: ignore[no-any-return]
 
     async def ttl(self, key: str) -> int:
-        """
-        Возвращает оставшееся время жизни ключа.
+        """Возвращает оставшееся время жизни ключа.
         Возвращает -2 (ключ не существует) при недоступности Redis.
         """
         if not self._available:
             return -2
-        return await self.client.ttl(key)
+        return await self.client.ttl(key)  # type: ignore[no-any-return]
 
     async def keys(self, pattern: str) -> list[str]:
         """Возвращает список ключей. Возвращает [] при недоступности Redis."""
         if not self._available:
             return []
-        return await self.client.keys(pattern)
+        return await self.client.keys(pattern)  # type: ignore[no-any-return]
 
     async def incr(self, key: str) -> int:
         """Атомарно инкрементирует значение. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.incr(key)
+        return await self.client.incr(key)  # type: ignore[no-any-return]
 
     async def rpush(self, key: str, *values: str) -> int:
         """Добавляет значения в список. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.rpush(key, *values)
+        return await self.client.rpush(key, *values)  # type: ignore[no-any-return]
 
     async def lrange(self, key: str, start: int, end: int) -> list[str]:
         """Возвращает срез списка. Возвращает [] при недоступности Redis."""
         if not self._available:
             return []
-        return await self.client.lrange(key, start, end)
+        return await self.client.lrange(key, start, end)  # type: ignore[no-any-return]
 
     async def ltrim(self, key: str, start: int, end: int) -> bool:
         """Обрезает список. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.ltrim(key, start, end)
+        return await self.client.ltrim(key, start, end)  # type: ignore[no-any-return]
 
     async def llen(self, key: str) -> int:
         """Возвращает длину списка. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.llen(key)
+        return await self.client.llen(key)  # type: ignore[no-any-return]
 
-    async def pipeline(self) -> Any:  # aioredis.client.Pipeline
-        """
-        Создаёт pipeline для атомарного выполнения команд.
+    async def pipeline(self) -> Any:
+        """Создаёт pipeline для атомарного выполнения команд.
 
         Вызывает RuntimeError при недоступности Redis. Перед вызовом
         всегда проверяйте is_available.

@@ -1,0 +1,15 @@
+{
+  "description": "Запись таблицы specialty_aliases (псевдонимы специальностей)",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "Полное название специальности (PK)"
+    },
+    "short_name": {
+      "type": "string",
+      "description": "Краткий псевдоним для отображения"
+    }
+  },
+  "title": "DB_SpecialtyAlias",
+  "type": "object"
+}

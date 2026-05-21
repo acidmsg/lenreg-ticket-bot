@@ -67,7 +67,7 @@ class TestZdravClient:
         assert "не найден" in (err or "")
 
     async def test_fetch_patient_id_403(self, mock_zdrav_client):
-        """Ошибка 403 — защита от ботов."""
+        """Ошибка 403 — api-forbidden."""
         mock_http = await mock_zdrav_client._get_client()
         mock_http.post.return_value = _make_response(403)
 
@@ -75,7 +75,7 @@ class TestZdravClient:
             "Иванов Иван Иванович", date(1990, 1, 1), "272"
         )
         assert p_id is None
-        assert "защита от ботов" in (err or "")
+        assert "api-forbidden" in (err or "")
 
     async def test_fetch_patient_id_invalid_fio(self, mock_zdrav_client):
         """Неверный формат ФИО — 2 слова."""
@@ -86,7 +86,7 @@ class TestZdravClient:
         assert "3 слова" in (err or "")
 
     async def test_fetch_patient_id_server_error(self, mock_zdrav_client):
-        """Ошибка 500 — портал недоступен."""
+        """Ошибка 500 — после 3 retry возвращается таймаут."""
         mock_http = await mock_zdrav_client._get_client()
         mock_http.post.return_value = _make_response(500)
 
@@ -94,7 +94,9 @@ class TestZdravClient:
             "Иванов Иван Иванович", date(1990, 1, 1), "272"
         )
         assert p_id is None
-        assert "недоступен" in (err or "")
+        assert "Таймаут" in (err or "")
+        # Должно быть 3 попытки
+        assert mock_http.post.call_count == 3
 
     # ── fetch_speciality_list ─────────────────────────────────────────
 

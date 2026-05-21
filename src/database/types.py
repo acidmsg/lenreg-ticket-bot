@@ -88,7 +88,7 @@ class DoctorEntry(TypedDict):
 
 
 class ClinicInfo(TypedDict):
-    """Запись о клинике из таблицы ``clinics``."""
+    """Запись о клинике из таблицы ``clinics`` (включая discovery-поля)."""
 
     clinic_id: str
     """Уникальный ID клиники."""
@@ -104,6 +104,12 @@ class ClinicInfo(TypedDict):
 
     city: str
     """Город/район (может быть пустой строкой)."""
+
+    discovery_patient_adult: NotRequired[str]
+    """ID взрослого пациента для discovery (per-клиника переопределение)."""
+
+    discovery_patient_child: NotRequired[str]
+    """ID детского пациента для discovery (per-клиника переопределение)."""
 
 
 class MonitoringLogEntry(TypedDict):

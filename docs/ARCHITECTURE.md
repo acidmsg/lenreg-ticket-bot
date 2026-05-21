@@ -13,100 +13,216 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── main.py                        # Точка входа: сборка бота, запуск фоновых задач
 │   ├── api/
 │   │   ├── __init__.py
+│   │   ├── exceptions.py              # Кастомные исключения API (ZdravTimeoutError, ZdravNetworkError и др.)
 │   │   ├── models.py                  # Pydantic-модели ответов API zdrav.lenreg.ru
-│   │   └── zdrav_client.py           # HTTP-клиент для API zdrav.lenreg.ru
+│   │   └── zdrav_client.py            # HTTP-клиент для API zdrav.lenreg.ru
 │   ├── database/
 │   │   ├── __init__.py
 │   │   ├── database.py                # SQLite-движок: соединение, таблицы, CRUD
 │   │   ├── manager.py                 # DatabaseManager — адаптер с in-memory кэшем
-│   │   └── migrations.py             # Миграции схемы БД (versioned)
+│   │   ├── migrations.py              # Миграции схемы БД (versioned)
+│   │   └── types.py                   # TypedDict для типобезопасной работы с данными
+│   ├── filters/
+│   │   ├── __init__.py
+│   │   └── admin.py                   # Фильтр админ-доступа (ChatMemberUpdated)
 │   ├── handlers/
 │   │   ├── __init__.py
+│   │   ├── callback_parser.py         # Парсинг callback_data (data_class, custom_filter)
 │   │   ├── common.py                  # Основные обработчики: /start, выбор пациента/клиники/врача, toggle
-│   │   └── registration.py           # FSM-сценарий регистрации пациента (ФИО → дата → псевдоним)
-│   ├── assets/
-│   │   ├── __init__.py
-│   │   ├── README.md                  # Правила именования и использования изображений
-│   │   └── images/                    # PNG-изображения для заголовков сообщений
-│   │       └── .gitkeep
+│   │   └── registration.py            # FSM-сценарий регистрации пациента (ФИО → дата → псевдоним)
+│   ├── i18n/
+│   │   ├── __init__.py                # Интернационализация (gettext, _(), _data())
 │   ├── keyboards/
 │   │   ├── __init__.py
-│   │   └── inline.py                 # Inline-клавиатуры Telegram (пациенты, города, клиники, врачи)
+│   │   └── inline.py                  # Inline-клавиатуры Telegram (пациенты, города, клиники, врачи)
 │   ├── middleware/
 │   │   ├── __init__.py
-│   │   └── ratelimit.py             # Per-user rate limiting middleware (sliding window, TTLCache)
+│   │   ├── activity.py                # Отслеживание активности пользователей (последний визит)
+│   │   ├── error_boundary.py          # Границы ошибок и перехват исключений
+│   │   ├── ratelimit.py               # Per-user rate limiting middleware (sliding window, Redis)
+│   │   └── userdata.py                # Загрузка и кэширование данных пользователя из БД
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── cleanup.py                # Фоновый цикл автоудаления старых сообщений (TTL)
-│   │   ├── doctor_discovery.py       # Фоновый цикл discovery врачей из API → БД
-│   │   ├── error_notifier.py         # ErrorNotifier: NTFY + Sentry (singleton)
-│   │   ├── healthcheck.py            # HealthMetrics + healthcheck_loop + /status report
-│   │   └── monitor.py               # Фоновый цикл мониторинга слотов + классификация изменений
+│   │   ├── cleanup.py                 # Фоновый цикл автоудаления старых сообщений (TTL)
+│   │   ├── doctor_discovery.py        # Фоновый цикл discovery врачей из API → БД
+│   │   ├── error_notifier.py          # ErrorNotifier: NTFY + Sentry (singleton)
+│   │   ├── export.py                  # Экспорт данных пользователя в JSON/CSV
+│   │   ├── healthcheck.py             # HealthMetrics + healthcheck_loop + /status report
+│   │   ├── metrics.py                 # Метрики: сбор статистики по мониторингу
+│   │   ├── monitor.py                 # Фоновый цикл мониторинга слотов + классификация изменений
+│   │   └── schema_watcher.py          # Отслеживание изменений схемы API (webhook/опрос)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── cache.py                   # Кэш мониторинга (Redis) + spam-защита (Redis SET NX)
+│   │   ├── helpers.py                 # Форматирование ФИО, специальностей, extract_msg_id, is_child, is_cabinet
+│   │   ├── logging.py                 # Настройка loguru: формат, ротация, Sentry-интеграция
+│   │   ├── proxy_discovery.py         # Обнаружение и ротация прокси
+│   │   └── redis.py                   # Singleton-клиент Redis (aioredis, пул соединений)
+│   └── web/                           # Веб-дашборд (aiohttp, Jinja2)
+│       ├── __init__.py
+│       ├── app.py                     # Создание aiohttp приложения, подключение роутов
+│       ├── auth.py                    # Аутентификация дашборда (basic auth / session)
+│       ├── dependencies.py            # Зависимости для aiohttp (БД, клиент API)
+│       ├── routers/
+│       │   ├── __init__.py
+│       │   ├── api.py                 # API эндпоинты дашборда (JSON)
+│       │   └── pages.py               # HTML-страницы дашборда (Jinja2)
+│       ├── static/
+│       │   └── dashboard.css          # Стили дашборда
+│       └── templates/                 # Jinja2 шаблоны
+│           ├── api_status.html
+│           ├── base.html
+│           ├── clinics.html
+│           ├── logs.html
+│           ├── summary.html
+│           ├── user_detail.html
+│           └── users.html
+├── tests/                             # Тесты (структура зеркалирует src/)
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── test_zdrav_client.py
+│   ├── database/
+│   │   ├── __init__.py
+│   │   └── test_database_manager.py
+│   ├── handlers/
+│   │   ├── __init__.py
+│   │   ├── test_handlers_common.py
+│   │   └── test_handlers_registration.py
+│   ├── keyboards/
+│   │   ├── __init__.py
+│   │   └── test_keyboards.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── test_doctor_discovery.py
+│   │   ├── test_export.py
+│   │   ├── test_monitor_classify.py
+│   │   └── test_monitor_full.py
 │   └── utils/
 │       ├── __init__.py
-│       ├── cache.py                  # Кэш мониторинга (Redis) + spam-защита (Redis SET NX)
-│       ├── helpers.py                # Форматирование ФИО, специальностей, extract_msg_id, is_child, is_cabinet
-│       └── redis.py                  # Singleton-клиент Redis (aioredis, пул соединений)
-├── tests/                             # Тесты
-│   ├── conftest.py
-│   ├── test_cache.py
-│   ├── test_database_manager.py
-│   ├── test_doctor_discovery.py
-│   ├── test_keyboards.py
-│   ├── test_monitor_classify.py
-│   ├── test_monitor_full.py
-│   └── test_zdrav_client.py
+│       └── test_cache.py
 ├── scripts/                           # Утилитарные скрипты
 │   ├── apply_city_heuristic.py
 │   ├── apply_heuristic_types.py
+│   ├── generate_api_schemas.py
 │   └── run_tests.py
 ├── docs/                              # Документация
 │   ├── GEMINI.md                      # Agent-agnostic bridge (инструкции для AI-агентов)
+│   ├── openapi.yaml                   # OpenAPI 3.0.0 спецификация (SSOT)
 │   ├── agents/                        # Агентские файлы
 │   │   ├── AGENT_TASKS.md             # Бэклог задач
 │   │   ├── SESSION_LOG.md             # Лог сессий (шаблон)
-│   │   ├── CODE_REVIEW.md             # Отчёт код-ревью (2026-05-11)
+│   │   ├── CODE_REVIEW.md             # Отчёт код-ревью
 │   │   └── formatting_experiments.md  # Эксперименты с оформлением сообщений
-│   └── knowledge/                     # База знаний API
-│       ├── _INDEX.md
-│       ├── appointment_list.md
-│       ├── check_patient.md
-│       ├── doctor_list.md
-│       └── speciality_list.md
+│   ├── design/                        # Дизайн-документы
+│   │   ├── api_change_detector_design.md
+│   │   ├── i18n_design.md
+│   │   ├── td-utl-004-typeddict-design.md
+│   │   └── web_dashboard_design.md
+│   ├── knowledge/                     # База знаний API
+│   │   ├── _INDEX.md
+│   │   ├── appointment_list.md
+│   │   ├── check_patient.md
+│   │   ├── clinic_list.md
+│   │   ├── doctor_list.md
+│   │   └── speciality_list.md
+│   └── schemas/                       # JSON-схемы (генерация из Pydantic)
+│       ├── ApiError.json
+│       ├── AppConfig.json
+│       ├── AppointmentListRequest.json
+│       ├── AppointmentListResponse.json
+│       ├── AppointmentSlot.json
+│       ├── CheckPatientData.json
+│       ├── CheckPatientRequest.json
+│       ├── CheckPatientResponse.json
+│       ├── ClinicInfo.json
+│       ├── ClinicItem.json
+│       ├── ClinicListRequest.json
+│       ├── ClinicListResponse.json
+│       ├── DashboardSummary.json
+│       ├── DateInfo.json
+│       ├── DB_Clinic.json
+│       ├── DB_Config.json
+│       ├── DB_Doctor.json
+│       ├── DB_MonitoringEntry.json
+│       ├── DB_Patient.json
+│       ├── DB_SpecialtyAlias.json
+│       ├── DB_User.json
+│       ├── DoctorItem.json
+│       ├── DoctorListRequest.json
+│       ├── DoctorListResponse.json
+│       ├── HealthStatus.json
+│       ├── LogEntry.json
+│       ├── MonitoringLog.json
+│       ├── RateLimitConfig.json
+│       ├── SlotChangeClassification.json
+│       ├── SpecialityItem.json
+│       ├── SpecialityListRequest.json
+│       ├── SpecialityListResponse.json
+│       └── UserInfo.json
+├── locales/                           # Файлы локализации (gettext)
+│   ├── en/
+│   │   └── LC_MESSAGES/
+│   │       ├── bot.mo
+│   │       ├── bot.po
+│   │       ├── data.mo
+│   │       └── data.po
+│   └── ru/
+│       └── LC_MESSAGES/
+│           ├── bot.mo
+│           ├── bot.po
+│           ├── data.mo
+│           └── data.po
 ├── .roo/                              # Правила AI-агентов
 │   └── rules/
-│       ├── system_standards.md        # CRITICAL: стандарты Python + Markdown
-│       ├── coding.md                  # Стандарты кодирования
-│       ├── env.md                     # Правила .env / .env.example
-│       ├── ignore.md                  # Игнорируемые файлы и директории
-│       ├── knowledge.md               # Правила базы знаний
-│       ├── logging.md                 # Правила логирования сессий
-│       └── restrictions.md            # Ограничения
-├── pyproject.toml                     # ruff config
+│       ├── core.md                    # Базовые ограничения и идентичность агента
+│       ├── standards.md               # Технические стандарты: Python и Markdown
+│       └── workflow.md                # Процессы и жизненный цикл разработки
+├── pyproject.toml                     # Ruff, mypy, pytest конфигурация
 ├── pytest.ini                         # pytest config
 ├── pyrightconfig.json                 # pyright config
 ├── .env / .env.example                # Переменные окружения
 ├── .gitignore
 ├── .pre-commit-config.yaml            # pre-commit хуки
-├── requirements.txt
+├── Dockerfile                         # Docker-образ
+├── docker-compose.yml                 # Docker Compose
+├── Makefile                           # Цели сборки
+├── package.json                       # Node.js dev-зависимости (prettier, markdownlint)
+├── package-lock.json
 ├── README.md
 └── ARCHITECTURE.md                    # Этот файл
 ```
 
 ## Зоны ответственности
 
-| Пакет             | Зона ответственности                                                                                                                                                                                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/config.py`   | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                                               |
-| `src/main.py`     | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                                     |
-| `src/api/`        | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                           |
-| `src/database/`   | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями.                                                                                                                 |
-| `src/handlers/`   | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента.                                                                                                           |
-| `src/assets/`     | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                         |
-| `src/keyboards/`  | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                    |
-| `src/middleware/` | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через TTLCache.                                                                                                                                                                                                                           |
-| `src/services/`   | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                     |
-| `src/utils/`      | `cache.py` — кэш мониторинга на Redis (swap_cache_key через GETSET) и spam-защита на Redis (SET NX EX). `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. `redis.py` — singleton-клиент Redis с asyncio-поддержкой, пулом соединений и health-check. |
+| Пакет / Модуль                     | Зона ответственности                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config.py`                    | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                                                |
+| `src/main.py`                      | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                                      |
+| `src/api/`                         | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                            |
+| `src/database/`                    | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `types.py` — TypedDict для типобезопасной работы.                                                                |
+| `src/filters/admin.py`             | Фильтр админ-доступа на основе ChatMemberUpdated: проверка членства пользователя в чате администраторов.                                                                                                                                                                                                       |
+| `src/handlers/`                    | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента. `callback_parser.py` — парсинг callback_data с поддержкой data_class.                                      |
+| `src/i18n/__init__.py`             | Интернационализация и локализация: gettext-обёртки `_()` для пользовательских сообщений и `_data()` для дата-строк (названия месяцев, дней недели).                                                                                                                                                            |
+| `src/assets/`                      | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                          |
+| `src/keyboards/`                   | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                     |
+| `src/middleware/activity.py`       | Отслеживание активности пользователей: фиксация времени последнего действия, обновление `last_activity` в БД.                                                                                                                                                                                                  |
+| `src/middleware/error_boundary.py` | Границы ошибок: перехват необработанных исключений в хендлерах, логирование с контекстом (пользователь, сообщение), отправка уведомления админам.                                                                                                                                                              |
+| `src/middleware/ratelimit.py`      | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через Redis Sorted Sets.                                                                                                                                                                                                                   |
+| `src/middleware/userdata.py`       | Загрузка и кэширование данных пользователя из БД в `event.data['user_data']` при каждом входящем сообщении.                                                                                                                                                                                                    |
+| `src/services/`                    | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                      |
+| `src/services/export.py`           | Экспорт данных пользователя (пациенты, мониторинг, логи) в форматы JSON и CSV для скачивания.                                                                                                                                                                                                                  |
+| `src/services/metrics.py`          | Сбор и агрегация статистики: количество пользователей, пациентов, отслеживаемых врачей, срабатываний мониторинга.                                                                                                                                                                                              |
+| `src/services/schema_watcher.py`   | Отслеживание изменений схемы API zdrav.lenreg.ru: опрос эндпоинтов, сравнение с эталонными JSON-схемами, уведомление при расхождениях.                                                                                                                                                                         |
+| `src/utils/`                       | `cache.py` — кэш мониторинга на Redis (swap_cache_key через GETSET) и spam-защита на Redis (SET NX EX). `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. `logging.py` — настройка loguru с ротацией и Sentry. `proxy_discovery.py` — ротация прокси. |
+| `src/web/app.py`                   | Создание aiohttp приложения: настройка middleware, подключение роутов (API + pages), статики, CORS.                                                                                                                                                                                                            |
+| `src/web/auth.py`                  | Аутентификация дашборда: basic-auth или session-based проверка прав доступа к веб-интерфейсу.                                                                                                                                                                                                                  |
+| `src/web/dependencies.py`          | DI-зависимости для aiohttp: провайдеры `Database` и `ZdravClient` через `app['db']` / `app['api']`.                                                                                                                                                                                                            |
+| `src/web/routers/api.py`           | REST API эндпоинты дашборда: `/api/summary`, `/api/users`, `/api/clinics`, `/api/logs`, `/api/health`.                                                                                                                                                                                                         |
+| `src/web/routers/pages.py`         | HTML-страницы дашборда (Jinja2): summary, users, user_detail, clinics, logs, api_status.                                                                                                                                                                                                                       |
+| `src/web/static/dashboard.css`     | Стили веб-дашборда: responsive layout, таблицы, графики, тёмная тема.                                                                                                                                                                                                                                          |
+| `src/web/templates/`               | Jinja2-шаблоны: `base.html` (layout), `summary.html`, `users.html`, `user_detail.html`, `clinics.html`, `logs.html`, `api_status.html`.                                                                                                                                                                        |
 
 ## Граф зависимостей (Mermaid)
 
@@ -117,17 +233,27 @@ graph TD
     subgraph API
         MODELS[src.api.models]
         CLIENT[src.api.zdrav_client]
+        API_EXC[src.api.exceptions]
     end
 
     subgraph DB
         DB_CORE[src.database.database]
         DB_MGR[src.database.manager]
         DB_MIG[src.database.migrations]
+        DB_TYPES[src.database.types]
     end
 
     subgraph Handlers
         H_COMMON[src.handlers.common]
         H_REG[src.handlers.registration]
+        H_CB[src.handlers.callback_parser]
+    end
+
+    subgraph Middleware
+        MW_ACT[src.middleware.activity]
+        MW_ERR[src.middleware.error_boundary]
+        MW_RL[src.middleware.ratelimit]
+        MW_UD[src.middleware.userdata]
     end
 
     subgraph Services
@@ -136,19 +262,37 @@ graph TD
         SVC_HC[src.services.healthcheck]
         SVC_CLN[src.services.cleanup]
         SVC_ERR[src.services.error_notifier]
+        SVC_EXP[src.services.export]
+        SVC_MET[src.services.metrics]
+        SVC_SW[src.services.schema_watcher]
     end
 
     subgraph Utils
         UTIL_CACHE[src.utils.cache]
         UTIL_HELP[src.utils.helpers]
+        UTIL_LOG[src.utils.logging]
+        UTIL_PROXY[src.utils.proxy_discovery]
         UTIL_REDIS[src.utils.redis]
     end
 
+    subgraph Web
+        WEB_APP[src.web.app]
+        WEB_AUTH[src.web.auth]
+        WEB_DEPS[src.web.dependencies]
+        WEB_API[src.web.routers.api]
+        WEB_PAGES[src.web.routers.pages]
+        WEB_STATIC[src.web.static.dashboard.css]
+        WEB_TPL[src.web.templates]
+    end
+
     KB[src.keyboards.inline]
-    MW[src.middleware.ratelimit]
+    FILTERS[src.filters.admin]
+    I18N[src.i18n.__init__]
     ENTRY[src.main.py]
 
     MODELS --> CLIENT
+    API_EXC --> CLIENT
+
     CFG --> CLIENT
     CFG --> DB_CORE
     CFG --> DB_MIG
@@ -159,18 +303,24 @@ graph TD
     CFG --> SVC_CLN
     CFG --> UTIL_CACHE
     CFG --> UTIL_REDIS
+    CFG --> UTIL_LOG
     CFG --> H_COMMON
     CFG --> H_REG
-    CFG --> MW
+    CFG --> MW_RL
+    CFG --> MW_ACT
+    CFG --> WEB_APP
+    CFG --> SVC_EXP
 
     DB_CORE --> DB_MGR
     DB_CORE --> DB_MIG
+    DB_TYPES --> DB_CORE
 
     CLIENT --> H_COMMON
     CLIENT --> H_REG
     CLIENT --> SVC_DISC
     CLIENT --> SVC_MON
     CLIENT --> SVC_HC
+    CLIENT --> SVC_SW
     CLIENT --> ENTRY
 
     DB_MGR --> H_COMMON
@@ -178,6 +328,7 @@ graph TD
     DB_MGR --> SVC_MON
     DB_MGR --> SVC_HC
     DB_MGR --> SVC_CLN
+    DB_MGR --> SVC_EXP
     DB_MGR --> ENTRY
 
     SVC_DISC --> H_COMMON
@@ -188,10 +339,14 @@ graph TD
     SVC_MON --> ENTRY
     SVC_CLN --> ENTRY
     SVC_ERR --> ENTRY
+    SVC_EXP --> ENTRY
+    SVC_MET --> ENTRY
+    SVC_SW --> ENTRY
 
     UTIL_REDIS --> UTIL_CACHE
-    UTIL_REDIS --> MW
+    UTIL_REDIS --> MW_RL
     UTIL_REDIS --> ENTRY
+    UTIL_PROXY --> CLIENT
 
     UTIL_CACHE --> H_COMMON
     UTIL_CACHE --> SVC_MON
@@ -200,12 +355,43 @@ graph TD
     UTIL_HELP --> SVC_CLN
     UTIL_HELP --> KB
     UTIL_HELP --> DB_CORE
+    UTIL_LOG --> ENTRY
+    UTIL_LOG --> SVC_ERR
 
     KB --> H_COMMON
     KB --> H_REG
-    MW --> ENTRY
+
+    MW_ACT --> ENTRY
+    MW_ERR --> ENTRY
+    MW_RL --> ENTRY
+    MW_UD --> ENTRY
+
     H_COMMON --> ENTRY
     H_REG --> ENTRY
+    H_CB --> H_COMMON
+    H_CB --> H_REG
+
+    FILTERS --> ENTRY
+
+    I18N --> H_COMMON
+    I18N --> H_REG
+    I18N --> SVC_CLN
+    I18N --> DB_CORE
+
+    WEB_APP --> WEB_AUTH
+    WEB_APP --> WEB_DEPS
+    WEB_APP --> WEB_API
+    WEB_APP --> WEB_PAGES
+    WEB_APP --> WEB_STATIC
+    WEB_APP --> WEB_TPL
+    WEB_DEPS --> DB_MGR
+    WEB_DEPS --> CLIENT
+    WEB_API --> DB_MGR
+    WEB_API --> SVC_MET
+    WEB_PAGES --> DB_MGR
+    WEB_PAGES --> WEB_API
+    WEB_AUTH --> CFG
+    WEB_APP --> ENTRY
 ```
 
 ## Ключевые архитектурные решения
@@ -241,4 +427,6 @@ graph TD
 | `pytest.ini`              | `asyncio_mode = auto`, `pythonpath = .`                                           |
 | `pyrightconfig.json`      | `venvPath: "."`, `venv: ".venv"`, `rootPath: "."`                                 |
 | `.pre-commit-config.yaml` | Хуки: trailing-whitespace, end-of-file, ruff, mypy (`-p src -p scripts -p tests`) |
-| `requirements.txt`        | Зависимости проекта                                                               |
+| `Dockerfile`              | Многостадийная сборка (builder → runtime)                                         |
+| `docker-compose.yml`      | Сервисы: bot, redis, healthcheck                                                  |
+| `Makefile`                | Цели: `install`, `test`, `lint`, `format`, `docker-build`                         |

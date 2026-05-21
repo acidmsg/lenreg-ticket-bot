@@ -8,6 +8,23 @@ from loguru import logger
 
 from src.config import settings
 from src.database.types import ClinicInfo
+from src.handlers.callbacks import (
+    AddPatient,
+    BackToCities,
+    BackToClinics,
+    BackToMain,
+    CancelRegistration,
+    CitySelect,
+    ClinicSelect,
+    DeletePatientAsk,
+    DeletePatientConfirm,
+    PatientSelect,
+    SkipAlias,
+    StopAllMonitoring,
+    StopClinicMonitoring,
+    StopPatientMonitoring,
+    ToggleDoctor,
+)
 from src.i18n import _
 from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
 
@@ -26,16 +43,19 @@ def get_patient_selection(patients: dict, monitoring: dict):
         count = len(monitoring.get(p_id, {}))
         label = f"👤 {name} ({count})" if count > 0 else f"👤 {name}"
 
-        builder.button(text=label, callback_data=f"sel_p_{p_id}")
-        builder.button(text="🗑", callback_data=f"del_p_ask_{p_id}")
+        builder.button(text=label, callback_data=PatientSelect(p_id=p_id).pack())
+        builder.button(text="🗑", callback_data=DeletePatientAsk(p_id=p_id).pack())
 
-    builder.button(text=_("btn-add-patient"), callback_data="start_add_p")
+    builder.button(text=_("btn-add-patient"), callback_data=AddPatient().pack())
 
     # Определяем, есть ли хоть один активный мониторинг
     has_active_monitoring = any(len(docs) > 0 for docs in monitoring.values())
 
     if has_active_monitoring:
-        builder.button(text=_("btn-reset-all-monitoring"), callback_data="stop_all")
+        builder.button(
+            text=_("btn-reset-all-monitoring"),
+            callback_data=StopAllMonitoring().pack(),
+        )
 
     adjustments = [2] * len(patients) + [1]
     builder.adjust(*adjustments)
@@ -105,21 +125,31 @@ def get_doctor_selection(
         d_id = doc["id"]
         status = "✅ " if d_id in monitored else "▫️ "
         label = f"{status}[{doc['specialty']}] {doc['name']}"
-        builder.button(text=label, callback_data=f"tgl_{p_id}_{clinic_id}_{d_id}")
+        builder.button(
+            text=label,
+            callback_data=ToggleDoctor(
+                p_id=p_id, clinic_id=clinic_id, d_id=d_id
+            ).pack(),
+        )
 
     # Кнопки кабинетов (без разделителя)
     for doc in doctors_cabinets:
         d_id = doc["id"]
         status = "✅ " if d_id in monitored else "▫️ "
         label = f"{status}{doc['name']}"
-        builder.button(text=label, callback_data=f"tgl_{p_id}_{clinic_id}_{d_id}")
+        builder.button(
+            text=label,
+            callback_data=ToggleDoctor(
+                p_id=p_id, clinic_id=clinic_id, d_id=d_id
+            ).pack(),
+        )
 
     # Навигация
     builder.button(
         text=_("btn-back-to-clinics"),
-        callback_data=f"back_to_clinics_{p_id}_{city_idx}",
+        callback_data=BackToClinics(p_id=p_id, city_idx=city_idx).pack(),
     )
-    builder.button(text=_("btn-back-to-list"), callback_data="back_to_main")
+    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
 
     # Кнопка сброса мониторинга этой клиники —
     # только если есть мониторинг в этой клинике
@@ -130,7 +160,7 @@ def get_doctor_selection(
     if has_clinic_monitoring:
         builder.button(
             text=_("btn-reset-clinic-monitoring"),
-            callback_data=f"stop_clinic_{p_id}_{clinic_id}",
+            callback_data=StopClinicMonitoring(p_id=p_id, clinic_id=clinic_id).pack(),
         )
 
     builder.adjust(1, 1)
@@ -139,8 +169,14 @@ def get_doctor_selection(
 
 def get_confirm_deletion(p_id: str):
     builder = InlineKeyboardBuilder()
-    builder.button(text=_("btn-yes-delete"), callback_data=f"del_p_yes_{p_id}")
-    builder.button(text=_("btn-no"), callback_data=f"sel_p_{p_id}")
+    builder.button(
+        text=_("btn-yes-delete"),
+        callback_data=DeletePatientConfirm(p_id=p_id).pack(),
+    )
+    builder.button(
+        text=_("btn-no"),
+        callback_data=PatientSelect(p_id=p_id).pack(),
+    )
     builder.adjust(2)
     return builder.as_markup()
 
@@ -204,7 +240,10 @@ def get_city_selection(
             if total > 0
             else _("btn-all-clinics")
         )
-        builder.button(text=label, callback_data=f"sel_cty_{p_id}_all")
+        builder.button(
+            text=label,
+            callback_data=CitySelect(p_id=p_id, idx="all").pack(),
+        )
     else:
         for idx, city in enumerate(cities, start=1):
             cnt = city_counts.get(city, 0)
@@ -213,7 +252,10 @@ def get_city_selection(
                 if cnt > 0
                 else _("btn-city").format(city=city)
             )
-            builder.button(text=label, callback_data=f"sel_cty_{p_id}_{idx}")
+            builder.button(
+                text=label,
+                callback_data=CitySelect(p_id=p_id, idx=str(idx)).pack(),
+            )
         # Кнопка "Все города"
         total = sum(city_counts.values())
         label = (
@@ -221,14 +263,17 @@ def get_city_selection(
             if total > 0
             else _("btn-all-cities")
         )
-        builder.button(text=label, callback_data=f"sel_cty_{p_id}_all")
+        builder.button(
+            text=label,
+            callback_data=CitySelect(p_id=p_id, idx="all").pack(),
+        )
 
     # Навигация и сброс
-    builder.button(text=_("btn-back-to-list"), callback_data="back_to_main")
+    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
     if has_patient_monitoring:
         builder.button(
             text=_("btn-reset-patient-monitoring"),
-            callback_data=f"stop_patient_{p_id}_city",
+            callback_data=StopPatientMonitoring(p_id=p_id, origin="city").pack(),
         )
 
     builder.adjust(2)
@@ -291,21 +336,28 @@ def get_clinic_selection(
         label = _short_clinic_label(display_name, count)
         # В callback_data передаём city_idx
         # для возможности возврата из врачей обратно к клиникам
-        builder.button(text=label, callback_data=f"sel_c_{p_id}_{c_id}_{city_idx}")
+        builder.button(
+            text=label,
+            callback_data=ClinicSelect(
+                p_id=p_id, clinic_id=c_id, city_idx=city_idx
+            ).pack(),
+        )
 
     # Навигация
     builder.button(
         text=_("btn-back-to-cities"),
-        callback_data=f"back_to_cities_{p_id}",
+        callback_data=BackToCities(p_id=p_id).pack(),
     )
-    builder.button(text=_("btn-back-to-list"), callback_data="back_to_main")
+    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
 
     # Кнопка сброса мониторинга этого пациента —
     # только если есть хоть один мониторинг у пациента
     if p_monitoring:
         builder.button(
             text=_("btn-reset-patient-monitoring"),
-            callback_data=f"stop_patient_{p_id}_clinic_{city_idx}",
+            callback_data=StopPatientMonitoring(
+                p_id=p_id, origin="clinic", city_idx=city_idx
+            ).pack(),
         )
 
     builder.adjust(1)
@@ -315,9 +367,9 @@ def get_clinic_selection(
 def get_registration_keyboard(step: str):
     builder = InlineKeyboardBuilder()
     if step == "alias":
-        builder.button(text=_("btn-skip"), callback_data="skip_alias")
+        builder.button(text=_("btn-skip"), callback_data=SkipAlias().pack())
     builder.button(
-        text=_("btn-cancel-registration"), callback_data="cancel_registration"
+        text=_("btn-cancel-registration"), callback_data=CancelRegistration().pack()
     )
     builder.adjust(1)
     return builder.as_markup()

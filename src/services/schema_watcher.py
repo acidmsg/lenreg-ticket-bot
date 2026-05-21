@@ -20,7 +20,9 @@ import datetime
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel
 
 from src.api.models import (
     AppointmentListResponse,
@@ -30,6 +32,11 @@ from src.api.models import (
     SpecialityListResponse,
 )
 from src.config import settings
+
+if TYPE_CHECKING:
+    from src.api.zdrav_client import ZdravClient
+    from src.services.error_notifier import ErrorNotifier
+    from src.services.metrics import PrometheusMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +74,7 @@ _SCHEMA_CHECK_PARAMS: dict[str, dict[str, Any]] = {
 }
 
 # Маппинг endpoint -> Pydantic-модель
-_ENDPOINT_MODELS: dict[str, type[Any]] = {
+_ENDPOINT_MODELS: dict[str, type[BaseModel]] = {
     "check_patient": CheckPatientResponse,
     "speciality_list": SpecialityListResponse,
     "doctor_list": DoctorListResponse,
@@ -230,7 +237,7 @@ def load_reference_schemas(
 
 
 async def validate_endpoint_schema(
-    client: Any,
+    client: ZdravClient,
     endpoint: str,
     reference_schemas: dict[str, dict[str, Any]],
 ) -> list[str]:
@@ -284,7 +291,7 @@ async def validate_endpoint_schema(
         return []
 
 
-async def _call_endpoint(client: Any, endpoint: str) -> Any:
+async def _call_endpoint(client: ZdravClient, endpoint: str) -> object:
     """Вызывает соответствующий метод ZdravClient для эндпоинта.
 
     Args:
@@ -387,9 +394,9 @@ async def _call_endpoint(client: Any, endpoint: str) -> Any:
 
 
 async def schema_check_loop(
-    client: Any,
-    error_notifier: Any,
-    metrics: Any,
+    client: ZdravClient,
+    error_notifier: ErrorNotifier,
+    metrics: PrometheusMetrics,
     interval: int = 3600,
 ) -> None:
     """Фоновый цикл проверки схем API.

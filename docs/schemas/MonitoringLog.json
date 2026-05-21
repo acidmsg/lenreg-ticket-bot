@@ -1,0 +1,51 @@
+{
+  "description": "Запись в таблице monitoring_log — история изменений слотов",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Первичный ключ (AUTOINCREMENT)"
+    },
+    "uid": {
+      "type": "string",
+      "description": "ID пользователя Telegram"
+    },
+    "p_id": {
+      "type": "string",
+      "description": "ID пациента"
+    },
+    "d_id": {
+      "type": "string",
+      "description": "ID врача"
+    },
+    "doctor_name": {
+      "type": "string",
+      "description": "ФИО врача"
+    },
+    "patient_name": {
+      "type": "string",
+      "description": "ФИО пациента"
+    },
+    "specialty": {
+      "type": "string",
+      "description": "Название специальности"
+    },
+    "clinic_name": {
+      "type": "string",
+      "description": "Название поликлиники"
+    },
+    "slot_date": {
+      "type": "string",
+      "description": "Дата слота (YYYY-MM-DD)"
+    },
+    "status": {
+      "type": "string",
+      "description": "Статус: 'появился' | 'исчез' | 'уменьшился'"
+    },
+    "ts": {
+      "type": "number",
+      "description": "Unix-timestamp события"
+    }
+  },
+  "title": "MonitoringLog",
+  "type": "object"
+}
