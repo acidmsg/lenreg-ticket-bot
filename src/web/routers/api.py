@@ -140,7 +140,7 @@ async def api_users(request: Request) -> dict[str, Any]:
     return {"users": users, "total": len(users)}
 
 
-@router.get("/dashboard/users/{uid}")
+@router.get("/dashboard/users/{uid}", response_model=None)
 async def api_user_detail(request: Request, uid: str) -> dict[str, Any] | JSONResponse:
     """JSON-детали пользователя."""
     db = request.app.state.db

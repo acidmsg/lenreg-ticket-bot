@@ -24,8 +24,16 @@ if TYPE_CHECKING:
     from loguru import Record
 
 
-#: Регулярное выражение для поиска чисел, похожих на user ID (от 5 до 15 цифр)
-_RE_USER_ID = re.compile(r"\b\d{5,15}\b")
+#: Регулярное выражение для поиска Telegram user ID в контексте.
+#: Маскирует только числа, перед которыми стоит контекстный маркер
+#: (user=, user_id=, uid=, from_user_id=, telegram_id=, tg_id= и т.п.),
+#: НЕ трогая числовые идентификаторы других сущностей
+#: (doctor_id, patient_id, spec_id и т.д.).
+_RE_USER_ID = re.compile(
+    r"(?i)((?<!\w)(?:user|from_user|telegram|tg|uid)[_\s]?id\s*[=:]\s*)(\d{5,15}\b)"
+    r"|"
+    r"((?<!\w)(?:user|uid)\s*[=:]\s*)(\d{5,15}\b)"
+)
 #: Регулярное выражение для поиска Cookie-строк
 _RE_COOKIE = re.compile(
     r"(?i)(cookie|Cookie)\s*[=:]\s*[^\s;]+",
@@ -36,6 +44,12 @@ _RE_CSRF_TOKEN = re.compile(
 )
 #: Query-параметры, содержащие чувствительные данные
 _SENSITIVE_QUERY_PARAMS = {"token", "api_key", "secret", "password", "auth", "session"}
+
+
+def _mask_user_id(m: re.Match) -> str:
+    """Callback для ``_RE_USER_ID.sub``: сохраняет префикс, число → ``***``."""
+    prefix = m.group(1) or m.group(3)
+    return f"{prefix}***"
 
 
 def _mask_sensitive_query_params(message: str) -> str:
@@ -80,11 +94,12 @@ def _sensitive_filter(record: Record) -> bool:
     # 3. Маскируем чувствительные query-параметры в URL
     masked = _mask_sensitive_query_params(masked)
 
-    # 4. Маскируем user IDs (цифровые последовательности 5+ символов).
-    #    Выполняется после остальных замен, чтобы не маскировать
-    #    уже заменённые значения и не задеть числа в осмысленном контексте
-    #    (пороги, таймауты и т.п.), которые встречаются как отдельные токены.
-    masked = _RE_USER_ID.sub("***", masked)
+    # 4. Маскируем user IDs (Telegram user ID, 5+ цифр) — только в контексте
+    #    ``user=``, ``user_id=``, ``uid=``, ``from_user_id=``,
+    #    ``telegram_id=``, ``tg_id=``.
+    #    Не маскируются ``doctor_id``, ``patient_id``, ``spec_id`` и прочие
+    #    числовые идентификаторы, не являющиеся PII.
+    masked = _RE_USER_ID.sub(_mask_user_id, masked)
 
     record["message"] = masked
     return True

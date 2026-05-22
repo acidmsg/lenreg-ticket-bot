@@ -1,7 +1,7 @@
 import contextlib
 from datetime import datetime
 
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -11,6 +11,8 @@ from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import PatientInfo
+from src.handlers.callback_parser import cb_filter
+from src.handlers.callbacks import AddPatient, CancelRegistration, SkipAlias
 from src.i18n import _
 from src.keyboards.inline import get_patient_selection, get_registration_keyboard
 
@@ -23,7 +25,7 @@ class Registration(StatesGroup):
     wait_alias = State()
 
 
-@router.callback_query(F.data == "start_add_p")
+@router.callback_query(cb_filter(AddPatient))
 async def start_add_patient(call: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(Registration.wait_fio)
     if isinstance(call.message, Message):
@@ -185,7 +187,7 @@ async def process_alias(
         )
 
 
-@router.callback_query(F.data == "skip_alias", Registration.wait_alias)
+@router.callback_query(cb_filter(SkipAlias), Registration.wait_alias)
 async def skip_alias(
     call: CallbackQuery, state: FSMContext, db: DatabaseManager
 ) -> None:
@@ -212,7 +214,7 @@ async def skip_alias(
             )
 
 
-@router.callback_query(F.data == "cancel_registration")
+@router.callback_query(cb_filter(CancelRegistration))
 async def cancel_registration(
     call: CallbackQuery, state: FSMContext, db: DatabaseManager
 ) -> None:

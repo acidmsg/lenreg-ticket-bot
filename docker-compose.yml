@@ -46,6 +46,7 @@ services:
       retries: 3
     ports:
       - "127.0.0.1:9090:9090"
+      - "127.0.0.1:8090:8090"
     networks:
       - zdrav_network
 

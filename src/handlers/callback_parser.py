@@ -10,6 +10,8 @@
     city_idx = _parse_callback_arg(parts, 4, "all")
 """
 
+from typing import Any
+
 from aiogram.filters.callback_data import CallbackData
 
 
@@ -35,7 +37,7 @@ def _parse_callback_arg(parts: list[str], index: int, default: str = "all") -> s
     return default
 
 
-def cb_filter(cb_class: type[CallbackData]) -> CallbackData:
+def cb_filter(cb_class: type[CallbackData]) -> Any:
     """Создаёт экземпляр CallbackData-фильтра для магического фильтра aiogram.
 
     Использование:
@@ -43,4 +45,4 @@ def cb_filter(cb_class: type[CallbackData]) -> CallbackData:
         async def handler(call: CallbackQuery, callback_data: PatientSelect):
             p_id = callback_data.p_id
     """
-    return cb_class.filter()  # type: ignore[return-value]
+    return cb_class.filter()

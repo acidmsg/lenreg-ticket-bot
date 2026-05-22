@@ -13,6 +13,19 @@
 
 from unittest.mock import AsyncMock
 
+from src.handlers.callbacks import (
+    BackToCities,
+    BackToClinics,
+    CitySelect,
+    ClinicSelect,
+    DeletePatientAsk,
+    DeletePatientConfirm,
+    PatientSelect,
+    StopClinicMonitoring,
+    StopPatientMonitoring,
+    ToggleDoctor,
+)
+
 # ── Фабрики и хелперы из conftest.py ──────────────────────────────────
 from tests.conftest import (
     TEST_USER_ID,
@@ -27,6 +40,7 @@ from tests.conftest import (
 from tests.conftest import (
     seed_doctors as _seed_doctors,
 )
+
 
 # ── T1.2.1: cmd_start ─────────────────────────────────────────────────
 
@@ -140,8 +154,9 @@ class TestSelectPatient:
             "111",
             {"fio": "Иванов Иван Иванович", "bday": "1990-01-01", "alias": None},
         )
-        call = make_callback("sel_p_111")
-        await select_patient(call, db=db_manager)
+        cb_data = PatientSelect(p_id="111")
+        call = make_callback(cb_data.pack())
+        await select_patient(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
@@ -152,10 +167,11 @@ class TestSelectPatient:
         """Нет from_user — выход."""
         from src.handlers.common import select_patient
 
-        call = make_callback("sel_p_111")
+        cb_data = PatientSelect(p_id="111")
+        call = make_callback(cb_data.pack())
         object.__setattr__(call, "from_user", None)
 
-        await select_patient(call, db=db_manager)
+        await select_patient(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_not_called()
 
@@ -178,8 +194,9 @@ class TestSelectCity:
             "111",
             {"fio": "Иванов Иван Иванович", "bday": "1990-01-01", "alias": None},
         )
-        call = make_callback("sel_cty_111_1")
-        await select_city(call, db=db_manager)
+        cb_data = CitySelect(p_id="111", idx="1")
+        call = make_callback(cb_data.pack())
+        await select_city(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         assert "reply_markup" in call.message.edit_text.call_args[1]
@@ -194,8 +211,9 @@ class TestSelectCity:
             "111",
             {"fio": "Иванов Иван Иванович", "bday": "1990-01-01", "alias": None},
         )
-        call = make_callback("sel_cty_111_all")
-        await select_city(call, db=db_manager)
+        cb_data = CitySelect(p_id="111", idx="all")
+        call = make_callback(cb_data.pack())
+        await select_city(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
@@ -229,8 +247,9 @@ class TestSelectClinic:
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
 
-        call = make_callback("sel_c_111_301_all")
-        await select_clinic(call, db=db_manager, api=api)
+        cb_data = ClinicSelect(p_id="111", clinic_id="301", city_idx="all")
+        call = make_callback(cb_data.pack())
+        await select_clinic(call, db=db_manager, api=api, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
@@ -258,8 +277,9 @@ class TestSelectClinic:
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
 
-        call = make_callback("sel_c_111_302_all")
-        await select_clinic(call, db=db_manager, api=api)
+        cb_data = ClinicSelect(p_id="111", clinic_id="302", city_idx="all")
+        call = make_callback(cb_data.pack())
+        await select_clinic(call, db=db_manager, api=api, callback_data=cb_data)
 
         # Discovery вызывался
         api.fetch_speciality_list.assert_called_once()
@@ -296,7 +316,8 @@ class TestToggleDoctor:
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
 
-        call = make_callback("tgl_111_401_d1")
+        cb_data = ToggleDoctor(p_id="111", clinic_id="401", d_id="d1")
+        call = make_callback(cb_data.pack())
 
         # call.message.answer вызывается для "загрузочного" сообщения,
         # результат используется для edit_text и сохранения message_id в БД.
@@ -306,7 +327,7 @@ class TestToggleDoctor:
         loading_msg_mock.edit_text = AsyncMock()
         call.message.answer.return_value = loading_msg_mock
 
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot)
+        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
 
         # call.answer был вызван
         call.answer.assert_called()
@@ -339,7 +360,8 @@ class TestToggleDoctor:
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
 
-        call = make_callback("tgl_111_402_d1")
+        cb_data = ToggleDoctor(p_id="111", clinic_id="402", d_id="d1")
+        call = make_callback(cb_data.pack())
 
         # Подменяем возврат call.message.answer
         loading_msg_mock = AsyncMock()
@@ -347,7 +369,7 @@ class TestToggleDoctor:
         loading_msg_mock.edit_text = AsyncMock()
         call.message.answer.return_value = loading_msg_mock
 
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot)
+        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
 
         # Мониторинг активирован даже если слотов нет
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
@@ -378,8 +400,9 @@ class TestToggleDoctor:
             str(TEST_USER_ID), "111", "d1", "Сидоров С.С.", "403", "Терапевт"
         )
 
-        call = make_callback("tgl_111_403_d1")
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot)
+        cb_data = ToggleDoctor(p_id="111", clinic_id="403", d_id="d1")
+        call = make_callback(cb_data.pack())
+        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
 
         # Мониторинг отключён — ключ пациента удалён из monitoring полностью
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
@@ -455,8 +478,9 @@ class TestBackToCities:
             "111",
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
-        call = make_callback("back_to_cities_111")
-        await back_to_cities(call, db=db_manager)
+        cb_data = BackToCities(p_id="111")
+        call = make_callback(cb_data.pack())
+        await back_to_cities(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
@@ -480,8 +504,9 @@ class TestBackToClinics:
             "111",
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
-        call = make_callback("back_to_clinics_111_1")
-        await back_to_clinics(call, db=db_manager)
+        cb_data = BackToClinics(p_id="111", city_idx="1")
+        call = make_callback(cb_data.pack())
+        await back_to_clinics(call, db=db_manager, callback_data=cb_data)
 
         call.message.edit_text.assert_called_once()
         assert "reply_markup" in call.message.edit_text.call_args[1]
@@ -509,8 +534,9 @@ class TestStopPatientMonitoring:
             str(TEST_USER_ID), "111", "d1", "Врач 1", "801", "Терапевт"
         )
 
-        call = make_callback("stop_patient_111_city_all")
-        await stop_patient_monitoring(call, db=db_manager, bot=bot)
+        cb_data = StopPatientMonitoring(p_id="111", origin="city", city_idx="all")
+        call = make_callback(cb_data.pack())
+        await stop_patient_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["monitoring"]
@@ -534,8 +560,9 @@ class TestStopPatientMonitoring:
             str(TEST_USER_ID), "222", "d1", "Врач 1", "802", "Терапевт"
         )
 
-        call = make_callback("stop_patient_222_clinic_1")
-        await stop_patient_monitoring(call, db=db_manager, bot=bot)
+        cb_data = StopPatientMonitoring(p_id="222", origin="clinic", city_idx="1")
+        call = make_callback(cb_data.pack())
+        await stop_patient_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "222" not in user_data["monitoring"]
@@ -584,8 +611,9 @@ class TestStopClinicMonitoring:
             str(TEST_USER_ID), "111", "d3", "Врач B1", "902", "Терапевт"
         )
 
-        call = make_callback("stop_clinic_111_901")
-        await stop_clinic_monitoring(call, db=db_manager, bot=bot)
+        cb_data = StopClinicMonitoring(p_id="111", clinic_id="901")
+        call = make_callback(cb_data.pack())
+        await stop_clinic_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         monitoring = user_data["monitoring"].get("111", {})
@@ -603,15 +631,16 @@ class TestHandleDeletePatient:
 
     async def test_delete_ask_shows_confirmation(self, db_manager):
         """del_p_ask — диалог подтверждения."""
-        from src.handlers.common import handle_delete_patient
+        from src.handlers.common import handle_delete_patient_ask
 
         await db_manager.add_patient(
             str(TEST_USER_ID),
             "111",
             {"fio": "Тестов Тест Тестович", "bday": "2000-01-01", "alias": None},
         )
-        call = make_callback("del_p_ask_111")
-        await handle_delete_patient(call, db=db_manager)
+        cb_data = DeletePatientAsk(p_id="111")
+        call = make_callback(cb_data.pack())
+        await handle_delete_patient_ask(call, db=db_manager, callback_data=cb_data)
 
         call.message.answer.assert_called_once()
         text = call.message.answer.call_args[0][0]
@@ -619,7 +648,7 @@ class TestHandleDeletePatient:
 
     async def test_delete_yes_with_other_patients(self, db_manager):
         """del_p_yes + есть другие пациенты — возврат к списку."""
-        from src.handlers.common import handle_delete_patient
+        from src.handlers.common import handle_delete_patient_confirm
 
         await db_manager.add_patient(
             str(TEST_USER_ID),
@@ -631,13 +660,14 @@ class TestHandleDeletePatient:
             "222",
             {"fio": "Пациент 2", "bday": "1995-05-05", "alias": None},
         )
-        call = make_callback("del_p_yes_111")
+        cb_data = DeletePatientConfirm(p_id="111")
+        call = make_callback(cb_data.pack())
         # handler проверяет call.bot is None → return
         # call.bot — property на _bot; задаём внутреннее поле
         mock_bot = make_mock_bot()
         object.__setattr__(call, "_bot", mock_bot)
 
-        await handle_delete_patient(call, db=db_manager)
+        await handle_delete_patient_confirm(call, db=db_manager, callback_data=cb_data)
 
         # Пациент 111 удалён
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
@@ -647,18 +677,19 @@ class TestHandleDeletePatient:
 
     async def test_delete_yes_last_patient_shows_welcome(self, db_manager):
         """del_p_yes + это последний пациент — приветствие."""
-        from src.handlers.common import handle_delete_patient
+        from src.handlers.common import handle_delete_patient_confirm
 
         await db_manager.add_patient(
             str(TEST_USER_ID),
             "111",
             {"fio": "Пациент 1", "bday": "2000-01-01", "alias": None},
         )
-        call = make_callback("del_p_yes_111")
+        cb_data = DeletePatientConfirm(p_id="111")
+        call = make_callback(cb_data.pack())
         mock_bot = make_mock_bot()
         object.__setattr__(call, "_bot", mock_bot)
 
-        await handle_delete_patient(call, db=db_manager)
+        await handle_delete_patient_confirm(call, db=db_manager, callback_data=cb_data)
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["patients"]
@@ -668,18 +699,19 @@ class TestHandleDeletePatient:
 
     async def test_delete_yes_no_bot_returns_early(self, db_manager):
         """del_p_yes без bot — assert проверяет наличие bot в callback."""
-        from src.handlers.common import handle_delete_patient
+        from src.handlers.common import handle_delete_patient_confirm
 
         await db_manager.add_patient(
             str(TEST_USER_ID),
             "111",
             {"fio": "Пациент 1", "bday": "2000-01-01", "alias": None},
         )
-        call = make_callback("del_p_yes_111")
+        cb_data = DeletePatientConfirm(p_id="111")
+        call = make_callback(cb_data.pack())
         mock_bot = make_mock_bot()
         object.__setattr__(call, "_bot", mock_bot)
 
-        await handle_delete_patient(call, db=db_manager)
+        await handle_delete_patient_confirm(call, db=db_manager, callback_data=cb_data)
 
         # Пациент удалён, бот использован для отправки фото
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))

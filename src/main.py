@@ -7,6 +7,7 @@ healthcheck, очистка), Prometheus-метрики и веб-дашборд
 
 import asyncio
 import os
+import socket
 import threading
 import time
 
@@ -149,14 +150,19 @@ async def _start_metrics_server(
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", settings.METRICS_PORT)
+    site = web.TCPSite(runner, "0.0.0.0", settings.METRICS_PORT, reuse_address=True)
     await site.start()
     logger.info(f"Prometheus HTTP-сервер запущен на порту {settings.METRICS_PORT}")
     return runner, site
 
 
 def _run_uvicorn_sync(app, host: str, port: int) -> bool:
-    """Запускает uvicorn в daemon-потоке."""
+    """Запускает uvicorn в daemon-потоке с SO_REUSEADDR.
+
+    Создаёт pre-bound socket с SO_REUSEADDR и передаёт его в uvicorn
+    через параметр ``sockets=[sock]``, т.к. ``Config`` не имеет
+    атрибута ``sock`` (uvicorn 0.47.0).
+    """
     import uvicorn
 
     result: dict[str, object] = {"success": False, "exception": None}
@@ -165,7 +171,16 @@ def _run_uvicorn_sync(app, host: str, port: int) -> bool:
         try:
             config = uvicorn.Config(app, host=host, port=port, log_level="info")
             server = uvicorn.Server(config)
-            server.run()
+
+            # Создаём сокет с SO_REUSEADDR до вызова bind()
+            # Решает проблему [Errno 10048] на Windows (TIME_WAIT)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, port))
+
+            # Передаём pre-bound socket — uvicorn использует его
+            # вместо создания собственного (см. Server.startup)
+            server.run(sockets=[sock])
         except Exception as e:
             result["exception"] = e
             logger.exception("uvicorn Server.run() завершился с ошибкой")
@@ -184,23 +199,68 @@ def _run_uvicorn_sync(app, host: str, port: int) -> bool:
     return False
 
 
+async def _check_port_available(host: str, port: int) -> bool:
+    """Проверяет, свободен ли порт через socket.bind() — кроссплатформенно.
+
+    На Windows попытка connect() к свободному порту может привести к
+    TimeoutError вместо ConnectionRefusedError из-за брандмауэра/антивируса,
+    дропающего SYN-пакеты. bind() напрямую опрашивает ОС, занят ли порт,
+    и работает идентично на Linux, Windows и macOS.
+
+    Важно: SO_REUSEADDR НЕ используется, чтобы bind() честно сообщал
+    о занятости порта (на Windows SO_REUSEADDR позволяет повторный bind
+    к уже занятому адресу, маскируя проблему).
+    """
+    loop = asyncio.get_running_loop()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        await loop.run_in_executor(None, sock.bind, (host, port))
+        return True  # bind успешен — порт свободен
+    except OSError:
+        return False  # bind не удался — порт занят
+    finally:
+        sock.close()
+
+
 async def _run_dashboard_safe(
     web_app,
     port: int,
     fallback_ports: list[int],
     logger,
 ) -> int | None:
-    """Запускает uvicorn-сервер веб-дашборда с перебором портов."""
+    """Запускает uvicorn-сервер веб-дашборда с retry и fallback-портами."""
     ports_to_try = [port, *fallback_ports]
 
     for p in ports_to_try:
-        logger.info("Пробую запустить дашборд на порту {}...", p)
-        success = await asyncio.to_thread(_run_uvicorn_sync, web_app, "0.0.0.0", p)
-        if success:
-            logger.info("Веб-дашборд запущен на порту {}", p)
-            return p
+        for attempt in range(3):
+            # Pre-flight проверка порта (адрес должен совпадать с uvicorn)
+            if not await _check_port_available("0.0.0.0", p):
+                logger.warning(
+                    f"Порт {p} занят (попытка {attempt + 1}/3), "
+                    f"жду {2 ** attempt}с..."
+                )
+                await asyncio.sleep(2 ** attempt)
+                continue
 
-    logger.warning("Веб-дашборд не запущен: все порты заняты.")
+            logger.info(
+                f"Пробую запустить дашборд на порту {p} "
+                f"(попытка {attempt + 1}/3)..."
+            )
+            success = await asyncio.to_thread(
+                _run_uvicorn_sync, web_app, "0.0.0.0", p
+            )
+            if success:
+                logger.info(f"Веб-дашборд запущен на http://0.0.0.0:{p}")
+                return p
+
+            # uvicorn упал — мог занять порт, повтор через exponential backoff
+            logger.warning(
+                f"uvicorn на порту {p} упал (попытка {attempt + 1}/3), "
+                f"повтор через {2 ** attempt}с..."
+            )
+            await asyncio.sleep(2 ** attempt)
+
+    logger.error("Веб-дашборд не запущен: все порты заняты.")
     return None
 
 
@@ -209,8 +269,8 @@ async def run_dashboard(
     health_metrics,
     prometheus_metrics,
     config,
-    host: str = "0.0.0.0",
-    port: int = 8080,
+    host: str,
+    port: int,
 ) -> None:
     """Запускает uvicorn-сервер веб-дашборда как asyncio-задачу."""
     from src.web.app import create_app
@@ -230,6 +290,11 @@ async def main() -> None:
     """Основная функция запуска бота."""
     # Настройка логирования (Loguru)
     setup_logging()
+
+    # Инициализация Sentry (после настройки логирования, чтобы избежать
+    # дедлока между BreadcrumbHandler Sentry и InterceptHandler loguru
+    # при вызове logging.basicConfig(force=True) на Python 3.14)
+    error_notifier.init_sentry()
 
     # Инициализация интернационализации (i18n)
     setup_i18n(settings.BOT_LANGUAGE)
@@ -356,20 +421,33 @@ async def main() -> None:
     background_tasks = await _start_background_tasks(bot, api, db, database)
 
     # Запуск Prometheus HTTP-сервера
-    metrics_runner, _metrics_site = await _start_metrics_server(db)
+    metrics_runner: web.AppRunner | None = None
+    _metrics_site: web.TCPSite | None = None
+    try:
+        metrics_runner, _metrics_site = await _start_metrics_server(db)
+    except OSError as e:
+        logger.warning(f"Не удалось запустить сервер метрик: {e}")
 
     # Запуск веб-дашборда (F5)
     dashboard_task: asyncio.Task | None = None
     if settings.WEB_DASHBOARD_ENABLED:
-        dashboard_task = asyncio.create_task(
-            run_dashboard(
-                db,
-                health_metrics,
-                prometheus_metrics,
-                settings,
-                port=settings.WEB_DASHBOARD_PORT,
+        try:
+            dashboard_task = asyncio.create_task(
+                run_dashboard(
+                    db,
+                    health_metrics,
+                    prometheus_metrics,
+                    settings,
+                    host="0.0.0.0",
+                    port=settings.WEB_DASHBOARD_PORT,
+                )
             )
-        )
+            logger.info("Задача веб-дашборда создана")
+        except Exception as e:
+            logger.error(
+                f"Не удалось создать задачу веб-дашборда: {e}", exc_info=True
+            )
+            dashboard_task = None
     else:
         logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")
 
@@ -395,8 +473,9 @@ async def main() -> None:
             logger.info("Веб-дашборд остановлен")
 
         # Остановка Prometheus HTTP-сервера
-        await metrics_runner.cleanup()
-        logger.info("Prometheus HTTP-сервер остановлен")
+        if metrics_runner is not None:
+            await metrics_runner.cleanup()
+            logger.info("Prometheus HTTP-сервер остановлен")
 
         await api.close()
 

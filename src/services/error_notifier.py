@@ -48,9 +48,8 @@ class ErrorNotifier:
 
     def __init__(self):
         self._sentry_initialized = False
-        self._init_sentry()
 
-    def _init_sentry(self):
+    def init_sentry(self):
         """Initialize Sentry SDK if DSN is configured."""
         if not settings.SENTRY_DSN:
             return

@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable
+from typing import TYPE_CHECKING, Any, cast
 
 from loguru import logger
 
@@ -35,7 +36,7 @@ class RedisClient:
     _lock: Any = None
 
     def __init__(self) -> None:
-        self._redis: Any = None
+        self._redis: Redis | None = None
         self._url: str = settings.REDIS_URL
         self._available: bool = False
 
@@ -166,25 +167,25 @@ class RedisClient:
         """Добавляет значения в список. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.rpush(key, *values)  # type: ignore[no-any-return]
+        return await cast(Awaitable[int], self.client.rpush(key, *values))
 
     async def lrange(self, key: str, start: int, end: int) -> list[str]:
         """Возвращает срез списка. Возвращает [] при недоступности Redis."""
         if not self._available:
             return []
-        return await self.client.lrange(key, start, end)  # type: ignore[no-any-return]
+        return await cast(Awaitable[list[str]], self.client.lrange(key, start, end))
 
     async def ltrim(self, key: str, start: int, end: int) -> bool:
         """Обрезает список. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.ltrim(key, start, end)  # type: ignore[no-any-return]
+        return bool(await cast(Awaitable[str], self.client.ltrim(key, start, end)))
 
     async def llen(self, key: str) -> int:
         """Возвращает длину списка. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.llen(key)  # type: ignore[no-any-return]
+        return await cast(Awaitable[int], self.client.llen(key))
 
     async def pipeline(self) -> Any:
         """Создаёт pipeline для атомарного выполнения команд.

@@ -93,3 +93,7 @@ class StopPatientMonitoring(CallbackData, prefix="stop_patient"):
     p_id: str
     origin: str
     city_idx: str = ""
+
+
+class Noop(CallbackData, prefix="noop"):
+    """Заглушка для кнопки-разделителя (без параметров)."""

@@ -16,10 +16,23 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo
 from src.filters.admin import IsAdmin
-from src.handlers.callback_parser import _parse_callback_arg
+from src.handlers.callback_parser import cb_filter
 from src.handlers.callbacks import (
+    BackToCities,
+    BackToClinics,
+    BackToMain,
+    CitySelect,
+    ClinicSelect,
+    DeletePatientAsk,
+    DeletePatientConfirm,
     ExportCSV,
     ExportJSON,
+    Noop,
+    PatientSelect,
+    StopAllMonitoring,
+    StopClinicMonitoring,
+    StopPatientMonitoring,
+    ToggleDoctor,
 )
 from src.i18n import _
 from src.keyboards.inline import (
@@ -462,7 +475,7 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot) -> None:
         await db.set_last_message_id(uid, "__nav__", "__nav__", result_msg.message_id)
 
 
-@router.callback_query(F.data == "back_to_main")
+@router.callback_query(cb_filter(BackToMain))
 async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
     """Возврат в главное меню с изображением-заголовком patient_select."""
     if not call.from_user or not call.message or not isinstance(call.message, Message):
@@ -491,12 +504,14 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
     await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup, db=db)
 
 
-@router.callback_query(F.data.startswith("sel_p_"))
-async def select_patient(call: CallbackQuery, db: DatabaseManager) -> None:
+@router.callback_query(cb_filter(PatientSelect))
+async def select_patient(
+    call: CallbackQuery, db: DatabaseManager, callback_data: PatientSelect
+) -> None:
     """Выбор пациента → список городов с изображением clinic_select."""
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
-    p_id = call.data.replace("sel_p_", "")
+    p_id = callback_data.p_id
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     user_data["patients"].get(p_id, {})
@@ -522,17 +537,15 @@ async def select_patient(call: CallbackQuery, db: DatabaseManager) -> None:
         )
 
 
-@router.callback_query(F.data.startswith("sel_cty_"))
-async def select_city(call: CallbackQuery, db: DatabaseManager) -> None:
+@router.callback_query(cb_filter(CitySelect))
+async def select_city(
+    call: CallbackQuery, db: DatabaseManager, callback_data: CitySelect
+) -> None:
     """Выбор города → список клиник с изображением clinic_select."""
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
-    # Формат: sel_cty_{p_id}_{idx} где idx — 1-based индекс города или "all"
-    parts = call.data.split("_", 3)
-    if len(parts) < 4:
-        return
-    p_id = parts[2]
-    idx_or_all = parts[3]
+    p_id = callback_data.p_id
+    idx_or_all = callback_data.idx
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     raw_p = user_data["patients"].get(p_id)
@@ -565,12 +578,14 @@ async def select_city(call: CallbackQuery, db: DatabaseManager) -> None:
         )
 
 
-@router.callback_query(F.data.startswith("back_to_cities_"))
-async def back_to_cities(call: CallbackQuery, db: DatabaseManager) -> None:
+@router.callback_query(cb_filter(BackToCities))
+async def back_to_cities(
+    call: CallbackQuery, db: DatabaseManager, callback_data: BackToCities
+) -> None:
     """Возвращает к выбору города с изображением clinic_select."""
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
-    p_id = call.data.replace("back_to_cities_", "")
+    p_id = callback_data.p_id
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     cities = await db._db.get_distinct_cities()
@@ -592,20 +607,18 @@ async def back_to_cities(call: CallbackQuery, db: DatabaseManager) -> None:
         )
 
 
-@router.callback_query(F.data.startswith("back_to_clinics_"))
-async def back_to_clinics(call: CallbackQuery, db: DatabaseManager) -> None:
+@router.callback_query(cb_filter(BackToClinics))
+async def back_to_clinics(
+    call: CallbackQuery, db: DatabaseManager, callback_data: BackToClinics
+) -> None:
     """Возвращает к списку клиник (того же города или всех).
 
     Используется изображение-заголовок clinic_select.
     """
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
-    # Формат: back_to_clinics_{p_id}_{city_idx}
-    parts = call.data.split("_")
-    if len(parts) < 5:
-        return
-    p_id = parts[3]
-    city_idx = parts[4]  # всегда есть, т.к. len >= 5
+    p_id = callback_data.p_id
+    city_idx = callback_data.city_idx
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     raw_p = user_data["patients"].get(p_id)
@@ -638,21 +651,19 @@ async def back_to_clinics(call: CallbackQuery, db: DatabaseManager) -> None:
         )
 
 
-@router.callback_query(F.data.startswith("sel_c_"))
+@router.callback_query(cb_filter(ClinicSelect))
 async def select_clinic(
-    call: CallbackQuery, db: DatabaseManager, api: ZdravClient
+    call: CallbackQuery,
+    db: DatabaseManager,
+    api: ZdravClient,
+    callback_data: ClinicSelect,
 ) -> None:
     """Выбор клиники → список врачей с изображением doctor_*_select."""
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
-    parts = call.data.split("_")
-    if len(parts) < 4:
-        logger.error(f"Неверный формат callback_data: {call.data}")
-        return
-
-    p_id, clinic_id = parts[2], parts[3]
-    # Формат: sel_c_{p_id}_{clinic_id}_{city_idx}
-    city_idx = _parse_callback_arg(parts, 4, "all")
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
+    city_idx = callback_data.city_idx
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     raw_p = user_data["patients"].get(p_id)
@@ -701,18 +712,24 @@ async def select_clinic(
         )
 
 
-@router.callback_query(F.data.startswith("tgl_"))
+@router.callback_query(cb_filter(ToggleDoctor))
 async def toggle_doctor(
-    call: CallbackQuery, db: DatabaseManager, api: ZdravClient, bot: Bot
+    call: CallbackQuery,
+    db: DatabaseManager,
+    api: ZdravClient,
+    bot: Bot,
+    callback_data: ToggleDoctor,
 ) -> None:
-    if not call.message or not call.from_user or not call.data:
+    if not call.message or not call.from_user:
         return
 
     # Защита от спама -- тихо игнорируем повторные нажатия
     if await is_spam(str(call.from_user.id)):
         return
 
-    __, p_id, clinic_id, d_id = call.data.split("_")
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
+    d_id = callback_data.d_id
     uid = str(call.from_user.id)
 
     user_data = await db.get_user_data(uid)
@@ -859,24 +876,22 @@ async def toggle_doctor(
     await call.answer(_("done-toast"))
 
 
-@router.callback_query(F.data.startswith("stop_patient_"))
+@router.callback_query(cb_filter(StopPatientMonitoring))
 async def stop_patient_monitoring(
-    call: CallbackQuery, db: DatabaseManager, bot: Bot
+    call: CallbackQuery,
+    db: DatabaseManager,
+    bot: Bot,
+    callback_data: StopPatientMonitoring,
 ) -> None:
     """
     Сброс мониторинга для конкретного пациента.
-    Формат: stop_patient_{p_id}_city или stop_patient_{p_id}_clinic_{city_idx}
     После сброса остаётся на том же контексте (города или клиники).
     """
-    if not call.data or not call.from_user or not call.message:
+    if not call.from_user or not call.message:
         return
-    parts = call.data.split("_")
-    if len(parts) < 4:
-        return
-    p_id = parts[2]
-    # Формат: stop_patient_{p_id}_{context}_{city_idx}
-    context = _parse_callback_arg(parts, 3, "city")  # city или clinic
-    city_idx = _parse_callback_arg(parts, 4, "all")
+    p_id = callback_data.p_id
+    origin = callback_data.origin  # city или clinic
+    city_idx = callback_data.city_idx
 
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
@@ -898,7 +913,7 @@ async def stop_patient_monitoring(
     await delete_cache_keys_by_prefix(f"{uid}_{p_id}_")
 
     if isinstance(call.message, Message) and bot is not None:
-        if context == "clinic":
+        if origin == "clinic":
             # Остаёмся на списке клиник
             clinic_names = await db.get_all_clinic_names()
             clinics_data = await db._db.get_active_clinics()
@@ -945,17 +960,18 @@ async def stop_patient_monitoring(
             )
 
 
-@router.callback_query(F.data.startswith("stop_clinic_"))
+@router.callback_query(cb_filter(StopClinicMonitoring))
 async def stop_clinic_monitoring(
-    call: CallbackQuery, db: DatabaseManager, bot: Bot
+    call: CallbackQuery,
+    db: DatabaseManager,
+    bot: Bot,
+    callback_data: StopClinicMonitoring,
 ) -> None:
     """Сброс мониторинга для конкретной клиники пациента."""
-    if not call.data or not call.from_user or not call.message:
+    if not call.from_user or not call.message:
         return
-    parts = call.data.split("_")
-    if len(parts) < 4:
-        return
-    p_id, clinic_id = parts[2], parts[3]
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
 
@@ -1015,7 +1031,7 @@ async def stop_clinic_monitoring(
         )
 
 
-@router.callback_query(F.data == "stop_all")
+@router.callback_query(cb_filter(StopAllMonitoring))
 async def stop_all_monitoring(
     call: CallbackQuery, db: DatabaseManager, bot: Bot
 ) -> None:
@@ -1047,57 +1063,68 @@ async def stop_all_monitoring(
         )
 
 
-@router.callback_query(F.data == "noop")
+@router.callback_query(cb_filter(Noop))
 async def handle_noop(call: CallbackQuery) -> None:
     """Заглушка для кнопки-разделителя."""
     await call.answer()
 
 
-@router.callback_query(F.data.startswith("del_p_"))
-async def handle_delete_patient(call: CallbackQuery, db: DatabaseManager) -> None:
-    if not call.message or not call.from_user or not call.data:
+@router.callback_query(cb_filter(DeletePatientAsk))
+async def handle_delete_patient_ask(
+    call: CallbackQuery, db: DatabaseManager, callback_data: DeletePatientAsk
+) -> None:
+    """Запрос подтверждения удаления пациента."""
+    if not call.message or not call.from_user:
         return
-    parts = call.data.split("_")
-    action, p_id = parts[2], parts[3]
-    uid = str(call.from_user.id)
-
-    if action == "ask" and isinstance(call.message, Message):
+    p_id = callback_data.p_id
+    if isinstance(call.message, Message):
         with contextlib.suppress(Exception):
             await call.message.delete()
         await call.message.answer(
             _("confirm-delete-patient"),
             reply_markup=get_confirm_deletion(p_id),
         )
-    elif action == "yes" and isinstance(call.message, Message):
-        # Удаляем сообщения из чата, связанные с пациентом
-        user_data = await db.get_user_data(uid)
-        # Гарантируем, что бот доступен (type narrowing для mypy/pylance)
-        assert call.bot is not None, "Bot must be available in callback"
-        await _delete_cleanup_msg_entries(
-            bot=call.bot,
-            uid=uid,
-            prefix_key=f"{p_id}_",
-            last_messages=user_data.get("last_messages", {}),
-        )
-        await db.delete_patient(uid, p_id)
-        if not user_data.get("patients"):
-            text = _("no-patients-welcome")
-            reply_markup = get_patient_selection({}, {})
-        else:
-            text = _("patient-list-after-delete")
-            reply_markup = get_patient_selection(
-                user_data["patients"], user_data["monitoring"]
-            )
 
-        if call.bot and isinstance(call.message, Message):
-            await _send_nav_photo(
-                call.bot,
-                call.message,
-                "patient",
-                text,
-                reply_markup,
-                db=db,
-            )
+
+@router.callback_query(cb_filter(DeletePatientConfirm))
+async def handle_delete_patient_confirm(
+    call: CallbackQuery, db: DatabaseManager, callback_data: DeletePatientConfirm
+) -> None:
+    """Подтверждение удаления пациента."""
+    if not call.message or not call.from_user:
+        return
+    p_id = callback_data.p_id
+    uid = str(call.from_user.id)
+
+    # Удаляем сообщения из чата, связанные с пациентом
+    user_data = await db.get_user_data(uid)
+    # Гарантируем, что бот доступен (type narrowing для mypy/pylance)
+    assert call.bot is not None, "Bot must be available in callback"
+    await _delete_cleanup_msg_entries(
+        bot=call.bot,
+        uid=uid,
+        prefix_key=f"{p_id}_",
+        last_messages=user_data.get("last_messages", {}),
+    )
+    await db.delete_patient(uid, p_id)
+    if not user_data.get("patients"):
+        text = _("no-patients-welcome")
+        reply_markup = get_patient_selection({}, {})
+    else:
+        text = _("patient-list-after-delete")
+        reply_markup = get_patient_selection(
+            user_data["patients"], user_data["monitoring"]
+        )
+
+    if call.bot and isinstance(call.message, Message):
+        await _send_nav_photo(
+            call.bot,
+            call.message,
+            "patient",
+            text,
+            reply_markup,
+            db=db,
+        )
 
 
 # ── Экспорт данных мониторинга ──────────────────────────────
