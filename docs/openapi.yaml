@@ -18,7 +18,7 @@ info:
   contact:
     name: 'lenreg_ticket_bot'
     email: 'maintainer@example.com'
-    url: 'https://github.com/acidgrip/zdrav.lenreg'
+    url: 'https://github.com/acidmsg/lenreg_ticket_bot'
 
 servers:
   - url: 'https://zdrav.lenreg.ru/api'

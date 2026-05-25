@@ -100,7 +100,7 @@ echo ""
 # Этап 2: Клонирование / обновление репозитория
 # ===========================================================================
 
-REPO_URL="git@github.com:acidgrip/zdrav.lenreg.git"
+REPO_URL="git@github.com:acidmsg/lenreg_ticket_bot.git"
 BRANCH="mini_app_beta"
 INSTALL_DIR="${HOME}/zdrav.lenreg"
 

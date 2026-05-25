@@ -84,7 +84,7 @@ src/
 ### 1. Клонирование
 
 ```bash
-git clone https://github.com/your-org/zdrav.lenreg.git
+git clone https://github.com/acidmsg/lenreg_ticket_bot.git
 cd zdrav.lenreg
 ```
 

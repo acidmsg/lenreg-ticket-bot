@@ -13,7 +13,7 @@ FROM python:3.11-slim AS builder
 LABEL maintainer="acidmsg"
 LABEL description="Telegram-бот для мониторинга талонов zdrav.lenreg.ru"
 LABEL version="1.0.0"
-LABEL org.opencontainers.image.source="https://github.com/acidmsg/zdrav.lenreg"
+LABEL org.opencontainers.image.source="https://github.com/acidmsg/lenreg_ticket_bot"
 
 # ---------------------------------------------------------------------------
 # Системные зависимости — минимально необходимые для сборки
@@ -46,7 +46,7 @@ FROM python:3.11-slim
 LABEL maintainer="acidmsg"
 LABEL description="Telegram-бот для мониторинга талонов zdrav.lenreg.ru"
 LABEL version="1.0.0"
-LABEL org.opencontainers.image.source="https://github.com/acidmsg/zdrav.lenreg"
+LABEL org.opencontainers.image.source="https://github.com/acidmsg/lenreg_ticket_bot"
 
 # ---------------------------------------------------------------------------
 # Системные зависимости для рантайма (минимально)

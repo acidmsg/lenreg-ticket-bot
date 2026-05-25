@@ -24,7 +24,7 @@
 
 ```bash
 # Если репозиторий ещё не клонирован:
-curl -sSL https://raw.githubusercontent.com/acidgrip/zdrav.lenreg/mini_app_beta/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/acidmsg/lenreg_ticket_bot/mini_app_beta/scripts/install.sh | bash
 
 # Или после клонирования:
 bash scripts/install.sh
@@ -247,14 +247,14 @@ cat ~/.ssh/id_ed25519.pub
 
 ```bash
 # Клонировать репозиторий
-git clone git@github.com:YOUR_GITHUB_USERNAME/zdrav.lenreg.git
+git clone git@github.com:acidmsg/lenreg_ticket_bot.git
 cd zdrav.lenreg
 
 # Переключиться на ветку mini_app_beta
 git checkout mini_app_beta
 ```
 
-> Замените `YOUR_GITHUB_USERNAME` на имя пользователя GitHub, владеющего репозиторием.
+> Репозиторий: `acidmsg/lenreg_ticket_bot`.
 
 ### 6.4. Подготовка `.env`
 
