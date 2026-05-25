@@ -272,15 +272,23 @@ async def run_dashboard(
     """Запускает uvicorn-сервер веб-дашборда как asyncio-задачу."""
     from src.web.app import create_app
 
-    web_app = create_app(db, health_metrics, prometheus_metrics, config, api)
+    try:
+        web_app = create_app(db, health_metrics, prometheus_metrics, config, api)
+    except Exception:
+        logger.exception("Ошибка при создании FastAPI-приложения веб-дашборда")
+        return
 
-    fallback_ports = [8091, 8092, 8093]
-    result = await _run_dashboard_safe(web_app, port, fallback_ports, logger)
+    try:
+        fallback_ports = [8091, 8092, 8093]
+        result = await _run_dashboard_safe(web_app, port, fallback_ports, logger)
 
-    if result is None:
-        logger.warning(
-            f"Веб-дашборд не запущен ни на одном порту из: {[port, *fallback_ports]}"
-        )
+        if result is None:
+            logger.warning(
+                "Веб-дашборд не запущен ни на одном порту из: "
+                f"{[port, *fallback_ports]}"
+            )
+    except Exception:
+        logger.exception("Ошибка при запуске uvicorn-сервера веб-дашборда")
 
 
 async def main() -> None:

@@ -172,7 +172,7 @@ async def get_doctors(
     return {"doctors": doctors_list}
 
 
-@router.post("/doctors/add")
+@router.post("/doctors/add", response_model=None)
 async def add_doctor(
     request: Request,
     body: AddDoctorRequest,
@@ -270,7 +270,7 @@ async def add_doctor(
         )
 
 
-@router.delete("/doctors/{monitoring_id}")
+@router.delete("/doctors/{monitoring_id}", response_model=None)
 async def remove_doctor(
     request: Request,
     monitoring_id: str,
@@ -345,7 +345,7 @@ async def get_clinics(request: Request) -> dict[str, Any]:
     return {"clinics": clinics_list}
 
 
-@router.get("/specialties")
+@router.get("/specialties", response_model=None)
 async def get_specialties(
     request: Request,
     clinic_id: str = Query(..., description="ID клиники (обязательный)"),
@@ -419,7 +419,7 @@ async def get_specialties(
     }
 
 
-@router.get("/doctors/available")
+@router.get("/doctors/available", response_model=None)
 async def get_available_doctors(
     request: Request,
     clinic_id: str = Query(..., description="ID клиники (обязательный)"),
@@ -509,7 +509,7 @@ async def get_patients(request: Request) -> dict[str, Any]:
     return {"patients": patients_list}
 
 
-@router.post("/patients/add")
+@router.post("/patients/add", response_model=None)
 async def add_patient(
     request: Request,
     body: AddPatientRequest,
@@ -664,7 +664,7 @@ async def add_patient(
     }
 
 
-@router.get("/slots")
+@router.get("/slots", response_model=None)
 async def get_slots(
     request: Request,
     monitoring_id: str = Query(
