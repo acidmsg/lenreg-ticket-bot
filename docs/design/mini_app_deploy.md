@@ -22,11 +22,31 @@
 
 ### На VPS (одна команда)
 
-```bash
-# Если репозиторий ещё не клонирован:
-curl -sSL https://raw.githubusercontent.com/acidmsg/lenreg_ticket_bot/mini_app_beta/scripts/install.sh | bash
+Репозиторий приватный — для установки нужен [GitHub Personal Access Token](https://github.com/settings/tokens) с правом `repo`.
 
-# Или после клонирования:
+```bash
+# Установить переменную с токеном
+export GITHUB_TOKEN="ghp_ваш_токен_здесь"
+
+# Запустить установку
+curl -sSL -H "Authorization: token $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/acidmsg/lenreg_ticket_bot/mini_app_beta/scripts/install.sh | \
+  GITHUB_TOKEN=$GITHUB_TOKEN bash
+```
+
+Или клонировать вручную и запустить скрипт:
+
+```bash
+# Через HTTPS с токеном
+git clone https://$GITHUB_TOKEN@github.com/acidmsg/lenreg_ticket_bot.git
+cd lenreg_ticket_bot
+git checkout mini_app_beta
+GITHUB_TOKEN=$GITHUB_TOKEN bash scripts/install.sh
+
+# Или через SSH (если настроен SSH-ключ)
+git clone git@github.com:acidmsg/lenreg_ticket_bot.git
+cd lenreg_ticket_bot
+git checkout mini_app_beta
 bash scripts/install.sh
 ```
 

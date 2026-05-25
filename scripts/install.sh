@@ -6,6 +6,11 @@
 #   1. Из клонированного репозитория:  bash scripts/install.sh
 #   2. Через curl pipe:                curl -sSL <raw-url> | bash
 #
+# Для приватного репозитория используйте:
+#   GITHUB_TOKEN=ghp_xxx curl -sSL -H "Authorization: token $GITHUB_TOKEN" \
+#     https://raw.githubusercontent.com/acidmsg/lenreg_ticket_bot/mini_app_beta/scripts/install.sh | \
+#     GITHUB_TOKEN=$GITHUB_TOKEN bash
+#
 # Совместимость: Ubuntu 20.04+, Debian 11+
 # ===========================================================================
 set -euo pipefail
@@ -100,8 +105,19 @@ echo ""
 # Этап 2: Клонирование / обновление репозитория
 # ===========================================================================
 
-REPO_URL="git@github.com:acidmsg/lenreg_ticket_bot.git"
+# URL репозитория — используем HTTPS с токеном для приватных репозиториев
+GITHUB_OWNER="acidmsg"
+GITHUB_REPO="lenreg_ticket_bot"
 BRANCH="mini_app_beta"
+
+# Если передан GITHUB_TOKEN — используем HTTPS, иначе SSH
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    REPO_URL="https://${GITHUB_TOKEN}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git"
+    info "Используется HTTPS с токеном для клонирования"
+else
+    REPO_URL="git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
+    info "Используется SSH для клонирования"
+fi
 INSTALL_DIR="${HOME}/zdrav.lenreg"
 
 # Определяем, запущен ли скрипт изнутри репозитория
