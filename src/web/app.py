@@ -52,6 +52,13 @@ def create_app(
     @app.exception_handler(Exception)
     async def _global_exception_handler(request, exc):
         """Ловит необработанные исключения и логирует полный трейсбек."""
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        # HTTPException (401, 403, 404 и т.д.) — не перехватываем,
+        # FastAPI сам возвращает правильный статус-код
+        if isinstance(exc, StarletteHTTPException):
+            raise exc
+
         from starlette.requests import Request as StarletteRequest
 
         if isinstance(request, StarletteRequest):
