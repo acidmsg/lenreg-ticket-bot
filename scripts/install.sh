@@ -40,9 +40,9 @@ ask() {
     local varname="$3"
 
     if [ -n "$default" ]; then
-        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt} [${default}]: ")" input
+        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt} [${default}]: ")" input < /dev/tty
     else
-        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt}: ")" input
+        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt}: ")" input < /dev/tty
     fi
 
     # Если ввод пустой — использовать default
@@ -426,17 +426,17 @@ echo "  Остановить все контейнеры:"
 echo -e "    ${CYAN}docker compose down${NC}"
 echo ""
 echo "  Mini App доступен по адресу:"
-echo -e "    ${GREEN}${MINI_APP_URL}${NC}"
+echo -e "    ${GREEN}${MINI_APP_URL:-}${NC}"
 echo ""
-echo "  Веб-дашборд доступен на порту ${WEB_DASHBOARD_PORT}:"
-echo -e "    ${GREEN}http://<ip-сервера>:${WEB_DASHBOARD_PORT}/${NC}"
+echo "  Веб-дашборд доступен на порту ${WEB_DASHBOARD_PORT:-}:"
+echo -e "    ${GREEN}http://<ip-сервера>:${WEB_DASHBOARD_PORT:-}/${NC}"
 echo ""
 
 # Подсказка про файрвол
 if command -v ufw >/dev/null 2>&1; then
-    warn "Не забудьте открыть порт ${WEB_DASHBOARD_PORT} в файрволе (ufw):"
+    warn "Не забудьте открыть порт ${WEB_DASHBOARD_PORT:-} в файрволе (ufw):"
     echo ""
-    echo -e "    ${CYAN}sudo ufw allow ${WEB_DASHBOARD_PORT}/tcp${NC}"
+    echo -e "    ${CYAN}sudo ufw allow ${WEB_DASHBOARD_PORT:-}/tcp${NC}"
     echo -e "    ${CYAN}sudo ufw reload${NC}"
     echo ""
 fi
@@ -444,7 +444,7 @@ fi
 # Подсказка про Cloudflare Proxy
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${YELLOW}  При использовании Cloudflare Proxy:${NC}"
-echo -e "${YELLOW}  Порт ${WEB_DASHBOARD_PORT} должен быть одним из поддерживаемых:${NC}"
+echo -e "${YELLOW}  Порт ${WEB_DASHBOARD_PORT:-} должен быть одним из поддерживаемых:${NC}"
 echo -e "${YELLOW}  80, 8080, 8880, 2052, 2082, 2086, 2095 (HTTP)${NC}"
 echo -e "${YELLOW}  Если порт другой — измените WEB_DASHBOARD_PORT в .env${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
