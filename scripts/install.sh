@@ -429,7 +429,10 @@ fi  # конец блока SKIP_ENV_SETUP
 
 info "Создание рабочих директорий..."
 mkdir -p data logs
-success "Директории data/ и logs/ созданы."
+# Контейнер работает как appuser (не root); без chmod bind-mount
+# ./data:/app/data приведёт к "attempt to write a readonly database"
+chmod 777 data logs
+success "Директории data/ и logs/ созданы (права 777)."
 echo ""
 
 # ===========================================================================

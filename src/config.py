@@ -43,6 +43,23 @@ CONFIG_KEY_WEB_DASHBOARD_PORT = "web_dashboard_port"
 
 class Settings(BaseSettings):
     BOT_TOKEN: str = "MUST_BE_OVERRIDDEN_IN_ENV"
+
+    @field_validator("BOT_TOKEN")
+    @classmethod
+    def validate_bot_token(cls, v: str) -> str:
+        """Отбрасывает плейсхолдер и пустые значения — падение на старте."""
+        if not v or v == "MUST_BE_OVERRIDDEN_IN_ENV":
+            raise ValueError(
+                "BOT_TOKEN не задан! Укажите реальный токен бота в .env "
+                "(см. .env.example)"
+            )
+        if not v[0].isdigit():
+            raise ValueError(
+                f"BOT_TOKEN не похож на токен Telegram (должен начинаться с цифры): "
+                f"{v[:10]}..."
+            )
+        return v
+
     SQLITE_DB_PATH: str = "data/bot.db"
     CACHE_PATH: str = "data/monitoring_cache.json"
     REDIS_URL: str = "redis://localhost:6379/0"
