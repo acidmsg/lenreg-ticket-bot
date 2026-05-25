@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -47,34 +46,6 @@ def create_app(
         version="1.0.0",
         lifespan=lifespan,
     )
-
-    # ── Глобальный exception handler ──
-    @app.exception_handler(Exception)
-    async def _global_exception_handler(request, exc):
-        """Ловит необработанные исключения и логирует полный трейсбек."""
-        from starlette.exceptions import HTTPException as StarletteHTTPException
-
-        # HTTPException (401, 403, 404 и т.д.) — не перехватываем,
-        # FastAPI сам возвращает правильный статус-код
-        if isinstance(exc, StarletteHTTPException):
-            raise exc
-
-        from starlette.requests import Request as StarletteRequest
-
-        if isinstance(request, StarletteRequest):
-            logger.error(
-                "Необработанное исключение для %s %s: %s",
-                request.method,
-                request.url.path,
-                exc,
-                exc_info=True,
-            )
-        else:
-            logger.error("Необработанное исключение: %s", exc, exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Внутренняя ошибка сервера"},
-        )
 
     # Singleton'ы в app.state
     app.state.db = db
