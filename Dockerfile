@@ -18,7 +18,7 @@ LABEL org.opencontainers.image.source="https://github.com/acidmsg/lenreg_ticket_
 # ---------------------------------------------------------------------------
 # Системные зависимости — минимально необходимые для сборки
 # ---------------------------------------------------------------------------
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   apt-get update && \
   apt-get install -y --no-install-recommends \
   gcc \
@@ -51,7 +51,7 @@ LABEL org.opencontainers.image.source="https://github.com/acidmsg/lenreg_ticket_
 # ---------------------------------------------------------------------------
 # Системные зависимости для рантайма (минимально)
 # ---------------------------------------------------------------------------
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   apt-get update && \
   apt-get install -y --no-install-recommends \
   # ps/pgrep для healthcheck
