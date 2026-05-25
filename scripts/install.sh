@@ -174,45 +174,65 @@ echo ""
 
 # --- Обязательные параметры ---
 
-BOT_TOKEN=""
-while [ -z "$BOT_TOKEN" ]; do
-    ask "Введите токен бота (от @BotFather)" "" BOT_TOKEN
-    if [ -z "$BOT_TOKEN" ]; then
-        error "BOT_TOKEN не может быть пустым. Попробуйте снова."
-    fi
-done
+# Если переменные уже заданы в окружении — используем их, иначе запрашиваем
+BOT_TOKEN="${BOT_TOKEN:-}"
+if [ -n "$BOT_TOKEN" ]; then
+    info "BOT_TOKEN передан через окружение, пропускаем ввод."
+else
+    while [ -z "$BOT_TOKEN" ]; do
+        ask "Введите токен бота (от @BotFather)" "" BOT_TOKEN
+        if [ -z "$BOT_TOKEN" ]; then
+            error "BOT_TOKEN не может быть пустым. Попробуйте снова."
+        fi
+    done
+fi
 
-API_TOKEN=""
-while [ -z "$API_TOKEN" ]; do
-    ask "Введите API-токен для zdrav.lenreg" "" API_TOKEN
-    if [ -z "$API_TOKEN" ]; then
-        error "API_TOKEN не может быть пустым. Попробуйте снова."
-    fi
-done
+API_TOKEN="${API_TOKEN:-}"
+if [ -n "$API_TOKEN" ]; then
+    info "API_TOKEN передан через окружение, пропускаем ввод."
+else
+    while [ -z "$API_TOKEN" ]; do
+        ask "Введите API-токен для zdrav.lenreg" "" API_TOKEN
+        if [ -z "$API_TOKEN" ]; then
+            error "API_TOKEN не может быть пустым. Попробуйте снова."
+        fi
+    done
+fi
 
-ADMIN_IDS=""
-while [ -z "$ADMIN_IDS" ]; do
-    ask "Введите Telegram ID администраторов (через запятую)" "" ADMIN_IDS
-    if [ -z "$ADMIN_IDS" ]; then
-        error "ADMIN_IDS не может быть пустым. Попробуйте снова."
-    fi
-done
+ADMIN_IDS="${ADMIN_IDS:-}"
+if [ -n "$ADMIN_IDS" ]; then
+    info "ADMIN_IDS передан через окружение, пропускаем ввод."
+else
+    while [ -z "$ADMIN_IDS" ]; do
+        ask "Введите Telegram ID администраторов (через запятую)" "" ADMIN_IDS
+        if [ -z "$ADMIN_IDS" ]; then
+            error "ADMIN_IDS не может быть пустым. Попробуйте снова."
+        fi
+    done
+fi
 
-MINI_APP_URL=""
-while [ -z "$MINI_APP_URL" ]; do
-    ask "Введите URL Mini App (например, https://lenregbot.acidbox.top/app/)" "" MINI_APP_URL
-    if [ -z "$MINI_APP_URL" ]; then
-        error "MINI_APP_URL не может быть пустым. Попробуйте снова."
-    fi
-done
+MINI_APP_URL="${MINI_APP_URL:-}"
+if [ -n "$MINI_APP_URL" ]; then
+    info "MINI_APP_URL передан через окружение, пропускаем ввод."
+else
+    while [ -z "$MINI_APP_URL" ]; do
+        ask "Введите URL Mini App (например, https://lenregbot.acidbox.top/app/)" "" MINI_APP_URL
+        if [ -z "$MINI_APP_URL" ]; then
+            error "MINI_APP_URL не может быть пустым. Попробуйте снова."
+        fi
+    done
+fi
 
 echo ""
 
 # --- Опциональные параметры ---
 
-ask "Порт веб-дашборда" "8080" WEB_DASHBOARD_PORT
+# Сохраняем значения из окружения как значения по умолчанию для prompt
+WEB_DASHBOARD_PORT="${WEB_DASHBOARD_PORT:-8080}"
+ask "Порт веб-дашборда" "$WEB_DASHBOARD_PORT" WEB_DASHBOARD_PORT
 
-ask "API-ключ для дашборда (оставьте пустым для генерации)" "" WEB_DASHBOARD_API_KEY
+WEB_DASHBOARD_API_KEY="${WEB_DASHBOARD_API_KEY:-}"
+ask "API-ключ для дашборда (оставьте пустым для генерации)" "$WEB_DASHBOARD_API_KEY" WEB_DASHBOARD_API_KEY
 if [ -z "$WEB_DASHBOARD_API_KEY" ]; then
     WEB_DASHBOARD_API_KEY=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null || echo "")
     if [ -n "$WEB_DASHBOARD_API_KEY" ]; then
@@ -222,7 +242,8 @@ if [ -z "$WEB_DASHBOARD_API_KEY" ]; then
     fi
 fi
 
-ask "Пароль Redis (оставьте пустым для генерации)" "" REDIS_PASSWORD
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+ask "Пароль Redis (оставьте пустым для генерации)" "$REDIS_PASSWORD" REDIS_PASSWORD
 if [ -z "$REDIS_PASSWORD" ]; then
     REDIS_PASSWORD=$(openssl rand -hex 16 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null || echo "")
     if [ -n "$REDIS_PASSWORD" ]; then
@@ -234,11 +255,14 @@ if [ -z "$REDIS_PASSWORD" ]; then
     fi
 fi
 
-ask "Sentry DSN (оставьте пустым для отключения)" "" SENTRY_DSN
+SENTRY_DSN="${SENTRY_DSN:-}"
+ask "Sentry DSN (оставьте пустым для отключения)" "$SENTRY_DSN" SENTRY_DSN
 
-ask "NTFY URL для уведомлений (оставьте пустым для отключения)" "" NTFY_TOPIC_URL
+NTFY_TOPIC_URL="${NTFY_TOPIC_URL:-}"
+ask "NTFY URL для уведомлений (оставьте пустым для отключения)" "$NTFY_TOPIC_URL" NTFY_TOPIC_URL
 
-ask "Уровень логирования" "INFO" LOG_LEVEL
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
+ask "Уровень логирования" "$LOG_LEVEL" LOG_LEVEL
 
 echo ""
 
@@ -262,10 +286,10 @@ cat > .env << ENVEOF
 # =============================================================================
 
 # === Telegram Bot ===
-BOT_TOKEN=${BOT_TOKEN}
+BOT_TOKEN=${BOT_TOKEN:-}
 
 # === API здоров.ленрег ===
-API_TOKEN=${API_TOKEN}
+API_TOKEN=${API_TOKEN:-}
 
 # === Proxy Configuration ===
 # VPS в Германии — прокси не требуется
@@ -278,7 +302,7 @@ CACHE_PATH=data/monitoring_cache.json
 # === Redis ===
 # Внутри Docker используется hostname сервиса redis
 REDIS_URL=redis://redis:6379/0
-REDIS_PASSWORD=${REDIS_PASSWORD}
+REDIS_PASSWORD=${REDIS_PASSWORD:-}
 
 # === Qdrant (Codebase Indexing) ===
 QDRANT_URL=http://qdrant:6333
@@ -289,16 +313,16 @@ DISCOVERY_PATIENT_ID_ADULT=
 DISCOVERY_PATIENT_ID_CHILD=
 
 # === Admin Telegram ID(s) ===
-ADMIN_IDS=${ADMIN_IDS}
+ADMIN_IDS=${ADMIN_IDS:-}
 
 # === Error notifications (M2) ===
 ERROR_NOTIFY_ENABLED=True
-NTFY_TOPIC_URL=${NTFY_TOPIC_URL}
-SENTRY_DSN=${SENTRY_DSN}
+NTFY_TOPIC_URL=${NTFY_TOPIC_URL:-}
+SENTRY_DSN=${SENTRY_DSN:-}
 ENVIRONMENT=production
 
 # === Logging ===
-LOG_LEVEL=${LOG_LEVEL}
+LOG_LEVEL=${LOG_LEVEL:-}
 
 # === Slot formatting thresholds ===
 SLOT_DETAIL_THRESHOLD=10
@@ -342,12 +366,12 @@ SCHEMA_CHECK_ENABLED=true
 
 # === Web Dashboard (F5) ===
 WEB_DASHBOARD_ENABLED=True
-WEB_DASHBOARD_PORT=${WEB_DASHBOARD_PORT}
-WEB_DASHBOARD_API_KEY=${WEB_DASHBOARD_API_KEY}
+WEB_DASHBOARD_PORT=${WEB_DASHBOARD_PORT:-}
+WEB_DASHBOARD_API_KEY=${WEB_DASHBOARD_API_KEY:-}
 
 # === Mini App (F10) ===
 MINI_APP_ENABLED=True
-MINI_APP_URL=${MINI_APP_URL}
+MINI_APP_URL=${MINI_APP_URL:-}
 MINI_APP_INITDATA_MAX_AGE=86400
 
 # === Python / Encoding ===
