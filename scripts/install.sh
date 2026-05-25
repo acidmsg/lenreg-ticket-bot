@@ -440,7 +440,7 @@ echo ""
 # ===========================================================================
 
 info "Сборка Docker-образа..."
-docker compose build
+docker compose build --no-cache
 
 # Принудительная остановка и удаление старых контейнеров (могли быть созданы вне compose)
 docker rm -f zdrav_redis zdrav_qdrant zdrav_bot 2>/dev/null || true

@@ -8,14 +8,11 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 
 from src.config import Settings
 from src.database.manager import DatabaseManager
@@ -28,25 +25,45 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class MiniAppNoCacheMiddleware(BaseHTTPMiddleware):
+class MiniAppNoCacheMiddleware:
     """
-    Отключает кэширование статики Mini App (/app/*).
+    Чистый ASGI middleware для отключения кэширования статики Mini App (/app/*).
+
+    В отличие от BaseHTTPMiddleware (который работает через StreamingResponse
+    и не совместим со StaticFiles, смонтированными через app.mount()),
+    этот middleware работает напрямую с ASGI scope/receive/send
+    и гарантированно добавляет заголовки ко всем ответам /app/*.
 
     Cloudflare CDN и Telegram WebView агрессивно кэшируют JS/CSS,
     из-за чего обновления фронтенда не доходят до пользователей
     даже после пересборки Docker-образа.
 
-    Устанавливает Cache-Control: no-cache для всех ресурсов
-    по пути /app/*, включая index.html, JS-модули и CSS.
+    Устанавливает:
+    - Cache-Control: no-cache (перезапрос перед использованием)
+    - CDN-Cache-Control: no-cache (специфичный для Cloudflare)
+    - Pragma: no-cache (обратная совместимость с HTTP/1.0)
+    - Expires: 0 (немедленное истечение)
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
-        response: Response = await call_next(request)
-        if request.url.path.startswith("/app/"):
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-        return response
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith("/app/"):
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                headers: dict[bytes, bytes] = dict(message.get("headers", []))
+                headers[b"cache-control"] = b"no-cache, no-store, must-revalidate"
+                headers[b"cdn-cache-control"] = b"no-cache"
+                headers[b"pragma"] = b"no-cache"
+                headers[b"expires"] = b"0"
+                message["headers"] = list(headers.items())
+            await send(message)
+
+        await self.app(scope, receive, _send)
 
 
 @asynccontextmanager
