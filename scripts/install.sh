@@ -439,6 +439,9 @@ echo ""
 info "Сборка Docker-образа..."
 docker compose build
 
+# Остановка старых контейнеров (если есть)
+docker compose down --remove-orphans 2>/dev/null || true
+
 info "Запуск контейнеров..."
 docker compose up -d
 
