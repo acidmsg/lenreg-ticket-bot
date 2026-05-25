@@ -175,8 +175,35 @@ if [ -f ".env" ]; then
     info "Файл .env уже существует."
     ask "Использовать существующий .env без изменений? (y/n)" "y" USE_EXISTING_ENV
     if [ "$USE_EXISTING_ENV" = "y" ] || [ "$USE_EXISTING_ENV" = "Y" ]; then
-        info "Используется существующий .env. Настройка пропущена."
-        SKIP_ENV_SETUP=true
+        # Безопасно загрузить переменные из существующего .env для валидации
+        set +e
+        set -a
+        # shellcheck disable=SC1091
+        source "${INSTALL_DIR}/.env" 2>/dev/null || true
+        set +a
+        set -e
+
+        # Проверить обязательные переменные на полноту
+        MISSING_VARS=""
+        for _env_var in BOT_TOKEN API_TOKEN ADMIN_IDS MINI_APP_URL; do
+            _env_val=$(eval echo "\${$_env_var:-}")
+            if [ -z "$_env_val" ]; then
+                MISSING_VARS="${MISSING_VARS}${MISSING_VARS:+, }${_env_var}"
+            fi
+        done
+
+        if [ -n "$MISSING_VARS" ]; then
+            warn "Существующий .env неполный. Отсутствуют: ${MISSING_VARS}"
+            ask "Всё равно использовать существующий .env? (y/n)" "n" USE_INCOMPLETE_ENV
+            if [ "$USE_INCOMPLETE_ENV" = "y" ] || [ "$USE_INCOMPLETE_ENV" = "Y" ]; then
+                info "Используется существующий .env (на свой страх и риск). Настройка пропущена."
+                SKIP_ENV_SETUP=true
+            fi
+            # Иначе SKIP_ENV_SETUP остаётся false — переходим к обычному переспросу
+        else
+            info "Существующий .env полный. Настройка пропущена."
+            SKIP_ENV_SETUP=true
+        fi
     fi
 fi
 
