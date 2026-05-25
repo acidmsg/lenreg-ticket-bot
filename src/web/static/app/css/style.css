@@ -333,6 +333,10 @@ body {
   flex-shrink: 0;
 }
 
+.fab-group .fab:active {
+  transform: scale(0.95);
+}
+
 /* === Скелетон (загрузка) === */
 .skeleton {
   background: linear-gradient(

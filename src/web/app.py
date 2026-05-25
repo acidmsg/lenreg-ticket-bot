@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from src.config import Settings
 from src.database.manager import DatabaseManager
@@ -23,6 +26,27 @@ if TYPE_CHECKING:
     from src.api.zdrav_client import ZdravClient
 
 logger = logging.getLogger(__name__)
+
+
+class MiniAppNoCacheMiddleware(BaseHTTPMiddleware):
+    """
+    Отключает кэширование статики Mini App (/app/*).
+
+    Cloudflare CDN и Telegram WebView агрессивно кэшируют JS/CSS,
+    из-за чего обновления фронтенда не доходят до пользователей
+    даже после пересборки Docker-образа.
+
+    Устанавливает Cache-Control: no-cache для всех ресурсов
+    по пути /app/*, включая index.html, JS-модули и CSS.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response: Response = await call_next(request)
+        if request.url.path.startswith("/app/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
 
 @asynccontextmanager
@@ -107,6 +131,11 @@ def create_app(
     # Mount статики Mini App (/app/) — после роутеров, чтобы StaticFiles
     # не перехватывал запросы к /api/user/*
     if config.MINI_APP_ENABLED:
+        # Отключаем кэширование статики Mini App на уровне HTTP-заголовков.
+        # Cloudflare CDN и Telegram WebView агрессивно кэшируют JS/CSS,
+        # из-за чего обновления фронтенда не видны без cache-busting.
+        app.add_middleware(MiniAppNoCacheMiddleware)
+        logger.debug("MiniAppNoCacheMiddleware: включен для /app/*")
         _app_static_dir = os.path.join(_static_dir, "app")
         if os.path.isdir(_app_static_dir):
             app.mount(
