@@ -15,8 +15,8 @@ __pycache__/
 dist/
 build/
 
-# Data files and databases
-data/
+# # Data files and databases
+# data/
 
 # Virtual environments and dependencies
 .venv/

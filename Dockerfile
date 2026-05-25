@@ -79,6 +79,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 # ---------------------------------------------------------------------------
 WORKDIR /app
 COPY src/ src/
+COPY locales/ locales/
 
 # ---------------------------------------------------------------------------
 # Директория для runtime-данных (SQLite, кэш)
