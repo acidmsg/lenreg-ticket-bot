@@ -63,7 +63,7 @@ services:
       retries: 3
     ports:
       - "127.0.0.1:9090:9090"
-      # Mini App / веб-дашборд — открыт для Cloudflare Proxy (порт 8080)
+      # Cloudflare → порт 8080 напрямую (порт 80 занят Caddy на хосте)
       - "0.0.0.0:8080:8080"
     networks:
       - zdrav_network

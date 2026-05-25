@@ -1,7 +1,11 @@
 """
 Модуль аутентификации веб-дашборда.
 
-Проверяет X-API-Key заголовок через middleware.
+Проверяет X-API-Key заголовок через middleware только для путей дашборда:
+``/``, ``/users``, ``/logs``, ``/clinics``, ``/api-status``, ``/api/*``
+(кроме ``/api/user/*``).
+
+Публичные пути (``/app/``, ``/static/``, ``/api/user/``) не проверяются.
 Если WEB_DASHBOARD_API_KEY пуст — аутентификация отключена.
 """
 
@@ -11,9 +15,21 @@ from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+# Пути, которые НЕ требуют API-ключа (публичные)
+_PUBLIC_PATH_PREFIXES = (
+    "/app",
+    "/static",
+    "/api/user",
+)
+
+
+def _is_dashboard_path(path: str) -> bool:
+    """Возвращает True, если путь относится к дашборду и требует API-ключ."""
+    return all(not path.startswith(prefix) for prefix in _PUBLIC_PATH_PREFIXES)
+
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
-    """Middleware для проверки X-API-Key заголовка."""
+    """Middleware для проверки X-API-Key заголовка на путях дашборда."""
 
     def __init__(self, app, api_key: str = ""):
         super().__init__(app)
@@ -24,6 +40,10 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         # Если ключ не задан — пропускаем все запросы
         if not self._api_key:
+            return await call_next(request)
+
+        # Публичные пути (/app/, /static/, /api/user/) — пропускаем без проверки
+        if not _is_dashboard_path(request.url.path):
             return await call_next(request)
 
         # Проверяем заголовок X-API-Key
