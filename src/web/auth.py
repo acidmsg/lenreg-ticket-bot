@@ -11,9 +11,9 @@
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 # Пути, которые НЕ требуют API-ключа (публичные)
 _PUBLIC_PATH_PREFIXES = (
@@ -49,14 +49,14 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         # Проверяем заголовок X-API-Key
         api_key = request.headers.get("X-API-Key")
         if api_key is None:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="API-ключ не предоставлен",
+                content={"detail": "API-ключ не предоставлен"},
             )
         if api_key != self._api_key:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Неверный API-ключ",
+                content={"detail": "Неверный API-ключ"},
             )
 
         return await call_next(request)
