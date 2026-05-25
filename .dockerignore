@@ -33,6 +33,10 @@ pyrightconfig.json
 pytest.ini
 poetry.lock
 pyproject.toml
+
+# === Необходимы для Docker-сборки (установка зависимостей через Poetry) ===
+!pyproject.toml
+!poetry.lock
 Makefile
 package.json
 tasks.ps1
