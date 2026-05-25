@@ -1,0 +1,708 @@
+/*
+ * Mini App — стили с CSS-переменными Telegram
+ * Мобильный-first, адаптивная вёрстка, тёмная тема
+ */
+
+/* === CSS-переменные Telegram (значения по умолчанию) === */
+:root {
+  --tg-bg-color: #fff;
+  --tg-text-color: #000;
+  --tg-hint-color: #999;
+  --tg-button-color: #3390ec;
+  --tg-button-text-color: #fff;
+  --tg-secondary-bg-color: #f4f4f5;
+  --tg-destructive-color: #e53935;
+  --tg-section-header-color: #6d6d72;
+  --tg-subtitle-color: #8e8e93;
+
+  /* Расширенные переменные */
+  --card-radius: 12px;
+  --card-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  --card-padding: 16px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --font-sm: 13px;
+  --font-md: 15px;
+  --font-lg: 17px;
+  --font-xl: 20px;
+
+  /* Статусные цвета */
+  --status-available: #34c759;
+  --status-noslots: #e53935;
+  --status-checking: #ff9500;
+  --status-unknown: #8e8e93;
+}
+
+/* === Сброс и базовые стили === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  background-color: var(--tg-bg-color);
+  color: var(--tg-text-color);
+  line-height: 1.4;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* === Шапка === */
+.app-header {
+  display: flex;
+  align-items: center;
+  padding: 12px var(--card-padding);
+  background-color: var(--tg-secondary-bg-color);
+  border-bottom: 1px solid rgb(0 0 0 / 8%);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--tg-button-color);
+  cursor: pointer;
+  font-size: 18px;
+  margin-right: var(--gap-md);
+  flex-shrink: 0;
+  transition: background-color 0.15s;
+}
+
+.app-header__back:active {
+  background-color: rgb(0 0 0 / 10%);
+}
+
+.app-header__title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header__user {
+  font-size: var(--font-sm);
+  color: var(--tg-hint-color);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* === Основной контент === */
+.app-content {
+  flex: 1;
+  padding: var(--gap-lg) var(--card-padding);
+  padding-bottom: 80px; /* Отступ для FAB */
+}
+
+/* === Карточки === */
+.card {
+  background-color: var(--tg-secondary-bg-color);
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+  margin-bottom: var(--gap-md);
+  box-shadow: var(--card-shadow);
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+
+.card:active {
+  transform: scale(0.985);
+}
+
+.card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-sm);
+}
+
+.card__title {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--tg-text-color);
+  flex: 1;
+}
+
+.card__subtitle {
+  font-size: var(--font-sm);
+  color: var(--tg-hint-color);
+  margin-bottom: 4px;
+}
+
+.card__meta {
+  font-size: var(--font-sm);
+  color: var(--tg-subtitle-color);
+}
+
+.card__actions {
+  display: flex;
+  gap: var(--gap-sm);
+  margin-top: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+/* === Статусные индикаторы === */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.status--available {
+  color: var(--status-available);
+}
+
+.status--no-slots {
+  color: var(--status-noslots);
+}
+
+.status--checking {
+  color: var(--status-checking);
+}
+
+.status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status__dot--available {
+  background-color: var(--status-available);
+}
+
+.status__dot--no-slots {
+  background-color: var(--status-noslots);
+}
+
+.status__dot--checking {
+  background-color: var(--status-checking);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* === Кнопки === */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.btn:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+.btn--primary {
+  background-color: var(--tg-button-color);
+  color: var(--tg-button-text-color);
+}
+
+.btn--secondary {
+  background-color: var(--tg-secondary-bg-color);
+  color: var(--tg-button-color);
+  border: 1px solid var(--tg-button-color);
+}
+
+.btn--danger {
+  background-color: transparent;
+  color: var(--tg-destructive-color);
+  border: 1px solid var(--tg-destructive-color);
+}
+
+.btn--text {
+  background-color: transparent;
+  color: var(--tg-button-color);
+  padding: 8px 12px;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--sm {
+  padding: 6px 14px;
+  font-size: var(--font-sm);
+  min-height: 36px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* === FAB (floating action button) === */
+.fab {
+  position: fixed;
+  bottom: 20px;
+  transform: translateX(50%);
+  background-color: var(--tg-button-color);
+  color: var(--tg-button-text-color);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+  margin: 0 auto;
+  left: 50%;
+  right: auto;
+  width: calc(100% - 40px);
+  max-width: 440px;
+  border-radius: 14px;
+  height: 48px;
+  font-size: var(--font-md);
+  font-weight: 500;
+}
+
+.fab:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* === Скелетон (загрузка) === */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--tg-secondary-bg-color) 25%,
+    rgb(128 128 128 / 12%) 50%,
+    var(--tg-secondary-bg-color) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.skeleton--card {
+  height: 120px;
+  margin-bottom: var(--gap-md);
+  border-radius: var(--card-radius);
+}
+
+.skeleton--text {
+  height: 16px;
+  margin-bottom: var(--gap-sm);
+}
+
+.skeleton--title {
+  height: 20px;
+  width: 60%;
+  margin-bottom: var(--gap-sm);
+}
+
+.skeleton--chip {
+  height: 28px;
+  width: 80px;
+  border-radius: 14px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* === Пустое состояние === */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  flex: 1;
+}
+
+.empty-state__icon {
+  font-size: 48px;
+  margin-bottom: var(--gap-lg);
+  opacity: 0.6;
+}
+
+.empty-state__text {
+  font-size: var(--font-md);
+  color: var(--tg-hint-color);
+  margin-bottom: var(--gap-lg);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* === Сообщение об ошибке === */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.error-state__text {
+  font-size: var(--font-md);
+  color: var(--tg-destructive-color);
+  margin-bottom: var(--gap-lg);
+}
+
+/* === Списки === */
+.list {
+  list-style: none;
+}
+
+.list__item {
+  padding: 14px var(--card-padding);
+  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  cursor: pointer;
+  transition: background-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+}
+
+.list__item:last-child {
+  border-bottom: none;
+}
+
+.list__item:active {
+  background-color: rgb(0 0 0 / 4%);
+}
+
+.list__item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.list__item-title {
+  font-size: var(--font-md);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list__item-subtitle {
+  font-size: var(--font-sm);
+  color: var(--tg-hint-color);
+  margin-top: 2px;
+}
+
+.list__item-arrow {
+  color: var(--tg-hint-color);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* === Слоты (группировка по датам) === */
+.slot-group {
+  margin-bottom: var(--gap-lg);
+}
+
+.slot-group__date {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--tg-section-header-color);
+  margin-bottom: var(--gap-sm);
+  padding-left: 4px;
+}
+
+.slot-group__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+}
+
+.slot-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  background-color: var(--tg-secondary-bg-color);
+  border-radius: 8px;
+  font-size: var(--font-md);
+  font-weight: 500;
+  color: var(--tg-text-color);
+  border: 1px solid rgb(0 0 0 / 8%);
+}
+
+/* === Stepper (пошаговый выбор) === */
+.stepper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.stepper__progress {
+  display: flex;
+  gap: 4px;
+  padding: 0 var(--card-padding);
+  margin-bottom: var(--gap-lg);
+}
+
+.stepper__step-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background-color: rgb(0 0 0 / 10%);
+  transition: background-color 0.3s;
+}
+
+.stepper__step-dot--active {
+  background-color: var(--tg-button-color);
+}
+
+.stepper__step-dot--completed {
+  background-color: var(--status-available);
+}
+
+.stepper__title {
+  font-size: var(--font-xl);
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0 var(--card-padding);
+}
+
+.stepper__description {
+  font-size: var(--font-sm);
+  color: var(--tg-hint-color);
+  margin-bottom: var(--gap-lg);
+  padding: 0 var(--card-padding);
+}
+
+.stepper__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--card-padding);
+}
+
+.stepper__actions {
+  display: flex;
+  gap: var(--gap-md);
+  padding: var(--gap-lg) var(--card-padding);
+  border-top: 1px solid rgb(0 0 0 / 8%);
+  background-color: var(--tg-bg-color);
+  position: sticky;
+  bottom: 0;
+}
+
+.stepper__actions .btn {
+  flex: 1;
+}
+
+/* === Поиск/фильтрация === */
+.search-bar {
+  padding: var(--gap-sm) var(--card-padding);
+  margin-bottom: var(--gap-md);
+}
+
+.search-bar__input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgb(0 0 0 / 12%);
+  background-color: var(--tg-secondary-bg-color);
+  color: var(--tg-text-color);
+  font-size: var(--font-md);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-bar__input:focus {
+  border-color: var(--tg-button-color);
+}
+
+.search-bar__input::placeholder {
+  color: var(--tg-hint-color);
+}
+
+/* === Спиннер загрузки === */
+.spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.spinner__icon {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--tg-secondary-bg-color);
+  border-top-color: var(--tg-button-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* === Подтверждение (stepper шаг 5) === */
+.confirm-card {
+  text-align: center;
+  padding: var(--gap-lg) 0;
+}
+
+.confirm-card__icon {
+  font-size: 56px;
+  margin-bottom: var(--gap-lg);
+}
+
+.confirm-card__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  font-size: var(--font-md);
+}
+
+.confirm-card__label {
+  color: var(--tg-hint-color);
+}
+
+.confirm-card__value {
+  font-weight: 500;
+}
+
+/* === Вне Telegram === */
+.outside-telegram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  min-height: 100vh;
+}
+
+.outside-telegram__icon {
+  font-size: 64px;
+  margin-bottom: var(--gap-lg);
+}
+
+.outside-telegram__text {
+  font-size: var(--font-md);
+  color: var(--tg-hint-color);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* === Утилиты === */
+.text-center {
+  text-align: center;
+}
+
+.mt-md {
+  margin-top: var(--gap-md);
+}
+
+.mb-md {
+  margin-bottom: var(--gap-md);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* === Тёмная тема === */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tg-bg-color: #1c1c1e;
+    --tg-text-color: #fff;
+    --tg-hint-color: #8e8e93;
+    --tg-secondary-bg-color: #2c2c2e;
+    --tg-section-header-color: #8e8e93;
+    --tg-subtitle-color: #8e8e93;
+    --card-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  }
+
+  .list__item {
+    border-bottom-color: rgb(255 255 255 / 6%);
+  }
+
+  .list__item:active {
+    background-color: rgb(255 255 255 / 4%);
+  }
+
+  .stepper__actions {
+    border-top-color: rgb(255 255 255 / 8%);
+  }
+
+  .slot-chip {
+    border-color: rgb(255 255 255 / 8%);
+  }
+
+  .search-bar__input {
+    border-color: rgb(255 255 255 / 12%);
+  }
+
+  .app-header {
+    border-bottom-color: rgb(255 255 255 / 8%);
+  }
+
+  .stepper__step-dot {
+    background-color: rgb(255 255 255 / 12%);
+  }
+}

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""
 
+    # === Qdrant (Codebase Indexing) ===
+    qdrant_url: str = "http://qdrant:6333"
+    qdrant_api_key: str | None = None
+
     # Прокси для Telegram
     PROXY_URL: str | None = None
 
@@ -151,8 +155,13 @@ class Settings(BaseSettings):
 
     # === Web Dashboard (F5) ===
     WEB_DASHBOARD_ENABLED: bool = True
-    WEB_DASHBOARD_PORT: int = 8090
+    WEB_DASHBOARD_PORT: int = 8080
     WEB_DASHBOARD_API_KEY: str = ""
+
+    # === Mini App (F10) ===
+    MINI_APP_ENABLED: bool = True
+    MINI_APP_URL: str = ""  # Полный URL Mini App (например, https://example.com/app/)
+    MINI_APP_INITDATA_MAX_AGE: int = 86400  # 24 часа (в секундах)
 
     def model_post_init(self, __context: Any) -> None:
         """

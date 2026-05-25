@@ -4538,3 +4538,101 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - Ruff: All checks passed
 - Mypy: checked
 - Бот стартует, доходит до `Starting polling`, Sentry SDK инициализируется без дедлока
+
+---
+
+## 2026-05-22 — Исправление неработающих инлайн-кнопок (CallbackData separator mismatch)
+
+**Задача:** Инлайн-кнопки выбора пациента и другие параметризованные колбэки не работали.
+
+**Диагностика (debug mode):**
+
+- Корневая причина: `CallbackData.pack()` в aiogram >= 3.7 разделяет параметры `:`, а обработчики ожидали `_`.
+- Колбэки без параметров (`back_to_main`, `stop_all`, `noop`) работали.
+- Не работали: `sel_p`, `sel_cty`, `sel_c`, `tgl`, `stop_patient_`, `stop_clinic_`, `del_p`, `back_to_cities_`, `back_to_clinics_`.
+
+**Исправление (code mode):**
+
+- Все обработчики переведены на aiogram-фильтры через `cb_filter()` ([`callback_parser.py:38`](src/handlers/callback_parser.py:38)).
+- Добавлен `Noop` CallbackData ([`callbacks.py:97`](src/handlers/callbacks.py:97)).
+- `handle_delete_patient` разделён на ask/confirm.
+- Возвращаемый тип `cb_filter()` изменён с `CallbackData` на `Any` ([`callback_parser.py:38`](src/handlers/callback_parser.py:38)) — устранено 16 `arg-type` ошибок mypy/Pylance в `registration.py` и `common.py`.
+
+**Изменённые файлы:**
+
+- [`src/handlers/callbacks.py`](src/handlers/callbacks.py) — +1 класс (Noop)
+- [`src/handlers/common.py`](src/handlers/common.py) — 12 обработчиков переведены на cb_filter()
+- [`src/handlers/registration.py`](src/handlers/registration.py) — 3 обработчика переведены на cb_filter()
+- [`src/handlers/callback_parser.py`](src/handlers/callback_parser.py) — возвращаемый тип `cb_filter()` изменён с `CallbackData` на `Any`
+- [`tests/handlers/test_handlers_common.py`](tests/handlers/test_handlers_common.py) — callback_data в формате .pack()
+
+**Результаты:** 43/43 тестов, Ruff 0 ошибок.
+
+---
+
+## 2026-05-24 — Добавление Qdrant для Codebase Indexing в Docker
+
+### Выполненные задачи
+
+- **project-research**: Аудит Docker-инфраструктуры (2 сервиса: redis, bot; порты 6379, 9090, 8090; сеть zdrav_network)
+- **code**: Добавлен сервис qdrant в [`docker-compose.yml`](docker-compose.yml), зависимость `qdrant-client` в [`pyproject.toml`](pyproject.toml:51), конфигурационные поля в [`src/config.py`](src/config.py:50), переменные в [`.env.example`](.env.example:117)
+- **documentation-writer**: Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — добавлен Qdrant в граф зависимостей, таблицу сервисов и архитектурные решения
+
+### Изменённые файлы
+
+- [`docker-compose.yml`](docker-compose.yml) — сервис qdrant, volume qdrant_data
+- [`pyproject.toml`](pyproject.toml:51) — зависимость qdrant-client
+- [`src/config.py`](src/config.py:50) — поля qdrant_url, qdrant_api_key
+- [`.env.example`](.env.example:117) — QDRANT_URL, QDRANT_API_KEY
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — документация инфраструктуры
+
+### Результаты проверок
+
+- ruff check src/config.py — All checks passed!
+
+---
+
+## Сессия: 2026-05-25 (Mini App — ветка `mini_app_beta`)
+
+### Выполненные задачи
+
+- **Реализация Telegram Mini App** (ветка `mini_app_beta`) по плану [`mini_app_plan.md`](../design/mini_app_plan.md)
+  - Шаг 1: Создан middleware аутентификации [`auth_initdata.py`](../../src/web/auth_initdata.py) — HMAC-SHA256 верификация initData
+  - Шаг 2: Создан роутер API [`user_api.py`](../../src/web/routers/user_api.py) — 10 эндпоинтов `/api/user/*`
+  - Шаг 3: Интеграция в [`app.py`](../../src/web/app.py) — mount `/app/`, middleware, роутер
+  - Шаг 4: Конфигурация [`config.py`](../../src/config.py) — `MINI_APP_ENABLED`, `MINI_APP_INITDATA_MAX_AGE`, `MINI_APP_URL`
+  - Шаги 5-8: Фронтенд Mini App (13 файлов в `src/web/static/app/`) — Vanilla JS SPA, 3 экрана
+  - Шаг 10: Кнопка `web_app` в [`inline.py`](../../src/keyboards/inline.py) и [`common.py`](../../src/handlers/common.py)
+  - Шаг 11: Handler `web_app_data` в [`mini_app.py`](../../src/handlers/mini_app.py), регистрация в [`main.py`](../../src/main.py)
+  - Шаг 13: Обновлён [`ARCHITECTURE.md`](../ARCHITECTURE.md) — дерево, зоны ответственности, граф зависимостей
+
+### Изменённые файлы
+
+- [`src/config.py`](../../src/config.py) — добавлены параметры Mini App
+- [`src/main.py`](../../src/main.py) — передача zdrav_client, регистрация mini_app.router
+- [`src/web/app.py`](../../src/web/app.py) — mount /app/, middleware, роутер user_api
+- [`src/web/auth_initdata.py`](../../src/web/auth_initdata.py) — **новый** — middleware initData
+- [`src/web/routers/user_api.py`](../../src/web/routers/user_api.py) — **новый** — 10 API-эндпоинтов
+- [`src/handlers/mini_app.py`](../../src/handlers/mini_app.py) — **новый** — handler web_app_data
+- [`src/handlers/common.py`](../../src/handlers/common.py) — кнопка Mini App в /start
+- [`src/keyboards/inline.py`](../../src/keyboards/inline.py) — get_main_menu_keyboard()
+- [`src/web/static/app/index.html`](../../src/web/static/app/index.html) — **новый** — точка входа
+- [`src/web/static/app/css/style.css`](../../src/web/static/app/css/style.css) — **новый** — стили
+- [`src/web/static/app/js/app.js`](../../src/web/static/app/js/app.js) — **новый** — SPA-роутер
+- [`src/web/static/app/js/api.js`](../../src/web/static/app/js/api.js) — **новый** — fetch-обёртка
+- [`src/web/static/app/js/auth.js`](../../src/web/static/app/js/auth.js) — **новый** — initData
+- [`src/web/static/app/js/views/doctors.js`](../../src/web/static/app/js/views/doctors.js) — **новый**
+- [`src/web/static/app/js/views/add.js`](../../src/web/static/app/js/views/add.js) — **новый**
+- [`src/web/static/app/js/views/slots.js`](../../src/web/static/app/js/views/slots.js) — **новый**
+- [`src/web/static/app/js/components/header.js`](../../src/web/static/app/js/components/header.js) — **новый**
+- [`src/web/static/app/js/components/card.js`](../../src/web/static/app/js/components/card.js) — **новый**
+- [`src/web/static/app/js/components/stepper.js`](../../src/web/static/app/js/components/stepper.js) — **новый**
+- [`.env.example`](../../.env.example) — добавлены ключи Mini App
+- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — обновлено дерево, зоны, граф
+
+### Результаты тестов
+
+- Ruff: 0 ошибок
+- Mypy: 0 ошибок
+- Stylelint: 0 ошибок
+- Markdownlint: 0 ошибок

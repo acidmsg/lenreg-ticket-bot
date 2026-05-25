@@ -28,13 +28,15 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── handlers/
 │   │   ├── __init__.py
 │   │   ├── callback_parser.py         # Парсинг callback_data (data_class, custom_filter)
-│   │   ├── common.py                  # Основные обработчики: /start, выбор пациента/клиники/врача, toggle
+│   │   ├── callbacks.py               # Обработчики callback-запросов (основная навигация, toggle)
+│   │   ├── common.py                  # Основные обработчики: /start, выбор пациента/клиники/врача
+│   │   ├── mini_app.py                # Обработчик web_app_data от Telegram Mini App (sendData)
 │   │   └── registration.py            # FSM-сценарий регистрации пациента (ФИО → дата → псевдоним)
 │   ├── i18n/
 │   │   ├── __init__.py                # Интернационализация (gettext, _(), _data())
 │   ├── keyboards/
 │   │   ├── __init__.py
-│   │   └── inline.py                  # Inline-клавиатуры Telegram (пациенты, города, клиники, врачи)
+│   │   └── inline.py                  # Inline-клавиатуры Telegram (пациенты, города, клиники, врачи, Mini App)
 │   ├── middleware/
 │   │   ├── __init__.py
 │   │   ├── activity.py                # Отслеживание активности пользователей (последний визит)
@@ -58,17 +60,35 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   │   ├── logging.py                 # Настройка loguru: формат, ротация, Sentry-интеграция
 │   │   ├── proxy_discovery.py         # Обнаружение и ротация прокси
 │   │   └── redis.py                   # Singleton-клиент Redis (aioredis, пул соединений)
-│   └── web/                           # Веб-дашборд (aiohttp, Jinja2)
+│   └── web/                           # Веб-дашборд + Mini App (aiohttp, Jinja2, Vanilla JS SPA)
 │       ├── __init__.py
-│       ├── app.py                     # Создание aiohttp приложения, подключение роутов
+│       ├── app.py                     # Создание aiohttp приложения, mount /app/, middleware, роуты
 │       ├── auth.py                    # Аутентификация дашборда (basic auth / session)
+│       ├── auth_initdata.py           # Middleware HMAC-SHA256 верификации initData из Telegram Mini App
 │       ├── dependencies.py            # Зависимости для aiohttp (БД, клиент API)
 │       ├── routers/
 │       │   ├── __init__.py
 │       │   ├── api.py                 # API эндпоинты дашборда (JSON)
-│       │   └── pages.py               # HTML-страницы дашборда (Jinja2)
+│       │   ├── pages.py               # HTML-страницы дашборда (Jinja2)
+│       │   └── user_api.py            # REST API для Mini App: /api/user/* (10 эндпоинтов)
 │       ├── static/
-│       │   └── dashboard.css          # Стили дашборда
+│       │   ├── dashboard.css          # Стили дашборда
+│       │   └── app/                   # Фронтенд Telegram Mini App (Vanilla JS SPA)
+│       │       ├── index.html         # Точка входа Mini App (HTML)
+│       │       ├── css/
+│       │       │   └── style.css      # Стили Mini App (Telegram-совместимая цветовая схема)
+│       │       └── js/
+│       │           ├── api.js         # Обёртка над fetch() для API-запросов с initData
+│       │           ├── app.js         # Инициализация Telegram.WebApp, SPA-роутинг
+│       │           ├── auth.js        # Получение initData и внедрение в заголовки
+│       │           ├── components/
+│       │           │   ├── card.js    # Компонент карточки врача/слота
+│       │           │   ├── header.js  # Компонент шапки
+│       │           │   └── stepper.js # Компонент пошагового выбора
+│       │           └── views/
+│       │               ├── add.js     # Экран добавления врача (stepper)
+│       │               ├── doctors.js # Экран списка отслеживаемых врачей
+│       │               └── slots.js   # Экран просмотра свободных слотов
 │       └── templates/                 # Jinja2 шаблоны
 │           ├── api_status.html
 │           ├── base.html
@@ -118,6 +138,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── design/                        # Дизайн-документы
 │   │   ├── api_change_detector_design.md
 │   │   ├── i18n_design.md
+│   │   ├── mini_app_plan.md
 │   │   ├── td-utl-004-typeddict-design.md
 │   │   └── web_dashboard_design.md
 │   ├── knowledge/                     # База знаний API
@@ -196,33 +217,37 @@ zdrav.lenreg/                          # Корень проекта (тольк
 
 ## Зоны ответственности
 
-| Пакет / Модуль                     | Зона ответственности                                                                                                                                                                                                                                                                                           |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/config.py`                    | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table).                                                                                                                                                                                                |
-| `src/main.py`                      | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров, запуск фоновых задач, graceful shutdown.                                                                                                                                                                      |
-| `src/api/`                         | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                            |
-| `src/database/`                    | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `types.py` — TypedDict для типобезопасной работы.                                                                |
-| `src/filters/admin.py`             | Фильтр админ-доступа на основе ChatMemberUpdated: проверка членства пользователя в чате администраторов.                                                                                                                                                                                                       |
-| `src/handlers/`                    | Обработчики команд и callback-запросов Telegram через aiogram Router. `common.py` — навигация пациент→город→клиника→врач, toggle мониторинга. `registration.py` — FSM-сценарий добавления пациента. `callback_parser.py` — парсинг callback_data с поддержкой data_class.                                      |
-| `src/i18n/__init__.py`             | Интернационализация и локализация: gettext-обёртки `_()` для пользовательских сообщений и `_data()` для дата-строк (названия месяцев, дней недели).                                                                                                                                                            |
-| `src/assets/`                      | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                          |
-| `src/keyboards/`                   | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация.                                                                                                                                                                                                     |
-| `src/middleware/activity.py`       | Отслеживание активности пользователей: фиксация времени последнего действия, обновление `last_activity` в БД.                                                                                                                                                                                                  |
-| `src/middleware/error_boundary.py` | Границы ошибок: перехват необработанных исключений в хендлерах, логирование с контекстом (пользователь, сообщение), отправка уведомления админам.                                                                                                                                                              |
-| `src/middleware/ratelimit.py`      | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через Redis Sorted Sets.                                                                                                                                                                                                                   |
-| `src/middleware/userdata.py`       | Загрузка и кэширование данных пользователя из БД в `event.data['user_data']` при каждом входящем сообщении.                                                                                                                                                                                                    |
-| `src/services/`                    | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                      |
-| `src/services/export.py`           | Экспорт данных пользователя (пациенты, мониторинг, логи) в форматы JSON и CSV для скачивания.                                                                                                                                                                                                                  |
-| `src/services/metrics.py`          | Сбор и агрегация статистики: количество пользователей, пациентов, отслеживаемых врачей, срабатываний мониторинга.                                                                                                                                                                                              |
-| `src/services/schema_watcher.py`   | Отслеживание изменений схемы API zdrav.lenreg.ru: опрос эндпоинтов, сравнение с эталонными JSON-схемами, уведомление при расхождениях.                                                                                                                                                                         |
-| `src/utils/`                       | `cache.py` — кэш мониторинга на Redis (swap_cache_key через GETSET) и spam-защита на Redis (SET NX EX). `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. `logging.py` — настройка loguru с ротацией и Sentry. `proxy_discovery.py` — ротация прокси. |
-| `src/web/app.py`                   | Создание aiohttp приложения: настройка middleware, подключение роутов (API + pages), статики, CORS.                                                                                                                                                                                                            |
-| `src/web/auth.py`                  | Аутентификация дашборда: basic-auth или session-based проверка прав доступа к веб-интерфейсу.                                                                                                                                                                                                                  |
-| `src/web/dependencies.py`          | DI-зависимости для aiohttp: провайдеры `Database` и `ZdravClient` через `app['db']` / `app['api']`.                                                                                                                                                                                                            |
-| `src/web/routers/api.py`           | REST API эндпоинты дашборда: `/api/summary`, `/api/users`, `/api/clinics`, `/api/logs`, `/api/health`.                                                                                                                                                                                                         |
-| `src/web/routers/pages.py`         | HTML-страницы дашборда (Jinja2): summary, users, user_detail, clinics, logs, api_status.                                                                                                                                                                                                                       |
-| `src/web/static/dashboard.css`     | Стили веб-дашборда: responsive layout, таблицы, графики, тёмная тема.                                                                                                                                                                                                                                          |
-| `src/web/templates/`               | Jinja2-шаблоны: `base.html` (layout), `summary.html`, `users.html`, `user_detail.html`, `clinics.html`, `logs.html`, `api_status.html`.                                                                                                                                                                        |
+| Пакет / Модуль                     | Зона ответственности                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config.py`                    | Загрузка и валидация настроек из `.env` через pydantic-settings. Переопределение значений из БД (config table). Параметры Mini App: `MINI_APP_ENABLED`, `MINI_APP_INITDATA_MAX_AGE`, `MINI_APP_URL`.                                                                                                                                                                                                                                                                 |
+| `src/main.py`                      | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров (включая [`mini_app.router`](src/handlers/mini_app.py)), запуск фоновых задач, graceful shutdown.                                                                                                                                                                                                                                                                    |
+| `src/api/`                         | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                                                                                                                                                                                  |
+| `src/database/`                    | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `types.py` — TypedDict для типобезопасной работы.                                                                                                                                                                                                                      |
+| `src/filters/admin.py`             | Фильтр админ-доступа на основе ChatMemberUpdated: проверка членства пользователя в чате администраторов.                                                                                                                                                                                                                                                                                                                                                             |
+| `src/handlers/`                    | Обработчики команд и callback-запросов Telegram через aiogram Router. [`common.py`](src/handlers/common.py) — навигация пациент→город→клиника→врач, toggle мониторинга, кнопка Mini App. [`callbacks.py`](src/handlers/callbacks.py) — обработчики callback-запросов. [`registration.py`](src/handlers/registration.py) — FSM-сценарий добавления пациента. [`callback_parser.py`](src/handlers/callback_parser.py) — парсинг callback_data с поддержкой data_class. |
+| `src/handlers/mini_app.py`         | Обработчик `web_app_data` от Telegram Mini App. Принимает `sendData` от Mini App (открытие слотов, добавление врача), взаимодействует с БД через `DatabaseManager` и API через `ZdravClient`.                                                                                                                                                                                                                                                                        |
+| `src/i18n/__init__.py`             | Интернационализация и локализация: gettext-обёртки `_()` для пользовательских сообщений и `_data()` для дата-строк (названия месяцев, дней недели).                                                                                                                                                                                                                                                                                                                  |
+| `src/assets/`                      | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                                                                                                                                                                                |
+| `src/keyboards/`                   | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация. Кнопка `web_app` для запуска Mini App.                                                                                                                                                                                                                                                                                                                    |
+| `src/middleware/activity.py`       | Отслеживание активности пользователей: фиксация времени последнего действия, обновление `last_activity` в БД.                                                                                                                                                                                                                                                                                                                                                        |
+| `src/middleware/error_boundary.py` | Границы ошибок: перехват необработанных исключений в хендлерах, логирование с контекстом (пользователь, сообщение), отправка уведомления админам.                                                                                                                                                                                                                                                                                                                    |
+| `src/middleware/ratelimit.py`      | `UserRateLimitMiddleware` — per-user rate limiting (sliding window) через Redis Sorted Sets.                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/middleware/userdata.py`       | Загрузка и кэширование данных пользователя из БД в `event.data['user_data']` при каждом входящем сообщении.                                                                                                                                                                                                                                                                                                                                                          |
+| `src/services/`                    | Фоновые asyncio-циклы: `monitor_loop` — проверка слотов, классификация изменений, уведомления; `discovery_loop` — загрузка врачей из API; `healthcheck_loop` — мониторинг здоровья API; `cleanup_loop` — автоудаление старых сообщений; `error_notifier` — отправка ошибок в NTFY/Sentry.                                                                                                                                                                            |
+| `src/services/export.py`           | Экспорт данных пользователя (пациенты, мониторинг, логи) в форматы JSON и CSV для скачивания.                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/services/metrics.py`          | Сбор и агрегация статистики: количество пользователей, пациентов, отслеживаемых врачей, срабатываний мониторинга.                                                                                                                                                                                                                                                                                                                                                    |
+| `src/services/schema_watcher.py`   | Отслеживание изменений схемы API zdrav.lenreg.ru: опрос эндпоинтов, сравнение с эталонными JSON-схемами, уведомление при расхождениях.                                                                                                                                                                                                                                                                                                                               |
+| `src/utils/`                       | `cache.py` — кэш мониторинга на Redis (swap_cache_key через GETSET) и spam-защита на Redis (SET NX EX). `helpers.py` — форматирование ФИО/специальностей, определение ребёнка/кабинета, псевдонимы специальностей. `logging.py` — настройка loguru с ротацией и Sentry. `proxy_discovery.py` — ротация прокси.                                                                                                                                                       |
+| `src/web/app.py`                   | Создание aiohttp приложения: настройка middleware (включая `TelegramInitDataMiddleware`), подключение роутов (API, pages, user_api), монтирование статики `/app/`, CORS.                                                                                                                                                                                                                                                                                             |
+| `src/web/auth.py`                  | Аутентификация дашборда: basic-auth или session-based проверка прав доступа к веб-интерфейсу.                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/web/auth_initdata.py`         | Middleware HMAC-SHA256 верификации `initData` из Telegram Mini App. Проверяет подпись Telegram для каждого запроса от Mini App, извлекает `tg_user_id`, инжектит в `request['tg_user']`.                                                                                                                                                                                                                                                                             |
+| `src/web/dependencies.py`          | DI-зависимости для aiohttp: провайдеры `Database` и `ZdravClient` через `app['db']` / `app['api']`.                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/web/routers/api.py`           | REST API эндпоинты дашборда: `/api/summary`, `/api/users`, `/api/clinics`, `/api/logs`, `/api/health`.                                                                                                                                                                                                                                                                                                                                                               |
+| `src/web/routers/pages.py`         | HTML-страницы дашборда (Jinja2): summary, users, user_detail, clinics, logs, api_status.                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/web/routers/user_api.py`      | REST API для Mini App: `/api/user/profile`, `/api/user/doctors`, `/api/user/doctors/add`, `/api/user/doctors/remove`, `/api/user/doctors/toggle`, `/api/user/clinics`, `/api/user/specialities`, `/api/user/slots`, `/api/user/patients`, `/api/user/patients/check`. Всего 10 эндпоинтов.                                                                                                                                                                           |
+| `src/web/static/dashboard.css`     | Стили веб-дашборда: responsive layout, таблицы, графики, тёмная тема.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `src/web/static/app/`              | Фронтенд Telegram Mini App (Vanilla JS SPA, 3 экрана): список врачей, добавление врача (stepper), просмотр слотов. Telegram-совместимая цветовая схема через CSS-переменные. Обёртка `fetch()` с автоматическим внедрением `initData` в заголовки.                                                                                                                                                                                                                   |
+| `src/web/templates/`               | Jinja2-шаблоны: `base.html` (layout), `summary.html`, `users.html`, `user_detail.html`, `clinics.html`, `logs.html`, `api_status.html`.                                                                                                                                                                                                                                                                                                                              |
 
 ## Граф зависимостей (Mermaid)
 
@@ -247,6 +272,8 @@ graph TD
         H_COMMON[src.handlers.common]
         H_REG[src.handlers.registration]
         H_CB[src.handlers.callback_parser]
+        H_CALLBACKS[src.handlers.callbacks]
+        H_MINI_APP[src.handlers.mini_app]
     end
 
     subgraph Middleware
@@ -278,16 +305,20 @@ graph TD
     subgraph Web
         WEB_APP[src.web.app]
         WEB_AUTH[src.web.auth]
+        WEB_AUTH_INIT[src.web.auth_initdata]
         WEB_DEPS[src.web.dependencies]
         WEB_API[src.web.routers.api]
         WEB_PAGES[src.web.routers.pages]
+        WEB_USER_API[src.web.routers.user_api]
         WEB_STATIC[src.web.static.dashboard.css]
+        WEB_MINI_APP[src.web.static.app]
         WEB_TPL[src.web.templates]
     end
 
     KB[src.keyboards.inline]
     FILTERS[src.filters.admin]
     I18N[src.i18n.__init__]
+    QDRANT[Qdrant (векторная БД)]
     ENTRY[src.main.py]
 
     MODELS --> CLIENT
@@ -308,8 +339,11 @@ graph TD
     CFG --> H_REG
     CFG --> MW_RL
     CFG --> MW_ACT
+    CFG --> QDRANT
     CFG --> WEB_APP
     CFG --> SVC_EXP
+    CFG --> H_MINI_APP
+    CFG --> WEB_AUTH_INIT
 
     DB_CORE --> DB_MGR
     DB_CORE --> DB_MIG
@@ -322,6 +356,8 @@ graph TD
     CLIENT --> SVC_HC
     CLIENT --> SVC_SW
     CLIENT --> ENTRY
+    CLIENT --> H_MINI_APP
+    CLIENT --> WEB_USER_API
 
     DB_MGR --> H_COMMON
     DB_MGR --> H_REG
@@ -330,6 +366,8 @@ graph TD
     DB_MGR --> SVC_CLN
     DB_MGR --> SVC_EXP
     DB_MGR --> ENTRY
+    DB_MGR --> H_MINI_APP
+    DB_MGR --> WEB_USER_API
 
     SVC_DISC --> H_COMMON
     SVC_DISC --> ENTRY
@@ -370,6 +408,8 @@ graph TD
     H_REG --> ENTRY
     H_CB --> H_COMMON
     H_CB --> H_REG
+    H_MINI_APP --> ENTRY
+    H_CALLBACKS --> ENTRY
 
     FILTERS --> ENTRY
 
@@ -379,10 +419,13 @@ graph TD
     I18N --> DB_CORE
 
     WEB_APP --> WEB_AUTH
+    WEB_APP --> WEB_AUTH_INIT
     WEB_APP --> WEB_DEPS
     WEB_APP --> WEB_API
     WEB_APP --> WEB_PAGES
+    WEB_APP --> WEB_USER_API
     WEB_APP --> WEB_STATIC
+    WEB_APP --> WEB_MINI_APP
     WEB_APP --> WEB_TPL
     WEB_DEPS --> DB_MGR
     WEB_DEPS --> CLIENT
@@ -391,6 +434,9 @@ graph TD
     WEB_PAGES --> DB_MGR
     WEB_PAGES --> WEB_API
     WEB_AUTH --> CFG
+    WEB_AUTH_INIT --> CFG
+    WEB_USER_API --> DB_MGR
+    WEB_USER_API --> CLIENT
     WEB_APP --> ENTRY
 ```
 
@@ -413,9 +459,13 @@ graph TD
 
 6. **Фоновые задачи** запускаются как `asyncio.Task` и корректно останавливаются через `task.cancel()` + `asyncio.gather(return_exceptions=True)`.
 
-7. **Rate limiting** на двух уровнях: API-клиент (`aiolimiter.AsyncLimiter`) и Telegram-хендлеры (`UserRateLimitMiddleware` с Redis Sorted Sets).
+7. **Qdrant как векторное хранилище для семантического поиска (Codebase Indexing)** — сервис qdrant/qdrant, порты 6333 (HTTP) и 6334 (gRPC). Конфигурация через `QDRANT_URL` и `QDRANT_API_KEY` в `.env`. Используется для семантического индексирования кодовой базы проекта.
 
-8. **Тесты** используют временные SQLite-файлы в `tests/test_data/`, очищаемые после сессии. Redis-зависимости мокируются через `fakeredis`.
+8. **Rate limiting** на двух уровнях: API-клиент (`aiolimiter.AsyncLimiter`) и Telegram-хендлеры (`UserRateLimitMiddleware` с Redis Sorted Sets).
+
+9. **Тесты** используют временные SQLite-файлы в `tests/test_data/`, очищаемые после сессии. Redis-зависимости мокируются через `fakeredis`.
+
+10. **Telegram Mini App** — Vanilla JS SPA (без фреймворков), размещается в `src/web/static/app/`. Аутентификация через HMAC-SHA256 верификацию `initData` (middleware [`auth_initdata.py`](src/web/auth_initdata.py)). Бэкенд API — [`user_api.py`](src/web/routers/user_api.py) (10 эндпоинтов). Интеграция с ботом через [`web_app_data`](src/handlers/mini_app.py) хендлер и кнопку `web_app` в [`keyboards/inline.py`](src/keyboards/inline.py).
 
 ## Конфигурационные файлы
 
@@ -428,5 +478,5 @@ graph TD
 | `pyrightconfig.json`      | `venvPath: "."`, `venv: ".venv"`, `rootPath: "."`                                 |
 | `.pre-commit-config.yaml` | Хуки: trailing-whitespace, end-of-file, ruff, mypy (`-p src -p scripts -p tests`) |
 | `Dockerfile`              | Многостадийная сборка (builder → runtime)                                         |
-| `docker-compose.yml`      | Сервисы: bot, redis, healthcheck                                                  |
+| `docker-compose.yml`      | Сервисы: bot, redis, qdrant, healthcheck                                          |
 | `Makefile`                | Цели: `install`, `test`, `lint`, `format`, `docker-build`                         |

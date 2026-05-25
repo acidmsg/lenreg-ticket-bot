@@ -48,6 +48,8 @@ dependencies = [
     "sentry-sdk>=2.0,<3.0",
     # === Metrics & Monitoring ===
     "prometheus-client>=0.20,<1.0",
+    # === Vector Search (Qdrant) ===
+    "qdrant-client>=1.9,<2.0",
 ]
 
 [tool.poetry]

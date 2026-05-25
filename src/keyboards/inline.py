@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dateutil.relativedelta import (
     relativedelta,
@@ -27,6 +28,22 @@ from src.handlers.callbacks import (
 )
 from src.i18n import _
 from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
+
+
+def get_main_menu_keyboard(
+    mini_app_url: str | None = None,
+) -> ReplyKeyboardMarkup | None:
+    """Создаёт reply-клавиатуру с кнопкой Mini App.
+
+    Если mini_app_url не указан или пуст — возвращает None.
+    """
+    if not mini_app_url:
+        return None
+
+    buttons = [
+        [KeyboardButton(text="🌐 Мониторинг", web_app=WebAppInfo(url=mini_app_url))]
+    ]
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 
 def get_patient_selection(patients: dict, monitoring: dict):

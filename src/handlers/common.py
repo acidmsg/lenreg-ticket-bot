@@ -40,6 +40,7 @@ from src.keyboards.inline import (
     get_clinic_selection,
     get_confirm_deletion,
     get_doctor_selection,
+    get_main_menu_keyboard,
     get_patient_selection,
 )
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
@@ -474,6 +475,14 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot) -> None:
     if result_msg is not None:
         await db.set_last_message_id(uid, "__nav__", "__nav__", result_msg.message_id)
 
+    # Отправляем reply-клавиатуру с кнопкой Mini App (если включено)
+    if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:
+        reply_kb = get_main_menu_keyboard(settings.MINI_APP_URL)
+        if reply_kb:
+            await message.answer(
+                "👇 Или используйте веб-интерфейс:", reply_markup=reply_kb
+            )
+
 
 @router.callback_query(cb_filter(BackToMain))
 async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
@@ -502,6 +511,14 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
         )
 
     await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup, db=db)
+
+    # Отправляем reply-клавиатуру с кнопкой Mini App (если включено)
+    if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:
+        reply_kb = get_main_menu_keyboard(settings.MINI_APP_URL)
+        if reply_kb:
+            await call.message.answer(
+                "👇 Или используйте веб-интерфейс:", reply_markup=reply_kb
+            )
 
 
 @router.callback_query(cb_filter(PatientSelect))

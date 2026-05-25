@@ -23,6 +23,21 @@ services:
       - zdrav_network
 
   # ===========================================================================
+  # Qdrant — векторное хранилище для Codebase Indexing
+  # ===========================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: zdrav_qdrant
+    ports:
+      - "127.0.0.1:6333:6333"   # HTTP API
+      - "127.0.0.1:6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - zdrav_network
+
+  # ===========================================================================
   # Bot — Telegram-бот (aiogram polling)
   # ===========================================================================
   bot:
@@ -34,6 +49,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     env_file:
       - .env
     volumes:
@@ -46,7 +63,8 @@ services:
       retries: 3
     ports:
       - "127.0.0.1:9090:9090"
-      - "127.0.0.1:8090:8090"
+      # Mini App / веб-дашборд — открыт для Cloudflare Proxy (порт 8080)
+      - "0.0.0.0:8080:8080"
     networks:
       - zdrav_network
 
@@ -54,6 +72,8 @@ volumes:
   redis_data:
     driver: local
   bot_data:
+    driver: local
+  qdrant_data:
     driver: local
 
 networks:

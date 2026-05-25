@@ -236,19 +236,15 @@ async def _run_dashboard_safe(
             # Pre-flight проверка порта (адрес должен совпадать с uvicorn)
             if not await _check_port_available("0.0.0.0", p):
                 logger.warning(
-                    f"Порт {p} занят (попытка {attempt + 1}/3), "
-                    f"жду {2 ** attempt}с..."
+                    f"Порт {p} занят (попытка {attempt + 1}/3), жду {2**attempt}с..."
                 )
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
 
             logger.info(
-                f"Пробую запустить дашборд на порту {p} "
-                f"(попытка {attempt + 1}/3)..."
+                f"Пробую запустить дашборд на порту {p} (попытка {attempt + 1}/3)..."
             )
-            success = await asyncio.to_thread(
-                _run_uvicorn_sync, web_app, "0.0.0.0", p
-            )
+            success = await asyncio.to_thread(_run_uvicorn_sync, web_app, "0.0.0.0", p)
             if success:
                 logger.info(f"Веб-дашборд запущен на http://0.0.0.0:{p}")
                 return p
@@ -256,9 +252,9 @@ async def _run_dashboard_safe(
             # uvicorn упал — мог занять порт, повтор через exponential backoff
             logger.warning(
                 f"uvicorn на порту {p} упал (попытка {attempt + 1}/3), "
-                f"повтор через {2 ** attempt}с..."
+                f"повтор через {2**attempt}с..."
             )
-            await asyncio.sleep(2 ** attempt)
+            await asyncio.sleep(2**attempt)
 
     logger.error("Веб-дашборд не запущен: все порты заняты.")
     return None
@@ -269,13 +265,14 @@ async def run_dashboard(
     health_metrics,
     prometheus_metrics,
     config,
+    api: ZdravClient,
     host: str,
     port: int,
 ) -> None:
     """Запускает uvicorn-сервер веб-дашборда как asyncio-задачу."""
     from src.web.app import create_app
 
-    web_app = create_app(db, health_metrics, prometheus_metrics, config)
+    web_app = create_app(db, health_metrics, prometheus_metrics, config, api)
 
     fallback_ports = [8091, 8092, 8093]
     result = await _run_dashboard_safe(web_app, port, fallback_ports, logger)
@@ -414,6 +411,12 @@ async def main() -> None:
     dp.include_router(common.router)
     dp.include_router(registration.router)
 
+    # Регистрация роутера Mini App (если включено)
+    if settings.MINI_APP_ENABLED:
+        from src.handlers import mini_app
+
+        dp.include_router(mini_app.router)
+
     # Проверка связи с Telegram API до запуска фоновых задач
     await _bot_me_with_retry(bot)
 
@@ -438,15 +441,14 @@ async def main() -> None:
                     health_metrics,
                     prometheus_metrics,
                     settings,
+                    api,
                     host="0.0.0.0",
                     port=settings.WEB_DASHBOARD_PORT,
                 )
             )
             logger.info("Задача веб-дашборда создана")
         except Exception as e:
-            logger.error(
-                f"Не удалось создать задачу веб-дашборда: {e}", exc_info=True
-            )
+            logger.error(f"Не удалось создать задачу веб-дашборда: {e}", exc_info=True)
             dashboard_task = None
     else:
         logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")

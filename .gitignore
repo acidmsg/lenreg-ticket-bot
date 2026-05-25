@@ -39,6 +39,7 @@ logs/
 # Environment variables and secrets
 .env
 .env.local
+env.vps
 *.env.*
 
 # IDE and editor files
