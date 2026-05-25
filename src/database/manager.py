@@ -110,7 +110,6 @@ class DatabaseManager:
             c = self._db.conn
             if c is None:
                 raise RuntimeError("Database connection not initialized")
-            await c.execute("BEGIN")
             try:
                 if "patients" in update_dict:
                     await self._replace_patients(uid, user_data.get("patients", {}))
