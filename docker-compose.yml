@@ -54,7 +54,7 @@ services:
     env_file:
       - .env
     volumes:
-      - bot_data:/app/data
+      - ./data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'python -m src.main' > /dev/null 2>&1 && redis-cli -h redis ping > /dev/null 2>&1 || exit 1"]
       interval: 30s
@@ -70,8 +70,6 @@ services:
 
 volumes:
   redis_data:
-    driver: local
-  bot_data:
     driver: local
   qdrant_data:
     driver: local
