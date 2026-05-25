@@ -439,7 +439,9 @@ echo ""
 info "Сборка Docker-образа..."
 docker compose build
 
-# Остановка старых контейнеров (если есть)
+# Принудительная остановка и удаление старых контейнеров (могли быть созданы вне compose)
+docker rm -f zdrav_redis zdrav_qdrant zdrav_bot 2>/dev/null || true
+# Остановка через compose (для контейнеров, созданных через compose)
 docker compose down --remove-orphans 2>/dev/null || true
 
 info "Запуск контейнеров..."
