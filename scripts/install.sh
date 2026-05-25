@@ -431,7 +431,7 @@ info "Создание рабочих директорий..."
 mkdir -p data logs
 # Контейнер работает как appuser (не root); без chmod bind-mount
 # ./data:/app/data приведёт к "attempt to write a readonly database"
-chmod 777 data logs
+chmod -R 777 data logs
 success "Директории data/ и logs/ созданы (права 777)."
 echo ""
 
