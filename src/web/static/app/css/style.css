@@ -211,7 +211,7 @@ body {
 
 .status__dot--checking {
   background-color: var(--status-checking);
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: pulse 2.5s ease-in-out infinite;
 }
 
 /* === Кнопки === */
@@ -281,7 +281,8 @@ body {
 .fab {
   position: fixed;
   bottom: 20px;
-  transform: translateX(50%);
+  left: 50%;
+  transform: translateX(-50%);
   background-color: var(--tg-button-color);
   color: var(--tg-button-text-color);
   border: none;
@@ -294,9 +295,6 @@ body {
   transition:
     transform 0.15s,
     box-shadow 0.15s;
-  margin: 0 auto;
-  left: 50%;
-  right: auto;
   width: calc(100% - 40px);
   max-width: 440px;
   border-radius: 14px;
@@ -307,6 +305,32 @@ body {
 
 .fab:active {
   transform: translateX(-50%) scale(0.95);
+}
+
+/* === Группа кнопок внизу экрана (пациенты + FAB) === */
+.fab-group {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: flex-end;
+  z-index: 20;
+  width: calc(100% - 40px);
+  max-width: 440px;
+}
+
+.fab-group .fab {
+  position: static;
+  transform: none;
+  flex: 1;
+}
+
+.fab-group .btn--sm {
+  min-height: 48px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* === Скелетон (загрузка) === */
@@ -362,7 +386,7 @@ body {
   }
 
   50% {
-    opacity: 0.4;
+    opacity: 0.65;
   }
 }
 
@@ -390,6 +414,8 @@ body {
   max-width: 280px;
   line-height: 1.5;
 }
+
+/* === Выделенный элемент списка === */
 
 /* === Сообщение об ошибке === */
 .error-state {
@@ -455,6 +481,29 @@ body {
   flex-shrink: 0;
 }
 
+/* === Выделенный элемент списка === */
+.list__item--selected,
+.stepper-item--selected {
+  background-color: var(--tg-button-color);
+  color: var(--tg-button-text-color);
+  border-radius: 8px;
+}
+
+.list__item--selected .list__item-arrow,
+.stepper-item--selected .list__item-arrow {
+  color: var(--tg-button-text-color);
+}
+
+.list__item--selected .list__item-title,
+.stepper-item--selected .list__item-title {
+  color: var(--tg-button-text-color);
+}
+
+.list__item--selected .list__item-subtitle,
+.stepper-item--selected .list__item-subtitle {
+  color: rgb(from var(--tg-button-text-color) r g b / 60%);
+}
+
 /* === Слоты (группировка по датам) === */
 .slot-group {
   margin-bottom: var(--gap-lg);
@@ -514,6 +563,13 @@ body {
 
 .stepper__step-dot--completed {
   background-color: var(--status-available);
+}
+
+.stepper__step-counter {
+  font-size: var(--font-sm);
+  color: var(--tg-hint-color);
+  text-align: center;
+  margin-bottom: var(--gap-sm);
 }
 
 .stepper__title {

@@ -55,6 +55,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       })
       .join('');
 
+    const stepCounterHtml = `<div class="stepper__step-counter">Шаг ${currentStep + 1} из ${steps.length}</div>`;
+
     const searchHtml = step.searchPlaceholder
       ? `
         <div class="search-bar">
@@ -77,6 +79,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     container.innerHTML = `
       <div class="stepper">
         <div class="stepper__progress">${progressHtml}</div>
+        ${stepCounterHtml}
         <h2 class="stepper__title">${escapeHtml(step.title)}</h2>
         <p class="stepper__description">${escapeHtml(step.description)}</p>
         ${searchHtml}

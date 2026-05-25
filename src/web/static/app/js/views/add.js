@@ -142,7 +142,7 @@ async function loadPatients() {
 
   if (patients.length === 0) {
     throw new Error(
-      'У вас нет добавленных пациентов. Добавьте пациента через бота командой /start.'
+      'У вас нет добавленных пациентов. Вернитесь назад и нажмите «Пациенты», чтобы добавить пациента.'
     );
   }
 
@@ -292,7 +292,7 @@ function renderConfirmation() {
     <div class="confirm-card">
       <div class="confirm-card__icon">✅</div>
       <p class="text-center mb-md" style="color: var(--tg-hint-color);">
-        Проверьте выбранные данные и нажмите «Готово» для добавления врача в мониторинг.
+        Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг.
       </p>
     </div>
   `;

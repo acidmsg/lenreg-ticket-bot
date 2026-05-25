@@ -9,6 +9,7 @@ import { isInTelegram, getUserInfo } from './auth.js';
 import { renderDoctors } from './views/doctors.js';
 import { renderAddDoctor } from './views/add.js';
 import { renderSlots } from './views/slots.js';
+import { renderPatients } from './views/patients.js';
 import { renderHeader } from './components/header.js';
 
 // ============================================================
@@ -17,7 +18,7 @@ import { renderHeader } from './components/header.js';
 
 /**
  * @typedef {object} AppState
- * @property {string} route — текущий маршрут ('doctors', 'add', 'slots')
+ * @property {string} route — текущий маршрут ('doctors', 'add', 'slots', 'patients')
  * @property {object|null} routeParams — параметры маршрута (например, { monitoringId })
  * @property {Array<{route: string, params: object|null}>} history — история навигации
  */
@@ -74,7 +75,7 @@ function applyTheme(themeParams) {
 /**
  * Навигация между экранами Mini App.
  *
- * @param {string} route — имя маршрута ('doctors', 'add', 'slots')
+ * @param {string} route — имя маршрута ('doctors', 'add', 'slots', 'patients')
  * @param {object|null} [params=null] — параметры маршрута
  */
 export function navigate(route, params = null) {
@@ -134,13 +135,16 @@ function render() {
       content = `
         ${renderHeader('Мониторинг врачей', state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
-        <button class="fab" id="fab-add">➕ Добавить врача</button>
+        <div class="fab-group">
+          <button class="btn btn--secondary btn--sm" id="btn-patients">👤 Пациенты</button>
+          <button class="fab" id="fab-add">➕ Новый мониторинг</button>
+        </div>
       `;
       break;
 
     case 'add':
       content = `
-        ${renderHeader('Добавление врача', true, userName)}
+        ${renderHeader('Новый мониторинг', true, userName)}
         <div class="app-content" id="add-content" style="padding: 0;"></div>
       `;
       break;
@@ -149,6 +153,13 @@ function render() {
       content = `
         ${renderHeader('Свободные слоты', true, userName)}
         <div class="app-content" id="slots-content"></div>
+      `;
+      break;
+
+    case 'patients':
+      content = `
+        ${renderHeader('Пациенты', true, userName)}
+        <div class="app-content" id="patients-content"></div>
       `;
       break;
 
@@ -179,6 +190,10 @@ function render() {
     case 'slots':
       renderSlots(document.getElementById('slots-content'), state.routeParams);
       break;
+
+    case 'patients':
+      renderPatients(document.getElementById('patients-content'));
+      break;
   }
 }
 
@@ -190,6 +205,13 @@ function bindDoctorsEvents() {
   if (fab) {
     fab.addEventListener('click', () => {
       navigate('add');
+    });
+  }
+
+  const patientsBtn = document.getElementById('btn-patients');
+  if (patientsBtn) {
+    patientsBtn.addEventListener('click', () => {
+      navigate('patients');
     });
   }
 }

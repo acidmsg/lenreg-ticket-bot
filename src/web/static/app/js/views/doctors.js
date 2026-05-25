@@ -73,9 +73,9 @@ function renderEmpty() {
       <div class="empty-state__icon">👨‍⚕️</div>
       <p class="empty-state__text">
         Вы пока не отслеживаете ни одного врача.
-        Добавьте первого врача, чтобы получать уведомления о появлении свободных слотов.
+        Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных слотов.
       </p>
-      <button class="btn btn--primary" id="empty-add-btn">➕ Добавить врача</button>
+      <button class="btn btn--primary" id="empty-add-btn">➕ Новый мониторинг</button>
     </div>
   `;
 }
