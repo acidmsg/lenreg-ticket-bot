@@ -40,7 +40,7 @@ ask() {
     local varname="$3"
 
     if [ -n "$default" ]; then
-        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt} [${default}]: ")" input < /dev/tty
+        read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt} (по умолчанию: ${default}): ")" input < /dev/tty
     else
         read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt}: ")" input < /dev/tty
     fi
