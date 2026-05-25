@@ -5,7 +5,7 @@
  * @module api
  */
 
-import { getInitData } from './auth.js';
+import { getInitData, isInTelegram } from './auth.js';
 
 const BASE_PATH = '/api/user';
 
@@ -18,6 +18,16 @@ const BASE_PATH = '/api/user';
  */
 export async function apiGet(path) {
   const initData = getInitData();
+
+  // Если мы в Telegram, но initData пуст — выбрасываем ошибку сразу,
+  // не делая запрос, который гарантированно вернёт 403.
+  if (isInTelegram() && !initData) {
+    throw new Error(
+      'Не удалось получить данные аутентификации Telegram. ' +
+        'Попробуйте перезапустить приложение.'
+    );
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
@@ -44,6 +54,14 @@ export async function apiGet(path) {
  */
 export async function apiPost(path, body = {}) {
   const initData = getInitData();
+
+  if (isInTelegram() && !initData) {
+    throw new Error(
+      'Не удалось получить данные аутентификации Telegram. ' +
+        'Попробуйте перезапустить приложение.'
+    );
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
@@ -70,6 +88,14 @@ export async function apiPost(path, body = {}) {
  */
 export async function apiDelete(path) {
   const initData = getInitData();
+
+  if (isInTelegram() && !initData) {
+    throw new Error(
+      'Не удалось получить данные аутентификации Telegram. ' +
+        'Попробуйте перезапустить приложение.'
+    );
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'

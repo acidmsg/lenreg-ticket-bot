@@ -159,6 +159,12 @@ function render() {
 
   app.innerHTML = content;
 
+  // Привязываем обработчик к стрелочной кнопке «← Назад» в шапке
+  const headerBackBtn = document.getElementById('header-back');
+  if (headerBackBtn) {
+    headerBackBtn.addEventListener('click', goBack);
+  }
+
   // Рендерим содержимое конкретного экрана
   switch (state.route) {
     case 'doctors':

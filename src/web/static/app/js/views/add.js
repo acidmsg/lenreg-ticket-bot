@@ -208,7 +208,7 @@ async function loadDoctors() {
 
   return doctors.map((d) => ({
     value: d,
-    label: d.name || `Врач #${d.doctor_id}`,
+    label: extractDoctorName(d) || `Врач #${d.doctor_id}`,
     subtitle:
       d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : ''
   }));
@@ -344,6 +344,34 @@ function getFromCache(key) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Извлекает строковое имя врача из поля name, которое может быть объектом.
+ *
+ * @param {object} doctor — объект врача из API
+ * @returns {string} строковое представление имени врача
+ */
+function extractDoctorName(doctor) {
+  const name = doctor.name;
+  if (!name) return '';
+
+  // Если name — строка, возвращаем как есть
+  if (typeof name === 'string') return name;
+
+  // Если name — объект (например, {first_name: "...", last_name: "..."}),
+  // пробуем собрать строку из известных полей
+  if (typeof name === 'object' && name !== null) {
+    const parts = [];
+    if (name.last_name) parts.push(name.last_name);
+    if (name.first_name) parts.push(name.first_name);
+    if (name.middle_name) parts.push(name.middle_name);
+    if (parts.length > 0) return parts.join(' ');
+    // Если не удалось извлечь — возвращаем строковое представление объекта
+    return String(name);
+  }
+
+  return String(name);
 }
 
 /**
