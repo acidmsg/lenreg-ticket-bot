@@ -12,8 +12,29 @@ from pydantic import BaseModel, BeforeValidator, Field
 
 
 def _coerce_str(v: Any) -> str:
-    """Приводит значение к строке (API иногда возвращает числа вместо строк)."""
-    return str(v) if v is not None else ""
+    """Приводит значение к строке (API иногда возвращает числа или объекты).
+
+    Обрабатывает три случая:
+    1. None → ""
+    2. dict с именем врача → извлекает строковое имя
+    3. Всё остальное → str(v)
+    """
+    if v is None:
+        return ""
+    if isinstance(v, dict):
+        # API zdrav.lenreg может вернуть Name как объект {"Id":"...","Name":"..."}
+        # или как объект {"first_name":"...","last_name":"..."}
+        name_value = v.get("Name") or v.get("name") or ""
+        if name_value:
+            return str(name_value)
+        parts = [
+            v.get(k, "") for k in ("last_name", "first_name", "middle_name") if v.get(k)
+        ]
+        if parts:
+            return " ".join(parts)
+        # В крайнем случае — сериализуем весь объект как JSON-строку
+        return str(v)
+    return str(v)
 
 
 # ── Общие (shared) ────────────────────────────────────────────

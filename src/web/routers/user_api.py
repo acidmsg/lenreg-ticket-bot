@@ -86,6 +86,34 @@ def _monitoring_id_to_parts(monitoring_id: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+# ── Вспомогательная: безопасное извлечение строки имени ────────
+
+
+def _safe_name(value: Any) -> str:
+    """Извлекает строковое имя врача из значения, которое может быть объектом.
+
+    Используется как fallback, если _coerce_str в models.py не сработал
+    (например, при чтении из БД старых данных, где name сохранён как dict).
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        # Пытаемся извлечь Name, name, или собрать из ФИО
+        name_value = value.get("Name") or value.get("name") or ""
+        if name_value and isinstance(name_value, str):
+            return name_value
+        parts = [
+            value.get(k, "")
+            for k in ("last_name", "first_name", "middle_name")
+            if value.get(k)
+        ]
+        if parts:
+            return " ".join(parts)
+    return str(value)
+
+
 # ── Эндпоинты ────────────────────────────────────────────────
 
 
@@ -159,7 +187,7 @@ async def get_doctors(
                     "patient_id": p_id,
                     "patient_name": patient_name,
                     "doctor_id": d_id,
-                    "doctor_name": d_info.get("name", ""),
+                    "doctor_name": _safe_name(d_info.get("name", "")),
                     "specialty": d_info.get("specialty", ""),
                     "clinic_id": d_info.get("clinic_id", ""),
                     "clinic_name": clinic_name or "",
@@ -216,7 +244,7 @@ async def add_doctor(
 
         for doc in doctors:
             if str(doc.get("IdDoc", "")) == body.doctor_id:
-                doctor_name = doc.get("Name", doctor_name)
+                doctor_name = _safe_name(doc.get("Name", doctor_name))
                 specialty_name = doc.get("SpesialityName", specialty_name)
                 break
 
@@ -472,7 +500,7 @@ async def get_available_doctors(
         doctors.append(
             {
                 "doctor_id": str(doc.get("IdDoc", "")),
-                "name": doc.get("Name", ""),
+                "name": _safe_name(doc.get("Name", "")),
                 "free_tickets": int(doc.get("FreeTicket", 0)),
                 "nearest_date": doc.get("NearestDate"),
             }

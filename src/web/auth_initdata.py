@@ -45,8 +45,15 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         # Пропускаем пути, не относящиеся к Mini App API
-        if not request.url.path.startswith("/api/user"):
+        path = request.url.path
+        if not path.startswith("/api/user"):
+            logger.debug(
+                "Mini App middleware: путь %s пропущен (не /api/user/*)",
+                path,
+            )
             return await call_next(request)
+
+        logger.debug("Mini App middleware: проверка initData для пути %s", path)
 
         # --- Dev-режим: bypass при ENVIRONMENT=development ---
         if settings.ENVIRONMENT == "development" and not request.headers.get(
