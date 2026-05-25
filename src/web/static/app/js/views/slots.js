@@ -67,7 +67,7 @@ function renderLoading() {
  * @returns {string} HTML информации
  */
 function renderSlotInfo(data) {
-  const doctorName = data.doctor_name || 'Врач';
+  const doctorName = extractDoctorName(data) || 'Врач';
   const specialty = data.specialty || '';
   const clinicName = data.clinic_name || '';
   const total = data.total || 0;
@@ -162,6 +162,34 @@ function bindErrorEvents(container, params) {
       renderSlots(container, params);
     });
   }
+}
+
+/**
+ * Извлекает строковое имя врача из поля name, которое может быть объектом.
+ *
+ * @param {object} doctor — объект врача из API
+ * @returns {string} строковое представление имени врача
+ */
+function extractDoctorName(doctor) {
+  const name = doctor.name;
+  if (!name) return String(doctor.doctor_name || '');
+
+  // Если name — строка, возвращаем как есть
+  if (typeof name === 'string') return name;
+
+  // Если name — объект (например, {first_name: "...", last_name: "..."}),
+  // пробуем собрать строку из известных полей
+  if (typeof name === 'object' && name !== null) {
+    const parts = [];
+    if (name.last_name) parts.push(name.last_name);
+    if (name.first_name) parts.push(name.first_name);
+    if (name.middle_name) parts.push(name.middle_name);
+    if (parts.length > 0) return parts.join(' ');
+    // Если не удалось извлечь — используем doctor_name как fallback
+    return String(doctor.doctor_name || name);
+  }
+
+  return String(name);
 }
 
 /**

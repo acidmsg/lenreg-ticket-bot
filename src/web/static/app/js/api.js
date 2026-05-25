@@ -5,9 +5,21 @@
  * @module api
  */
 
-import { getInitData, isInTelegram } from './auth.js';
+import { getInitData, getInitDataError } from './auth.js';
 
 const BASE_PATH = '/api/user';
+
+/**
+ * Проверяет наличие initData и выбрасывает ошибку с понятным сообщением.
+ *
+ * @throws {Error} если initData пуст в Telegram-окружении
+ */
+function requireInitData() {
+  const error = getInitDataError();
+  if (error) {
+    throw new Error(error);
+  }
+}
 
 /**
  * Выполняет GET-запрос к API.
@@ -17,17 +29,9 @@ const BASE_PATH = '/api/user';
  * @throws {Error} при ошибке сети или API
  */
 export async function apiGet(path) {
+  requireInitData();
+
   const initData = getInitData();
-
-  // Если мы в Telegram, но initData пуст — выбрасываем ошибку сразу,
-  // не делая запрос, который гарантированно вернёт 403.
-  if (isInTelegram() && !initData) {
-    throw new Error(
-      'Не удалось получить данные аутентификации Telegram. ' +
-        'Попробуйте перезапустить приложение.'
-    );
-  }
-
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
@@ -53,15 +57,9 @@ export async function apiGet(path) {
  * @throws {Error} при ошибке сети или API
  */
 export async function apiPost(path, body = {}) {
+  requireInitData();
+
   const initData = getInitData();
-
-  if (isInTelegram() && !initData) {
-    throw new Error(
-      'Не удалось получить данные аутентификации Telegram. ' +
-        'Попробуйте перезапустить приложение.'
-    );
-  }
-
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
@@ -87,15 +85,9 @@ export async function apiPost(path, body = {}) {
  * @throws {Error} при ошибке сети или API
  */
 export async function apiDelete(path) {
+  requireInitData();
+
   const initData = getInitData();
-
-  if (isInTelegram() && !initData) {
-    throw new Error(
-      'Не удалось получить данные аутентификации Telegram. ' +
-        'Попробуйте перезапустить приложение.'
-    );
-  }
-
   const headers = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'

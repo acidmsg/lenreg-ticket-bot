@@ -260,8 +260,42 @@ function init() {
   // Главная кнопка — не показываем на главном экране
   tg.MainButton.hide();
 
+  // Если initData пуст (например, открыто напрямую, а не через кнопку бота) —
+  // показываем понятное сообщение вместо попытки загрузить данные
+  const initDataError = getInitDataError();
+  if (initDataError) {
+    app.innerHTML = `
+      <div class="outside-telegram">
+        <div class="outside-telegram__icon">🔐</div>
+        <p class="outside-telegram__text">${escapeHtml(initDataError)}</p>
+        <button class="btn btn--primary mt-md" id="initdata-close-btn">
+          Закрыть
+        </button>
+      </div>
+    `;
+    const closeBtn = document.getElementById('initdata-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.Telegram.WebApp.close();
+      });
+    }
+    return;
+  }
+
   // Начальный рендер
   render();
+}
+
+/**
+ * Экранирует HTML-символы.
+ *
+ * @param {string} text — исходный текст
+ * @returns {string} экранированный текст
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
 }
 
 // Запуск при загрузке DOM

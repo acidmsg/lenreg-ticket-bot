@@ -51,11 +51,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         } else if (i === currentStep) {
           dotClass += ' stepper__step-dot--active';
         }
-        return `<div class="${dotClass}"></div>`;
+        // Добавляем data-атрибут для отладки
+        return `<div class="${dotClass}" data-step-index="${i}"></div>`;
       })
       .join('');
 
-    const stepCounterHtml = `<div class="stepper__step-counter">Шаг ${currentStep + 1} из ${steps.length}</div>`;
+    const stepCounterHtml = `<div class="stepper__step-counter"><span class="stepper__step-badge">Шаг ${currentStep + 1} из ${steps.length}</span></div>`;
 
     const searchHtml = step.searchPlaceholder
       ? `

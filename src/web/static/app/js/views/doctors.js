@@ -106,7 +106,7 @@ function renderDoctorList(doctors) {
   const cards = doctors
     .map((doc) =>
       createDoctorCard({
-        doctorName: doc.doctor_name || 'Неизвестный врач',
+        doctorName: extractDoctorName(doc) || 'Неизвестный врач',
         specialty: doc.specialty || '—',
         clinicName: doc.clinic_name || '—',
         status: doc.status || 'checking',
@@ -145,7 +145,7 @@ function bindDoctorEvents(container, doctors) {
 
       // Находим врача для получения имени
       const doctor = doctors.find((d) => d.monitoring_id === monitoringId);
-      const doctorName = doctor ? doctor.doctor_name : 'этого врача';
+      const doctorName = doctor ? extractDoctorName(doctor) : 'этого врача';
 
       // Подтверждение удаления
       let confirmed = false;
@@ -221,6 +221,34 @@ function bindErrorEvents(container) {
       renderDoctors(container);
     });
   }
+}
+
+/**
+ * Извлекает строковое имя врача из поля name, которое может быть объектом.
+ *
+ * @param {object} doctor — объект врача из API
+ * @returns {string} строковое представление имени врача
+ */
+function extractDoctorName(doctor) {
+  const name = doctor.name;
+  if (!name) return String(doctor.doctor_name || '');
+
+  // Если name — строка, возвращаем как есть
+  if (typeof name === 'string') return name;
+
+  // Если name — объект (например, {first_name: "...", last_name: "..."}),
+  // пробуем собрать строку из известных полей
+  if (typeof name === 'object' && name !== null) {
+    const parts = [];
+    if (name.last_name) parts.push(name.last_name);
+    if (name.first_name) parts.push(name.first_name);
+    if (name.middle_name) parts.push(name.middle_name);
+    if (parts.length > 0) return parts.join(' ');
+    // Если не удалось извлечь — используем doctor_name как fallback
+    return String(doctor.doctor_name || name);
+  }
+
+  return String(name);
 }
 
 /**

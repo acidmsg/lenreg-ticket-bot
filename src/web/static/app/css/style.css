@@ -491,6 +491,11 @@ body {
   background-color: var(--tg-button-color);
   color: var(--tg-button-text-color);
   border-radius: 8px;
+  outline: 2px solid var(--tg-button-color);
+  outline-offset: 1px;
+  transition:
+    background-color 0.2s,
+    outline-color 0.2s;
 }
 
 .list__item--selected .list__item-arrow,
@@ -505,7 +510,8 @@ body {
 
 .list__item--selected .list__item-subtitle,
 .stepper-item--selected .list__item-subtitle {
-  color: rgb(from var(--tg-button-text-color) r g b / 60%);
+  color: var(--tg-button-text-color);
+  opacity: 0.7;
 }
 
 /* === Слоты (группировка по датам) === */
@@ -558,11 +564,16 @@ body {
   height: 4px;
   border-radius: 2px;
   background-color: rgb(0 0 0 / 10%);
-  transition: background-color 0.3s;
+  transition:
+    background-color 0.3s,
+    height 0.3s,
+    border-radius 0.3s;
 }
 
 .stepper__step-dot--active {
   background-color: var(--tg-button-color);
+  height: 6px;
+  border-radius: 3px;
 }
 
 .stepper__step-dot--completed {
@@ -570,10 +581,19 @@ body {
 }
 
 .stepper__step-counter {
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
   text-align: center;
   margin-bottom: var(--gap-sm);
+}
+
+.stepper__step-badge {
+  display: inline-block;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--tg-button-color);
+  background-color: var(--tg-secondary-bg-color);
+  padding: 4px 14px;
+  border-radius: 12px;
+  border: 1px solid rgb(0 0 0 / 8%);
 }
 
 .stepper__title {
@@ -764,5 +784,9 @@ body {
 
   .stepper__step-dot {
     background-color: rgb(255 255 255 / 12%);
+  }
+
+  .stepper__step-badge {
+    border-color: rgb(255 255 255 / 8%);
   }
 }
