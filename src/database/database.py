@@ -161,6 +161,11 @@ class Database:
             await self._run_migrations()
             await self._enable_wal()
 
+            # Проверка целостности БД после подключения
+            from src.database.integrity import check_and_recover
+
+            self._conn = await check_and_recover(self.db_path, self._conn)
+
         except aiosqlite.Error as e:
             logger.error(f"Ошибка подключения aiosqlite для '{self.db_path}': {e}")
             raise
