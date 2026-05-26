@@ -6,7 +6,7 @@
  */
 
 /**
- * Создаёт HTML карточки врача.
+ * Создаёт HTML карточки врача со списком отслеживающих пациентов.
  *
  * @param {object} options — параметры карточки
  * @param {string} options.doctorName — ФИО врача
@@ -14,8 +14,7 @@
  * @param {string} options.clinicName — название клиники
  * @param {string} options.status — статус: 'slots_available', 'no_slots', 'checking'
  * @param {number} [options.freeTickets=0] — количество свободных слотов
- * @param {string} options.monitoringId — ID записи мониторинга
- * @param {string} [options.patientName] — ФИО пациента (опционально)
+ * @param {Array<{name: string, patientId: string, entryId: string}>} [options.patients=[]] — пациенты, отслеживающие врача
  * @returns {string} HTML-строка карточки врача
  */
 export function createDoctorCard({
@@ -24,23 +23,38 @@ export function createDoctorCard({
   clinicName,
   status,
   freeTickets = 0,
-  monitoringId,
-  patientName
+  patients = []
 }) {
   const statusInfo = getStatusInfo(status, freeTickets);
 
-  const patientsHtml = patientName
-    ? `
+  // Список пациентов с кнопками удаления
+  // Для кнопки «Слоты» используем entryId первого пациента
+  const firstEntryId = patients.length > 0 ? patients[0].entryId : '';
+
+  const patientsHtml =
+    patients.length > 0
+      ? `
       <ul class="monitoring-patients">
-        <li class="monitoring-patient">
-          <span class="monitoring-patient__icon">👤</span>
-          <span>${escapeHtml(patientName)}</span>
-        </li>
+        ${patients
+          .map(
+            (p) => `
+          <li class="monitoring-patient">
+            <span class="monitoring-patient__icon">👤</span>
+            <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
+            <button
+              class="monitoring-patient__delete"
+              data-entry-id="${escapeHtml(p.entryId)}"
+              data-patient-name="${escapeHtml(p.name)}"
+              title="Удалить мониторинг для этого пациента"
+            >🗑</button>
+          </li>`
+          )
+          .join('')}
       </ul>`
-    : '';
+      : '';
 
   return `
-    <div class="card" data-monitoring-id="${escapeHtml(monitoringId)}">
+    <div class="card">
       <div class="card__header">
         <div>
           <div class="card__title">${escapeHtml(doctorName)}</div>
@@ -54,11 +68,8 @@ export function createDoctorCard({
       ${patientsHtml}
       <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>
       <div class="card__actions">
-        <button class="btn btn--secondary btn--sm card-btn-slots" data-monitoring-id="${escapeHtml(monitoringId)}">
+        <button class="btn btn--secondary btn--sm card-btn-slots" data-monitoring-id="${escapeHtml(firstEntryId)}">
           📅 Слоты
-        </button>
-        <button class="btn btn--danger btn--sm card-btn-delete" data-monitoring-id="${escapeHtml(monitoringId)}">
-          🗑 Удалить
         </button>
       </div>
     </div>

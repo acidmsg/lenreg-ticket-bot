@@ -97,22 +97,42 @@ function renderError(message) {
 }
 
 /**
- * Рендерит список карточек врачей.
+ * Рендерит список карточек врачей, сгруппированных по doctor_id.
  *
  * @param {Array} doctors — массив врачей из API
  * @returns {string} HTML списка врачей
  */
 function renderDoctorList(doctors) {
-  const cards = doctors
-    .map((doc) =>
-      createDoctorCard({
+  // Группировка по doctor_id
+  const grouped = {};
+  doctors.forEach((doc) => {
+    if (!grouped[doc.doctor_id]) {
+      grouped[doc.doctor_id] = {
         doctorName: extractDoctorName(doc) || 'Неизвестный врач',
         specialty: doc.specialty || '—',
         clinicName: doc.clinic_name || '—',
+        clinicId: doc.clinic_id || '',
         status: doc.status || 'checking',
         freeTickets: doc.free_tickets || 0,
-        monitoringId: doc.monitoring_id || '',
-        patientName: doc.patient_name || ''
+        patients: []
+      };
+    }
+    grouped[doc.doctor_id].patients.push({
+      name: doc.patient_name || '',
+      patientId: doc.patient_id || '',
+      entryId: doc.monitoring_id || ''
+    });
+  });
+
+  const cards = Object.values(grouped)
+    .map((group) =>
+      createDoctorCard({
+        doctorName: group.doctorName,
+        specialty: group.specialty,
+        clinicName: group.clinicName,
+        status: group.status,
+        freeTickets: group.freeTickets,
+        patients: group.patients
       })
     )
     .join('');
@@ -127,7 +147,7 @@ function renderDoctorList(doctors) {
  * @param {Array} doctors — массив врачей
  */
 function bindDoctorEvents(container, doctors) {
-  // Кнопки «Слоты»
+  // Кнопки «Слоты» — каждая карточка врача имеет одну кнопку слотов
   container.querySelectorAll('.card-btn-slots').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -138,33 +158,33 @@ function bindDoctorEvents(container, doctors) {
     });
   });
 
-  // Кнопки «Удалить»
-  container.querySelectorAll('.card-btn-delete').forEach((btn) => {
+  // Кнопки «Удалить» — по одной на каждого пациента в карточке врача
+  container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const monitoringId = btn.getAttribute('data-monitoring-id');
-
-      // Находим врача для получения имени
-      const doctor = doctors.find((d) => d.monitoring_id === monitoringId);
-      const doctorName = doctor ? extractDoctorName(doctor) : 'этого врача';
+      const entryId = btn.getAttribute('data-entry-id');
+      const patientName =
+        btn.getAttribute('data-patient-name') || 'этого пациента';
 
       // Подтверждение удаления
       let confirmed = false;
       if (isInTelegram()) {
         confirmed = await new Promise((resolve) => {
           window.Telegram.WebApp.showConfirm(
-            `Удалить врача «${doctorName}» из мониторинга?`,
+            `Удалить мониторинг для пациента «${patientName}»?`,
             (result) => resolve(result)
           );
         });
       } else {
-        confirmed = confirm(`Удалить врача «${doctorName}» из мониторинга?`);
+        confirmed = confirm(
+          `Удалить мониторинг для пациента «${patientName}»?`
+        );
       }
 
       if (!confirmed) return;
 
       try {
-        await apiDelete(`/doctors/${encodeURIComponent(monitoringId)}`);
+        await apiDelete(`/doctors/${encodeURIComponent(entryId)}`);
 
         // Тактильный отклик
         if (isInTelegram()) {
@@ -176,7 +196,7 @@ function bindDoctorEvents(container, doctors) {
           window.Telegram.WebApp.sendData(
             JSON.stringify({
               action: 'doctor_removed',
-              doctor_name: doctorName
+              doctor_name: patientName
             })
           );
         }
