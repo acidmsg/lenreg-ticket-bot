@@ -144,16 +144,18 @@ class ZdravClient:
             )
 
         iso_bday = bday_date.strftime("%Y-%m-%dT00:00:00.000Z")
-        payload = CheckPatientRequest.model_validate({
-            "patient_form-first_name": parts[1],
-            "patient_form-last_name": parts[0],
-            "patient_form-middle_name": parts[2],
-            "patient_form-insurance_series": "",
-            "patient_form-insurance_number": "",
-            "patient_form-birthday": iso_bday,
-            "patient_form-clinic_id": clinic_id,
-            "csrfmiddlewaretoken": settings.CSRF_TOKEN,
-        }).model_dump(by_alias=True)
+        payload = CheckPatientRequest.model_validate(
+            {
+                "patient_form-first_name": parts[1],
+                "patient_form-last_name": parts[0],
+                "patient_form-middle_name": parts[2],
+                "patient_form-insurance_series": "",
+                "patient_form-insurance_number": "",
+                "patient_form-birthday": iso_bday,
+                "patient_form-clinic_id": clinic_id,
+                "csrfmiddlewaretoken": settings.CSRF_TOKEN,
+            }
+        ).model_dump(by_alias=True)
 
         async with limiter or self.limiter:
             client = await self._get_client()
@@ -237,11 +239,13 @@ class ZdravClient:
         clinic_id: str,
         limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
-        payload = SpecialityListRequest.model_validate({
-            "clinic_form-clinic_id": clinic_id,
-            "clinic_form-history_id": "",
-            "clinic_form-patient_id": patient_id,
-        }).model_dump(by_alias=True)
+        payload = SpecialityListRequest.model_validate(
+            {
+                "clinic_form-clinic_id": clinic_id,
+                "clinic_form-history_id": "",
+                "clinic_form-patient_id": patient_id,
+            }
+        ).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -348,13 +352,15 @@ class ZdravClient:
             ZdravParseError: При ошибке парсинга ответа (внутреннее
                              логирование, метод возвращает None).
         """
-        payload = AppointmentListRequest.model_validate({
-            "doctor_form-doctor_id": doc_id,
-            "doctor_form-clinic_id": clinic_id,
-            "doctor_form-patient_id": patient_id,
-            "doctor_form-history_id": "",
-            "doctor_form-appointment_type": "",
-        }).model_dump(by_alias=True)
+        payload = AppointmentListRequest.model_validate(
+            {
+                "doctor_form-doctor_id": doc_id,
+                "doctor_form-clinic_id": clinic_id,
+                "doctor_form-patient_id": patient_id,
+                "doctor_form-history_id": "",
+                "doctor_form-appointment_type": "",
+            }
+        ).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -371,9 +377,7 @@ class ZdravClient:
                             "appointment_list",
                             f"{self.base_url}/appointment_list/",
                         )
-                        logger.info(
-                            f"API response for {doc_id}: {model.response}"
-                        )
+                        logger.info(f"API response for {doc_id}: {model.response}")
                         slots = []
                         for date, items in model.response.items():
                             for s in items:
@@ -424,17 +428,32 @@ class ZdravClient:
 
     async def fetch_all_doctors(
         self,
-        specialty_id: str,
-        patient_id: str,
-        clinic_id: str,
+        specialty_id: str = "",
+        patient_id: str = "",
+        clinic_id: str = "",
         limiter: aiolimiter.AsyncLimiter | None = None,
+        specialty_name: str = "",
     ) -> list[dict]:
-        payload = DoctorListRequest.model_validate({
-            "speciality_form-speciality_id": specialty_id,
-            "speciality_form-clinic_id": clinic_id,
-            "speciality_form-patient_id": patient_id,
-            "speciality_form-history_id": "",
-        }).model_dump(by_alias=True)
+        """Получает список врачей для указанной специальности.
+
+        Args:
+            specialty_id: ID специальности (пустая строка — без фильтрации).
+            patient_id: ID пациента.
+            clinic_id: ID клиники.
+            limiter: Опциональный лимитер запросов.
+            specialty_name: Название специальности (проставляется в _specialty_name).
+
+        Returns:
+            Список словарей с данными врачей.
+        """
+        payload = DoctorListRequest.model_validate(
+            {
+                "speciality_form-speciality_id": specialty_id,
+                "speciality_form-clinic_id": clinic_id,
+                "speciality_form-patient_id": patient_id,
+                "speciality_form-history_id": "",
+            }
+        ).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -453,10 +472,15 @@ class ZdravClient:
                         )
                         if model.success:
                             # Обратная совместимость: возвращаем list[dict]
-                            return [
+                            result = [
                                 item.model_dump(by_alias=True)
                                 for item in model.response
                             ]
+                            # Проставляем specialty_name если передан
+                            if specialty_name:
+                                for doc in result:
+                                    doc["_specialty_name"] = specialty_name
+                            return result
                     elif res.status_code == 403:
                         logger.error(
                             "Доступ запрещён (fetch_all_doctors): статус 403, "
@@ -466,8 +490,7 @@ class ZdravClient:
                         return []
                     elif res.status_code == 429:
                         logger.warning(
-                            "Превышен лимит запросов (fetch_all_doctors): "
-                            "статус 429",
+                            "Превышен лимит запросов (fetch_all_doctors): статус 429",
                             exc_info=True,
                         )
                         return []
@@ -504,15 +527,121 @@ class ZdravClient:
                     await asyncio.sleep(2)
         return []
 
+    async def fetch_all_doctors_for_clinic(
+        self,
+        patient_id: str,
+        clinic_id: str,
+        limiter: aiolimiter.AsyncLimiter | None = None,
+    ) -> list[dict]:
+        """Получает список ВСЕХ врачей клиники (по всем специальностям).
+
+        Сначала получает список специальностей через ``fetch_speciality_list``,
+        фильтрует только врачебные (is_doc=True, is_tech=False), затем для каждой
+        специальности получает врачей через ``fetch_all_doctors``.
+
+        Args:
+            patient_id: ID пациента.
+            clinic_id: ID клиники.
+            limiter: Опциональный лимитер запросов.
+
+        Returns:
+            Объединённый список врачей всех специальностей.
+            Каждый врач содержит поле ``_specialty_name`` с названием специальности.
+        """
+        # Шаг 1: получаем список специальностей
+        specialties_raw = await self.fetch_speciality_list(
+            patient_id=patient_id,
+            clinic_id=clinic_id,
+            limiter=limiter,
+        )
+
+        if not specialties_raw:
+            logger.warning(
+                "fetch_all_doctors_for_clinic: специальности не найдены "
+                "для clinic_id=%s, patient_id=%s",
+                clinic_id,
+                patient_id,
+            )
+            return []
+
+        # Фильтруем: только врачебные, не технические
+        doc_specialties: list[dict] = []
+        for spec in specialties_raw:
+            is_doc = spec.get("IsDoc", False)
+            is_tech = spec.get("IsTech", False)
+            if is_doc and not is_tech:
+                doc_specialties.append(spec)
+
+        if not doc_specialties:
+            logger.warning(
+                "fetch_all_doctors_for_clinic: нет врачебных специальностей "
+                "для clinic_id=%s",
+                clinic_id,
+            )
+            return []
+
+        logger.info(
+            "fetch_all_doctors_for_clinic: загружаем врачей по %d специальностям "
+            "для clinic_id=%s",
+            len(doc_specialties),
+            clinic_id,
+        )
+
+        # Шаг 2: параллельно получаем врачей для каждой специальности
+        # Используем semaphore для ограничения конкурентности
+        sem = asyncio.Semaphore(3)
+
+        async def _fetch_for_specialty(spec: dict) -> list[dict]:
+            spec_id = str(spec.get("IdSpesiality", ""))
+            spec_name = spec.get("NameSpesiality", "") or spec.get("Name", "")
+            async with sem:
+                doctors = await self.fetch_all_doctors(
+                    specialty_id=spec_id,
+                    patient_id=patient_id,
+                    clinic_id=clinic_id,
+                    limiter=limiter,
+                    specialty_name=spec_name,
+                )
+                # Добавляем IdSpesiality в каждого врача для обратной совместимости
+                for doc in doctors:
+                    doc["IdSpesiality"] = spec_id
+                return doctors
+
+        tasks = [_fetch_for_specialty(spec) for spec in doc_specialties]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Шаг 3: объединяем всех врачей
+        all_doctors: list[dict] = []
+        for i, result in enumerate(results):
+            if isinstance(result, BaseException):
+                spec_name = doc_specialties[i].get("NameSpesiality", "?")
+                logger.error(
+                    "Ошибка загрузки врачей для специальности '%s': %s",
+                    spec_name,
+                    result,
+                )
+                continue
+            all_doctors.extend(cast(list[dict], result))
+
+        logger.info(
+            "fetch_all_doctors_for_clinic: загружено %d врачей для clinic_id=%s",
+            len(all_doctors),
+            clinic_id,
+        )
+
+        return all_doctors
+
     async def fetch_clinic_list(
         self,
         district_id: str = settings.DISTRICT_ID,
         limiter: aiolimiter.AsyncLimiter | None = None,
     ) -> list[dict]:
         """Получает список клиник для указанного района через /clinic_list/."""
-        payload = ClinicListRequest.model_validate({
-            "district_form-district_id": district_id,
-        }).model_dump(by_alias=True)
+        payload = ClinicListRequest.model_validate(
+            {
+                "district_form-district_id": district_id,
+            }
+        ).model_dump(by_alias=True)
         async with limiter or self.limiter:
             client = await self._get_client()
             for i in range(3):
@@ -544,8 +673,7 @@ class ZdravClient:
                         return []
                     elif res.status_code == 429:
                         logger.warning(
-                            "Превышен лимит запросов (fetch_clinic_list): "
-                            "статус 429",
+                            "Превышен лимит запросов (fetch_clinic_list): статус 429",
                             exc_info=True,
                         )
                         return []

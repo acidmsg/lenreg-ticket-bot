@@ -2,9 +2,8 @@
  * Экран добавления врача (пошаговый stepper).
  * Шаг 1 → Выбор пациента
  * Шаг 2 → Выбор поликлиники
- * Шаг 3 → Выбор специальности
- * Шаг 4 → Выбор врача
- * Шаг 5 → Подтверждение → POST /api/user/doctors/add
+ * Шаг 3 → Выбор врача (с префиксом специальности)
+ * Шаг 4 → Подтверждение → POST /api/user/doctors/add
  *
  * @module views/add
  */
@@ -28,9 +27,6 @@ export function renderAddDoctor(container) {
   /** ID выбранной поликлиники */
   let selectedClinic = null;
 
-  /** ID выбранной специальности */
-  let selectedSpecialty = null;
-
   /** ID выбранного врача */
   let selectedDoctor = null;
 
@@ -49,15 +45,9 @@ export function renderAddDoctor(container) {
       renderItem: renderClinicItem
     },
     {
-      title: 'Выберите специальность',
-      description: 'Какой врач вам нужен?',
-      searchPlaceholder: 'Поиск по названию...',
-      loadData: loadSpecialties,
-      renderItem: renderSpecialtyItem
-    },
-    {
       title: 'Выберите врача',
       description: 'Какого конкретно врача отслеживать?',
+      searchPlaceholder: 'Поиск по имени или специальности...',
       loadData: loadDoctors,
       renderItem: renderDoctorItem
     },
@@ -76,22 +66,20 @@ export function renderAddDoctor(container) {
     container,
     steps,
     onComplete: async (selections) => {
-      // selections: [patient, clinic, specialty, doctor, confirm]
+      // selections: [patient, clinic, doctor, confirm]
       // Данные из всех шагов
       const patient = selections[0]?.value;
       const clinic = selections[1]?.value;
-      const specialty = selections[2]?.value;
-      const doctor = selections[3]?.value;
+      const doctor = selections[2]?.value;
 
       const clinicName = selections[1]?.label || '';
-      const doctorName = selections[3]?.label || '';
-      const specialtyName = selections[2]?.label || '';
+      const doctorName = selections[2]?.label || '';
+      const specialtyName = doctor?.specialty_name || '';
 
       try {
         await apiPost('/doctors/add', {
           clinic_id: clinic.clinic_id || clinic.id || String(clinic),
-          specialty_id:
-            specialty.specialty_id || specialty.id || String(specialty),
+          specialty_id: doctor?.specialty_id || '',
           doctor_id: doctor.doctor_id || doctor.id || String(doctor),
           patient_id: patient.patient_id || patient.id || String(patient)
         });
@@ -204,7 +192,8 @@ async function loadSpecialties(selections = []) {
 }
 
 /**
- * Загружает список доступных врачей по выбранной специальности.
+ * Загружает список доступных врачей для выбранной поликлиники
+ * (по всем специальностям одновременно).
  *
  * @param {Array<{value: object, label: string}>} [selections=[]] — выбранные значения предыдущих шагов
  * @returns {Promise<Array<{value: object, label: string, subtitle: string}>>}
@@ -221,17 +210,14 @@ async function loadDoctors(selections = []) {
     const clinic = selections[1].value;
     params.clinic_id = clinic.clinic_id || clinic.id;
   }
-  // Шаг 2: специальность
-  if (selections.length > 2 && selections[2]?.value) {
-    const specialty = selections[2].value;
-    params.specialty_id = specialty.specialty_id || specialty.id;
-  }
   const data = await apiGet('/doctors/available', params);
   const doctors = data.doctors || [];
 
   return doctors.map((d) => ({
     value: d,
-    label: extractDoctorName(d) || `Врач #${d.doctor_id}`,
+    label: d.specialty_name
+      ? `${d.specialty_name} — ${extractDoctorName(d) || `Врач #${d.doctor_id}`}`
+      : extractDoctorName(d) || `Врач #${d.doctor_id}`,
     subtitle:
       d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : ''
   }));
@@ -268,21 +254,6 @@ function renderClinicItem(item) {
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
-    </div>
-    <span class="list__item-arrow">→</span>
-  `;
-}
-
-/**
- * Рендерит элемент списка специальностей.
- *
- * @param {object} item — элемент списка
- * @returns {string} HTML элемента
- */
-function renderSpecialtyItem(item) {
-  return `
-    <div class="list__item-content">
-      <div class="list__item-title">${escapeHtml(item.label)}</div>
     </div>
     <span class="list__item-arrow">→</span>
   `;

@@ -33,7 +33,7 @@ class AddDoctorRequest(BaseModel):
     """Тело запроса на добавление врача в мониторинг."""
 
     clinic_id: str = Field(..., description="ID клиники")
-    specialty_id: str = Field(..., description="ID специальности")
+    specialty_id: str = Field(default="", description="ID специальности (опционально)")
     doctor_id: str = Field(..., description="ID врача")
     patient_id: str = Field(..., description="ID пациента")
 
@@ -451,19 +451,38 @@ async def get_specialties(
 async def get_available_doctors(
     request: Request,
     clinic_id: str = Query(..., description="ID клиники (обязательный)"),
-    specialty_id: str = Query(..., description="ID специальности (обязательный)"),
     patient_id: str = Query(..., description="ID пациента (обязательный)"),
+    specialty_id: str | None = Query(
+        None,
+        description="ID специальности (опционально; не указан — все врачи клиники)",
+    ),
 ) -> dict[str, Any] | JSONResponse:
-    """Список врачей по специальности в поликлинике (живой запрос к API)."""
+    """Список врачей в поликлинике (живой запрос к API).
+
+    Если ``specialty_id`` не указан — возвращаются врачи **всех** специальностей
+    клиники с префиксом ``specialty_name``.
+    """
     api = _get_api(request)
 
     try:
-        doctors_raw = await api.fetch_all_doctors(
-            specialty_id=specialty_id,
-            patient_id=patient_id,
-            clinic_id=clinic_id,
-            limiter=api.limiter,
-        )
+        if specialty_id:
+            # Конкретная специальность — один запрос
+            doctors_raw = await api.fetch_all_doctors(
+                specialty_id=specialty_id,
+                patient_id=patient_id,
+                clinic_id=clinic_id,
+                limiter=api.limiter,
+            )
+            # Добавляем specialty_name из параметра запроса
+            for doc in doctors_raw:
+                doc["_specialty_name"] = ""  # будет заполнено ниже
+        else:
+            # Все специальности — получаем через fetch_all_doctors_for_clinic
+            doctors_raw = await api.fetch_all_doctors_for_clinic(
+                patient_id=patient_id,
+                clinic_id=clinic_id,
+                limiter=api.limiter,
+            )
     except httpx.TimeoutException:
         logger.error(
             "Таймаут API при получении врачей для clinic_id=%s, specialty_id=%s",
@@ -497,11 +516,14 @@ async def get_available_doctors(
 
     doctors: list[dict[str, Any]] = []
     for doc in doctors_raw:
+        specialty_name = doc.get("_specialty_name", "") or doc.get("SpesialityName", "")
         doctors.append(
             {
                 "doctor_id": str(doc.get("IdDoc", "")),
                 "name": _safe_name(doc.get("Name", "")),
-                "free_tickets": int(doc.get("FreeTicket", 0)),
+                "specialty_name": specialty_name,
+                "specialty_id": str(doc.get("IdSpesiality", specialty_id or "")),
+                "free_tickets": int(doc.get("CountFreeTicket", 0)),
                 "nearest_date": doc.get("NearestDate"),
             }
         )
