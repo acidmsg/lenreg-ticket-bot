@@ -3,3 +3,5 @@
 1. **Core (Ограничения и Язык):** Читай `.roo/rules/core.md` (ты общаешься строго на русском, здесь же списки запрещенных папок).
 2. **Workflow (Процессы):** Читай `.roo/rules/workflow.md` (здесь описан твой подход Spec-First, работа с OpenAPI и строгие правила ведения SESSION_LOG.md).
 3. **Standards (Стандарты Кода):** Читай `.roo/rules/standards.md` (здесь все требования к Python, aiogram, Markdown и переменным окружения).
+
+При необходимости подключения к VPS читай `.roo/rules/vps.md`.
