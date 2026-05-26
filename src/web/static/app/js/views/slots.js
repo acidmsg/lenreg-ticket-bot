@@ -190,9 +190,15 @@ function bindSlotEvents(container, patients) {
   container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
       const entryId = btn.getAttribute('data-entry-id');
       const patientName =
         btn.getAttribute('data-patient-name') || 'этого пациента';
+
+      // Тактильный отклик перед показом диалога
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+      }
 
       let confirmed = false;
       if (isInTelegram()) {

@@ -827,16 +827,6 @@ body {
   opacity: 0.5;
   -webkit-tap-highlight-color: transparent;
   outline: none;
-  transition:
-    color 0.15s,
-    background-color 0.15s,
-    opacity 0.15s;
-}
-
-.monitoring-patient__delete:hover {
-  color: var(--tg-destructive-color);
-  background-color: rgb(229 57 53 / 8%);
-  opacity: 1;
 }
 
 /* === Утилиты === */

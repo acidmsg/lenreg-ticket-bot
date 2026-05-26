@@ -171,6 +171,11 @@ function bindDoctorEvents(container, doctors) {
       const patientName =
         btn.getAttribute('data-patient-name') || 'этого пациента';
 
+      // Тактильный отклик перед показом диалога
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+      }
+
       // Подтверждение удаления
       let confirmed = false;
       if (isInTelegram()) {
