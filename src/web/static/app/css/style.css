@@ -137,11 +137,12 @@ body {
 }
 
 .card:active {
-  transform: scale(0.985);
+  /* transform убран — вызывал вспышку карточки при тапе на дочерние кнопки (например, удаление) */
 }
 
 .doctor-card {
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .card__header {
