@@ -825,8 +825,18 @@ body {
   user-select: none;
   flex-shrink: 0;
   opacity: 0.5;
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    opacity 0.15s;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+}
+
+.monitoring-patient__delete:hover {
+  color: var(--tg-destructive-color);
+  background: rgb(255 59 48 / 10%);
+  opacity: 1;
 }
 
 /* === Утилиты === */
