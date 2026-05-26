@@ -542,6 +542,24 @@ class Database:
             for row in rows
         }
 
+    async def get_clinic_specialties(self, clinic_id: str) -> list[dict[str, str]]:
+        """Возвращает список уникальных специальностей для клиники из таблицы doctors.
+
+        Возвращает список словарей с ключами ``specialty`` (полное название)
+        и ``specialty_id`` (пустая строка, т.к. ID не хранится в БД).
+        """
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT DISTINCT specialty FROM doctors "
+            "WHERE clinic_id = ? AND specialty != '' "
+            "ORDER BY specialty",
+            (clinic_id,),
+        )
+        rows = await cursor.fetchall()
+        return [{"specialty": row["specialty"], "specialty_id": ""} for row in rows]
+
     async def upsert_doctor(
         self, clinic_id: str, doctor_id: str, name: str, specialty: str
     ) -> None:

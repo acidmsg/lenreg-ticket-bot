@@ -379,51 +379,14 @@ async def get_specialties(
     clinic_id: str = Query(..., description="ID клиники (обязательный)"),
     patient_id: str | None = Query(None, description="ID пациента (опционально)"),
 ) -> dict[str, Any] | JSONResponse:
-    """Список специальностей в выбранной поликлинике (живой запрос к API)."""
-    api = _get_api(request)
+    """Список специальностей в выбранной поликлинике (из БД, таблица doctors)."""
     db = _get_db(request)
-    telegram_id = _get_telegram_id(request)
-
-    # Определяем patient_id для запроса
-    # Если не передан — ищем первого пациента пользователя
-    resolved_patient_id = patient_id
-    if resolved_patient_id is None:
-        user_data = await db.get_user_data(telegram_id)
-        patients = user_data.get("patients", {})
-        if patients:
-            resolved_patient_id = next(iter(patients.keys()))
-        else:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "Нет пациентов. Сначала добавьте пациента."},
-            )
 
     try:
-        specialties_raw = await api.fetch_speciality_list(
-            patient_id=resolved_patient_id,
-            clinic_id=clinic_id,
-            limiter=api.limiter,
-        )
-    except httpx.TimeoutException:
-        logger.error(
-            "Таймаут API при получении специальностей для clinic_id=%s", clinic_id
-        )
-        return JSONResponse(
-            status_code=504,
-            content={"detail": "Таймаут при запросе к API zdrav.lenreg.ru"},
-        )
-    except httpx.NetworkError:
-        logger.error(
-            "Сетевая ошибка API при получении специальностей для clinic_id=%s",
-            clinic_id,
-        )
-        return JSONResponse(
-            status_code=502,
-            content={"detail": "API zdrav.lenreg.ru недоступно"},
-        )
+        specialties_raw = await db._db.get_clinic_specialties(clinic_id)
     except Exception:
         logger.exception(
-            "Ошибка при получении специальностей для clinic_id=%s", clinic_id
+            "Ошибка при получении специальностей из БД для clinic_id=%s", clinic_id
         )
         return JSONResponse(
             status_code=500,
@@ -434,10 +397,10 @@ async def get_specialties(
     for spec in specialties_raw:
         specialties.append(
             {
-                "specialty_id": str(spec.get("IdSpesiality", "")),
-                "name": spec.get("Name", ""),
-                "is_tech": bool(spec.get("IsTech", False)),
-                "is_doc": bool(spec.get("IsDoc", False)),
+                "specialty_id": spec["specialty_id"],
+                "name": spec["specialty"],
+                "is_tech": False,
+                "is_doc": True,
             }
         )
 
@@ -457,74 +420,95 @@ async def get_available_doctors(
         description="ID специальности (опционально; не указан — все врачи клиники)",
     ),
 ) -> dict[str, Any] | JSONResponse:
-    """Список врачей в поликлинике (живой запрос к API).
+    """Список врачей в поликлинике (из БД + API для слотов).
 
-    Если ``specialty_id`` не указан — возвращаются врачи **всех** специальностей
-    клиники с префиксом ``specialty_name``.
+    Имена врачей и специальности — из таблицы ``doctors`` (как у бота).
+    Слоты (CountFreeTicket, NearestDate) — живой запрос к API zdrav.lenreg.ru.
+    Если врачей в БД нет — срабатывает on-demand discovery (аналогично боту).
     """
+    db = _get_db(request)
     api = _get_api(request)
 
+    # 1. Получаем врачей из БД
+    doctors_dict = await db.get_doctors_for_clinic(clinic_id)
+
+    # 2. Если врачей нет — on-demand discovery
+    #    (аналогично common._discover_doctors_on_demand в боте)
+    if not doctors_dict:
+        logger.info(
+            "Врачи для clinic_id=%s не найдены в БД, запускаем on-demand discovery",
+            clinic_id,
+        )
+        try:
+            from src.handlers.common import _discover_doctors_on_demand
+
+            doctors_dict = await _discover_doctors_on_demand(
+                api, db, clinic_id, patient_id
+            )
+        except Exception:
+            logger.exception("Ошибка on-demand discovery для clinic_id=%s", clinic_id)
+            # Если discovery упал — возвращаем пустой список, но не 500
+            doctors_dict = {}
+
+    # 3. Получаем свежие слоты из API (один batch-запрос)
+    slots_map: dict[str, dict[str, Any]] = {}
     try:
         if specialty_id:
             # Конкретная специальность — один запрос
-            doctors_raw = await api.fetch_all_doctors(
+            api_doctors = await api.fetch_all_doctors(
                 specialty_id=specialty_id,
                 patient_id=patient_id,
                 clinic_id=clinic_id,
                 limiter=api.limiter,
             )
-            # Добавляем specialty_name из параметра запроса
-            for doc in doctors_raw:
-                doc["_specialty_name"] = ""  # будет заполнено ниже
         else:
-            # Все специальности — получаем через fetch_all_doctors_for_clinic
-            doctors_raw = await api.fetch_all_doctors_for_clinic(
+            # Все специальности — batch-запрос
+            api_doctors = await api.fetch_all_doctors_for_clinic(
                 patient_id=patient_id,
                 clinic_id=clinic_id,
                 limiter=api.limiter,
             )
+        for doc in api_doctors:
+            doc_id = str(doc.get("IdDoc", ""))
+            if doc_id:
+                slots_map[doc_id] = {
+                    "free_tickets": int(doc.get("CountFreeTicket", 0)),
+                    "nearest_date": doc.get("NearestDate"),
+                }
     except httpx.TimeoutException:
-        logger.error(
-            "Таймаут API при получении врачей для clinic_id=%s, specialty_id=%s",
+        logger.warning(
+            "Таймаут API слотов для clinic_id=%s, возвращаем врачей без слотов",
             clinic_id,
-            specialty_id,
-        )
-        return JSONResponse(
-            status_code=504,
-            content={"detail": "Таймаут при запросе к API zdrav.lenreg.ru"},
         )
     except httpx.NetworkError:
-        logger.error(
-            "Сетевая ошибка API при получении врачей для clinic_id=%s, specialty_id=%s",
+        logger.warning(
+            "Сетевая ошибка API слотов для clinic_id=%s, возвращаем врачей без слотов",
             clinic_id,
-            specialty_id,
-        )
-        return JSONResponse(
-            status_code=502,
-            content={"detail": "API zdrav.lenreg.ru недоступно"},
         )
     except Exception:
         logger.exception(
-            "Ошибка при получении врачей для clinic_id=%s, specialty_id=%s",
+            "Ошибка получения слотов для clinic_id=%s, возвращаем врачей без слотов",
             clinic_id,
-            specialty_id,
-        )
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Внутренняя ошибка сервера"},
         )
 
+    # 4. Формируем ответ: врачи из БД + слоты из API
     doctors: list[dict[str, Any]] = []
-    for doc in doctors_raw:
-        specialty_name = doc.get("_specialty_name", "") or doc.get("SpesialityName", "")
+    for doc_id, doc_info in doctors_dict.items():
+        doc_specialty = doc_info.get("specialty", "")
+
+        # Фильтр по specialty_id: точное совпадение по имени специальности
+        if specialty_id and doc_specialty != specialty_id:
+            continue
+
+        slots = slots_map.get(doc_id, {})
         doctors.append(
             {
-                "doctor_id": str(doc.get("IdDoc", "")),
-                "name": _safe_name(doc.get("Name", "")),
-                "specialty_name": specialty_name,
-                "specialty_id": str(doc.get("IdSpesiality", specialty_id or "")),
-                "free_tickets": int(doc.get("CountFreeTicket", 0)),
-                "nearest_date": doc.get("NearestDate"),
+                "doctor_id": doc_id,
+                "name": _safe_name(doc_info.get("name", "")),
+                "specialty_name": doc_specialty,
+                "specialty_id": specialty_id or "",
+                "free_tickets": slots.get("free_tickets", 0),
+                "nearest_date": slots.get("nearest_date"),
             }
         )
 
