@@ -28,7 +28,7 @@ export function createDoctorCard({
   const statusInfo = getStatusInfo(status, freeTickets);
 
   // Список пациентов с кнопками удаления
-  // Для кнопки «Слоты» используем entryId первого пациента
+  // data-entry-id на карточке = entryId первого пациента (для навигации в слоты)
   const firstEntryId = patients.length > 0 ? patients[0].entryId : '';
 
   const patientsHtml =
@@ -54,7 +54,7 @@ export function createDoctorCard({
       : '';
 
   return `
-    <div class="card">
+    <div class="card doctor-card" data-entry-id="${escapeHtml(firstEntryId)}">
       <div class="card__header">
         <div>
           <div class="card__title">${escapeHtml(doctorName)}</div>
@@ -67,11 +67,6 @@ export function createDoctorCard({
       </div>
       ${patientsHtml}
       <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>
-      <div class="card__actions">
-        <button class="btn btn--secondary btn--sm card-btn-slots" data-monitoring-id="${escapeHtml(firstEntryId)}">
-          📅 Слоты
-        </button>
-      </div>
     </div>
   `;
 }

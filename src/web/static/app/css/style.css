@@ -140,6 +140,10 @@ body {
   transform: scale(0.985);
 }
 
+.doctor-card {
+  cursor: pointer;
+}
+
 .card__header {
   display: flex;
   align-items: flex-start;
@@ -769,6 +773,15 @@ body {
   font-weight: 500;
   color: var(--tg-hint-color);
   margin-bottom: 4px;
+}
+
+/* === Пациенты на экране слотов === */
+.slots-patients {
+  margin-bottom: var(--gap-lg);
+}
+
+.slots-patients .monitoring-patients__title {
+  margin-bottom: var(--gap-sm);
 }
 
 .monitoring-patient {

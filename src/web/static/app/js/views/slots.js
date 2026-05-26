@@ -134,6 +134,110 @@ function renderSlotList(slots) {
 }
 
 /**
+ * Рендерит блок пациентов, отслеживающих врача.
+ *
+ * @param {Array<{name: string, patientId: string, entryId: string}>} patients — список пациентов
+ * @returns {string} HTML блока пациентов
+ */
+function renderPatientsBlock(patients) {
+  const patientsHtml = patients
+    .map(
+      (p) => `
+      <li class="monitoring-patient">
+        <span class="monitoring-patient__icon">👤</span>
+        <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
+        <button
+          class="monitoring-patient__delete"
+          data-entry-id="${escapeHtml(p.entryId)}"
+          data-patient-name="${escapeHtml(p.name)}"
+          title="Удалить мониторинг для этого пациента"
+        >🗑</button>
+      </li>`
+    )
+    .join('');
+
+  return `
+    <div class="slots-patients">
+      <div class="monitoring-patients__title">👤 Пациенты:</div>
+      <ul class="monitoring-patients">
+        ${patientsHtml}
+      </ul>
+    </div>
+  `;
+}
+
+/**
+ * Привязывает обработчики событий на экране слотов.
+ *
+ * @param {HTMLElement} container — контейнер
+ * @param {Array} patients — список пациентов
+ */
+function bindSlotEvents(container, patients) {
+  // Кнопки удаления пациентов
+  container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const entryId = btn.getAttribute('data-entry-id');
+      const patientName =
+        btn.getAttribute('data-patient-name') || 'этого пациента';
+
+      let confirmed = false;
+      if (isInTelegram()) {
+        confirmed = await new Promise((resolve) => {
+          window.Telegram.WebApp.showConfirm(
+            `Удалить мониторинг для пациента «${patientName}»?`,
+            (result) => resolve(result)
+          );
+        });
+      } else {
+        confirmed = confirm(
+          `Удалить мониторинг для пациента «${patientName}»?`
+        );
+      }
+
+      if (!confirmed) return;
+
+      try {
+        await apiDelete(`/doctors/${encodeURIComponent(entryId)}`);
+
+        if (isInTelegram()) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+          window.Telegram.WebApp.sendData(
+            JSON.stringify({
+              action: 'doctor_removed',
+              doctor_name: patientName
+            })
+          );
+        }
+
+        // Удаляем пациента из списка и перерендериваем секцию
+        const updatedPatients = patients.filter((p) => p.entryId !== entryId);
+        const patientsBlock = container.querySelector('.slots-patients');
+        if (patientsBlock) {
+          if (updatedPatients.length === 0) {
+            patientsBlock.remove();
+          } else {
+            patientsBlock.outerHTML = renderPatientsBlock(updatedPatients);
+            // Обновляем массив patients в замыкании через перепривязку
+            patients.length = 0;
+            updatedPatients.forEach((p) => patients.push(p));
+            bindSlotEvents(container, patients);
+          }
+        }
+      } catch (error) {
+        if (isInTelegram()) {
+          window.Telegram.WebApp.showAlert(
+            `Ошибка при удалении: ${error.message}`
+          );
+        } else {
+          alert(`Ошибка при удалении: ${error.message}`);
+        }
+      }
+    });
+  });
+}
+
+/**
  * Рендерит сообщение об ошибке.
  *
  * @param {string} message — текст ошибки

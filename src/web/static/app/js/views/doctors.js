@@ -147,14 +147,18 @@ function renderDoctorList(doctors) {
  * @param {Array} doctors — массив врачей
  */
 function bindDoctorEvents(container, doctors) {
-  // Кнопки «Слоты» — каждая карточка врача имеет одну кнопку слотов
-  container.querySelectorAll('.card-btn-slots').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const monitoringId = btn.getAttribute('data-monitoring-id');
-      if (monitoringId) {
-        navigate('slots', { monitoringId });
-      }
+  // Клик по карточке врача → открыть слоты (кроме кликов на кнопках удаления)
+  container.querySelectorAll('.doctor-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      // Не реагируем на клики по кнопкам удаления пациентов
+      if (e.target.closest('.monitoring-patient__delete')) return;
+
+      const entryId = card.getAttribute('data-entry-id');
+      if (!entryId) return;
+
+      // Находим пациентов для этой карточки
+      const patients = findPatientsForCard(card, doctors);
+      navigate('slots', { monitoringId: entryId, patients });
     });
   });
 
@@ -214,6 +218,36 @@ function bindDoctorEvents(container, doctors) {
       }
     });
   });
+}
+
+/**
+ * Находит пациентов для карточки врача по номеру карточки в DOM.
+ *
+ * @param {HTMLElement} card — DOM-элемент карточки врача
+ * @param {Array} doctors — массив врачей из API
+ * @returns {Array<{name: string, patientId: string, entryId: string}>}
+ */
+function findPatientsForCard(card, doctors) {
+  const cardIndex = Array.from(card.parentElement.children).indexOf(card);
+
+  // Группируем врачей так же, как в renderDoctorList
+  const grouped = {};
+  doctors.forEach((doc) => {
+    if (!grouped[doc.doctor_id]) {
+      grouped[doc.doctor_id] = { patients: [] };
+    }
+    grouped[doc.doctor_id].patients.push({
+      name: doc.patient_name || '',
+      patientId: doc.patient_id || '',
+      entryId: doc.monitoring_id || ''
+    });
+  });
+
+  const groups = Object.values(grouped);
+  if (cardIndex >= 0 && cardIndex < groups.length) {
+    return groups[cardIndex].patients;
+  }
+  return [];
 }
 
 /**
