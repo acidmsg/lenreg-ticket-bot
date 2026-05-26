@@ -192,7 +192,7 @@ body {
 }
 
 .status--checking {
-  color: var(--status-checking);
+  color: var(--tg-text-color);
 }
 
 .status__dot {
@@ -210,9 +210,13 @@ body {
   background-color: var(--status-noslots);
 }
 
-.status__dot--checking {
+.status__dot--active {
   background-color: #4caf50;
   animation: pulse 2.5s ease-in-out infinite;
+}
+
+.status--checking .status__label {
+  animation: text-pulse 2s ease-in-out infinite;
 }
 
 /* === Кнопки === */
@@ -392,6 +396,17 @@ body {
 
   50% {
     opacity: 0.65;
+  }
+}
+
+@keyframes text-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
   }
 }
 
@@ -701,19 +716,21 @@ body {
   margin: 0 auto;
 }
 
-.confirm-card__row {
-  padding: 8px 0;
-  border-bottom: 1px solid rgb(0 0 0 / 6%);
-  font-size: var(--font-md);
-}
-
-.confirm-card__label {
+/* Подзаголовок подтверждения — блок с фоном */
+.confirm-label {
+  background: var(--tg-secondary-bg-color);
+  padding: 6px 10px;
+  border-radius: 8px;
   font-weight: 600;
-  color: var(--tg-text-color);
+  font-size: 13px;
+  color: var(--tg-hint-color);
   margin-bottom: 2px;
 }
 
-.confirm-card__value {
+/* Значение подтверждения — без фона, заметнее на фоне подзаголовка */
+.confirm-value {
+  padding: 4px 10px 12px;
+  font-size: 15px;
   color: var(--tg-text-color);
 }
 

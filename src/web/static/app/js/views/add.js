@@ -356,25 +356,17 @@ function renderConfirmation(item) {
     <div class="confirm-card">
       <div class="confirm-card__icon">📋</div>
       <div class="confirm-card__details">
-        <div class="confirm-card__row">
-          <div class="confirm-card__label">👤 Пациент:</div>
-          <div class="confirm-card__value">${escapeHtml(patientName)}</div>
-        </div>
-        <div class="confirm-card__row">
-          <div class="confirm-card__label">🏥 Клиника:</div>
-          <div class="confirm-card__value">${escapeHtml(clinicName)}</div>
-        </div>
-        <div class="confirm-card__row">
-          <div class="confirm-card__label">👨‍⚕️ Врач:</div>
-          <div class="confirm-card__value">${escapeHtml(doctorName)}</div>
-        </div>
+        <div class="confirm-label">👤 Пациент</div>
+        <div class="confirm-value">${escapeHtml(patientName)}</div>
+        <div class="confirm-label">🏥 Клиника</div>
+        <div class="confirm-value">${escapeHtml(clinicName)}</div>
+        <div class="confirm-label">👨‍⚕️ Врач</div>
+        <div class="confirm-value">${escapeHtml(doctorName)}</div>
         ${
           specialtyName
             ? `
-        <div class="confirm-card__row">
-          <div class="confirm-card__label">🔬 Специальность:</div>
-          <div class="confirm-card__value">${escapeHtml(specialtyName)}</div>
-        </div>`
+        <div class="confirm-label">🔬 Специальность</div>
+        <div class="confirm-value">${escapeHtml(specialtyName)}</div>`
             : ''
         }
       </div>

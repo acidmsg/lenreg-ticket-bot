@@ -36,7 +36,7 @@ export function createDoctorCard({
         </div>
         <span class="status ${statusInfo.class}">
           <span class="status__dot ${statusInfo.dotClass}"></span>
-          ${statusInfo.label}
+          <span class="status__label">${statusInfo.label}</span>
         </span>
       </div>
       <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>
@@ -99,8 +99,8 @@ function getStatusInfo(status, freeTickets) {
     default:
       return {
         class: 'status--checking',
-        dotClass: 'status__dot--checking',
-        label: 'Проверка...'
+        dotClass: 'status__dot--active',
+        label: 'отслеживается'
       };
   }
 }
