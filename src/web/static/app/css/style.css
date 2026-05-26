@@ -716,6 +716,13 @@ body {
   font-weight: 500;
 }
 
+/* === Блокированная карточка врача (уже отслеживается) === */
+.doctor-card--monitored {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* === Вне Telegram === */
 .outside-telegram {
   display: flex;

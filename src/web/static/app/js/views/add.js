@@ -76,7 +76,8 @@ export function renderAddDoctor(container) {
       const doctor = selections[2]?.value;
 
       const clinicName = selections[1]?.label || '';
-      const doctorName = selections[2]?.label || '';
+      const doctorName =
+        extractDoctorName(doctor) || selections[2]?.label || '';
       const specialtyName = doctor?.specialty_name || '';
 
       try {
@@ -118,6 +119,32 @@ export function renderAddDoctor(container) {
       navigate('doctors');
     }
   });
+
+  // Перехватываем клики по уже отслеживаемым врачам
+  container.addEventListener(
+    'click',
+    (e) => {
+      const stepperItem = e.target.closest('.stepper-item');
+      if (!stepperItem) return;
+
+      const monitoredEl = stepperItem.querySelector('.doctor-card--monitored');
+      if (!monitoredEl) return;
+
+      // Останавливаем всплытие, чтобы stepper не засчитал выбор
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      if (isInTelegram()) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+        window.Telegram.WebApp.showPopup({
+          title: 'Уже отслеживается',
+          message: 'Этот врач уже добавлен в мониторинг.',
+          buttons: [{ type: 'ok' }]
+        });
+      }
+    },
+    true
+  );
 }
 
 // ============================================================
@@ -218,13 +245,27 @@ async function loadDoctors(selections = []) {
   const data = await apiGet('/doctors/available', params);
   const doctors = data.doctors || [];
 
+  // Получаем текущие мониторинги пользователя, чтобы пометить уже отслеживаемых врачей
+  let monitoredDoctorIds = new Set();
+  try {
+    const monitoringData = await apiGet('/doctors', {
+      patient_id: params.patient_id || ''
+    });
+    const monitoredDoctors = monitoringData.doctors || [];
+    monitoredDoctorIds = new Set(
+      monitoredDoctors.map((d) => String(d.doctor_id))
+    );
+  } catch {
+    // Если не удалось получить мониторинги — не блокируем загрузку списка
+  }
+
   return doctors.map((d) => ({
     value: d,
-    label: d.specialty_name
-      ? `${d.specialty_name} — ${extractDoctorName(d) || `Врач #${d.doctor_id}`}`
-      : extractDoctorName(d) || `Врач #${d.doctor_id}`,
+    label: extractDoctorName(d) || `Врач #${d.doctor_id}`,
+    specialty: d.specialty_name || '',
     subtitle:
-      d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : ''
+      d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : '',
+    _monitored: monitoredDoctorIds.has(String(d.doctor_id))
   }));
 }
 
@@ -271,9 +312,24 @@ function renderClinicItem(item) {
  * @returns {string} HTML элемента
  */
 function renderDoctorItem(item) {
+  // Врач уже отслеживается — показываем серым с пометкой
+  if (item._monitored) {
+    return `
+      <div class="doctor-card--monitored">
+        <div class="list__item-content">
+          <div class="list__item-title">${escapeHtml(item.label)}</div>
+          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
+          <div class="list__item-subtitle" style="color: var(--tg-destructive-color);">уже отслеживается</div>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
+      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
     <span class="list__item-arrow">→</span>
@@ -292,7 +348,6 @@ function renderConfirmation(item) {
   const doctor = item.doctor || {};
 
   const patientName = patient.fio || 'Неизвестно';
-  const patientId = patient.patient_id || patient.id || '';
   const clinicName = clinic.short_name || clinic.name || 'Неизвестно';
   const doctorName = extractDoctorName(doctor) || 'Неизвестно';
   const specialtyName = doctor.specialty_name || '';
@@ -302,17 +357,26 @@ function renderConfirmation(item) {
       <div class="confirm-card__icon">📋</div>
       <div class="confirm-card__details">
         <div class="confirm-card__row">
-          <span class="confirm-card__label">Пациент:</span>
-          <span class="confirm-card__value">${escapeHtml(patientName)}${patientId ? ` (${escapeHtml(String(patientId))})` : ''}</span>
+          <span class="confirm-card__label">👤 Пациент:</span>
+          <span class="confirm-card__value">${escapeHtml(patientName)}</span>
         </div>
         <div class="confirm-card__row">
-          <span class="confirm-card__label">Клиника:</span>
+          <span class="confirm-card__label">🏥 Клиника:</span>
           <span class="confirm-card__value">${escapeHtml(clinicName)}</span>
         </div>
         <div class="confirm-card__row">
-          <span class="confirm-card__label">Врач:</span>
-          <span class="confirm-card__value">${specialtyName ? escapeHtml(specialtyName) + ' — ' : ''}${escapeHtml(doctorName)}</span>
+          <span class="confirm-card__label">👨‍⚕️ Врач:</span>
+          <span class="confirm-card__value">${escapeHtml(doctorName)}</span>
         </div>
+        ${
+          specialtyName
+            ? `
+        <div class="confirm-card__row">
+          <span class="confirm-card__label">🔬 Специальность:</span>
+          <span class="confirm-card__value">${escapeHtml(specialtyName)}</span>
+        </div>`
+            : ''
+        }
       </div>
       <p class="text-center mt-md" style="color: var(--tg-hint-color);">
         Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг.
