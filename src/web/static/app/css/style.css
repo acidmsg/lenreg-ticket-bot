@@ -212,10 +212,9 @@ body {
 
 .status__dot--active {
   background-color: #4caf50;
-  animation: pulse 2.5s ease-in-out infinite;
 }
 
-.status--checking .status__label {
+.status__pulse {
   animation: pulse 2s ease-in-out infinite;
 }
 

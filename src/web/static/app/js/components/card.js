@@ -34,7 +34,7 @@ export function createDoctorCard({
           <div class="card__title">${escapeHtml(doctorName)}</div>
           <div class="card__subtitle">${escapeHtml(specialty)}</div>
         </div>
-        <span class="status ${statusInfo.class}">
+        <span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
           <span class="status__dot ${statusInfo.dotClass}"></span>
           <span class="status__label">${statusInfo.label}</span>
         </span>
@@ -100,7 +100,8 @@ function getStatusInfo(status, freeTickets) {
       return {
         class: 'status--checking',
         dotClass: 'status__dot--active',
-        label: 'мониторинг'
+        label: 'мониторинг',
+        pulseClass: 'status__pulse'
       };
   }
 }
