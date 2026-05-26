@@ -84,7 +84,9 @@ export function renderAddDoctor(container) {
           clinic_id: clinic.clinic_id || clinic.id || String(clinic),
           specialty_id: doctor?.specialty_id || '',
           doctor_id: doctor.doctor_id || doctor.id || String(doctor),
-          patient_id: patient.patient_id || patient.id || String(patient)
+          patient_id: patient.patient_id || patient.id || String(patient),
+          doctor_name: doctorName,
+          specialty_name: specialtyName
         });
 
         // Тактильный отклик

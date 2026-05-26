@@ -77,6 +77,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       ? `<button class="btn btn--secondary" id="stepper-back">← Назад</button>`
       : `<button class="btn btn--danger" id="stepper-cancel">✕ Отмена</button>`;
 
+    const isLastStep = currentStep === steps.length - 1;
+
     container.innerHTML = `
       <div class="stepper">
         <div class="stepper__progress">${progressHtml}</div>
@@ -85,12 +87,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         <p class="stepper__description">${escapeHtml(step.description)}</p>
         ${searchHtml}
         <div class="stepper__content" id="stepper-content">
-          ${isLoading ? renderLoading() : renderItems(stepData, step.renderItem)}
+          ${isLoading ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
         </div>
         <div class="stepper__actions">
           ${backButtonHtml}
-          <button class="btn btn--primary" id="stepper-next" disabled>
-            ${currentStep === steps.length - 1 ? '✓ Готово' : 'Далее →'}
+          <button class="btn btn--primary" id="stepper-next"${isLastStep ? '' : ' disabled'}>
+            ${isLastStep ? '✓ Готово' : 'Далее →'}
           </button>
         </div>
       </div>
@@ -118,9 +120,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
    *
    * @param {Array} items — данные для рендеринга
    * @param {Function} renderItem — функция рендеринга одного элемента
+   * @param {boolean} [isLastStep=false] — является ли текущий шаг последним (подтверждение)
    * @returns {string} HTML списка
    */
-  function renderItems(items, renderItem) {
+  function renderItems(items, renderItem, isLastStep = false) {
     if (!items || items.length === 0) {
       return `
         <div class="empty-state">
@@ -128,6 +131,19 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
           <p class="empty-state__text">Ничего не найдено</p>
         </div>
       `;
+    }
+
+    // Для шага подтверждения рендерим без списка и без кликабельных стилей
+    if (isLastStep) {
+      return items
+        .map(
+          (item) => `
+        <div class="stepper-confirm">
+          ${renderItem(item)}
+        </div>
+      `
+        )
+        .join('');
     }
 
     const itemsHtml = items
@@ -172,11 +188,18 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     }
 
-    // Кнопка «Далее»
+    // Кнопка «Далее» / «Готово»
     const nextBtn = document.getElementById('stepper-next');
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
-        const selectedIndex = getSelectedIndex();
+        const isLastStep = currentStep === steps.length - 1;
+        let selectedIndex = getSelectedIndex();
+
+        // Для последнего шага (подтверждение) — всегда берём первый (и единственный) элемент
+        if (isLastStep && selectedIndex === null && stepData.length === 1) {
+          selectedIndex = 0;
+        }
+
         if (selectedIndex === null) return;
 
         const selectedItem = stepData[selectedIndex];
@@ -266,10 +289,19 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     if (!contentEl) return;
 
     const step = steps[currentStep];
+    const isLastStep = currentStep === steps.length - 1;
+
     if (isLoading) {
       contentEl.innerHTML = renderLoading();
     } else {
-      contentEl.innerHTML = renderItems(stepData, step.renderItem);
+      contentEl.innerHTML = renderItems(stepData, step.renderItem, isLastStep);
+
+      // Для шага подтверждения не привязываем события выбора
+      if (isLastStep) {
+        // Поиск на шаге подтверждения не нужен
+        return;
+      }
+
       // Перепривязываем события после обновления контента
       const items = container.querySelectorAll('.stepper-item');
       items.forEach((item) => {
@@ -281,7 +313,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         });
       });
 
-      // Авто-выбор, если на шаге только один элемент (например, шаг подтверждения)
+      // Авто-выбор, если на шаге только один элемент (кроме последнего шага)
       if (stepData.length === 1 && items.length === 1) {
         items[0].classList.add('stepper-item--selected');
         const next = document.getElementById('stepper-next');

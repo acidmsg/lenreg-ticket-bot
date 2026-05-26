@@ -680,6 +680,10 @@ body {
 }
 
 /* === Подтверждение (stepper шаг 5) === */
+.stepper-confirm {
+  /* Обёртка для шага подтверждения — без стилей списка и кнопок */
+}
+
 .confirm-card {
   text-align: center;
   padding: var(--gap-lg) 0;

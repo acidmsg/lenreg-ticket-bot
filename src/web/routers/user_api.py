@@ -36,6 +36,12 @@ class AddDoctorRequest(BaseModel):
     specialty_id: str = Field(default="", description="ID специальности (опционально)")
     doctor_id: str = Field(..., description="ID врача")
     patient_id: str = Field(..., description="ID пациента")
+    doctor_name: str = Field(
+        default="", description="Имя врача (опционально, из Mini App)"
+    )
+    specialty_name: str = Field(
+        default="", description="Название специальности (опционально, из Mini App)"
+    )
 
 
 class AddPatientRequest(BaseModel):
@@ -230,23 +236,31 @@ async def add_doctor(
                 },
             )
 
-        # Для получения имени врача и специальности делаем живой запрос к API
-        api = _get_api(request)
-        doctors = await api.fetch_all_doctors(
-            specialty_id=body.specialty_id,
-            patient_id=body.patient_id,
-            clinic_id=body.clinic_id,
-            limiter=api.limiter,
-        )
+        # Имя врача и специальность: используем переданные из Mini App, если есть
+        doctor_name = body.doctor_name or body.doctor_id
+        specialty_name = body.specialty_name or body.specialty_id
 
-        doctor_name = body.doctor_id  # fallback — ID врача
-        specialty_name = body.specialty_id  # fallback — ID специальности
+        # Если имена не переданы клиентом — делаем живой запрос к API
+        if not body.doctor_name or not body.specialty_name:
+            try:
+                api = _get_api(request)
+                doctors = await api.fetch_all_doctors(
+                    specialty_id=body.specialty_id,
+                    patient_id=body.patient_id,
+                    clinic_id=body.clinic_id,
+                    limiter=api.limiter,
+                )
 
-        for doc in doctors:
-            if str(doc.get("IdDoc", "")) == body.doctor_id:
-                doctor_name = _safe_name(doc.get("Name", doctor_name))
-                specialty_name = doc.get("SpesialityName", specialty_name)
-                break
+                for doc in doctors:
+                    if str(doc.get("IdDoc", "")) == body.doctor_id:
+                        if not body.doctor_name:
+                            doctor_name = _safe_name(doc.get("Name", doctor_name))
+                        if not body.specialty_name:
+                            specialty_name = doc.get("SpesialityName", specialty_name)
+                        break
+            except Exception:
+                # API lookup failed — используем fallback-имена
+                pass
 
         clinic_name = await db.get_clinic_name(body.clinic_id) or body.clinic_id
 
