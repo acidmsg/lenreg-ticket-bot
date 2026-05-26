@@ -5,7 +5,7 @@
  * @module app
  */
 
-import { isInTelegram, getUserInfo } from './auth.js';
+import { isInTelegram, getUserInfo, getInitDataError } from './auth.js';
 import { renderDoctors } from './views/doctors.js';
 import { renderAddDoctor } from './views/add.js';
 import { renderSlots } from './views/slots.js';
