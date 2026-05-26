@@ -759,10 +759,9 @@ body {
 /* === Пациенты в карточке мониторинга === */
 .monitoring-patients {
   list-style: none;
-  margin: var(--gap-sm) 0 0;
+  margin: 0;
   padding: 0;
   border-top: 1px solid rgb(0 0 0 / 6%);
-  padding-top: var(--gap-sm);
 }
 
 .monitoring-patients__title {
@@ -775,7 +774,7 @@ body {
 .monitoring-patient {
   font-size: var(--font-sm);
   color: var(--tg-text-color);
-  padding: 4px 0;
+  padding: 2px 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -792,31 +791,35 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--tg-hint-color);
 }
 
 .monitoring-patient__delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--tg-hint-color);
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   flex-shrink: 0;
+  opacity: 0.5;
   transition:
     color 0.15s,
-    background-color 0.15s;
+    background-color 0.15s,
+    opacity 0.15s;
 }
 
 .monitoring-patient__delete:hover,
 .monitoring-patient__delete:active {
   color: var(--tg-destructive-color);
   background-color: rgb(229 57 53 / 8%);
+  opacity: 1;
 }
 
 /* === Утилиты === */
@@ -878,5 +881,13 @@ body {
 
   .stepper__step-badge {
     border-color: rgb(255 255 255 / 8%);
+  }
+
+  .monitoring-patients {
+    border-top-color: rgb(255 255 255 / 6%);
+  }
+
+  .monitoring-patient__delete {
+    color: rgb(255 255 255 / 30%);
   }
 }
