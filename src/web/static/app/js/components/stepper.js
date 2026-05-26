@@ -281,6 +281,13 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         });
       });
 
+      // Авто-выбор, если на шаге только один элемент (например, шаг подтверждения)
+      if (stepData.length === 1 && items.length === 1) {
+        items[0].classList.add('stepper-item--selected');
+        const next = document.getElementById('stepper-next');
+        if (next) next.disabled = false;
+      }
+
       const searchInput = document.getElementById('stepper-search');
       if (searchInput) {
         searchInput.addEventListener('input', (e) => {

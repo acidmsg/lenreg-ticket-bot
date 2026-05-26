@@ -54,11 +54,14 @@ export function renderAddDoctor(container) {
     {
       title: 'Подтверждение',
       description: 'Проверьте данные перед добавлением',
-      loadData: async () => {
+      loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
-        return [{ _confirm: true }];
+        const patient = selections[0]?.value || {};
+        const clinic = selections[1]?.value || {};
+        const doctor = selections[2]?.value || {};
+        return [{ _confirm: true, patient, clinic, doctor }];
       },
-      renderItem: () => renderConfirmation()
+      renderItem: (item) => renderConfirmation(item)
     }
   ];
 
@@ -276,16 +279,40 @@ function renderDoctorItem(item) {
 }
 
 /**
- * Рендерит экран подтверждения (шаг 5).
+ * Рендерит экран подтверждения с выбранными данными.
  *
+ * @param {object} item — элемент данных шага, содержащий patient, clinic, doctor
  * @returns {string} HTML подтверждения
  */
-function renderConfirmation() {
-  // Данные берутся из selection предыдущих шагов через глобальный стейт stepper
+function renderConfirmation(item) {
+  const patient = item.patient || {};
+  const clinic = item.clinic || {};
+  const doctor = item.doctor || {};
+
+  const patientName = patient.fio || 'Неизвестно';
+  const patientId = patient.patient_id || patient.id || '';
+  const clinicName = clinic.short_name || clinic.name || 'Неизвестно';
+  const doctorName = extractDoctorName(doctor) || 'Неизвестно';
+  const specialtyName = doctor.specialty_name || '';
+
   return `
     <div class="confirm-card">
-      <div class="confirm-card__icon">✅</div>
-      <p class="text-center mb-md" style="color: var(--tg-hint-color);">
+      <div class="confirm-card__icon">📋</div>
+      <div class="confirm-card__details">
+        <div class="confirm-card__row">
+          <span class="confirm-card__label">Пациент:</span>
+          <span class="confirm-card__value">${escapeHtml(patientName)}${patientId ? ` (${escapeHtml(String(patientId))})` : ''}</span>
+        </div>
+        <div class="confirm-card__row">
+          <span class="confirm-card__label">Клиника:</span>
+          <span class="confirm-card__value">${escapeHtml(clinicName)}</span>
+        </div>
+        <div class="confirm-card__row">
+          <span class="confirm-card__label">Врач:</span>
+          <span class="confirm-card__value">${specialtyName ? escapeHtml(specialtyName) + ' — ' : ''}${escapeHtml(doctorName)}</span>
+        </div>
+      </div>
+      <p class="text-center mt-md" style="color: var(--tg-hint-color);">
         Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг.
       </p>
     </div>
