@@ -2,7 +2,7 @@
  * Экран добавления врача (пошаговый stepper).
  * Шаг 1 → Выбор пациента
  * Шаг 2 → Выбор поликлиники
- * Шаг 3 → Выбор врача (с префиксом специальности)
+ * Шаг 3 → Выбор врача (имя + специальность подзаголовком)
  * Шаг 4 → Подтверждение → POST /api/user/doctors/add
  *
  * @module views/add
@@ -357,23 +357,23 @@ function renderConfirmation(item) {
       <div class="confirm-card__icon">📋</div>
       <div class="confirm-card__details">
         <div class="confirm-card__row">
-          <span class="confirm-card__label">👤 Пациент:</span>
-          <span class="confirm-card__value">${escapeHtml(patientName)}</span>
+          <div class="confirm-card__label">👤 Пациент:</div>
+          <div class="confirm-card__value">${escapeHtml(patientName)}</div>
         </div>
         <div class="confirm-card__row">
-          <span class="confirm-card__label">🏥 Клиника:</span>
-          <span class="confirm-card__value">${escapeHtml(clinicName)}</span>
+          <div class="confirm-card__label">🏥 Клиника:</div>
+          <div class="confirm-card__value">${escapeHtml(clinicName)}</div>
         </div>
         <div class="confirm-card__row">
-          <span class="confirm-card__label">👨‍⚕️ Врач:</span>
-          <span class="confirm-card__value">${escapeHtml(doctorName)}</span>
+          <div class="confirm-card__label">👨‍⚕️ Врач:</div>
+          <div class="confirm-card__value">${escapeHtml(doctorName)}</div>
         </div>
         ${
           specialtyName
             ? `
         <div class="confirm-card__row">
-          <span class="confirm-card__label">🔬 Специальность:</span>
-          <span class="confirm-card__value">${escapeHtml(specialtyName)}</span>
+          <div class="confirm-card__label">🔬 Специальность:</div>
+          <div class="confirm-card__value">${escapeHtml(specialtyName)}</div>
         </div>`
             : ''
         }

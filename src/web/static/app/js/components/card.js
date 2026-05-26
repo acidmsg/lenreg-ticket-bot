@@ -100,7 +100,7 @@ function getStatusInfo(status, freeTickets) {
       return {
         class: 'status--checking',
         dotClass: 'status__dot--checking',
-        label: '🟡 Проверка...'
+        label: 'Проверка...'
       };
   }
 }

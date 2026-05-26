@@ -180,6 +180,7 @@ body {
   gap: 4px;
   font-size: var(--font-sm);
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .status--available {
@@ -210,7 +211,7 @@ body {
 }
 
 .status__dot--checking {
-  background-color: var(--status-checking);
+  background-color: #4caf50;
   animation: pulse 2.5s ease-in-out infinite;
 }
 
@@ -701,19 +702,19 @@ body {
 }
 
 .confirm-card__row {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid rgb(0 0 0 / 6%);
   font-size: var(--font-md);
 }
 
 .confirm-card__label {
-  color: var(--tg-hint-color);
+  font-weight: 600;
+  color: var(--tg-text-color);
+  margin-bottom: 2px;
 }
 
 .confirm-card__value {
-  font-weight: 500;
+  color: var(--tg-text-color);
 }
 
 /* === Блокированная карточка врача (уже отслеживается) === */
