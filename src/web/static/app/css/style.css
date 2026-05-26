@@ -195,6 +195,10 @@ body {
   color: var(--tg-text-color);
 }
 
+.status--checking .status__label {
+  font-weight: 400;
+}
+
 .status__dot {
   width: 8px;
   height: 8px;
@@ -750,6 +754,36 @@ body {
   color: var(--tg-hint-color);
   max-width: 280px;
   line-height: 1.5;
+}
+
+/* === Пациенты в карточке мониторинга === */
+.monitoring-patients {
+  list-style: none;
+  margin: var(--gap-sm) 0 0;
+  padding: 0;
+  border-top: 1px solid rgb(0 0 0 / 6%);
+  padding-top: var(--gap-sm);
+}
+
+.monitoring-patients__title {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--tg-hint-color);
+  margin-bottom: 4px;
+}
+
+.monitoring-patient {
+  font-size: var(--font-sm);
+  color: var(--tg-text-color);
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.monitoring-patient__icon {
+  flex-shrink: 0;
+  font-size: var(--font-sm);
 }
 
 /* === Утилиты === */

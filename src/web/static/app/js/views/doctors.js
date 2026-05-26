@@ -111,7 +111,8 @@ function renderDoctorList(doctors) {
         clinicName: doc.clinic_name || '—',
         status: doc.status || 'checking',
         freeTickets: doc.free_tickets || 0,
-        monitoringId: doc.monitoring_id || ''
+        monitoringId: doc.monitoring_id || '',
+        patientName: doc.patient_name || ''
       })
     )
     .join('');

@@ -15,6 +15,7 @@
  * @param {string} options.status — статус: 'slots_available', 'no_slots', 'checking'
  * @param {number} [options.freeTickets=0] — количество свободных слотов
  * @param {string} options.monitoringId — ID записи мониторинга
+ * @param {string} [options.patientName] — ФИО пациента (опционально)
  * @returns {string} HTML-строка карточки врача
  */
 export function createDoctorCard({
@@ -23,9 +24,20 @@ export function createDoctorCard({
   clinicName,
   status,
   freeTickets = 0,
-  monitoringId
+  monitoringId,
+  patientName
 }) {
   const statusInfo = getStatusInfo(status, freeTickets);
+
+  const patientsHtml = patientName
+    ? `
+      <ul class="monitoring-patients">
+        <li class="monitoring-patient">
+          <span class="monitoring-patient__icon">👤</span>
+          <span>${escapeHtml(patientName)}</span>
+        </li>
+      </ul>`
+    : '';
 
   return `
     <div class="card" data-monitoring-id="${escapeHtml(monitoringId)}">
@@ -39,6 +51,7 @@ export function createDoctorCard({
           <span class="status__label">${statusInfo.label}</span>
         </span>
       </div>
+      ${patientsHtml}
       <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>
       <div class="card__actions">
         <button class="btn btn--secondary btn--sm card-btn-slots" data-monitoring-id="${escapeHtml(monitoringId)}">
