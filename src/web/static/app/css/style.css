@@ -822,6 +822,7 @@ body {
   color: var(--tg-hint-color);
   font-size: 13px;
   cursor: pointer;
+  user-select: none;
   flex-shrink: 0;
   opacity: 0.5;
   -webkit-tap-highlight-color: transparent;

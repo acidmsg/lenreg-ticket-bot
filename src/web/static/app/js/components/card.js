@@ -41,12 +41,14 @@ export function createDoctorCard({
           <li class="monitoring-patient">
             <span class="monitoring-patient__icon">👤</span>
             <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
-            <button
+            <span
               class="monitoring-patient__delete"
               data-entry-id="${escapeHtml(p.entryId)}"
               data-patient-name="${escapeHtml(p.name)}"
               title="Удалить мониторинг для этого пациента"
-            >🗑</button>
+              role="button"
+              tabindex="0"
+            >🗑</span>
           </li>`
           )
           .join('')}
