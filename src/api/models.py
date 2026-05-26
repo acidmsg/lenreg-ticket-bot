@@ -37,6 +37,26 @@ def _coerce_str(v: Any) -> str:
     return str(v)
 
 
+def _coerce_bool(v: Any) -> bool:
+    """Приводит значение к булевому типу (API иногда возвращает строки или числа).
+
+    Обрабатывает:
+    1. Уже bool → возвращается как есть
+    2. int → 0 = False, всё остальное = True
+    3. str → "true"/"1"/"yes" → True, "false"/"0"/"no"/"" → False
+    4. None → False
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int):
+        return bool(v)
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes")
+    if v is None:
+        return False
+    return bool(v)
+
+
 # ── Общие (shared) ────────────────────────────────────────────
 
 
@@ -163,6 +183,12 @@ class SpecialityItem(BaseModel):
     LastDate: DateInfo | None = None
     NearestDate: DateInfo | None = None
     CountFreeParticipantIE: int = 0
+    is_doc: Annotated[bool, BeforeValidator(_coerce_bool)] = Field(
+        default=False, alias="IsDoc"
+    )
+    is_tech: Annotated[bool, BeforeValidator(_coerce_bool)] = Field(
+        default=False, alias="IsTech"
+    )
 
 
 class SpecialityListResponse(BaseModel):
