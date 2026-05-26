@@ -166,6 +166,7 @@ function bindDoctorEvents(container, doctors) {
   container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
       const entryId = btn.getAttribute('data-entry-id');
       const patientName =
         btn.getAttribute('data-patient-name') || 'этого пациента';
