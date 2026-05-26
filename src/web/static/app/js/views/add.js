@@ -183,10 +183,16 @@ async function loadClinics() {
 /**
  * Загружает список специальностей для выбранной поликлиники.
  *
+ * @param {Array<{value: object, label: string}>} [selections=[]] — выбранные значения предыдущих шагов
  * @returns {Promise<Array<{value: object, label: string}>>}
  */
-async function loadSpecialties() {
-  const data = await apiGet('/specialties');
+async function loadSpecialties(selections = []) {
+  const params = {};
+  if (selections.length > 1 && selections[1]?.value) {
+    const clinic = selections[1].value;
+    params.clinic_id = clinic.clinic_id || clinic.id;
+  }
+  const data = await apiGet('/specialties', params);
   const specialties = data.specialties || [];
 
   return specialties
@@ -200,10 +206,27 @@ async function loadSpecialties() {
 /**
  * Загружает список доступных врачей по выбранной специальности.
  *
+ * @param {Array<{value: object, label: string}>} [selections=[]] — выбранные значения предыдущих шагов
  * @returns {Promise<Array<{value: object, label: string, subtitle: string}>>}
  */
-async function loadDoctors() {
-  const data = await apiGet('/doctors/available');
+async function loadDoctors(selections = []) {
+  const params = {};
+  // Шаг 0: пациент
+  if (selections.length > 0 && selections[0]?.value) {
+    const patient = selections[0].value;
+    params.patient_id = patient.patient_id || patient.id;
+  }
+  // Шаг 1: поликлиника
+  if (selections.length > 1 && selections[1]?.value) {
+    const clinic = selections[1].value;
+    params.clinic_id = clinic.clinic_id || clinic.id;
+  }
+  // Шаг 2: специальность
+  if (selections.length > 2 && selections[2]?.value) {
+    const specialty = selections[2].value;
+    params.specialty_id = specialty.specialty_id || specialty.id;
+  }
+  const data = await apiGet('/doctors/available', params);
   const doctors = data.doctors || [];
 
   return doctors.map((d) => ({

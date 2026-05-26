@@ -246,7 +246,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     updateContent();
 
     try {
-      stepData = await step.loadData();
+      stepData = await step.loadData(selections);
     } catch (error) {
       stepData = [];
       showError(error.message || 'Ошибка загрузки данных');

@@ -25,10 +25,11 @@ function requireInitData() {
  * Выполняет GET-запрос к API.
  *
  * @param {string} path — путь относительно /api/user (например, '/doctors')
+ * @param {object} [params={}] — query-параметры (например, { clinic_id: 123 })
  * @returns {Promise<any>} распарсенный JSON-ответ
  * @throws {Error} при ошибке сети или API
  */
-export async function apiGet(path) {
+export async function apiGet(path, params = {}) {
   requireInitData();
 
   const initData = getInitData();
@@ -40,7 +41,18 @@ export async function apiGet(path) {
     headers['X-Telegram-InitData'] = initData;
   }
 
-  const response = await fetch(`${BASE_PATH}${path}`, {
+  // Собираем query-строку из params
+  const queryParts = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      queryParts.push(
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+      );
+    }
+  }
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+  const response = await fetch(`${BASE_PATH}${path}${queryString}`, {
     method: 'GET',
     headers
   });
