@@ -5,7 +5,7 @@
  * @module views/slots
  */
 
-import { apiGet } from '../api.js';
+import { apiGet, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createSlotCard } from '../components/card.js';
 
@@ -32,15 +32,28 @@ export async function renderSlots(container, params) {
       `/slots?monitoring_id=${encodeURIComponent(monitoringId)}`
     );
 
-    container.innerHTML = renderSlotInfo(data);
+    // Собираем итоговый HTML: информация о враче + пациенты + слоты
+    let html = renderSlotInfo(data);
+
+    // Блок пациентов (пришёл через params из doctors.js)
+    const patients = params?.patients;
+    if (patients && patients.length > 0) {
+      html += renderPatientsBlock(patients);
+    }
 
     const slots = data.slots || [];
     if (slots.length === 0) {
-      container.innerHTML += renderNoSlots();
-      return;
+      html += renderNoSlots();
+    } else {
+      html += renderSlotList(slots);
     }
 
-    container.innerHTML += renderSlotList(slots);
+    container.innerHTML = html;
+
+    // Привязываем обработчики удаления пациентов
+    if (patients && patients.length > 0) {
+      bindSlotEvents(container, patients);
+    }
   } catch (error) {
     container.innerHTML = renderError(error.message);
     bindErrorEvents(container, params);
