@@ -564,12 +564,27 @@ class ZdravClient:
             )
             return []
 
-        # Фильтруем: только врачебные, не технические
+        # Диагностика: вывести все специальности с их флагами
+        logger.warning(
+            "DIAG: fetch_all_doctors_for_clinic clinic=%s: всего специальностей=%d",
+            clinic_id,
+            len(specialties_raw),
+        )
+        for s in specialties_raw:
+            logger.warning(
+                "DIAG: specialty id=%s name='%s' IsDoc=%s IsTech=%s",
+                s.get("Id"),
+                s.get("Name"),
+                s.get("IsDoc"),
+                s.get("IsTech"),
+            )
+
+        # Временно: ослабленный фильтр — IsDoc не равен False (True или None)
         doc_specialties: list[dict] = []
         for spec in specialties_raw:
             is_doc = spec.get("IsDoc", False)
             is_tech = spec.get("IsTech", False)
-            if is_doc and not is_tech:
+            if is_doc is not False and not is_tech:
                 doc_specialties.append(spec)
 
         if not doc_specialties:
