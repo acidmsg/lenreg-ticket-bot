@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stepper Design Lab — Макеты индикации шагов</title>
+
+    <!-- Google Fonts: 8 вариантов -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@400;600&family=JetBrains+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Share+Tech+Mono&family=Open+Sans:wght@400;600&family=Raleway:wght@400;600&family=Noto+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="../../src/web/static/app/css/style.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="theme-biochrome font-inter">
+    <div class="layout">
+      <!-- ===== Боковая панель ===== -->
+      <aside class="sidebar">
+        <!-- Секция палитр -->
+        <div class="sidebar__section">
+          <h3 class="sidebar__heading">Палитры</h3>
+          <div class="sidebar__buttons" id="palette-switcher">
+            <button class="palette-btn palette-btn--active" data-theme="theme-biochrome">
+              <span class="palette-btn__dot" style="background: #00bcd4"></span>
+              Биохром
+            </button>
+            <button class="palette-btn" data-theme="theme-quantum-hitech">
+              <span class="palette-btn__dot" style="background: #90caf9"></span>
+              Квантовый хайтек
+            </button>
+            <button class="palette-btn" data-theme="theme-neon-diagnostic">
+              <span class="palette-btn__dot" style="background: #69f0ae"></span>
+              Неоновая диагностика
+            </button>
+            <button class="palette-btn" data-theme="theme-blood-cyan">
+              <span class="palette-btn__dot" style="background: #ff4455"></span>
+              Кровавый бирюзовый
+            </button>
+            <button class="palette-btn" data-theme="theme-emerald-neuro">
+              <span class="palette-btn__dot" style="background: #ff5252"></span>
+              Изумрудный нейрохирург
+            </button>
+            <button class="palette-btn" data-theme="theme-blue-cyber">
+              <span class="palette-btn__dot" style="background: #ff4455"></span>
+              Голубой киберпанк
+            </button>
+            <button class="palette-btn" data-theme="theme-purple-stasis">
+              <span class="palette-btn__dot" style="background: #ff5252"></span>
+              Фиолетовый стазис
+            </button>
+            <button class="palette-btn" data-theme="theme-aurora">
+              <span class="palette-btn__dot" style="background: #69f0ae"></span>
+              Полярное сияние
+            </button>
+            <button class="palette-btn" data-theme="theme-clinical">
+              <span class="palette-btn__dot" style="background: #64b5f6"></span>
+              Клинический контраст
+            </button>
+            <button class="palette-btn" data-theme="theme-sunset">
+              <span class="palette-btn__dot" style="background: #ffab40"></span>
+              Неоновый закат
+            </button>
+            <button class="palette-btn" data-theme="theme-techno-copper">
+              <span class="palette-btn__dot" style="background: #ff8a65"></span>
+              Техно-медь
+            </button>
+            <button class="palette-btn" data-theme="theme-surgical">
+              <span class="palette-btn__dot" style="background: #90caf9"></span>
+              Хирургический хром
+            </button>
+            <button class="palette-btn" data-theme="theme-digital-ruby">
+              <span class="palette-btn__dot" style="background: #ff5252"></span>
+              Цифровой рубин
+            </button>
+            <button class="palette-btn" data-theme="theme-photon-purple">
+              <span class="palette-btn__dot" style="background: #ce93d8"></span>
+              Фотонный фиолет
+            </button>
+            <button class="palette-btn" data-theme="theme-ozone">
+              <span class="palette-btn__dot" style="background: #4fc3f7"></span>
+              Озоновый слой
+            </button>
+            <button class="palette-btn" data-theme="theme-energy">
+              <span class="palette-btn__dot" style="background: #aed581"></span>
+              Энергетический шёпот
+            </button>
+            <button class="palette-btn" data-theme="theme-cryo">
+              <span class="palette-btn__dot" style="background: #81d4fa"></span>
+              Криогенный сон
+            </button>
+            <button class="palette-btn" data-theme="theme-mint-impulse">
+              <span class="palette-btn__dot" style="background: #08ffa2"></span>
+              Мятный импульс
+            </button>
+            <button class="palette-btn" data-theme="theme-azure-code">
+              <span class="palette-btn__dot" style="background: #5b72df"></span>
+              Лазурный код
+            </button>
+            <button class="palette-btn" data-theme="theme-ruby-surf">
+              <span class="palette-btn__dot" style="background: #c70842"></span>
+              Рубиновый прибой
+            </button>
+            <button class="palette-btn" data-theme="theme-deep-diagnostic">
+              <span class="palette-btn__dot" style="background: #12bfc8"></span>
+              Глубинная диагностика
+            </button>
+            <button class="palette-btn" data-theme="theme-violet-transfer">
+              <span class="palette-btn__dot" style="background: #9022ff"></span>
+              Фиолетовый трансфер
+            </button>
+            <button class="palette-btn" data-theme="theme-fire-biome">
+              <span class="palette-btn__dot" style="background: #ff4308"></span>
+              Огненный биом
+            </button>
+            <button class="palette-btn" data-theme="theme-neon-plasma">
+              <span class="palette-btn__dot" style="background: #ea336f"></span>
+              Неоновая плазма
+            </button>
+            <button class="palette-btn" data-theme="theme-chrome-ruby">
+              <span class="palette-btn__dot" style="background: #fe504f"></span>
+              Хром-рубин
+            </button>
+            <button class="palette-btn" data-theme="theme-cyan-horizon">
+              <span class="palette-btn__dot" style="background: #31b9cc"></span>
+              Бирюзовый горизонт
+            </button>
+            <button class="palette-btn" data-theme="theme-quantum-whisper">
+              <span class="palette-btn__dot" style="background: #e55ab0"></span>
+              Квантовый шёпот
+            </button>
+          </div>
+        </div>
+
+        <!-- Секция шрифтов -->
+        <div class="sidebar__section">
+          <h3 class="sidebar__heading">Шрифты</h3>
+          <div class="sidebar__buttons" id="font-switcher">
+            <button class="palette-btn palette-btn--active" data-font="font-inter">Inter</button>
+            <button class="palette-btn" data-font="font-space">Space Grotesk</button>
+            <button class="palette-btn" data-font="font-jetbrains">JetBrains Mono</button>
+            <button class="palette-btn" data-font="font-ibm">IBM Plex Sans</button>
+            <button class="palette-btn" data-font="font-sharetech">Share Tech Mono</button>
+            <button class="palette-btn" data-font="font-roboto">Roboto</button>
+            <button class="palette-btn" data-font="font-opensans">Open Sans</button>
+            <button class="palette-btn" data-font="font-raleway">Raleway</button>
+            <button class="palette-btn" data-font="font-googlesans">Google Sans</button>
+            <button class="palette-btn" data-font="font-notosans">Noto Sans</button>
+            <button class="palette-btn" data-font="font-gilroy">Gilroy</button>
+            <button class="palette-btn" data-font="font-default">По умолчанию</button>
+          </div>
+        </div>
+
+        <!-- Секция индикаторов -->
+        <div class="sidebar__section">
+          <h3 class="sidebar__heading">Индикаторы</h3>
+          <div class="sidebar__buttons" id="indicator-switcher">
+            <button
+              class="palette-btn palette-btn--active"
+              data-indicator="stepper-indicator--inline"
+            >
+              Инлайн-терминал
+            </button>
+            <button class="palette-btn" data-indicator="stepper-indicator--cursor">
+              Курсор-терминал
+            </button>
+            <button class="palette-btn" data-indicator="stepper-indicator--tabs">
+              Терминал-табы
+            </button>
+            <button class="palette-btn" data-indicator="stepper-indicator--dots">
+              Пиксельные точки
+            </button>
+            <button class="palette-btn" data-indicator="stepper-indicator--brackets">
+              Угловые скобки
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ===== Основной контент ===== -->
+      <main class="main">
+        <header class="lab-header">
+          <h1 class="lab-header__title">Stepper Design Lab</h1>
+          <p class="lab-header__subtitle">
+            5 вариантов индикации · 27 палитр · 10 шрифтов · реальный степпер из прода
+          </p>
+        </header>
+
+        <div class="lab-main">
+          <!-- ===== Интерактивный степпер ===== -->
+          <div class="phone-frame">
+            <div class="phone-frame__header">
+              <span class="phone-frame__title">Telegram Mini App — Preview</span>
+            </div>
+            <div class="phone-frame__content" id="stepper-preview">
+              <!-- Сюда live-stepper.js отрендерит интерактивный степпер -->
+            </div>
+          </div>
+        </div>
+
+        <footer class="lab-footer">
+          <p>
+            Stepper Design Lab ·
+            <span id="current-theme-name">Биохром</span>
+          </p>
+        </footer>
+      </main>
+    </div>
+
+    <script src="switcher.js"></script>
+    <script src="live-stepper.js"></script>
+  </body>
+</html>

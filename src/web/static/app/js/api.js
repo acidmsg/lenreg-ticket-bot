@@ -138,8 +138,16 @@ async function handleResponse(response) {
   }
 
   if (!response.ok) {
-    // Извлекаем сообщение из поля detail (FastAPI формат) или message
-    const message = data.detail || data.message || `Ошибка ${response.status}`;
+    // Извлекаем читаемое сообщение из поля detail (FastAPI формат) или message
+    let message = `Ошибка ${response.status}`;
+    if (Array.isArray(data.detail)) {
+      // FastAPI validation errors: массив объектов [{msg, ...}, ...]
+      message = data.detail.map((e) => e.msg || JSON.stringify(e)).join('; ');
+    } else if (typeof data.detail === 'string') {
+      message = data.detail;
+    } else if (data.message) {
+      message = data.message;
+    }
     throw new Error(message);
   }
 

@@ -17,8 +17,8 @@ build/
 
 # Data files and databases
 # data/ — раскомментировать, если нужно игнорировать всю директорию
-data/bot.db-shm
-data/bot.db-wal
+# data/bot.db-shm
+# data/bot.db-wal
 
 # Virtual environments and dependencies
 .venv/
