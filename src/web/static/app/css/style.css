@@ -407,6 +407,19 @@ body {
   }
 }
 
+@keyframes stepper-glow-pulse {
+  0%,
+  100% {
+    text-shadow: 0 0 4px var(--tg-button-color);
+  }
+
+  50% {
+    text-shadow:
+      0 0 12px var(--tg-button-color),
+      0 0 20px var(--tg-button-color);
+  }
+}
+
 /* === Пустое состояние === */
 .empty-state {
   display: flex;
@@ -585,11 +598,14 @@ body {
 .stepper__step-name--done {
   color: var(--tg-hint-color);
   opacity: 0.6;
+  text-shadow: 0 0 3px var(--tg-hint-color);
 }
 
 .stepper__step-name--current {
   color: var(--tg-button-color);
   font-weight: 600;
+  text-shadow: 0 0 8px var(--tg-button-color);
+  animation: stepper-glow-pulse 2s ease-in-out infinite;
 }
 
 .stepper__step-name--future {

@@ -60,8 +60,15 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const step = steps[currentStep];
 
-    // Сформировать строку шагов: пациент · клиника · врач · подтв.
-    const stepNames = steps.map((s) => s.title);
+    // Сопоставление полных названий шагов с короткими для индикатора
+    const SHORT_NAMES = {
+      'Выберите пациента': 'пациент',
+      'Выберите поликлинику': 'клиника',
+      'Выберите врача': 'врач',
+      Подтверждение: 'подтв.'
+    };
+
+    const stepNames = steps.map((s) => SHORT_NAMES[s.title] || s.title);
     const progressHtml = stepNames
       .map((name, i) => {
         let cls = 'stepper__step-name';
