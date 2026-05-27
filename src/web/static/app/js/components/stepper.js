@@ -32,6 +32,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   /** Флаг загрузки */
   let isLoading = false;
 
+  /** Текущий режим поиска (null | 'clinics' | 'doctors') */
+  let _currentSearchMode = null;
+
+  /** Таймер debounce для API-поиска */
+  let _searchDebounce = null;
+
   /**
    * Переходит к следующему шагу, сохраняя выбранный элемент.
    *
