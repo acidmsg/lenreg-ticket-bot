@@ -2,6 +2,10 @@
  * Компонент пошагового выбора (stepper).
  * Универсальный компонент для многошаговых форм.
  *
+ * При клике на элемент списка (кроме последнего шага подтверждения)
+ * происходит автоматический переход к следующему шагу.
+ * Кнопка «Далее» скрыта через CSS (класс .stepper__btn--next).
+ *
  * @module components/stepper
  */
 
@@ -27,6 +31,19 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
   /** Флаг загрузки */
   let isLoading = false;
+
+  /**
+   * Переходит к следующему шагу, сохраняя выбранный элемент.
+   *
+   * @param {number} selectedIndex — индекс выбранного элемента в stepData
+   */
+  function advanceStep(selectedIndex) {
+    const selectedItem = stepData[selectedIndex];
+    selections.push(selectedItem);
+    currentStep++;
+    stepData = [];
+    render();
+  }
 
   /**
    * Рендерит текущее состояние stepper.
@@ -78,6 +95,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       : `<button class="btn btn--danger" id="stepper-cancel">✕ Отмена</button>`;
 
     const isLastStep = currentStep === steps.length - 1;
+    // На не-последних шагах кнопка «Далее» скрыта через CSS-класс .stepper__btn--next
+    const nextBtnClass = isLastStep ? '' : ' stepper__btn--next';
 
     container.innerHTML = `
       <div class="stepper">
@@ -91,7 +110,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         </div>
         <div class="stepper__actions">
           ${backButtonHtml}
-          <button class="btn btn--primary" id="stepper-next"${isLastStep ? '' : ' disabled'}>
+          <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep ? '' : ' disabled'}>
             ${isLastStep ? '✓ Готово' : 'Далее →'}
           </button>
         </div>
@@ -188,29 +207,33 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     }
 
-    // Кнопка «Далее» / «Готово»
+    // Кнопка «Готово» (только на последнем шаге)
     const nextBtn = document.getElementById('stepper-next');
     if (nextBtn) {
-      nextBtn.addEventListener('click', () => {
-        const isLastStep = currentStep === steps.length - 1;
-        let selectedIndex = getSelectedIndex();
+      const isLastStep = currentStep === steps.length - 1;
+      if (isLastStep) {
+        nextBtn.addEventListener('click', () => {
+          let selectedIndex = getSelectedIndex();
 
-        // Для последнего шага (подтверждение) — всегда берём первый (и единственный) элемент
-        if (isLastStep && selectedIndex === null && stepData.length === 1) {
-          selectedIndex = 0;
-        }
+          // Для последнего шага (подтверждение) — всегда берём первый (и единственный) элемент
+          if (selectedIndex === null && stepData.length === 1) {
+            selectedIndex = 0;
+          }
 
-        if (selectedIndex === null) return;
+          if (selectedIndex === null) return;
 
-        const selectedItem = stepData[selectedIndex];
-        selections.push(selectedItem);
-        currentStep++;
-        stepData = [];
-        render();
-      });
+          const selectedItem = stepData[selectedIndex];
+          selections.push(selectedItem);
+          currentStep++;
+          stepData = [];
+          render();
+        });
+      }
+      // Для не-последних шагов кнопка скрыта CSS и не требует обработчика
     }
 
-    // Выбор элемента списка
+    // Выбор элемента списка — автопереход на следующий шаг
+    const isLastStep = currentStep === steps.length - 1;
     const items = container.querySelectorAll('.stepper-item');
     items.forEach((item) => {
       item.addEventListener('click', () => {
@@ -219,7 +242,16 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         // Выделяем текущий
         item.classList.add('stepper-item--selected');
 
-        // Активируем кнопку «Далее»
+        // Автопереход для всех шагов кроме последнего (подтверждение)
+        if (!isLastStep) {
+          const idx = parseInt(item.getAttribute('data-index'), 10);
+          if (!isNaN(idx) && stepData[idx]) {
+            advanceStep(idx);
+          }
+          return;
+        }
+
+        // На последнем шаге — активируем кнопку «Готово»
         const next = document.getElementById('stepper-next');
         if (next) {
           next.disabled = false;
@@ -308,16 +340,25 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         item.addEventListener('click', () => {
           items.forEach((i) => i.classList.remove('stepper-item--selected'));
           item.classList.add('stepper-item--selected');
-          const next = document.getElementById('stepper-next');
-          if (next) next.disabled = false;
+
+          // Автопереход при клике (кроме последнего шага — сюда не попадаем)
+          const idx = parseInt(item.getAttribute('data-index'), 10);
+          if (!isNaN(idx) && stepData[idx]) {
+            advanceStep(idx);
+          }
         });
       });
 
       // Авто-выбор, если на шаге только один элемент (кроме последнего шага)
       if (stepData.length === 1 && items.length === 1) {
         items[0].classList.add('stepper-item--selected');
-        const next = document.getElementById('stepper-next');
-        if (next) next.disabled = false;
+        // Автопереход с небольшой задержкой для визуального отклика
+        setTimeout(() => {
+          // Проверяем, что мы всё ещё на том же шаге (не ушли назад/вперёд)
+          if (currentStep < steps.length - 1 && stepData.length === 1) {
+            advanceStep(0);
+          }
+        }, 200);
       }
 
       const searchInput = document.getElementById('stepper-search');

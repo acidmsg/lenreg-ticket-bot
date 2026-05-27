@@ -643,6 +643,11 @@ body {
   flex: 1;
 }
 
+/* Скрытие кнопки "Далее" -- автопереход при выборе элемента */
+.stepper__btn--next {
+  display: none;
+}
+
 /* === Поиск/фильтрация === */
 .search-bar {
   padding: var(--gap-sm) var(--card-padding);
