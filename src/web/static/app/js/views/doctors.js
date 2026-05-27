@@ -201,16 +201,6 @@ function bindDoctorEvents(container, doctors) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
 
-        // Отправляем данные боту
-        if (isInTelegram()) {
-          window.Telegram.WebApp.sendData(
-            JSON.stringify({
-              action: 'doctor_removed',
-              doctor_name: patientName
-            })
-          );
-        }
-
         // Перезагружаем список
         await renderDoctors(container);
       } catch (error) {

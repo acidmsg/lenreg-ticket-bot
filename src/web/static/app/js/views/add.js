@@ -93,14 +93,6 @@ export function renderAddDoctor(container) {
         // Тактильный отклик
         if (isInTelegram()) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-          window.Telegram.WebApp.sendData(
-            JSON.stringify({
-              action: 'doctor_added',
-              doctor_name: doctorName,
-              specialty: specialtyName,
-              clinic_name: clinicName
-            })
-          );
         }
 
         // Возвращаемся на главный экран

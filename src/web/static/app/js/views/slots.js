@@ -221,12 +221,6 @@ function bindSlotEvents(container, patients) {
 
         if (isInTelegram()) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-          window.Telegram.WebApp.sendData(
-            JSON.stringify({
-              action: 'doctor_removed',
-              doctor_name: patientName
-            })
-          );
         }
 
         // Удаляем пациента из списка и перерендериваем секцию
