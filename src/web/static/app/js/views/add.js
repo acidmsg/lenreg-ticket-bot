@@ -30,6 +30,9 @@ export function renderAddDoctor(container) {
   /** ID выбранного врача */
   let selectedDoctor = null;
 
+  /** Текущий режим поиска: 'clinics' (по умолчанию) или 'doctors' (глобальный) */
+  let _searchMode = 'clinics';
+
   const steps = [
     {
       title: 'Выберите пациента',
@@ -41,8 +44,32 @@ export function renderAddDoctor(container) {
       title: 'Выберите поликлинику',
       description: 'В какой поликлинике искать врача?',
       searchPlaceholder: 'Поиск по названию...',
-      loadData: loadClinics,
-      renderItem: renderClinicItem
+      searchMode: 'clinics',
+      onSearchModeChange: (mode) => {
+        _searchMode = mode;
+        const step = steps[1];
+        if (mode === 'doctors') {
+          step.title = 'Поиск врача';
+          step.description = 'Поиск врача по всем поликлиникам';
+          step.searchPlaceholder = 'Введите имя врача...';
+        } else {
+          step.title = 'Выберите поликлинику';
+          step.description = 'В какой поликлинике искать врача?';
+          step.searchPlaceholder = 'Поиск по названию...';
+        }
+      },
+      loadData: async (selections) => {
+        if (_searchMode === 'doctors') {
+          return await searchDoctorsGlobally(selections);
+        }
+        return await loadClinics(selections);
+      },
+      renderItem: (item) => {
+        if (_searchMode === 'doctors') {
+          return renderDoctorSearchItem(item);
+        }
+        return renderClinicItem(item);
+      }
     },
     {
       title: 'Выберите врача',
@@ -308,7 +335,9 @@ async function searchDoctorsGlobally(selections = []) {
     value: d,
     label: d.name || `Врач #${d.doctor_id}`,
     specialty: d.specialty_name || '',
-    subtitle: `🏥 ${d.clinic_name || ''}${d.free_tickets !== undefined ? ` | Свободных слотов: ${d.free_tickets}` : ''}`
+    subtitle: `🏥 ${d.clinic_name || ''}${d.free_tickets !== undefined ? ` | Свободных слотов: ${d.free_tickets}` : ''}`,
+    // Флаг для stepper: пропустить шаг выбора врача внутри клиники
+    _skipNext: true
   }));
 }
 

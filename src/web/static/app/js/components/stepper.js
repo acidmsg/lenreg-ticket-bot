@@ -46,7 +46,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   function advanceStep(selectedIndex) {
     const selectedItem = stepData[selectedIndex];
     selections.push(selectedItem);
-    currentStep++;
+    // _skipNext — флаг глобального поиска врачей: пропускаем шаг doctor
+    if (selectedItem._skipNext) {
+      currentStep += 2;
+    } else {
+      currentStep++;
+    }
     stepData = [];
     render();
   }
@@ -204,8 +209,17 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     if (backBtn) {
       backBtn.addEventListener('click', () => {
         if (currentStep > 0) {
-          currentStep--;
-          selections.pop();
+          // Если предыдущий выбранный элемент пометил шаг как пропущенный
+          // (глобальный поиск врачей), откатываемся на 2 шага назад
+          const lastSelection = selections[selections.length - 1];
+          if (lastSelection && lastSelection._skipNext) {
+            currentStep -= 2;
+            selections.pop(); // убираем confirmation
+            selections.pop(); // убираем doctor (глобальный)
+          } else {
+            currentStep--;
+            selections.pop();
+          }
           stepData = [];
           render();
         }
@@ -294,6 +308,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         btn.addEventListener('click', () => {
           const mode = btn.dataset.mode;
           if (!mode) return;
+
+          // Обновляем внутренний режим поиска
+          _currentSearchMode = mode;
+          // Синхронизируем step.searchMode для render()
+          step.searchMode = mode;
 
           // Обновляем визуальное состояние кнопок
           modeBtns.forEach((b) =>
