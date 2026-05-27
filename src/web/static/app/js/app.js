@@ -145,7 +145,7 @@ function render() {
     case 'add':
       content = `
         ${renderHeader('Новый мониторинг', true, userName)}
-        <div class="app-content" id="add-content" style="padding: 0;"></div>
+        <div class="app-view" id="add-content"></div>
       `;
       break;
 
