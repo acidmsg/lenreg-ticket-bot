@@ -7,8 +7,8 @@
 :root {
   --tg-bg-color: #0a0a10;
   --tg-secondary-bg-color: #12121c;
-  --tg-text-color: #e8e8f0;
-  --tg-hint-color: #879;
+  --tg-text-color: #e0e8f8;
+  --tg-hint-color: #89b;
   --tg-button-color: #09b653;
   --tg-button-text-color: #0a0a10;
   --tg-destructive-color: #ea336f;
@@ -914,8 +914,8 @@ body {
   :root {
     --tg-bg-color: #0a0a10 !important;
     --tg-secondary-bg-color: #12121c !important;
-    --tg-text-color: #e8e8f0 !important;
-    --tg-hint-color: #879 !important;
+    --tg-text-color: #e0e8f8 !important;
+    --tg-hint-color: #89b !important;
     --tg-button-color: #09b653 !important;
     --tg-button-text-color: #0a0a10 !important;
     --tg-destructive-color: #ea336f !important;
