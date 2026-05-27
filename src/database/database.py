@@ -1022,3 +1022,21 @@ class Database:
         )
         row = await cursor.fetchone()
         return row["cnt"] if row else 0
+
+    async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
+        """Поиск врачей по подстроке в имени (глобально, по всем клиникам)."""
+        c = self._conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT d.clinic_id, d.doctor_id, d.name, d.specialty, "
+            "c.name as clinic_name "
+            "FROM doctors d "
+            "LEFT JOIN clinics c ON d.clinic_id = c.clinic_id "
+            "WHERE d.name LIKE ? "
+            "ORDER BY d.name "
+            "LIMIT ?",
+            (f"%{query}%", limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]

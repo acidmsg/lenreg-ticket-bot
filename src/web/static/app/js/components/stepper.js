@@ -60,6 +60,13 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const step = steps[currentStep];
 
+    // Инициализируем режим поиска из конфига шага
+    if (step.searchMode !== undefined) {
+      _currentSearchMode = step.searchMode;
+    } else {
+      _currentSearchMode = null;
+    }
+
     // Пиксельные точки — визуальный индикатор шагов
     const dotsHTML = steps
       .map((_, i) => {
@@ -72,6 +79,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       .join('');
 
     const progressHtml = dotsHTML;
+
+    // Переключатель режимов поиска (если задан в конфиге шага)
+    const modeSwitcherHtml =
+      step.searchMode !== undefined ? renderModeSwitcher(step.searchMode) : '';
 
     const searchHtml = step.searchPlaceholder
       ? `
@@ -101,6 +112,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         <div class="stepper__progress">${progressHtml}</div>
         <h2 class="stepper__title">${escapeHtml(step.title)}</h2>
         <p class="stepper__description">${escapeHtml(step.description)}</p>
+        ${modeSwitcherHtml}
         ${searchHtml}
         <div class="stepper__content" id="stepper-content">
           ${isLoading ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
@@ -268,6 +280,39 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         });
       });
     }
+
+    // Переключатель режимов поиска (клиники / врачи)
+    const modeBtns = container.querySelectorAll('.search-mode-btn');
+    if (modeBtns.length > 0 && step.onSearchModeChange) {
+      modeBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const mode = btn.dataset.mode;
+          if (!mode) return;
+
+          // Обновляем визуальное состояние кнопок
+          modeBtns.forEach((b) =>
+            b.classList.remove('search-mode-btn--active')
+          );
+          btn.classList.add('search-mode-btn--active');
+
+          // Уведомляем внешний код о смене режима
+          step.onSearchModeChange(mode);
+
+          // Обновляем placeholder строки поиска
+          const searchInputEl = document.getElementById('stepper-search');
+          if (searchInputEl) {
+            searchInputEl.placeholder =
+              mode === 'doctors'
+                ? 'Поиск по имени врача...'
+                : step.searchPlaceholder || 'Поиск по названию...';
+            searchInputEl.value = '';
+          }
+
+          // Перезагружаем данные для нового режима
+          loadStepData(step);
+        });
+      });
+    }
   }
 
   /**
@@ -360,13 +405,33 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
       const searchInput = document.getElementById('stepper-search');
       if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-          const query = e.target.value.toLowerCase();
-          container.querySelectorAll('.stepper-item').forEach((item) => {
-            const text = item.textContent.toLowerCase();
-            item.style.display = text.includes(query) ? '' : 'none';
+        const step = steps[currentStep];
+
+        if (_currentSearchMode === 'doctors' && step.searchMode !== undefined) {
+          // API-поиск с debounce 400ms для глобального поиска врачей
+          searchInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+
+            if (_searchDebounce) {
+              clearTimeout(_searchDebounce);
+            }
+
+            _searchDebounce = setTimeout(() => {
+              if (query.length >= 2 || query.length === 0) {
+                loadStepData(step);
+              }
+            }, 400);
           });
-        });
+        } else {
+          // Клиентская фильтрация (обычный режим)
+          searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            container.querySelectorAll('.stepper-item').forEach((item) => {
+              const text = item.textContent.toLowerCase();
+              item.style.display = text.includes(query) ? '' : 'none';
+            });
+          });
+        }
       }
     }
   }
@@ -415,6 +480,23 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       render();
     }
   };
+}
+
+/**
+ * Рендерит переключатель режимов поиска (клиники / врачи).
+ *
+ * @param {string} mode — текущий режим ('clinics' или 'doctors')
+ * @returns {string} HTML переключателя
+ */
+function renderModeSwitcher(mode) {
+  return `
+    <div class="search-mode-switcher">
+      <button class="search-mode-btn ${mode === 'clinics' ? 'search-mode-btn--active' : ''}"
+              data-mode="clinics">🏥 Клиники</button>
+      <button class="search-mode-btn ${mode === 'doctors' ? 'search-mode-btn--active' : ''}"
+              data-mode="doctors">👨‍⚕️ Врачи</button>
+    </div>
+  `;
 }
 
 /**

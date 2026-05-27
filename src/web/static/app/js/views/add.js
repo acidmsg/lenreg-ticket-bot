@@ -69,23 +69,37 @@ export function renderAddDoctor(container) {
     container,
     steps,
     onComplete: async (selections) => {
-      // selections: [patient, clinic, doctor, confirm]
-      // Данные из всех шагов
+      // selections может содержать 3 или 4 элемента:
+      // - Нормальный поток (4): [patient, clinic, doctor, confirm]
+      // - Глобальный поиск (3): [patient, doctor(with clinic), confirm]
       const patient = selections[0]?.value;
-      const clinic = selections[1]?.value;
-      const doctor = selections[2]?.value;
+      let clinic, doctor;
 
-      const clinicName = selections[1]?.label || '';
-      const doctorName =
-        extractDoctorName(doctor) || selections[2]?.label || '';
+      if (selections.length >= 4) {
+        // Нормальный поток
+        clinic = selections[1]?.value;
+        doctor = selections[2]?.value;
+      } else {
+        // Глобальный поиск: doctor уже содержит clinic_id
+        doctor = selections[1]?.value;
+        clinic = {
+          clinic_id: doctor?.clinic_id || '',
+          short_name: doctor?.clinic_name || '',
+          name: doctor?.clinic_name || ''
+        };
+      }
+
+      const clinicName = clinic?.short_name || clinic?.name || '';
+      const doctorName = extractDoctorName(doctor) || '';
       const specialtyName = doctor?.specialty_name || '';
 
       try {
         await apiPost('/doctors/add', {
-          clinic_id: clinic.clinic_id || clinic.id || String(clinic),
+          clinic_id: clinic?.clinic_id || clinic?.id || String(clinic || ''),
           specialty_id: doctor?.specialty_id || '',
-          doctor_id: doctor.doctor_id || doctor.id || String(doctor),
-          patient_id: patient.patient_id || patient.id || String(patient),
+          doctor_id: doctor?.doctor_id || doctor?.id || String(doctor || ''),
+          patient_id:
+            patient?.patient_id || patient?.id || String(patient || ''),
           doctor_name: doctorName,
           specialty_name: specialtyName
         });
@@ -258,6 +272,43 @@ async function loadDoctors(selections = []) {
     subtitle:
       d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : '',
     _monitored: monitoredDoctorIds.has(String(d.doctor_id))
+  }));
+}
+
+// ============================================================
+// Глобальный поиск врачей (используется в режиме 'doctors')
+// ============================================================
+
+/**
+ * Ищет врачей глобально по подстроке в имени через API /doctors/search.
+ *
+ * @param {Array<{value: object, label: string}>} [selections=[]] — выбранные значения предыдущих шагов
+ * @returns {Promise<Array<{value: object, label: string, subtitle: string}>>}
+ */
+async function searchDoctorsGlobally(selections = []) {
+  // Читаем поисковый запрос из поля ввода stepper
+  const searchInput = document.getElementById('stepper-search');
+  const query = searchInput ? searchInput.value.trim() : '';
+
+  if (query.length < 2) {
+    return [];
+  }
+
+  const params = { q: query };
+  // Шаг 0: пациент
+  if (selections.length > 0 && selections[0]?.value) {
+    const patient = selections[0].value;
+    params.patient_id = patient.patient_id || patient.id;
+  }
+
+  const data = await apiGet('/doctors/search', params);
+  const doctors = data.doctors || [];
+
+  return doctors.map((d) => ({
+    value: d,
+    label: d.name || `Врач #${d.doctor_id}`,
+    specialty: d.specialty_name || '',
+    subtitle: `🏥 ${d.clinic_name || ''}${d.free_tickets !== undefined ? ` | Свободных слотов: ${d.free_tickets}` : ''}`
   }));
 }
 

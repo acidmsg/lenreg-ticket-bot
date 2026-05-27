@@ -725,6 +725,38 @@ body {
   color: var(--tg-hint-color);
 }
 
+/* === Переключатель режимов поиска (клиники / врачи) === */
+.search-mode-switcher {
+  display: flex;
+  gap: var(--gap-sm);
+  padding: 0 var(--card-padding);
+  margin-bottom: var(--gap-sm);
+}
+
+.search-mode-btn {
+  flex: 1;
+  padding: var(--gap-sm) var(--gap-md);
+  background: var(--tg-secondary-bg-color);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--tg-hint-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.search-mode-btn:active {
+  opacity: 0.8;
+}
+
+.search-mode-btn--active {
+  background: var(--tg-button-color);
+  color: var(--tg-button-text-color);
+  border-color: var(--tg-button-color);
+}
+
 /* === Спиннер загрузки === */
 .spinner {
   display: flex;
