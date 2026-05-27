@@ -60,20 +60,17 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const step = steps[currentStep];
 
-    const progressHtml = steps
-      .map((_, i) => {
-        let dotClass = 'stepper__step-dot';
-        if (i < currentStep) {
-          dotClass += ' stepper__step-dot--completed';
-        } else if (i === currentStep) {
-          dotClass += ' stepper__step-dot--active';
-        }
-        // Добавляем data-атрибут для отладки
-        return `<div class="${dotClass}" data-step-index="${i}"></div>`;
+    // Сформировать строку шагов: пациент · клиника · врач · подтв.
+    const stepNames = steps.map((s) => s.title);
+    const progressHtml = stepNames
+      .map((name, i) => {
+        let cls = 'stepper__step-name';
+        if (i < currentStep) cls += ' stepper__step-name--done';
+        else if (i === currentStep) cls += ' stepper__step-name--current';
+        else cls += ' stepper__step-name--future';
+        return `<span class="${cls}">${name}</span>`;
       })
-      .join('');
-
-    const stepCounterHtml = `<div class="stepper__step-counter"><span class="stepper__step-badge">Шаг ${currentStep + 1} из ${steps.length}</span></div>`;
+      .join('<span class="stepper__step-sep"> · </span>');
 
     const searchHtml = step.searchPlaceholder
       ? `
@@ -101,7 +98,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     container.innerHTML = `
       <div class="stepper">
         <div class="stepper__progress">${progressHtml}</div>
-        ${stepCounterHtml}
         <h2 class="stepper__title">${escapeHtml(step.title)}</h2>
         <p class="stepper__description">${escapeHtml(step.description)}</p>
         ${searchHtml}

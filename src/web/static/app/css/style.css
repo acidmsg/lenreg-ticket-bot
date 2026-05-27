@@ -567,30 +567,40 @@ body {
 
 .stepper__progress {
   display: flex;
-  gap: 4px;
-  padding: 0 var(--card-padding);
-  margin-bottom: var(--gap-lg);
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--tg-font-family);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.stepper__step-dot {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
-  background-color: rgb(0 0 0 / 10%);
-  transition:
-    background-color 0.3s,
-    height 0.3s,
-    border-radius 0.3s;
+.stepper__step-name {
+  transition: color 0.3s;
 }
 
-.stepper__step-dot--active {
-  background-color: var(--tg-button-color);
-  height: 6px;
-  border-radius: 3px;
+.stepper__step-name--done {
+  color: var(--tg-hint-color);
+  opacity: 0.6;
 }
 
-.stepper__step-dot--completed {
-  background-color: var(--status-available);
+.stepper__step-name--current {
+  color: var(--tg-button-color);
+  font-weight: 600;
+}
+
+.stepper__step-name--future {
+  color: var(--tg-hint-color);
+  opacity: 0.3;
+}
+
+.stepper__step-sep {
+  color: var(--tg-hint-color);
+  opacity: 0.3;
+  margin: 0 2px;
 }
 
 .stepper__step-counter {
@@ -895,10 +905,6 @@ body {
 
   .app-header {
     border-bottom-color: rgb(255 255 255 / 8%);
-  }
-
-  .stepper__step-dot {
-    background-color: rgb(255 255 255 / 12%);
   }
 
   .stepper__step-badge {
