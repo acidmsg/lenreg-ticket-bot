@@ -32,27 +32,27 @@ export function renderAddDoctor(container) {
 
   const steps = [
     {
-      title: 'Выберите пациента',
+      title: 'пациент',
       description: 'Для кого отслеживать врача?',
       loadData: loadPatients,
       renderItem: renderPatientItem
     },
     {
-      title: 'Выберите поликлинику',
+      title: 'клиника',
       description: 'В какой поликлинике искать врача?',
       searchPlaceholder: 'Поиск по названию...',
       loadData: loadClinics,
       renderItem: renderClinicItem
     },
     {
-      title: 'Выберите врача',
+      title: 'врач',
       description: 'Какого конкретно врача отслеживать?',
       searchPlaceholder: 'Поиск по имени или специальности...',
       loadData: loadDoctors,
       renderItem: renderDoctorItem
     },
     {
-      title: 'Подтверждение',
+      title: 'подтв.',
       description: 'Проверьте данные перед добавлением',
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
