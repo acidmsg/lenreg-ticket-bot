@@ -60,24 +60,18 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const step = steps[currentStep];
 
-    // Сопоставление полных названий шагов с короткими для индикатора
-    const SHORT_NAMES = {
-      'Выберите пациента': 'пациент',
-      'Выберите поликлинику': 'клиника',
-      'Выберите врача': 'врач',
-      Подтверждение: 'подтв.'
-    };
-
-    const stepNames = steps.map((s) => SHORT_NAMES[s.title] || s.title);
-    const progressHtml = stepNames
-      .map((name, i) => {
-        let cls = 'stepper__step-name';
-        if (i < currentStep) cls += ' stepper__step-name--done';
-        else if (i === currentStep) cls += ' stepper__step-name--current';
-        else cls += ' stepper__step-name--future';
-        return `<span class="${cls}">${name}</span>`;
+    // Пиксельные точки — визуальный индикатор шагов
+    const dotsHTML = steps
+      .map((_, i) => {
+        let cls = 'stepper__dot';
+        if (i < currentStep) cls += ' stepper__dot--done';
+        else if (i === currentStep) cls += ' stepper__dot--current';
+        else cls += ' stepper__dot--future';
+        return `<span class="${cls}"></span>`;
       })
-      .join('<span class="stepper__step-sep"> · </span>');
+      .join('');
+
+    const progressHtml = dotsHTML;
 
     const searchHtml = step.searchPlaceholder
       ? `

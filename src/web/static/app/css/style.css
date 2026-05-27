@@ -5,16 +5,16 @@
 
 /* === CSS-переменные Telegram (значения по умолчанию) === */
 :root {
-  --tg-bg-color: #080c12;
-  --tg-text-color: #e0e8f0;
-  --tg-hint-color: #89a;
-  --tg-button-color: #90caf9;
-  --tg-button-text-color: #080c12;
-  --tg-secondary-bg-color: #111820;
-  --tg-destructive-color: #f45;
-  --tg-section-header-color: #90caf9;
-  --tg-subtitle-color: #89a;
-  --tg-link-color: #80cbc4;
+  --tg-bg-color: #0a0a10;
+  --tg-secondary-bg-color: #12121c;
+  --tg-text-color: #e8e8f0;
+  --tg-hint-color: #879;
+  --tg-button-color: #09b653;
+  --tg-button-text-color: #0a0a10;
+  --tg-destructive-color: #ea336f;
+  --tg-section-header-color: #09b653;
+  --tg-subtitle-color: #879;
+  --tg-link-color: #09b653;
 
   /* Расширенные переменные */
   --card-radius: 12px;
@@ -29,10 +29,10 @@
   --font-xl: 20px;
 
   /* Статусные цвета */
-  --status-available: #80cbc4;
-  --status-noslots: #f45;
-  --status-checking: #90caf9;
-  --status-unknown: #89a;
+  --status-available: #09b653;
+  --status-noslots: #ea336f;
+  --status-checking: #555acf;
+  --status-unknown: #879;
 }
 
 /* === Сброс и базовые стили === */
@@ -425,15 +425,44 @@ body {
   }
 }
 
-@keyframes stepper-glow-pulse {
+/* === Пиксельные точки индикатора stepper === */
+
+.stepper__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tg-hint-color);
+  opacity: 0.3;
+  transition: all 0.3s;
+}
+
+.stepper__dot--done {
+  background: var(--tg-link-color);
+  opacity: 0.6;
+}
+
+.stepper__dot--current {
+  width: 12px;
+  height: 12px;
+  background: var(--tg-button-color);
+  opacity: 1;
+  box-shadow: 0 0 8px var(--tg-button-color);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+.stepper__dot--future {
+  /* по умолчанию */
+}
+
+@keyframes dot-pulse {
   0%,
   100% {
-    text-shadow: 0 0 4px var(--tg-button-color);
+    box-shadow: 0 0 4px var(--tg-button-color);
   }
 
   50% {
-    text-shadow:
-      0 0 12px var(--tg-button-color),
+    box-shadow:
+      0 0 14px var(--tg-button-color),
       0 0 20px var(--tg-button-color);
   }
 }
@@ -600,45 +629,12 @@ body {
 
 .stepper__progress {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 0;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-family: var(--tg-font-family);
-  white-space: nowrap;
-  overflow: hidden;
+  gap: 12px;
+  padding: 10px 0;
   flex-shrink: 0;
   width: 100%;
-}
-
-.stepper__step-name {
-  transition: color 0.3s;
-}
-
-.stepper__step-name--done {
-  color: var(--tg-hint-color);
-  opacity: 0.6;
-  text-shadow: 0 0 3px var(--tg-hint-color);
-}
-
-.stepper__step-name--current {
-  color: var(--tg-button-color);
-  font-weight: 600;
-  text-shadow: 0 0 8px var(--tg-button-color);
-  animation: stepper-glow-pulse 2s ease-in-out infinite;
-}
-
-.stepper__step-name--future {
-  color: var(--tg-hint-color);
-  opacity: 0.3;
-}
-
-.stepper__step-sep {
-  color: var(--tg-hint-color);
-  opacity: 0.3;
-  margin: 0 2px;
 }
 
 .stepper__step-counter {
@@ -913,44 +909,44 @@ body {
   display: none !important;
 }
 
-/* === Тёмная тема — палитра «Стерильный хайтек» (форсированная) === */
+/* === Тёмная тема — палитра «Неоновая плазма» (форсированная) === */
 @media (prefers-color-scheme: dark) {
   :root {
-    --tg-bg-color: #080c12 !important;
-    --tg-text-color: #e0e8f0 !important;
-    --tg-hint-color: #89a !important;
-    --tg-secondary-bg-color: #111820 !important;
-    --tg-section-header-color: #90caf9 !important;
-    --tg-subtitle-color: #89a !important;
-    --tg-button-color: #90caf9 !important;
-    --tg-button-text-color: #080c12 !important;
-    --tg-destructive-color: #f45 !important;
-    --tg-link-color: #80cbc4 !important;
+    --tg-bg-color: #0a0a10 !important;
+    --tg-secondary-bg-color: #12121c !important;
+    --tg-text-color: #e8e8f0 !important;
+    --tg-hint-color: #879 !important;
+    --tg-button-color: #09b653 !important;
+    --tg-button-text-color: #0a0a10 !important;
+    --tg-destructive-color: #ea336f !important;
+    --tg-section-header-color: #09b653 !important;
+    --tg-subtitle-color: #879 !important;
+    --tg-link-color: #09b653 !important;
     --card-shadow: 0 2px 8px rgb(0 0 0 / 40%);
   }
 
   .list__item {
-    border-bottom-color: rgb(144 202 249 / 8%);
+    border-bottom-color: rgb(9 182 83 / 8%);
   }
 
   .list__item:active {
-    background-color: rgb(144 202 249 / 6%);
+    background-color: rgb(9 182 83 / 6%);
   }
 
   .stepper__actions {
-    border-top-color: rgb(144 202 249 / 10%);
+    border-top-color: rgb(9 182 83 / 10%);
   }
 
   .slot-chip {
-    border-color: rgb(144 202 249 / 12%);
+    border-color: rgb(9 182 83 / 12%);
   }
 
   .search-bar__input {
-    border-color: rgb(144 202 249 / 12%);
+    border-color: rgb(9 182 83 / 12%);
   }
 
   .app-header {
-    border-bottom-color: rgb(144 202 249 / 10%);
+    border-bottom-color: rgb(9 182 83 / 10%);
   }
 
   .stepper__step-badge {
