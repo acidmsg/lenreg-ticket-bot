@@ -533,20 +533,20 @@ async def get_available_doctors(
     }
 
 
-@router.get("/doctors/search")
+@router.get("/doctors/search", response_model=None)
 async def search_doctors(
     request: Request,
     q: str = Query(
         ..., min_length=2, description="Поисковый запрос (минимум 2 символа)"
     ),
-    patient_id: str = Query(..., description="ID пациента для проверки слотов"),
 ) -> dict[str, Any] | JSONResponse:
     """Поиск врачей по подстроке в имени (глобально, по всем клиникам).
 
-    Возвращает врачей из всех клиник с информацией о свободных слотах.
+    Возвращает врачей из всех клиник без информации о слотах.
+    Проверка слотов через API не выполняется для скорости поиска —
+    слоты запрашиваются позже, при выборе конкретного врача.
     """
     db = _get_db(request)
-    api = _get_api(request)
 
     try:
         doctors = await db._db.search_doctors_by_name(q, limit=20)
@@ -559,19 +559,6 @@ async def search_doctors(
 
     result: list[dict[str, Any]] = []
     for doc in doctors:
-        # Проверяем слоты через API
-        free_tickets = 0
-        try:
-            slots = await api.check_slots(
-                doc_id=doc["doctor_id"],
-                patient_id=patient_id,
-                clinic_id=doc["clinic_id"],
-                limiter=api.limiter,
-            )
-            free_tickets = len(slots) if slots else 0
-        except Exception:
-            free_tickets = 0
-
         result.append(
             {
                 "doctor_id": doc["doctor_id"],
@@ -579,7 +566,7 @@ async def search_doctors(
                 "specialty_name": doc.get("specialty", ""),
                 "clinic_id": doc["clinic_id"],
                 "clinic_name": doc.get("clinic_name", ""),
-                "free_tickets": free_tickets,
+                "free_tickets": -1,
             }
         )
 

@@ -322,11 +322,6 @@ async function searchDoctorsGlobally(selections = []) {
   }
 
   const params = { q: query };
-  // Шаг 0: пациент
-  if (selections.length > 0 && selections[0]?.value) {
-    const patient = selections[0].value;
-    params.patient_id = patient.patient_id || patient.id;
-  }
 
   const data = await apiGet('/doctors/search', params);
   const doctors = data.doctors || [];
@@ -335,7 +330,7 @@ async function searchDoctorsGlobally(selections = []) {
     value: d,
     label: d.name || `Врач #${d.doctor_id}`,
     specialty: d.specialty_name || '',
-    subtitle: `🏥 ${d.clinic_name || ''}${d.free_tickets !== undefined ? ` | Свободных слотов: ${d.free_tickets}` : ''}`,
+    subtitle: `🏥 ${d.clinic_name || ''}`,
     // Флаг для stepper: пропустить шаг выбора врача внутри клиники
     _skipNext: true
   }));
@@ -379,6 +374,31 @@ function renderClinicItem(item) {
 
 /**
  * Рендерит элемент списка врачей.
+ *
+ * @param {object} item — элемент списка
+ * @returns {string} HTML элемента
+ */
+/**
+ * Рендерит элемент врача в режиме глобального поиска (на шаге clinic).
+ * Отличается от renderDoctorItem наличием названия клиники в подзаголовке
+ * и флагом _skipNext для пропуска шага выбора врача внутри клиники.
+ *
+ * @param {object} item — элемент списка врачей (из searchDoctorsGlobally)
+ * @returns {string} HTML элемента
+ */
+function renderDoctorSearchItem(item) {
+  return `
+    <div class="list__item-content">
+      <div class="list__item-title">${escapeHtml(item.label)}</div>
+      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
+      ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
+    </div>
+    <span class="list__item-arrow">→</span>
+  `;
+}
+
+/**
+ * Рендерит элемент списка врачей (на шаге выбора врача внутри клиники).
  *
  * @param {object} item — элемент списка
  * @returns {string} HTML элемента
