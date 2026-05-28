@@ -744,7 +744,8 @@ body {
   border: 1px solid var(--tg-hint-color);
   border-radius: 10px;
   padding: 8px 10px;
-  margin-bottom: var(--gap-md);
+  max-width: 320px;
+  margin: 0 auto var(--gap-sm) auto;
   animation: hint-fade-in 0.4s ease-out;
 }
 

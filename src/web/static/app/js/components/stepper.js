@@ -375,6 +375,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
       const query = e.target.value;
 
+      // Скрыть/показать кнопку «Выбрать поликлинику»
+      const clinicBtn = document.getElementById('stepper-switch-clinics');
+      if (clinicBtn) {
+        clinicBtn.style.display = query.trim() ? 'none' : '';
+      }
+
       if (isDoctorMode) {
         // API-поиск с debounce 400ms
         if (_searchDebounce) clearTimeout(_searchDebounce);
