@@ -443,14 +443,18 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         }, 200);
       }
 
-      const searchInput = document.getElementById('stepper-search');
-      if (searchInput && !_searchListenerAttached) {
-        _searchListenerAttached = true;
-        const step = steps[currentStep];
+      const oldInput = document.getElementById('stepper-search');
+      if (oldInput) {
+        // Замена элемента для сброса всех старых обработчиков событий
+        const newInput = oldInput.cloneNode(true);
+        oldInput.parentNode.replaceChild(newInput, oldInput);
 
-        if (_currentSearchMode === 'doctors' && step.searchMode !== undefined) {
+        if (
+          _currentSearchMode === 'doctors' &&
+          steps[currentStep].searchMode !== undefined
+        ) {
           // API-поиск с debounce 400ms для глобального поиска врачей.
-          searchInput.addEventListener('input', (e) => {
+          newInput.addEventListener('input', (e) => {
             const query = e.target.value;
 
             if (_searchDebounce) {
@@ -469,7 +473,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
           });
         } else {
           // Клиентская фильтрация (обычный режим)
-          searchInput.addEventListener('input', (e) => {
+          newInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
             container.querySelectorAll('.stepper-item').forEach((item) => {
               const text = item.textContent.toLowerCase();
