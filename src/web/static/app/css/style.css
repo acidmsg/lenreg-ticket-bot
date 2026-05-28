@@ -833,8 +833,32 @@ body {
 .doctor-card--monitored,
 .stepper-item--monitored {
   opacity: 0.5;
-  pointer-events: none;
   user-select: none;
+}
+
+/* === Toast-уведомление === */
+.stepper-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--tg-secondary-bg-color);
+  color: var(--tg-text-color);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+}
+
+.stepper-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* === Вне Telegram === */

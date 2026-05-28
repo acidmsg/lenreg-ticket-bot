@@ -285,6 +285,31 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   }
 
   /**
+   * Показывает toast-уведомление внизу экрана.
+   * @param {string} message — текст уведомления
+   */
+  function showToast(message) {
+    // Удалить старый toast если есть
+    const old = document.getElementById('stepper-toast');
+    if (old) old.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'stepper-toast';
+    toast.className = 'stepper-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Анимация появления
+    requestAnimationFrame(() => toast.classList.add('stepper-toast--visible'));
+
+    // Авто-скрытие через 4 секунды
+    setTimeout(() => {
+      toast.classList.remove('stepper-toast--visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+
+  /**
    * Обновляет содержимое stepper (список элементов).
    */
   function updateContent() {
@@ -325,10 +350,14 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const items = container.querySelectorAll('.stepper-item');
     items.forEach((item) => {
       item.addEventListener('click', () => {
-        items.forEach((i) => i.classList.remove('stepper-item--selected'));
-        item.classList.add('stepper-item--selected');
         const idx = parseInt(item.getAttribute('data-index'), 10);
         if (!isNaN(idx) && stepData[idx]) {
+          if (stepData[idx]._monitored) {
+            showToast('Этот врач уже отслеживается');
+            return;
+          }
+          items.forEach((i) => i.classList.remove('stepper-item--selected'));
+          item.classList.add('stepper-item--selected');
           advanceStep(idx);
         }
       });
