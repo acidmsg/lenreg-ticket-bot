@@ -41,9 +41,9 @@ export function renderAddDoctor(container) {
       renderItem: renderPatientItem
     },
     {
-      title: 'Выберите поликлинику',
-      description: 'В какой поликлинике искать врача?',
-      searchPlaceholder: 'Поиск по названию...',
+      title: 'клиника',
+      description: 'Выберите поликлинику или найдите врача по фамилии',
+      searchPlaceholder: 'Поиск поликлиники или врача...',
       searchMode: 'clinics',
       onSearchModeChange: (mode) => {
         _searchMode = mode;
@@ -53,9 +53,10 @@ export function renderAddDoctor(container) {
           step.description = 'Поиск врача по всем поликлиникам';
           step.searchPlaceholder = 'Введите имя врача...';
         } else {
-          step.title = 'Выберите поликлинику';
-          step.description = 'В какой поликлинике искать врача?';
-          step.searchPlaceholder = 'Поиск по названию...';
+          step.title = 'клиника';
+          step.description =
+            'Выберите поликлинику или найдите врача по фамилии';
+          step.searchPlaceholder = 'Поиск поликлиники или врача...';
         }
       },
       loadData: async (selections) => {
@@ -84,9 +85,30 @@ export function renderAddDoctor(container) {
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
         const patient = selections[0]?.value || {};
-        const clinic = selections[1]?.value || {};
-        const doctor = selections[2]?.value || {};
-        return [{ _confirm: true, patient, clinic, doctor }];
+        let clinic, doctor;
+
+        if (selections.length >= 2 && selections[1]?._skipNext) {
+          // Глобальный поиск: selections[1] — врач с clinic_id/clinic_name внутри
+          doctor = selections[1]?.value || {};
+          clinic = {
+            name: doctor?.clinic_name || '',
+            short_name: doctor?.clinic_name || ''
+          };
+        } else {
+          // Нормальный поток: selections[1] — поликлиника, selections[2] — врач
+          clinic = selections[1]?.value || {};
+          doctor = selections[2]?.value || {};
+        }
+
+        return [
+          {
+            _confirm: true,
+            patient,
+            clinic,
+            doctor,
+            _skipNext: selections[1]?._skipNext
+          }
+        ];
       },
       renderItem: (item) => renderConfirmation(item)
     }
@@ -96,13 +118,13 @@ export function renderAddDoctor(container) {
     container,
     steps,
     onComplete: async (selections) => {
-      // selections может содержать 3 или 4 элемента:
-      // - Нормальный поток (4): [patient, clinic, doctor, confirm]
-      // - Глобальный поиск (3): [patient, doctor(with clinic), confirm]
+      // selections содержит 2 или 3 элемента:
+      // - Нормальный поток (3): [patient, clinic, doctor]
+      // - Глобальный поиск (2): [patient, doctor(with clinic info)]
       const patient = selections[0]?.value;
       let clinic, doctor;
 
-      if (selections.length >= 4) {
+      if (selections.length >= 3 && !selections[1]?._skipNext) {
         // Нормальный поток
         clinic = selections[1]?.value;
         doctor = selections[2]?.value;

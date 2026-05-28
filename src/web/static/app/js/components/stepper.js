@@ -173,22 +173,15 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        if (
-          currentStep === 1 &&
-          selections.length === 1 &&
-          selections[0]?._skipNext
-        ) {
-          currentStep = 0;
-        } else if (
-          currentStep > 0 &&
-          selections.length === currentStep + 1 &&
-          selections[currentStep]?._skipNext
-        ) {
-          currentStep -= 2;
-        } else {
-          currentStep = Math.max(0, currentStep - 1);
+        if (selections.length > 0) {
+          const last = selections[selections.length - 1];
+          if (last?._skipNext) {
+            currentStep -= 2;
+          } else {
+            currentStep = Math.max(0, currentStep - 1);
+          }
+          selections.pop();
         }
-        selections.pop();
         stepData = [];
         render();
       });
