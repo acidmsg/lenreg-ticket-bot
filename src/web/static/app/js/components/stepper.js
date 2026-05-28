@@ -80,7 +80,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
     const displayDesc = isClinicMode
       ? 'Выберите поликлинику из списка'
-      : 'Введите фамилию врача или выберите поликлинику';
+      : '🔍 Начните вводить фамилию, имя или отчество врача';
 
     const dotsHTML = steps
       .map((_, i) => {
@@ -94,8 +94,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const progressHtml = dotsHTML;
 
-    const searchHtml = step.searchPlaceholder
-      ? `
+    const searchHtml =
+      step.searchPlaceholder !== undefined
+        ? `
         <div class="search-bar">
           <input
             type="text"
@@ -106,13 +107,13 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
           >
         </div>
       `
-      : '';
+        : '';
 
     // Кнопка «Выбрать поликлинику» в режиме поиска врачей
     const clinicLinkHtml =
       _currentSearchMode === 'doctors'
         ? `<div class="stepper__alt-action">
-            <button class="btn btn--secondary stepper__clinic-btn" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
+            <button class="btn btn--secondary btn--sm stepper__clinic-btn" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
           </div>`
         : '';
 
@@ -195,8 +196,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
           clinicStep.searchMode = 'doctors';
           clinicStep.title = 'Поиск врача';
           clinicStep.description =
-            'Введите фамилию врача или выберите поликлинику';
-          clinicStep.searchPlaceholder = 'Фамилия врача...';
+            '🔍 Начните вводить фамилию, имя или отчество врача';
+          clinicStep.searchPlaceholder = 'Фамилия, имя или отчество...';
           stepData = [];
           render();
           return;
@@ -344,8 +345,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const isDoctorMode =
       _currentSearchMode === 'doctors' && step.searchMode !== undefined;
 
-    // Таймер автоподсказки: через 3 секунды бездействия показать подсказку
+    // Таймер автоподсказки: через 3 секунды бездействия показать подсказку.
+    // Только на шаге clinic (индекс 1) в режиме doctors.
     let hintTimer = setTimeout(() => {
+      if (currentStep !== 1 && steps[currentStep]?.id !== 'clinic') return;
       const input = document.getElementById('stepper-search');
       if (input && input.value.trim() === '') {
         const hintEl = document.getElementById('stepper-hint');
@@ -355,10 +358,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
             const hint = document.createElement('div');
             hint.id = 'stepper-hint';
             hint.className = 'stepper-hint';
-            hint.innerHTML = `
-              <div class="stepper-hint__icon">💡</div>
-              <p class="stepper-hint__text">Не знаете врача? Нажмите <strong>«🏥 Выбрать поликлинику»</strong> чтобы увидеть список врачей в учреждении.</p>
-            `;
+            hint.innerHTML =
+              '<p class="stepper-hint__text">Не знаете врача? Нажмите <strong>«🏥 Выбрать поликлинику»</strong> чтобы увидеть список врачей в учреждении.</p>';
             contentEl.parentNode.insertBefore(hint, contentEl);
           }
         }

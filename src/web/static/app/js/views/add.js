@@ -39,16 +39,16 @@ export function renderAddDoctor(container) {
     },
     {
       title: 'Поиск врача',
-      description:
-        'Введите фамилию врача — или выберите поликлинику, чтобы увидеть список врачей',
-      searchPlaceholder: 'Фамилия врача...',
+      description: '🔍 Начните вводить фамилию, имя или отчество врача',
+      searchPlaceholder: 'Фамилия, имя или отчество...',
       searchMode: 'doctors',
       onSearchModeChange: (mode) => {
         const step = steps[1];
         if (mode === 'doctors') {
           step.title = 'Поиск врача';
-          step.description = 'Введите фамилию врача или выберите поликлинику';
-          step.searchPlaceholder = 'Фамилия врача...';
+          step.description =
+            '🔍 Начните вводить фамилию, имя или отчество врача';
+          step.searchPlaceholder = 'Фамилия, имя или отчество...';
         } else {
           step.title = 'Выбор поликлиники';
           step.description = 'Выберите поликлинику из списка';

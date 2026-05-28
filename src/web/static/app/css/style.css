@@ -706,7 +706,8 @@ body {
 }
 
 .stepper__clinic-btn {
-  width: 100%;
+  font-size: 13px;
+  padding: 6px 14px;
   justify-content: center;
   margin-top: var(--gap-sm);
 }
@@ -742,20 +743,15 @@ body {
   background: var(--tg-secondary-bg-color);
   border: 1px solid var(--tg-hint-color);
   border-radius: 10px;
-  padding: 12px;
+  padding: 8px 10px;
   margin-bottom: var(--gap-md);
   animation: hint-fade-in 0.4s ease-out;
 }
 
-.stepper-hint__icon {
-  font-size: 18px;
-  margin-bottom: var(--gap-xs);
-}
-
 .stepper-hint__text {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--tg-hint-color);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 @keyframes hint-fade-in {
