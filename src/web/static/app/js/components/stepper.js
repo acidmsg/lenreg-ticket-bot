@@ -348,7 +348,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     // Таймер автоподсказки: через 3 секунды бездействия показать подсказку.
     // Только на шаге clinic (индекс 1) в режиме doctors.
     let hintTimer = setTimeout(() => {
-      if (currentStep !== 1 && steps[currentStep]?.id !== 'clinic') return;
+      if (currentStep !== 1 || _currentSearchMode !== 'doctors') return;
       const input = document.getElementById('stepper-search');
       if (input && input.value.trim() === '') {
         const hintEl = document.getElementById('stepper-hint');
