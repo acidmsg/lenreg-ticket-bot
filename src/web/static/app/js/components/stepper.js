@@ -243,6 +243,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         // Обновляем заголовки шага для clinics-режима
         step.title = 'Выбор поликлиники';
         step.description = 'Выберите поликлинику из списка';
+        // Уведомляем родительский код о смене режима
+        if (typeof step.onSearchModeChange === 'function') {
+          step.onSearchModeChange('clinics');
+        }
         stepData = [];
         render();
       });

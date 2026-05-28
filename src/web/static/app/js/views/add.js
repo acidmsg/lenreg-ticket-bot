@@ -44,7 +44,6 @@ export function renderAddDoctor(container) {
       searchPlaceholder: 'Фамилия врача...',
       searchMode: 'doctors',
       onSearchModeChange: (mode) => {
-        _searchMode = mode;
         const step = steps[1];
         if (mode === 'doctors') {
           step.title = 'Поиск врача';
@@ -57,13 +56,13 @@ export function renderAddDoctor(container) {
         }
       },
       loadData: async (selections) => {
-        if (_searchMode === 'doctors') {
+        if (steps[1].searchMode === 'doctors') {
           return await searchDoctorsGlobally(selections);
         }
         return await loadClinics(selections);
       },
       renderItem: (item) => {
-        if (_searchMode === 'doctors') {
+        if (steps[1].searchMode === 'doctors') {
           return renderDoctorSearchItem(item);
         }
         return renderClinicItem(item);
