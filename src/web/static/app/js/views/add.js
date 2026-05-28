@@ -157,6 +157,18 @@ export function renderAddDoctor(container) {
         // Возвращаемся на главный экран
         navigate('doctors');
       } catch (error) {
+        // Дубликат (врач уже отслеживается) — просто возвращаемся на главную без ошибки
+        const msg = (error.message || '').toLowerCase();
+        if (
+          msg.includes('уже отслеживается') ||
+          msg.includes('already') ||
+          msg.includes('duplicate') ||
+          msg.includes('exists')
+        ) {
+          navigate('doctors');
+          return;
+        }
+
         if (isInTelegram()) {
           window.Telegram.WebApp.showAlert(
             `Ошибка при добавлении: ${error.message}`
@@ -241,7 +253,7 @@ async function loadClinics() {
 
   const items = clinics.map((c) => ({
     value: c,
-    label: c.short_name || c.name || `Поликлиника №${c.clinic_id}`,
+    label: c.short_name || c.name || 'Поликлиника',
     subtitle: `${c.name || ''}${c.city ? `, ${c.city}` : ''}`
   }));
 
@@ -314,7 +326,7 @@ async function loadDoctors(selections = []) {
 
   return doctors.map((d) => ({
     value: d,
-    label: extractDoctorName(d) || `Врач #${d.doctor_id}`,
+    label: extractDoctorName(d) || 'Неизвестный врач',
     specialty: d.specialty_name || '',
     subtitle:
       d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : '',
@@ -346,13 +358,31 @@ async function searchDoctorsGlobally(selections = []) {
   const data = await apiGet('/doctors/search', params);
   const doctors = data.doctors || [];
 
+  // Получаем текущие мониторинги, чтобы пометить уже отслеживаемых врачей
+  let monitoredDoctorIds = new Set();
+  try {
+    const patient = selections[0]?.value;
+    if (patient) {
+      const monitoringData = await apiGet('/doctors', {
+        patient_id: patient.patient_id || patient.id || ''
+      });
+      const monitoredDoctors = monitoringData.doctors || [];
+      monitoredDoctorIds = new Set(
+        monitoredDoctors.map((d) => String(d.doctor_id))
+      );
+    }
+  } catch {
+    // Если не удалось получить мониторинги — не блокируем поиск
+  }
+
   return doctors.map((d) => ({
     value: d,
-    label: d.name || `Врач #${d.doctor_id}`,
+    label: d.name || 'Неизвестный врач',
     specialty: d.specialty_name || '',
     subtitle: `🏥 ${d.clinic_name || ''}`,
     // Флаг для stepper: пропустить шаг выбора врача внутри клиники
-    _skipNext: true
+    _skipNext: true,
+    _monitored: monitoredDoctorIds.has(String(d.doctor_id))
   }));
 }
 
@@ -407,6 +437,20 @@ function renderClinicItem(item) {
  * @returns {string} HTML элемента
  */
 function renderDoctorSearchItem(item) {
+  // Врач уже отслеживается — показываем серым с пометкой
+  if (item._monitored) {
+    return `
+      <div class="doctor-card--monitored">
+        <div class="list__item-content">
+          <div class="list__item-title">${escapeHtml(item.label)}</div>
+          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
+          <div class="list__item-subtitle" style="color: var(--tg-destructive-color);">уже отслеживается</div>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>

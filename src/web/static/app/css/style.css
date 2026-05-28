@@ -830,7 +830,8 @@ body {
 }
 
 /* === Блокированная карточка врача (уже отслеживается) === */
-.doctor-card--monitored {
+.doctor-card--monitored,
+.stepper-item--monitored {
   opacity: 0.5;
   pointer-events: none;
   user-select: none;

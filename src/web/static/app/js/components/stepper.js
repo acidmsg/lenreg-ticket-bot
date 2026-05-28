@@ -182,7 +182,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const itemsHtml = items
       .map(
         (item, idx) => `
-        <li class="list__item stepper-item" data-index="${idx}">
+        <li class="list__item stepper-item${item._monitored ? ' stepper-item--monitored' : ''}" data-index="${idx}">
           ${renderItem(item)}
         </li>
       `
@@ -334,7 +334,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     });
 
-    if (stepData.length === 1 && items.length === 1) {
+    if (
+      stepData.length === 1 &&
+      items.length === 1 &&
+      _currentSearchMode !== 'doctors'
+    ) {
       items[0].classList.add('stepper-item--selected');
       setTimeout(() => {
         if (currentStep < steps.length - 1 && stepData.length === 1) {
