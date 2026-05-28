@@ -46,7 +46,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   function advanceStep(selectedIndex) {
     const selectedItem = stepData[selectedIndex];
     selections.push(selectedItem);
-    // _skipNext — флаг глобального поиска врачей: пропускаем шаг doctor
     if (selectedItem._skipNext) {
       currentStep += 2;
     } else {
@@ -61,7 +60,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
    */
   function render() {
     if (currentStep >= steps.length) {
-      // Все шаги пройдены — вызываем onComplete
       container.innerHTML = '';
       if (onComplete) {
         onComplete(selections);
@@ -71,14 +69,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const step = steps[currentStep];
 
-    // Инициализируем режим поиска из конфига шага
     if (step.searchMode !== undefined) {
       _currentSearchMode = step.searchMode;
     } else {
       _currentSearchMode = null;
     }
 
-    // Пиксельные точки — визуальный индикатор шагов
     const dotsHTML = steps
       .map((_, i) => {
         let cls = 'stepper__dot';
@@ -91,7 +87,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const progressHtml = dotsHTML;
 
-    // Переключатель режимов поиска (если задан в конфиге шага)
     const modeSwitcherHtml =
       step.searchMode !== undefined ? renderModeSwitcher(step.searchMode) : '';
 
@@ -115,7 +110,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       : `<button class="btn btn--danger" id="stepper-cancel">✕ Отмена</button>`;
 
     const isLastStep = currentStep === steps.length - 1;
-    // На не-последних шагах кнопка «Далее» скрыта через CSS-класс .stepper__btn--next
     const nextBtnClass = isLastStep ? '' : ' stepper__btn--next';
 
     container.innerHTML = `
@@ -141,11 +135,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     loadStepData(step);
   }
 
-  /**
-   * Рендерит индикатор загрузки.
-   *
-   * @returns {string} HTML спиннера
-   */
   function renderLoading() {
     return `
       <div class="spinner">
@@ -154,14 +143,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     `;
   }
 
-  /**
-   * Рендерит список элементов.
-   *
-   * @param {Array} items — данные для рендеринга
-   * @param {Function} renderItem — функция рендеринга одного элемента
-   * @param {boolean} [isLastStep=false] — является ли текущий шаг последним (подтверждение)
-   * @returns {string} HTML списка
-   */
   function renderItems(items, renderItem, isLastStep = false) {
     if (!items || items.length === 0) {
       return `
@@ -172,23 +153,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       `;
     }
 
-    // Для шага подтверждения рендерим без списка и без кликабельных стилей
-    if (isLastStep) {
-      return items
-        .map(
-          (item) => `
-        <div class="stepper-confirm">
-          ${renderItem(item)}
-        </div>
-      `
-        )
-        .join('');
-    }
-
     const itemsHtml = items
       .map(
-        (item, index) => `
-        <li class="list__item stepper-item" data-index="${index}">
+        (item, idx) => `
+        <li class="list__item stepper-item" data-index="${idx}">
           ${renderItem(item)}
         </li>
       `
@@ -198,36 +166,34 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     return `<ul class="list">${itemsHtml}</ul>`;
   }
 
-  /**
-   * Привязывает обработчики событий.
-   *
-   * @param {object} step — текущий шаг
-   */
   function bindEvents(step) {
-    // Кнопка «Назад»
     const backBtn = document.getElementById('stepper-back');
+    const cancelBtn = document.getElementById('stepper-cancel');
+    const nextBtn = document.getElementById('stepper-next');
+
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        if (currentStep > 0) {
-          // Если предыдущий выбранный элемент пометил шаг как пропущенный
-          // (глобальный поиск врачей), откатываемся на 2 шага назад
-          const lastSelection = selections[selections.length - 1];
-          if (lastSelection && lastSelection._skipNext) {
-            currentStep -= 2;
-            selections.pop(); // убираем confirmation
-            selections.pop(); // убираем doctor (глобальный)
-          } else {
-            currentStep--;
-            selections.pop();
-          }
-          stepData = [];
-          render();
+        if (
+          currentStep === 1 &&
+          selections.length === 1 &&
+          selections[0]?._skipNext
+        ) {
+          currentStep = 0;
+        } else if (
+          currentStep > 0 &&
+          selections.length === currentStep + 1 &&
+          selections[currentStep]?._skipNext
+        ) {
+          currentStep -= 2;
+        } else {
+          currentStep = Math.max(0, currentStep - 1);
         }
+        selections.pop();
+        stepData = [];
+        render();
       });
     }
 
-    // Кнопка «Отмена»
-    const cancelBtn = document.getElementById('stepper-cancel');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
         if (onCancel) {
@@ -236,137 +202,36 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     }
 
-    // Кнопка «Готово» (только на последнем шаге)
-    const nextBtn = document.getElementById('stepper-next');
     if (nextBtn) {
-      const isLastStep = currentStep === steps.length - 1;
-      if (isLastStep) {
-        nextBtn.addEventListener('click', () => {
-          let selectedIndex = getSelectedIndex();
-
-          // Для последнего шага (подтверждение) — всегда берём первый (и единственный) элемент
-          if (selectedIndex === null && stepData.length === 1) {
-            selectedIndex = 0;
+      nextBtn.addEventListener('click', () => {
+        if (currentStep === steps.length - 1) {
+          if (onComplete) {
+            onComplete(selections);
           }
-
-          if (selectedIndex === null) return;
-
-          const selectedItem = stepData[selectedIndex];
-          selections.push(selectedItem);
-          currentStep++;
-          stepData = [];
-          render();
-        });
-      }
-      // Для не-последних шагов кнопка скрыта CSS и не требует обработчика
+        }
+      });
     }
 
-    // Выбор элемента списка — автопереход на следующий шаг
-    const isLastStep = currentStep === steps.length - 1;
-    const items = container.querySelectorAll('.stepper-item');
-    items.forEach((item) => {
-      item.addEventListener('click', () => {
-        // Снимаем выделение со всех
-        items.forEach((i) => i.classList.remove('stepper-item--selected'));
-        // Выделяем текущий
-        item.classList.add('stepper-item--selected');
-
-        // Автопереход для всех шагов кроме последнего (подтверждение)
-        if (!isLastStep) {
-          const idx = parseInt(item.getAttribute('data-index'), 10);
-          if (!isNaN(idx) && stepData[idx]) {
-            advanceStep(idx);
-          }
-          return;
-        }
-
-        // На последнем шаге — активируем кнопку «Готово»
-        const next = document.getElementById('stepper-next');
-        if (next) {
-          next.disabled = false;
+    const modeBtns = container.querySelectorAll('.search-mode-btn');
+    modeBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        if (mode && step.onSearchModeChange) {
+          step.onSearchModeChange(mode);
+          _currentSearchMode = mode;
+          step.searchMode = mode;
+          stepData = [];
+          render();
         }
       });
     });
-
-    // Поиск/фильтрация
-    const searchInput = document.getElementById('stepper-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        const allItems = container.querySelectorAll('.stepper-item');
-        allItems.forEach((item) => {
-          const text = item.textContent.toLowerCase();
-          item.style.display = text.includes(query) ? '' : 'none';
-        });
-      });
-    }
-
-    // Переключатель режимов поиска (клиники / врачи)
-    const modeBtns = container.querySelectorAll('.search-mode-btn');
-    if (modeBtns.length > 0 && step.onSearchModeChange) {
-      modeBtns.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const mode = btn.dataset.mode;
-          if (!mode) return;
-
-          // Обновляем внутренний режим поиска
-          _currentSearchMode = mode;
-          // Синхронизируем step.searchMode для render()
-          step.searchMode = mode;
-
-          // Обновляем визуальное состояние кнопок
-          modeBtns.forEach((b) =>
-            b.classList.remove('search-mode-btn--active')
-          );
-          btn.classList.add('search-mode-btn--active');
-
-          // Уведомляем внешний код о смене режима
-          step.onSearchModeChange(mode);
-
-          // Обновляем placeholder строки поиска
-          const searchInputEl = document.getElementById('stepper-search');
-          if (searchInputEl) {
-            searchInputEl.placeholder =
-              mode === 'doctors'
-                ? 'Поиск по имени врача...'
-                : step.searchPlaceholder || 'Поиск по названию...';
-            searchInputEl.value = '';
-          }
-
-          // Перезагружаем данные для нового режима
-          loadStepData(step);
-        });
-      });
-    }
-  }
-
-  /**
-   * Возвращает индекс выбранного элемента.
-   *
-   * @returns {number|null} индекс или null, если ничего не выбрано
-   */
-  function getSelectedIndex() {
-    const selected = container.querySelector('.stepper-item--selected');
-    if (!selected) return null;
-    const index = selected.getAttribute('data-index');
-    return index !== null ? parseInt(index, 10) : null;
   }
 
   /**
    * Загружает данные для текущего шага.
-   *
-   * @param {object} step — конфигурация шага
    */
   async function loadStepData(step) {
-    if (!step.loadData) {
-      stepData = [];
-      updateContent();
-      return;
-    }
-
     isLoading = true;
-    updateContent();
-
     try {
       stepData = await step.loadData(selections);
     } catch (error) {
@@ -376,7 +241,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     } finally {
       isLoading = false;
     }
-
     updateContent();
   }
 
@@ -387,109 +251,100 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const contentEl = document.getElementById('stepper-content');
     if (!contentEl) return;
 
-    const step = steps[currentStep];
     const isLastStep = currentStep === steps.length - 1;
 
     if (isLoading) {
       contentEl.innerHTML = renderLoading();
-    } else {
-      // Плейсхолдер при пустом поиске в режиме глобального поиска врачей
-      if (_currentSearchMode === 'doctors' && stepData.length === 0) {
-        const searchInput = document.getElementById('stepper-search');
-        const searchQuery = searchInput ? searchInput.value.trim() : '';
-        if (searchQuery === '') {
-          contentEl.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-state__icon">🔍</div>
-              <p class="empty-state__text">Начните вводить фамилию, имя или отчество врача</p>
-            </div>
-          `;
-          return;
-        }
-      }
+      return;
+    }
 
-      contentEl.innerHTML = renderItems(stepData, step.renderItem, isLastStep);
-
-      // Для шага подтверждения не привязываем события выбора
-      if (isLastStep) {
-        // Поиск на шаге подтверждения не нужен
+    // Плейсхолдер при пустом поиске в режиме глобального поиска врачей
+    if (_currentSearchMode === 'doctors' && stepData.length === 0) {
+      const searchInput = document.getElementById('stepper-search');
+      const searchQuery = searchInput ? searchInput.value.trim() : '';
+      if (searchQuery === '') {
+        contentEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state__icon">🔍</div>
+            <p class="empty-state__text">Начните вводить фамилию, имя или отчество врача</p>
+          </div>
+        `;
+        setupSearchListener();
         return;
       }
-
-      // Перепривязываем события после обновления контента
-      const items = container.querySelectorAll('.stepper-item');
-      items.forEach((item) => {
-        item.addEventListener('click', () => {
-          items.forEach((i) => i.classList.remove('stepper-item--selected'));
-          item.classList.add('stepper-item--selected');
-
-          // Автопереход при клике (кроме последнего шага — сюда не попадаем)
-          const idx = parseInt(item.getAttribute('data-index'), 10);
-          if (!isNaN(idx) && stepData[idx]) {
-            advanceStep(idx);
-          }
-        });
-      });
-
-      // Авто-выбор, если на шаге только один элемент (кроме последнего шага)
-      if (stepData.length === 1 && items.length === 1) {
-        items[0].classList.add('stepper-item--selected');
-        // Автопереход с небольшой задержкой для визуального отклика
-        setTimeout(() => {
-          // Проверяем, что мы всё ещё на том же шаге (не ушли назад/вперёд)
-          if (currentStep < steps.length - 1 && stepData.length === 1) {
-            advanceStep(0);
-          }
-        }, 200);
-      }
-
-      const oldInput = document.getElementById('stepper-search');
-      if (oldInput) {
-        // Замена элемента для сброса всех старых обработчиков событий
-        const newInput = oldInput.cloneNode(true);
-        oldInput.parentNode.replaceChild(newInput, oldInput);
-
-        if (
-          _currentSearchMode === 'doctors' &&
-          steps[currentStep].searchMode !== undefined
-        ) {
-          // API-поиск с debounce 400ms для глобального поиска врачей.
-          newInput.addEventListener('input', (e) => {
-            const query = e.target.value;
-
-            if (_searchDebounce) {
-              clearTimeout(_searchDebounce);
-            }
-
-            _searchDebounce = setTimeout(() => {
-              if (query.length >= 2 || query.length === 0) {
-                const input = document.getElementById('stepper-search');
-                if (input && input.value !== query) {
-                  input.value = query;
-                }
-                loadStepData(steps[currentStep]);
-              }
-            }, 400);
-          });
-        } else {
-          // Клиентская фильтрация (обычный режим)
-          newInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            container.querySelectorAll('.stepper-item').forEach((item) => {
-              const text = item.textContent.toLowerCase();
-              item.style.display = text.includes(query) ? '' : 'none';
-            });
-          });
-        }
-      }
     }
+
+    contentEl.innerHTML = renderItems(
+      stepData,
+      steps[currentStep].renderItem,
+      isLastStep
+    );
+
+    if (isLastStep) return;
+
+    const items = container.querySelectorAll('.stepper-item');
+    items.forEach((item) => {
+      item.addEventListener('click', () => {
+        items.forEach((i) => i.classList.remove('stepper-item--selected'));
+        item.classList.add('stepper-item--selected');
+        const idx = parseInt(item.getAttribute('data-index'), 10);
+        if (!isNaN(idx) && stepData[idx]) {
+          advanceStep(idx);
+        }
+      });
+    });
+
+    if (stepData.length === 1 && items.length === 1) {
+      items[0].classList.add('stepper-item--selected');
+      setTimeout(() => {
+        if (currentStep < steps.length - 1 && stepData.length === 1) {
+          advanceStep(0);
+        }
+      }, 200);
+    }
+
+    setupSearchListener();
   }
 
   /**
-   * Показывает сообщение об ошибке.
-   *
-   * @param {string} message — текст ошибки
+   * Настраивает обработчик поля поиска.
+   * Использует oninput (не addEventListener) — автоматически заменяет старый обработчик.
    */
+  function setupSearchListener() {
+    const searchInput = document.getElementById('stepper-search');
+    if (!searchInput) return;
+
+    const step = steps[currentStep];
+    const isDoctorMode =
+      _currentSearchMode === 'doctors' && step.searchMode !== undefined;
+
+    // oninput заменяет предыдущий обработчик автоматически
+    searchInput.oninput = (e) => {
+      const query = e.target.value;
+
+      if (isDoctorMode) {
+        // API-поиск с debounce 400ms
+        if (_searchDebounce) clearTimeout(_searchDebounce);
+
+        _searchDebounce = setTimeout(() => {
+          if (query.length >= 2 || query.length === 0) {
+            // Синхронизируем значение в DOM на случай если input был пересоздан
+            const input = document.getElementById('stepper-search');
+            if (input) input.value = query;
+            loadStepData(steps[currentStep]);
+          }
+        }, 400);
+      } else {
+        // Клиентская фильтрация
+        const q = query.toLowerCase();
+        container.querySelectorAll('.stepper-item').forEach((item) => {
+          const text = item.textContent.toLowerCase();
+          item.style.display = text.includes(q) ? '' : 'none';
+        });
+      }
+    };
+  }
+
   function showError(message) {
     const contentEl = document.getElementById('stepper-content');
     if (!contentEl) return;
@@ -509,19 +364,15 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     }
   }
 
-  // Запуск рендеринга
   render();
 
-  // Возвращаем объект управления
   return {
-    /** Перейти к указанному шагу */
     goToStep: (index) => {
       currentStep = Math.max(0, Math.min(index, steps.length));
       selections.length = Math.min(selections.length, currentStep);
       stepData = [];
       render();
     },
-    /** Сбросить stepper */
     reset: () => {
       currentStep = 0;
       selections.length = 0;
@@ -531,12 +382,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   };
 }
 
-/**
- * Рендерит переключатель режимов поиска (клиники / врачи).
- *
- * @param {string} mode — текущий режим ('clinics' или 'doctors')
- * @returns {string} HTML переключателя
- */
 function renderModeSwitcher(mode) {
   return `
     <div class="search-mode-switcher">
@@ -548,12 +393,6 @@ function renderModeSwitcher(mode) {
   `;
 }
 
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = String(text);
