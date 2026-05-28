@@ -30,9 +30,6 @@ export function renderAddDoctor(container) {
   /** ID выбранного врача */
   let selectedDoctor = null;
 
-  /** Текущий режим поиска: 'doctors' (по умолчанию) или 'clinics' */
-  let _searchMode = 'doctors';
-
   const steps = [
     {
       title: 'Выберите пациента',

@@ -76,14 +76,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     }
 
     // Динамические заголовки в зависимости от режима поиска
-    const displayTitle =
-      step.searchMode !== undefined && _currentSearchMode === 'doctors'
-        ? 'Поиск врача'
-        : step.title;
-    const displayDesc =
-      step.searchMode !== undefined && _currentSearchMode === 'doctors'
-        ? 'Введите фамилию врача или выберите поликлинику'
-        : step.description;
+    const isClinicMode = _currentSearchMode === 'clinics';
+    const displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
+    const displayDesc = isClinicMode
+      ? 'Выберите поликлинику из списка'
+      : 'Введите фамилию врача или выберите поликлинику';
 
     const dotsHTML = steps
       .map((_, i) => {
@@ -96,9 +93,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       .join('');
 
     const progressHtml = dotsHTML;
-
-    const modeSwitcherHtml =
-      step.searchMode !== undefined ? renderModeSwitcher(step.searchMode) : '';
 
     const searchHtml = step.searchPlaceholder
       ? `
@@ -114,12 +108,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       `
       : '';
 
-    // Кнопка-ссылка «Выбрать поликлинику» в режиме поиска врачей
+    // Кнопка «Выбрать поликлинику» в режиме поиска врачей
     const clinicLinkHtml =
       _currentSearchMode === 'doctors'
         ? `<div class="stepper__alt-action">
-           <button class="btn btn--text" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
-         </div>`
+            <button class="btn btn--secondary stepper__clinic-btn" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
+          </div>`
         : '';
 
     const canGoBack = currentStep > 0;
@@ -135,7 +129,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         <div class="stepper__progress">${progressHtml}</div>
         <h2 class="stepper__title">${escapeHtml(displayTitle)}</h2>
         <p class="stepper__description">${escapeHtml(displayDesc)}</p>
-        ${modeSwitcherHtml}
         ${searchHtml}
         ${clinicLinkHtml}
         <div class="stepper__content" id="stepper-content">
@@ -192,6 +185,23 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     if (backBtn) {
       backBtn.addEventListener('click', () => {
+        // Если мы в режиме clinics (переключились с doctors) — возврат в doctors
+        if (
+          _currentSearchMode === 'clinics' &&
+          steps[currentStep].id === 'clinic'
+        ) {
+          _currentSearchMode = 'doctors';
+          const clinicStep = steps[currentStep];
+          clinicStep.searchMode = 'doctors';
+          clinicStep.title = 'Поиск врача';
+          clinicStep.description =
+            'Введите фамилию врача или выберите поликлинику';
+          clinicStep.searchPlaceholder = 'Фамилия врача...';
+          stepData = [];
+          render();
+          return;
+        }
+        // Обычная логика назад
         if (selections.length > 0) {
           const last = selections[selections.length - 1];
           if (last?._skipNext) {
@@ -224,27 +234,15 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     }
 
-    const modeBtns = container.querySelectorAll('.search-mode-btn');
-    modeBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const mode = btn.getAttribute('data-mode');
-        if (mode && step.onSearchModeChange) {
-          step.onSearchModeChange(mode);
-          _currentSearchMode = mode;
-          step.searchMode = mode;
-          stepData = [];
-          render();
-        }
-      });
-    });
-
-    // Кнопка-ссылка «Выбрать поликлинику» (только в doctors-режиме)
+    // Кнопка «Выбрать поликлинику» (только в doctors-режиме)
     const switchBtn = document.getElementById('stepper-switch-clinics');
     if (switchBtn) {
       switchBtn.addEventListener('click', () => {
         _currentSearchMode = 'clinics';
         step.searchMode = 'clinics';
-        if (step.onSearchModeChange) step.onSearchModeChange('clinics');
+        // Обновляем заголовки шага для clinics-режима
+        step.title = 'Выбор поликлиники';
+        step.description = 'Выберите поликлинику из списка';
         stepData = [];
         render();
       });
@@ -342,8 +340,34 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const isDoctorMode =
       _currentSearchMode === 'doctors' && step.searchMode !== undefined;
 
+    // Таймер автоподсказки: через 3 секунды бездействия показать подсказку
+    let hintTimer = setTimeout(() => {
+      const input = document.getElementById('stepper-search');
+      if (input && input.value.trim() === '') {
+        const hintEl = document.getElementById('stepper-hint');
+        if (!hintEl) {
+          const contentEl = document.getElementById('stepper-content');
+          if (contentEl) {
+            const hint = document.createElement('div');
+            hint.id = 'stepper-hint';
+            hint.className = 'stepper-hint';
+            hint.innerHTML = `
+              <div class="stepper-hint__icon">💡</div>
+              <p class="stepper-hint__text">Не знаете врача? Нажмите <strong>«🏥 Выбрать поликлинику»</strong> чтобы увидеть список врачей в учреждении.</p>
+            `;
+            contentEl.parentNode.insertBefore(hint, contentEl);
+          }
+        }
+      }
+    }, 3000);
+
     // oninput заменяет предыдущий обработчик автоматически
     searchInput.oninput = (e) => {
+      // При вводе — скрыть подсказку
+      clearTimeout(hintTimer);
+      const hintEl = document.getElementById('stepper-hint');
+      if (hintEl) hintEl.remove();
+
       const query = e.target.value;
 
       if (isDoctorMode) {
@@ -404,17 +428,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       render();
     }
   };
-}
-
-function renderModeSwitcher(mode) {
-  return `
-    <div class="search-mode-switcher">
-      <button class="search-mode-btn ${mode === 'clinics' ? 'search-mode-btn--active' : ''}"
-              data-mode="clinics">🏥 Клиники</button>
-      <button class="search-mode-btn ${mode === 'doctors' ? 'search-mode-btn--active' : ''}"
-              data-mode="doctors">👨‍⚕️ Врачи</button>
-    </div>
-  `;
 }
 
 function escapeHtml(text) {
