@@ -328,4 +328,169 @@
   } else {
     init();
   }
+
+  // ── Управление подсказкой ──────────────────────────────────
+
+  /**
+   * Настраивает обработчики слайдеров для управления стилями .stepper-hint.
+   *
+   * Привязывает range/color инпуты к inline-стилям элемента #hint-preview
+   * и его дочернего .stepper-hint__text. Сохраняет настройки в localStorage.
+   */
+  function setupHintControls() {
+    var preview = document.getElementById('hint-preview');
+    if (!preview) return;
+    var text = preview.querySelector('.stepper-hint__text');
+    if (!text) return;
+
+    /**
+     * Привязывает слайдер/инпут к CSS-свойству.
+     *
+     * @param {string} id — ID input-элемента
+     * @param {string} prop — CSS-свойство (camelCase)
+     * @param {string} [unit=''] — единица измерения (px, '', etc.)
+     * @param {function} [transform] — функция преобразования значения
+     */
+    function bindSlider(id, prop, unit, transform) {
+      unit = unit || '';
+      transform =
+        transform ||
+        function (v) {
+          return v;
+        };
+
+      var input = document.getElementById(id);
+      var valEl = document.getElementById(id + '-val');
+      if (!input) return;
+
+      input.addEventListener('input', function () {
+        var val = transform(input.value);
+        if (valEl) valEl.textContent = val + unit;
+
+        if (id.indexOf('font-size') !== -1) text.style[prop] = val + unit;
+        else if (id.indexOf('font-weight') !== -1) {
+          text.style[prop] = val;
+          var bold = text.querySelector('.hint-bold');
+          if (bold) bold.style[prop] = val;
+        } else if (id.indexOf('text-opacity') !== -1) text.style[prop] = val;
+        else if (id.indexOf('text-color') !== -1) text.style[prop] = val;
+        else if (id.indexOf('bg-color') !== -1) preview.style[prop] = val;
+        else if (id.indexOf('bg-opacity') !== -1) preview.style[prop] = val;
+
+        // Сохраняем в localStorage
+        saveHintState();
+      });
+    }
+
+    /**
+     * Сохраняет текущие значения слайдеров в localStorage.
+     */
+    function saveHintState() {
+      var state = {};
+      var ids = [
+        'hint-font-size',
+        'hint-font-weight',
+        'hint-text-color',
+        'hint-text-opacity',
+        'hint-bg-color',
+        'hint-bg-opacity'
+      ];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) state[ids[i]] = el.value;
+      }
+      try {
+        localStorage.setItem('stepper-lab-hint', JSON.stringify(state));
+      } catch (_) {
+        /* игнорируем */
+      }
+    }
+
+    /**
+     * Восстанавливает значения слайдеров из localStorage.
+     */
+    function restoreHintState() {
+      var saved = null;
+      try {
+        saved = JSON.parse(localStorage.getItem('stepper-lab-hint'));
+      } catch (_) {
+        /* игнорируем */
+      }
+      if (!saved) return;
+
+      var ids = [
+        'hint-font-size',
+        'hint-font-weight',
+        'hint-text-color',
+        'hint-text-opacity',
+        'hint-bg-color',
+        'hint-bg-opacity'
+      ];
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (saved[id] !== undefined) {
+          var el = document.getElementById(id);
+          if (el) {
+            el.value = saved[id];
+            el.dispatchEvent(new Event('input'));
+          }
+        }
+      }
+    }
+
+    bindSlider('hint-font-size', 'fontSize', 'px', parseFloat);
+    bindSlider('hint-font-weight', 'fontWeight', '', parseInt);
+    bindSlider('hint-text-color', 'color');
+    bindSlider('hint-text-opacity', 'opacity', '', parseFloat);
+    bindSlider('hint-bg-color', 'backgroundColor');
+    bindSlider('hint-bg-opacity', 'opacity', '', parseFloat);
+
+    // Кнопка сброса
+    var resetBtn = document.getElementById('hint-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        text.style.cssText = '';
+        preview.style.cssText = '';
+
+        var rangeIds = [
+          'hint-font-size',
+          'hint-font-weight',
+          'hint-text-opacity',
+          'hint-bg-opacity'
+        ];
+        for (var i = 0; i < rangeIds.length; i++) {
+          var el = document.getElementById(rangeIds[i]);
+          if (el) {
+            el.value = el.defaultValue;
+            el.dispatchEvent(new Event('input'));
+          }
+        }
+
+        var colorIds = ['hint-text-color', 'hint-bg-color'];
+        for (var j = 0; j < colorIds.length; j++) {
+          var cel = document.getElementById(colorIds[j]);
+          if (cel) {
+            cel.value = cel.defaultValue;
+            cel.dispatchEvent(new Event('input'));
+          }
+        }
+
+        try {
+          localStorage.removeItem('stepper-lab-hint');
+        } catch (_) {
+          /* игнорируем */
+        }
+      });
+    }
+
+    // Запускаем первоначальную установку значений + восстанавливаем сохранённые
+    restoreHintState();
+  }
+
+  // Инициализация после полной загрузки DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupHintControls);
+  } else {
+    setupHintControls();
+  }
 })();
