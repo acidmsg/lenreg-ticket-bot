@@ -1,5 +1,5 @@
 ---
-description: "Линтинг: ruff (check+fix+format) + mypy + markdownlint + prettier"
+description: 'Линтинг: ruff (check+fix+format) + mypy + markdownlint + prettier'
 ---
 
 Выполни полный цикл линтинга и форматирования проекта:
@@ -12,8 +12,8 @@ description: "Линтинг: ruff (check+fix+format) + mypy + markdownlint + pr
 
 **Markdown:**
 
-4. `npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_lint_mdlint.txt 2>&1`
-5. `npx prettier --write "docs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_lint_prettier.txt 2>&1`
+1. `npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_lint_mdlint.txt 2>&1`
+2. `npx prettier --write "docs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_lint_prettier.txt 2>&1`
 
 Прочитай все `.tmp_*` файлы и собери сводку: что исправлено автофиксом, какие ошибки остались (требуют ручного вмешательства). Удали все временные файлы после анализа.
 
