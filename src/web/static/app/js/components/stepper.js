@@ -70,6 +70,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       return;
     }
 
+    // Сброс pending debounce при переходе на другой шаг
+    if (_searchDebounce) {
+      clearTimeout(_searchDebounce);
+      _searchDebounce = null;
+    }
+
     const step = steps[currentStep];
 
     if (step.searchMode !== undefined) {
@@ -272,8 +278,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       showError(error.message || 'Ошибка загрузки данных');
       return;
     } finally {
-      if (loadId !== _loadId) return;
-      isLoading = false;
+      if (loadId === _loadId) isLoading = false;
     }
     if (loadId !== _loadId) return;
     updateContent();
