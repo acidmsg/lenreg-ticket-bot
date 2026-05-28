@@ -32,6 +32,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   /** Флаг загрузки */
   let isLoading = false;
 
+  /** Счётчик загрузок для предотвращения гонки */
+  let _loadId = 0;
+
   /** Текущий режим поиска (null | 'clinics' | 'doctors') */
   let _currentSearchMode = null;
 
@@ -259,16 +262,20 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
    * Загружает данные для текущего шага.
    */
   async function loadStepData(step) {
+    const loadId = ++_loadId;
     isLoading = true;
     try {
       stepData = await step.loadData(selections);
     } catch (error) {
+      if (loadId !== _loadId) return;
       stepData = [];
       showError(error.message || 'Ошибка загрузки данных');
       return;
     } finally {
+      if (loadId !== _loadId) return;
       isLoading = false;
     }
+    if (loadId !== _loadId) return;
     updateContent();
   }
 
