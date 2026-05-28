@@ -270,13 +270,11 @@ function init() {
   tg.ready();
   tg.expand();
 
-  // Применяем тему
-  applyTheme(tg.themeParams);
+  // Применяем форсированную тему (с MutationObserver-защитой от перезаписи Telegram)
   forceThemeOverride();
 
-  // Обработчик изменения темы (тёмная/светлая)
+  // При смене темы в Telegram — переприменить форсированные цвета
   tg.onEvent('themeChanged', () => {
-    applyTheme(tg.themeParams);
     forceThemeOverride();
   });
 

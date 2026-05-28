@@ -5,16 +5,16 @@
 
 /* === CSS-переменные Telegram (значения по умолчанию) === */
 :root {
-  --tg-bg-color: #0a0a10 !important;
-  --tg-secondary-bg-color: #12121c !important;
-  --tg-text-color: #e0e8f8 !important;
-  --tg-hint-color: #89b !important;
-  --tg-button-color: #09b653 !important;
-  --tg-button-text-color: #0a0a10 !important;
-  --tg-destructive-color: #ea336f !important;
-  --tg-section-header-color: #09b653 !important;
-  --tg-subtitle-color: #89b !important;
-  --tg-link-color: #09b653 !important;
+  --tg-bg-color: #0a0a10;
+  --tg-secondary-bg-color: #12121c;
+  --tg-text-color: #e0e8f8;
+  --tg-hint-color: #89b;
+  --tg-button-color: #09b653;
+  --tg-button-text-color: #0a0a10;
+  --tg-destructive-color: #ea336f;
+  --tg-section-header-color: #09b653;
+  --tg-subtitle-color: #89b;
+  --tg-link-color: #09b653;
 
   /* Расширенные переменные */
   --card-radius: 12px;
