@@ -1024,7 +1024,11 @@ class Database:
         return row["cnt"] if row else 0
 
     async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
-        """Поиск врачей по подстроке в имени (глобально, по всем клиникам)."""
+        """Поиск врачей по подстроке в имени (глобально, по всем клиникам).
+
+        Используется LOWER() для регистронезависимого поиска по кириллице —
+        SQLite LIKE чувствителен к регистру для символов вне ASCII (A-Z).
+        """
         c = self._conn
         if c is None:
             raise RuntimeError("Database connection not initialized")
@@ -1033,7 +1037,7 @@ class Database:
             "c.name as clinic_name "
             "FROM doctors d "
             "LEFT JOIN clinics c ON d.clinic_id = c.clinic_id "
-            "WHERE d.name LIKE ? "
+            "WHERE LOWER(d.name) LIKE LOWER(?) "
             "ORDER BY d.name "
             "LIMIT ?",
             (f"%{query}%", limit),
