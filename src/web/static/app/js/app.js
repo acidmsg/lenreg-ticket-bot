@@ -52,12 +52,13 @@ function applyTheme(themeParams) {
     secondary_bg_color: '--tg-secondary-bg-color',
     section_header_text_color: '--tg-section-header-color',
     subtitle_text_color: '--tg-subtitle-color',
-    destructive_text_color: '--tg-destructive-color'
+    destructive_text_color: '--tg-destructive-color',
+    link_color: '--tg-link-color'
   };
 
   Object.entries(mapping).forEach(([tgKey, cssVar]) => {
     if (themeParams[tgKey]) {
-      root.style.setProperty(cssVar, themeParams[tgKey]);
+      root.style.setProperty(cssVar, themeParams[tgKey], 'important');
     }
   });
 
@@ -66,6 +67,31 @@ function applyTheme(themeParams) {
     const colorScheme = window.Telegram.WebApp.colorScheme;
     root.style.setProperty('color-scheme', colorScheme);
   }
+}
+
+/**
+ * Принудительное переопределение цветовой схемы.
+ * Обходит инлайн-стили Telegram WebView на мобильных устройствах,
+ * используя третий аргумент 'important' в setProperty.
+ */
+function forceThemeOverride() {
+  const theme = {
+    bg_color: '#0a0a10',
+    secondary_bg_color: '#12121c',
+    text_color: '#e0e8f8',
+    hint_color: '#89b',
+    button_color: '#09b653',
+    button_text_color: '#0a0a10',
+    destructive_text_color: '#ea336f',
+    section_header_text_color: '#09b653',
+    subtitle_text_color: '#89b',
+    link_color: '#09b653'
+  };
+
+  const root = document.documentElement;
+  Object.entries(theme).forEach(([key, val]) => {
+    root.style.setProperty('--tg-' + key, val, 'important');
+  });
 }
 
 // ============================================================
@@ -246,10 +272,12 @@ function init() {
 
   // Применяем тему
   applyTheme(tg.themeParams);
+  forceThemeOverride();
 
   // Обработчик изменения темы (тёмная/светлая)
   tg.onEvent('themeChanged', () => {
     applyTheme(tg.themeParams);
+    forceThemeOverride();
   });
 
   // Кнопка «Назад» в шапке Telegram
