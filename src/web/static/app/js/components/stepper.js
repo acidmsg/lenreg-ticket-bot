@@ -187,10 +187,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     if (backBtn) {
       backBtn.addEventListener('click', () => {
         // Если мы в режиме clinics (переключились с doctors) — возврат в doctors
-        if (
-          _currentSearchMode === 'clinics' &&
-          steps[currentStep].id === 'clinic'
-        ) {
+        if (_currentSearchMode === 'clinics' && currentStep === 1) {
           _currentSearchMode = 'doctors';
           const clinicStep = steps[currentStep];
           clinicStep.searchMode = 'doctors';
