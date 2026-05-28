@@ -699,6 +699,18 @@ body {
   display: none;
 }
 
+/* Кнопка-ссылка «Выбрать поликлинику» под полем поиска */
+.stepper__alt-action {
+  text-align: center;
+  padding: var(--gap-sm) 0;
+}
+
+.stepper__alt-action .btn--text {
+  font-size: 14px;
+  color: var(--tg-link-color);
+  opacity: 0.8;
+}
+
 /* === Поиск/фильтрация === */
 .search-bar {
   padding: var(--gap-sm) var(--card-padding);

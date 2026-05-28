@@ -75,6 +75,16 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       _currentSearchMode = null;
     }
 
+    // Динамические заголовки в зависимости от режима поиска
+    const displayTitle =
+      step.searchMode !== undefined && _currentSearchMode === 'doctors'
+        ? 'Поиск врача'
+        : step.title;
+    const displayDesc =
+      step.searchMode !== undefined && _currentSearchMode === 'doctors'
+        ? 'Введите фамилию врача или выберите поликлинику'
+        : step.description;
+
     const dotsHTML = steps
       .map((_, i) => {
         let cls = 'stepper__dot';
@@ -104,6 +114,14 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       `
       : '';
 
+    // Кнопка-ссылка «Выбрать поликлинику» в режиме поиска врачей
+    const clinicLinkHtml =
+      _currentSearchMode === 'doctors'
+        ? `<div class="stepper__alt-action">
+           <button class="btn btn--text" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
+         </div>`
+        : '';
+
     const canGoBack = currentStep > 0;
     const backButtonHtml = canGoBack
       ? `<button class="btn btn--secondary" id="stepper-back">← Назад</button>`
@@ -115,10 +133,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     container.innerHTML = `
       <div class="stepper">
         <div class="stepper__progress">${progressHtml}</div>
-        <h2 class="stepper__title">${escapeHtml(step.title)}</h2>
-        <p class="stepper__description">${escapeHtml(step.description)}</p>
+        <h2 class="stepper__title">${escapeHtml(displayTitle)}</h2>
+        <p class="stepper__description">${escapeHtml(displayDesc)}</p>
         ${modeSwitcherHtml}
         ${searchHtml}
+        ${clinicLinkHtml}
         <div class="stepper__content" id="stepper-content">
           ${isLoading ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
         </div>
@@ -218,6 +237,18 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         }
       });
     });
+
+    // Кнопка-ссылка «Выбрать поликлинику» (только в doctors-режиме)
+    const switchBtn = document.getElementById('stepper-switch-clinics');
+    if (switchBtn) {
+      switchBtn.addEventListener('click', () => {
+        _currentSearchMode = 'clinics';
+        step.searchMode = 'clinics';
+        if (step.onSearchModeChange) step.onSearchModeChange('clinics');
+        stepData = [];
+        render();
+      });
+    }
   }
 
   /**

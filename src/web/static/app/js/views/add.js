@@ -30,8 +30,8 @@ export function renderAddDoctor(container) {
   /** ID выбранного врача */
   let selectedDoctor = null;
 
-  /** Текущий режим поиска: 'clinics' (по умолчанию) или 'doctors' (глобальный) */
-  let _searchMode = 'clinics';
+  /** Текущий режим поиска: 'doctors' (по умолчанию) или 'clinics' */
+  let _searchMode = 'doctors';
 
   const steps = [
     {
@@ -41,22 +41,22 @@ export function renderAddDoctor(container) {
       renderItem: renderPatientItem
     },
     {
-      title: 'клиника',
-      description: 'Выберите поликлинику или найдите врача по фамилии',
-      searchPlaceholder: 'Поиск поликлиники или врача...',
-      searchMode: 'clinics',
+      title: 'Поиск врача',
+      description:
+        'Введите фамилию врача — или выберите поликлинику, чтобы увидеть список врачей',
+      searchPlaceholder: 'Фамилия врача...',
+      searchMode: 'doctors',
       onSearchModeChange: (mode) => {
         _searchMode = mode;
         const step = steps[1];
         if (mode === 'doctors') {
           step.title = 'Поиск врача';
-          step.description = 'Поиск врача по всем поликлиникам';
-          step.searchPlaceholder = 'Введите имя врача...';
+          step.description = 'Введите фамилию врача или выберите поликлинику';
+          step.searchPlaceholder = 'Фамилия врача...';
         } else {
-          step.title = 'клиника';
-          step.description =
-            'Выберите поликлинику или найдите врача по фамилии';
-          step.searchPlaceholder = 'Поиск поликлиники или врача...';
+          step.title = 'Выбор поликлиники';
+          step.description = 'Выберите поликлинику из списка';
+          step.searchPlaceholder = 'Поиск клиники...';
         }
       },
       loadData: async (selections) => {
