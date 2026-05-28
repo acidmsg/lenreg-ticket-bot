@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@400;600&family=JetBrains+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Share+Tech+Mono&family=Open+Sans:wght@400;600&family=Raleway:wght@400;600&family=Noto+Sans:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;600&family=JetBrains+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Share+Tech+Mono&family=Open+Sans:wght@400;600&family=Raleway:wght@400;600&family=Noto+Sans:wght@400;600&family=Roboto:wght@400;600&display=swap"
       rel="stylesheet"
     />
 
@@ -178,6 +178,47 @@
             </button>
           </div>
         </div>
+
+        <!-- Секция настройки подсказки -->
+        <div class="sidebar__section">
+          <h3 class="sidebar__heading">🎨 Подсказка</h3>
+
+          <label>
+            Размер шрифта:
+            <span id="hint-font-size-val">13px</span>
+          </label>
+          <input type="range" id="hint-font-size" min="10" max="20" value="13" step="1" />
+
+          <label>
+            Толщина:
+            <span id="hint-font-weight-val">400</span>
+          </label>
+          <input type="range" id="hint-font-weight" min="300" max="700" value="400" step="100" />
+
+          <label>
+            Цвет текста:
+            <input type="color" id="hint-text-color" value="#8899bb" />
+          </label>
+
+          <label>
+            Прозрачность текста:
+            <span id="hint-text-opacity-val">1.0</span>
+          </label>
+          <input type="range" id="hint-text-opacity" min="0.3" max="1.0" value="1.0" step="0.05" />
+
+          <label>
+            Цвет фона:
+            <input type="color" id="hint-bg-color" value="#111820" />
+          </label>
+
+          <label>
+            Прозрачность фона:
+            <span id="hint-bg-opacity-val">1.0</span>
+          </label>
+          <input type="range" id="hint-bg-opacity" min="0.3" max="1.0" value="1.0" step="0.05" />
+
+          <button class="sidebar__btn" id="hint-reset">Сброс</button>
+        </div>
       </aside>
 
       <!-- ===== Основной контент ===== -->
@@ -197,6 +238,20 @@
             </div>
             <div class="phone-frame__content" id="stepper-preview">
               <!-- Сюда live-stepper.js отрендерит интерактивный степпер -->
+            </div>
+          </div>
+
+          <!-- ===== Hint Preview ===== -->
+          <div class="phone-frame">
+            <div class="phone-frame__header">
+              <span class="phone-frame__title">Hint Preview</span>
+            </div>
+            <div class="phone-frame__content" id="hint-preview-container">
+              <div class="stepper-hint" id="hint-preview">
+                <p class="stepper-hint__text">
+                  Не знаете врача? Выберите поликлинику, чтобы увидеть список врачей в учреждении.
+                </p>
+              </div>
             </div>
           </div>
         </div>

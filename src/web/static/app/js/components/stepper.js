@@ -408,7 +408,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
             hint.id = 'stepper-hint';
             hint.className = 'stepper-hint';
             hint.innerHTML =
-              '<p class="stepper-hint__text">Не знаете врача? Нажмите <strong>«🏥 Выбрать поликлинику»</strong> чтобы увидеть список врачей в учреждении.</p>';
+              '<p class="stepper-hint__text">Не знаете врача? Выберите поликлинику, чтобы увидеть список врачей в учреждении.</p>';
             contentEl.parentNode.insertBefore(hint, contentEl);
           }
         }
