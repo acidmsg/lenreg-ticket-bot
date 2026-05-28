@@ -75,12 +75,16 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       _currentSearchMode = null;
     }
 
-    // Динамические заголовки в зависимости от режима поиска
-    const isClinicMode = _currentSearchMode === 'clinics';
-    const displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
-    const displayDesc = isClinicMode
-      ? 'Выберите поликлинику из списка'
-      : '🔍 Начните вводить фамилию, имя или отчество врача';
+    // Динамические заголовки ТОЛЬКО для шага clinic (currentStep === 1).
+    let displayTitle = step.title;
+    let displayDesc = step.description;
+    if (currentStep === 1 && _currentSearchMode !== null) {
+      const isClinicMode = _currentSearchMode === 'clinics';
+      displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
+      displayDesc = isClinicMode
+        ? 'Выберите поликлинику из списка'
+        : '🔍 Начните вводить фамилию, имя или отчество врача';
+    }
 
     const dotsHTML = steps
       .map((_, i) => {
