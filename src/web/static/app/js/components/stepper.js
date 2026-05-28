@@ -444,13 +444,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       }
 
       const searchInput = document.getElementById('stepper-search');
-      if (searchInput) {
+      if (searchInput && !_searchListenerAttached) {
+        _searchListenerAttached = true;
         const step = steps[currentStep];
 
         if (_currentSearchMode === 'doctors' && step.searchMode !== undefined) {
           // API-поиск с debounce 400ms для глобального поиска врачей.
-          // Захватываем query ДО setTimeout и принудительно синхронизируем
-          // DOM-значение — защита от гонки при множественных слушателях.
           searchInput.addEventListener('input', (e) => {
             const query = e.target.value;
 
@@ -460,14 +459,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
             _searchDebounce = setTimeout(() => {
               if (query.length >= 2 || query.length === 0) {
-                // Гарантируем, что searchDoctorsGlobally прочитает
-                // именно тот query, который был захвачен при вводе,
-                // а не потенциально изменённое DOM-значение.
                 const input = document.getElementById('stepper-search');
                 if (input && input.value !== query) {
                   input.value = query;
                 }
-                loadStepData(step);
+                loadStepData(steps[currentStep]);
               }
             }, 400);
           });
