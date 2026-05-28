@@ -1026,8 +1026,9 @@ class Database:
     async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
         """Поиск врачей по подстроке в имени (глобально, по всем клиникам).
 
-        Используется LOWER() для регистронезависимого поиска по кириллице —
-        SQLite LIKE чувствителен к регистру для символов вне ASCII (A-Z).
+        Фильтрация выполняется в Python, поскольку SQLite LOWER() не работает
+        для кириллицы без ICU-расширения. Загружаются все врачи (≈665 записей),
+        затем фильтруются регистронезависимо через str.lower().
         """
         c = self._conn
         if c is None:
@@ -1037,10 +1038,12 @@ class Database:
             "c.name as clinic_name "
             "FROM doctors d "
             "LEFT JOIN clinics c ON d.clinic_id = c.clinic_id "
-            "WHERE LOWER(d.name) LIKE LOWER(?) "
-            "ORDER BY d.name "
-            "LIMIT ?",
-            (f"%{query}%", limit),
+            "ORDER BY d.name"
         )
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+        all_doctors = [dict(row) for row in rows]
+
+        # Регистронезависимая фильтрация в Python (работает с кириллицей)
+        query_lower = query.lower()
+        result = [d for d in all_doctors if query_lower in d["name"].lower()]
+        return result[:limit]

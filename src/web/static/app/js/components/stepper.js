@@ -393,6 +393,21 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     if (isLoading) {
       contentEl.innerHTML = renderLoading();
     } else {
+      // Плейсхолдер при пустом поиске в режиме глобального поиска врачей
+      if (_currentSearchMode === 'doctors' && stepData.length === 0) {
+        const searchInput = document.getElementById('stepper-search');
+        const searchQuery = searchInput ? searchInput.value.trim() : '';
+        if (searchQuery === '') {
+          contentEl.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state__icon">🔍</div>
+              <p class="empty-state__text">Начните вводить фамилию, имя или отчество врача</p>
+            </div>
+          `;
+          return;
+        }
+      }
+
       contentEl.innerHTML = renderItems(stepData, step.renderItem, isLastStep);
 
       // Для шага подтверждения не привязываем события выбора
@@ -433,7 +448,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         const step = steps[currentStep];
 
         if (_currentSearchMode === 'doctors' && step.searchMode !== undefined) {
-          // API-поиск с debounce 400ms для глобального поиска врачей
+          // API-поиск с debounce 400ms для глобального поиска врачей.
+          // Захватываем query ДО setTimeout и принудительно синхронизируем
+          // DOM-значение — защита от гонки при множественных слушателях.
           searchInput.addEventListener('input', (e) => {
             const query = e.target.value;
 
@@ -443,6 +460,13 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
             _searchDebounce = setTimeout(() => {
               if (query.length >= 2 || query.length === 0) {
+                // Гарантируем, что searchDoctorsGlobally прочитает
+                // именно тот query, который был захвачен при вводе,
+                // а не потенциально изменённое DOM-значение.
+                const input = document.getElementById('stepper-search');
+                if (input && input.value !== query) {
+                  input.value = query;
+                }
                 loadStepData(step);
               }
             }, 400);
