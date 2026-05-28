@@ -399,11 +399,13 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         if (_searchDebounce) clearTimeout(_searchDebounce);
 
         _searchDebounce = setTimeout(() => {
-          if (query.length >= 2 || query.length === 0) {
-            // Синхронизируем значение в DOM на случай если input был пересоздан
+          if (query.length >= 2) {
             const input = document.getElementById('stepper-search');
             if (input) input.value = query;
             loadStepData(steps[currentStep]);
+          } else if (query.length === 0) {
+            stepData = [];
+            updateContent();
           }
         }, 400);
       } else {

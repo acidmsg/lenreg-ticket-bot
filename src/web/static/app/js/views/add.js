@@ -293,6 +293,8 @@ async function loadDoctors(selections = []) {
     const clinic = selections[1].value;
     params.clinic_id = clinic.clinic_id || clinic.id;
   }
+  // Если нет clinic_id — не вызываем API (гонка при быстром переключении)
+  if (!params.clinic_id) return [];
   const data = await apiGet('/doctors/available', params);
   const doctors = data.doctors || [];
 
