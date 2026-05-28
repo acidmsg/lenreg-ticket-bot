@@ -199,11 +199,9 @@ export function renderAddDoctor(container) {
 
       if (isInTelegram()) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
-        window.Telegram.WebApp.showPopup({
-          title: 'Уже отслеживается',
-          message: 'Этот врач уже добавлен в мониторинг.',
-          buttons: [{ type: 'ok' }]
-        });
+      }
+      if (window.showToast) {
+        window.showToast('Этот врач уже отслеживается');
       }
     },
     true

@@ -309,6 +309,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     }, 4000);
   }
 
+  // Экспорт в глобальную область видимости для использования из других модулей
+  window.showToast = showToast;
+
   /**
    * Обновляет содержимое stepper (список элементов).
    */
