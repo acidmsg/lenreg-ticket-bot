@@ -1,14 +1,15 @@
 """
 Модуль управления подключением к Redis.
 
-Предоставляет singleton-клиент RedisClient с asyncio-поддержкой,
+Предоставляет клиент RedisClient с asyncio-поддержкой,
 пулом соединений и корректным завершением работы.
+Экземпляры привязаны к event loop, в котором созданы.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from loguru import logger
 
@@ -19,11 +20,16 @@ if TYPE_CHECKING:
 
 
 class RedisClient:
-    """Singleton-клиент Redis с asyncio-поддержкой и graceful degradation.
+    """Клиент Redis с asyncio-поддержкой и graceful degradation.
 
     Управляет пулом соединений, предоставляет атомарные операции
     и корректное завершение работы. При недоступности Redis возвращает
     безопасные значения по умолчанию, не прерывая работу бота.
+
+    **Важно:** Экземпляры привязаны к event loop, в котором созданы.
+    ``get_instance()`` возвращает экземпляр для текущего event loop.
+    Это позволяет использовать Redis из разных потоков (бот + веб-дашборд)
+    без ошибок «bound to a different event loop».
 
     Использование:
         redis = await RedisClient.get_instance()
@@ -32,8 +38,8 @@ class RedisClient:
             value = await redis.get("key")
     """
 
-    _instance: RedisClient | None = None
-    _lock: Any = None
+    _instances: ClassVar[dict[int, RedisClient]] = {}
+    _locks: ClassVar[dict[int, Any]] = {}
 
     def __init__(self) -> None:
         self._redis: Redis | None = None
@@ -42,31 +48,41 @@ class RedisClient:
 
     @classmethod
     async def get_instance(cls) -> RedisClient:
-        """Возвращает singleton-экземпляр RedisClient.
+        """Возвращает экземпляр RedisClient для текущего event loop.
+
+        Создаёт новый экземпляр при первом обращении из каждого event loop.
+        Это предотвращает ошибки «bound to a different event loop» при
+        использовании Redis из веб-дашборда (uvicorn в отдельном потоке).
 
         Если Redis недоступен, экземпляр всё равно создаётся, но переходит
         в режим graceful degradation (is_available = False). Все методы
         возвращают безопасные значения по умолчанию.
         """
-        if cls._instance is None:
-            import asyncio
+        import asyncio
 
-            if cls._lock is None:
-                cls._lock = asyncio.Lock()
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
 
-            async with cls._lock:
-                if cls._instance is None:
-                    instance = cls()
-                    await instance._connect()
-                    cls._instance = instance
-                    if instance._available:
-                        logger.info("Redis-клиент инициализирован")
-                    else:
-                        logger.warning(
-                            "Redis недоступен — бот работает в режиме "
-                            "graceful degradation (без кэша и rate limiting)"
-                        )
-        return cls._instance
+        if loop_id in cls._instances:
+            return cls._instances[loop_id]
+
+        if loop_id not in cls._locks:
+            cls._locks[loop_id] = asyncio.Lock()
+
+        async with cls._locks[loop_id]:
+            if loop_id in cls._instances:
+                return cls._instances[loop_id]
+            instance = cls()
+            await instance._connect()
+            cls._instances[loop_id] = instance
+            if instance._available:
+                logger.info("Redis-клиент инициализирован")
+            else:
+                logger.warning(
+                    "Redis недоступен — бот работает в режиме "
+                    "graceful degradation (без кэша и rate limiting)"
+                )
+        return cls._instances[loop_id]
 
     async def _connect(self) -> None:
         """Устанавливает соединение с Redis. При неудаче переходит в fallback-режим."""
@@ -218,10 +234,11 @@ class RedisClient:
 
     @classmethod
     async def shutdown(cls) -> None:
-        """Закрывает singleton-клиент и сбрасывает состояние."""
-        if cls._instance is not None:
-            await cls._instance.close()
-            cls._instance = None
+        """Закрывает все экземпляры RedisClient (по одному на event loop)."""
+        for instance in cls._instances.values():
+            await instance.close()
+        cls._instances.clear()
+        cls._locks.clear()
 
 
 async def get_redis() -> RedisClient:

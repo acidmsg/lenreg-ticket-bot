@@ -209,28 +209,12 @@ function bindSlotEvents(container, patients, params) {
           monitoring_id: monId
         });
 
-        // Обновляем заголовок и слоты
-        const mbDiv = container.querySelector('.mb-md');
-        const slotsContainer = container;
-
-        // Обновляем количество слотов в заголовке
         const total = result.total || 0;
-        const statusEl = mbDiv ? mbDiv.querySelector('.status') : null;
-        if (statusEl) {
-          if (total > 0) {
-            statusEl.className = 'status status--available mt-md';
-            statusEl.textContent = `🟢 Найдено слотов: ${total}`;
-          } else {
-            statusEl.remove();
-          }
-        } else if (total > 0 && mbDiv) {
-          const newStatus = document.createElement('div');
-          newStatus.className = 'status status--available mt-md';
-          newStatus.textContent = `🟢 Найдено слотов: ${total}`;
-          mbDiv.appendChild(newStatus);
-        }
+        const slots = result.slots || [];
 
         // Перерисовываем список слотов
+        const slotsContainer = container;
+
         // Удаляем старые группы слотов и сообщение об отсутствии
         const oldSlots = slotsContainer.querySelectorAll(
           '.slot-group, .empty-state'
@@ -240,7 +224,6 @@ function bindSlotEvents(container, patients, params) {
         const footerNote = slotsContainer.querySelector('.text-center.mt-md');
         if (footerNote) footerNote.remove();
 
-        const slots = result.slots || [];
         if (slots.length === 0) {
           const noSlotsEl = document.createElement('div');
           noSlotsEl.className = 'empty-state';
@@ -274,6 +257,15 @@ function bindSlotEvents(container, patients, params) {
           note.textContent =
             'Для записи на приём откройте сайт zdrav.lenreg.ru';
           slotsContainer.appendChild(note);
+        }
+
+        // Toast-уведомление о результате проверки
+        if (window.showToast) {
+          if (total > 0) {
+            window.showToast(`Талоны найдены: ${total}`);
+          } else {
+            window.showToast('Талоны не найдены');
+          }
         }
 
         // Тактильный отклик
