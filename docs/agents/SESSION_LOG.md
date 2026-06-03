@@ -1,44 +1,36 @@
 # SESSION_LOG
 
-## 2026-05-26 — Настройка SSH и синхронизация БД VPS
+## 2026-06-03 — Исправление 3 замечаний к кнопке 🔄 (force check)
+
+**Режим:** orchestrator → project-research → code
 
 ### Выполненные задачи
 
-1. **Полная замена БД на VPS локальной копией**
-   - Бот остановлен, создан бэкап `/root/zdrav.lenreg/data/bot.db.backup.20260526_230920`
-   - Локальный `data/bot.db` скопирован на VPS через scp
-   - Бот запущен, статус `healthy`
-   - Итог: 665 врачей, 71 клиника, 58 специальностей, 21 config, 20 monitoring_log, 4 пациента, 1 мониторинг — идентично локальной БД
+1. **Добавлена обработка 504 Gateway Timeout** — [`force_check_doctor()`](src/web/routers/user_api.py:940-1041)
+   - Добавлен флаг `all_timeouts = True` перед retry-циклом
+   - Флаг сбрасывается при не-таймаут ошибках (`NetworkError`, `JSONDecodeError`, `Exception`, HTTP 403/429)
+   - При `httpx.TimeoutException` и статусах >= 500 флаг не сбрасывается
+   - После цикла: `all_timeouts` → 504 "Таймаут при запросе к API zdrav.lenreg.ru.", иначе → 502
 
-2. **Настройка SSH-подключения к VPS**
-   - Создан новый Ed25519 ключ без пароля: `C:/Users/acidgrip/.ssh/vps_zdrav_nopass`
-   - Публичный ключ добавлен на VPS (195.58.39.52:2244) в `~/.ssh/authorized_keys`
-   - Обновлён [`.roo/rules/vps.md`](.roo/rules/vps.md): путь к ключу заменён на `vps_zdrav_nopass`
+2. **Убрано поле `free_tickets` из `ForceCheckResponse`** — оставлено только `total`
+   - [`user_api.py:1066`](src/web/routers/user_api.py:1066) — удалён `"free_tickets": total`
+   - [`openapi.yaml:1499-1501`](docs/openapi.yaml:1499) — удалено поле `free_tickets` из схемы
+   - [`doctors.js:189`](src/web/static/app/js/views/doctors.js:189) — `result.free_tickets` → `result.total`
 
-3. **Диагностика VPS**
-   - Docker: все 3 контейнера работают (bot, qdrant, redis) — `healthy`
-   - Бот: стабилен, doctor_discovery активен, healthcheck OK (uptime ~1ч)
-   - БД: 450 врачей, 71 клиника, 58 специальностей, config 21 ключ
-
-4. **Диагностика локальной БД**
-   - 665 врачей, 71 клиника, 58 специальностей, config 19 ключей
-
-5. **Синхронизация config**
-   - На VPS установлены: `discovery_patient_adult=2343192`, `discovery_patient_child=2509768` (были пусты — doctor_discovery не работал)
-   - Локально добавлены: `slot_detail_threshold=10`, `slot_compact_threshold=15`
-   - Итог: 21 ключ config идентичен между VPS и локальной БД
+3. **Теги приведены к единому стилю `Сущность (Уточнение)`**
+   - [`openapi.yaml:32`](docs/openapi.yaml:32) — `Фоновые сервисы` → `Фоновые сервисы (asyncio)`
+   - [`openapi.yaml:36-37`](docs/openapi.yaml:36) — `Mini App API` → `Mini App (JSON API)` + описание
+   - [`openapi.yaml:489`](docs/openapi.yaml:489) — синхронизирован тег на пути
+   - [`user_api.py:32`](src/web/routers/user_api.py:32) — `tags=["Mini App"]` → `tags=["Mini App (JSON API)"]`
 
 ### Изменённые файлы
 
-- [`.roo/rules/vps.md`](.roo/rules/vps.md) — путь к SSH-ключу
-- `data/bot.db` — таблица config (+2 ключа локально)
+- [`src/web/routers/user_api.py`](src/web/routers/user_api.py) — строки 32, 940-1041, 1066
+- [`docs/openapi.yaml`](docs/openapi.yaml) — строки 32, 36-37, 489, 1499-1504
+- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — строка 189
+- `docs/schemas/*.json` — 12 схем перегенерировано
 
-### Ключи SSH
+### Результаты проверок
 
-- Новый (рабочий): `C:/Users/acidgrip/.ssh/vps_zdrav_nopass`
-- Старый (с паролем): `C:/Users/acidgrip/.ssh/vps_zdrav`
-
-### Примечания
-
-- Разница в количестве врачей (450 vs 665) — следствие пустых discovery_patient на VPS; после исправления doctor_discovery заполнит таблицу на следующем цикле
-- user\_\* и monitoring_log различаются ожидаемо (dev vs prod)
+- `ruff check src` — All checks passed
+- `python scripts/generate_api_schemas.py` — 12 схем обновлено успешно

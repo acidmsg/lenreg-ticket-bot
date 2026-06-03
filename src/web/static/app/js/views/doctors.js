@@ -5,7 +5,7 @@
  * @module views/doctors
  */
 
-import { apiGet, apiDelete } from '../api.js';
+import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createDoctorCard } from '../components/card.js';
 import { navigate } from '../app.js';
@@ -125,16 +125,19 @@ function renderDoctorList(doctors) {
   });
 
   const cards = Object.values(grouped)
-    .map((group) =>
-      createDoctorCard({
+    .map((group) => {
+      // monitoringId — от первого пациента в группе
+      const monId = group.patients.length > 0 ? group.patients[0].entryId : '';
+      return createDoctorCard({
         doctorName: group.doctorName,
         specialty: group.specialty,
         clinicName: group.clinicName,
         status: group.status,
         freeTickets: group.freeTickets,
-        patients: group.patients
-      })
-    )
+        patients: group.patients,
+        monitoringId: monId
+      });
+    })
     .join('');
 
   return `<div class="doctors-list">${cards}</div>`;
@@ -147,11 +150,12 @@ function renderDoctorList(doctors) {
  * @param {Array} doctors — массив врачей
  */
 function bindDoctorEvents(container, doctors) {
-  // Клик по карточке врача → открыть слоты (кроме кликов на кнопках удаления)
+  // Клик по карточке врача → открыть слоты (кроме кликов на кнопках)
   container.querySelectorAll('.doctor-card').forEach((card) => {
     card.addEventListener('click', (e) => {
-      // Не реагируем на клики по кнопкам удаления пациентов
+      // Не реагируем на клики по кнопкам удаления пациентов и кнопке 🔄
       if (e.target.closest('.monitoring-patient__delete')) return;
+      if (e.target.closest('.btn--refresh')) return;
 
       const entryId = card.getAttribute('data-entry-id');
       if (!entryId) return;
@@ -159,6 +163,56 @@ function bindDoctorEvents(container, doctors) {
       // Находим пациентов для этой карточки
       const patients = findPatientsForCard(card, doctors);
       navigate('slots', { monitoringId: entryId, patients });
+    });
+  });
+
+  // Кнопка принудительной проверки слотов 🔄
+  container.querySelectorAll('.btn--refresh').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const monitoringId = btn.getAttribute('data-monitoring-id');
+      if (!monitoringId) return;
+
+      // Показываем анимацию загрузки
+      btn.classList.add('btn--refresh--loading');
+
+      try {
+        const result = await apiPost('/doctors/check', {
+          monitoring_id: monitoringId
+        });
+
+        // Обновляем статус в DOM
+        const card = btn.closest('.doctor-card');
+        if (card) {
+          const statusEl = card.querySelector('.status');
+          if (statusEl) {
+            const freeTickets = result.total || 0;
+            if (freeTickets > 0) {
+              statusEl.className = 'status status--available';
+              statusEl.innerHTML = `<span class="status__dot status__dot--available"></span>
+                 <span class="status__label">🟢 Есть слоты (${freeTickets})</span>`;
+            } else {
+              statusEl.className = 'status status--no-slots';
+              statusEl.innerHTML = `<span class="status__dot status__dot--no-slots"></span>
+                 <span class="status__label">🔴 Нет слотов</span>`;
+            }
+          }
+        }
+
+        // Тактильный отклик
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+      } catch (error) {
+        // Показываем ошибку
+        if (isInTelegram()) {
+          window.Telegram.WebApp.showAlert(`Ошибка проверки: ${error.message}`);
+        } else {
+          alert(`Ошибка проверки: ${error.message}`);
+        }
+      } finally {
+        btn.classList.remove('btn--refresh--loading');
+      }
     });
   });
 

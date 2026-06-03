@@ -23,7 +23,8 @@ export function createDoctorCard({
   clinicName,
   status,
   freeTickets = 0,
-  patients = []
+  patients = [],
+  monitoringId = ''
 }) {
   const statusInfo = getStatusInfo(status, freeTickets);
 
@@ -62,10 +63,18 @@ export function createDoctorCard({
           <div class="card__title">${escapeHtml(doctorName)}</div>
           <div class="card__subtitle">${escapeHtml(specialty)}</div>
         </div>
-        <span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
-          <span class="status__dot ${statusInfo.dotClass}"></span>
-          <span class="status__label">${statusInfo.label}</span>
-        </span>
+        <div class="card__header-actions">
+          <button
+            class="btn--refresh"
+            data-monitoring-id="${escapeHtml(monitoringId)}"
+            title="Проверить слоты"
+            aria-label="Принудительная проверка слотов"
+          >🔄</button>
+          <span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
+            <span class="status__dot ${statusInfo.dotClass}"></span>
+            <span class="status__label">${statusInfo.label}</span>
+          </span>
+        </div>
       </div>
       ${patientsHtml}
       <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>

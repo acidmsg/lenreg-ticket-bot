@@ -5,7 +5,7 @@
  * @module views/slots
  */
 
-import { apiGet, apiDelete } from '../api.js';
+import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createSlotCard } from '../components/card.js';
 
@@ -33,7 +33,7 @@ export async function renderSlots(container, params) {
     );
 
     // Собираем итоговый HTML: информация о враче + пациенты + слоты
-    let html = renderSlotInfo(data);
+    let html = renderSlotInfo(data, monitoringId);
 
     // Блок пациентов (пришёл через params из doctors.js)
     const patients = params?.patients;
@@ -50,10 +50,8 @@ export async function renderSlots(container, params) {
 
     container.innerHTML = html;
 
-    // Привязываем обработчики удаления пациентов
-    if (patients && patients.length > 0) {
-      bindSlotEvents(container, patients);
-    }
+    // Привязываем обработчики (удаление пациентов + кнопка 🔄)
+    bindSlotEvents(container, patients || [], params);
   } catch (error) {
     container.innerHTML = renderError(error.message);
     bindErrorEvents(container, params);
@@ -79,7 +77,7 @@ function renderLoading() {
  * @param {object} data — данные ответа API
  * @returns {string} HTML информации
  */
-function renderSlotInfo(data) {
+function renderSlotInfo(data, monitoringId) {
   const doctorName = extractDoctorName(data) || 'Врач';
   const specialty = data.specialty || '';
   const clinicName = data.clinic_name || '';
@@ -87,8 +85,17 @@ function renderSlotInfo(data) {
 
   return `
     <div class="mb-md">
-      <div style="font-size: var(--font-lg); font-weight: 600; margin-bottom: 4px;">
-        ${escapeHtml(doctorName)}
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-size: var(--font-lg); font-weight: 600;">
+          ${escapeHtml(doctorName)}
+        </span>
+        <button
+          class="btn--refresh"
+          id="slots-refresh-btn"
+          data-monitoring-id="${escapeHtml(monitoringId || '')}"
+          title="Проверить слоты"
+          aria-label="Принудительная проверка слотов"
+        >🔄</button>
       </div>
       ${specialty ? `<div class="card__subtitle">${escapeHtml(specialty)}</div>` : ''}
       ${clinicName ? `<div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>` : ''}
@@ -185,7 +192,106 @@ function renderPatientsBlock(patients) {
  * @param {HTMLElement} container — контейнер
  * @param {Array} patients — список пациентов
  */
-function bindSlotEvents(container, patients) {
+function bindSlotEvents(container, patients, params) {
+  // Кнопка принудительной проверки слотов 🔄
+  const refreshBtn = container.querySelector('#slots-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const monId = refreshBtn.getAttribute('data-monitoring-id');
+      if (!monId) return;
+
+      // Показываем анимацию загрузки
+      refreshBtn.classList.add('btn--refresh--loading');
+
+      try {
+        const result = await apiPost('/doctors/check', {
+          monitoring_id: monId
+        });
+
+        // Обновляем заголовок и слоты
+        const mbDiv = container.querySelector('.mb-md');
+        const slotsContainer = container;
+
+        // Обновляем количество слотов в заголовке
+        const total = result.total || 0;
+        const statusEl = mbDiv ? mbDiv.querySelector('.status') : null;
+        if (statusEl) {
+          if (total > 0) {
+            statusEl.className = 'status status--available mt-md';
+            statusEl.textContent = `🟢 Найдено слотов: ${total}`;
+          } else {
+            statusEl.remove();
+          }
+        } else if (total > 0 && mbDiv) {
+          const newStatus = document.createElement('div');
+          newStatus.className = 'status status--available mt-md';
+          newStatus.textContent = `🟢 Найдено слотов: ${total}`;
+          mbDiv.appendChild(newStatus);
+        }
+
+        // Перерисовываем список слотов
+        // Удаляем старые группы слотов и сообщение об отсутствии
+        const oldSlots = slotsContainer.querySelectorAll(
+          '.slot-group, .empty-state'
+        );
+        oldSlots.forEach((el) => el.remove());
+
+        const footerNote = slotsContainer.querySelector('.text-center.mt-md');
+        if (footerNote) footerNote.remove();
+
+        const slots = result.slots || [];
+        if (slots.length === 0) {
+          const noSlotsEl = document.createElement('div');
+          noSlotsEl.className = 'empty-state';
+          noSlotsEl.style.paddingTop = '20px';
+          noSlotsEl.innerHTML = `<div class="empty-state__icon">📅</div>
+             <p class="empty-state__text">
+               На данный момент свободных слотов нет.
+               Мы уведомим вас, когда они появятся.
+             </p>`;
+          slotsContainer.appendChild(noSlotsEl);
+        } else {
+          const grouped = {};
+          slots.forEach((slot) => {
+            const date = slot.date || '—';
+            if (!grouped[date]) grouped[date] = [];
+            grouped[date].push(slot.time || '—');
+          });
+          const sortedDates = Object.keys(grouped).sort();
+          sortedDates.forEach((date) => {
+            const slotEl = document.createElement('div');
+            slotEl.innerHTML = createSlotCard({
+              date,
+              times: grouped[date]
+            });
+            slotsContainer.appendChild(slotEl.firstElementChild);
+          });
+          const note = document.createElement('p');
+          note.className = 'text-center mt-md';
+          note.style.cssText =
+            'color: var(--tg-hint-color); font-size: var(--font-sm);';
+          note.textContent =
+            'Для записи на приём откройте сайт zdrav.lenreg.ru';
+          slotsContainer.appendChild(note);
+        }
+
+        // Тактильный отклик
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+      } catch (error) {
+        if (isInTelegram()) {
+          window.Telegram.WebApp.showAlert(`Ошибка проверки: ${error.message}`);
+        } else {
+          alert(`Ошибка проверки: ${error.message}`);
+        }
+      } finally {
+        refreshBtn.classList.remove('btn--refresh--loading');
+      }
+    });
+  }
+
   // Кнопки удаления пациентов
   container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
@@ -234,7 +340,7 @@ function bindSlotEvents(container, patients) {
             // Обновляем массив patients в замыкании через перепривязку
             patients.length = 0;
             updatedPatients.forEach((p) => patients.push(p));
-            bindSlotEvents(container, patients);
+            bindSlotEvents(container, patients, params);
           }
         }
       } catch (error) {

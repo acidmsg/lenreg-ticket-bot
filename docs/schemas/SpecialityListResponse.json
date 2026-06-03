@@ -98,6 +98,16 @@
           "default": 0,
           "title": "Countfreeparticipantie",
           "type": "integer"
+        },
+        "IsDoc": {
+          "default": false,
+          "title": "Isdoc",
+          "type": "boolean"
+        },
+        "IsTech": {
+          "default": false,
+          "title": "Istech",
+          "type": "boolean"
         }
       },
       "title": "SpecialityItem",

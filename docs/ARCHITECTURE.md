@@ -16,9 +16,15 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   │   ├── exceptions.py              # Кастомные исключения API (ZdravTimeoutError, ZdravNetworkError и др.)
 │   │   ├── models.py                  # Pydantic-модели ответов API zdrav.lenreg.ru
 │   │   └── zdrav_client.py            # HTTP-клиент для API zdrav.lenreg.ru
+│   ├── assets/
+│   │   ├── __init__.py
+│   │   ├── README.md                  # Правила именования изображений
+│   │   ├── utils.py                   # Маппинги изображений для уведомлений и навигации
+│   │   └── images/                    # PNG-изображения для заголовков сообщений бота
 │   ├── database/
 │   │   ├── __init__.py
 │   │   ├── database.py                # SQLite-движок: соединение, таблицы, CRUD
+│   │   ├── integrity.py               # Проверка и восстановление целостности SQLite БД при старте
 │   │   ├── manager.py                 # DatabaseManager — адаптер с in-memory кэшем
 │   │   ├── migrations.py              # Миграции схемы БД (versioned)
 │   │   └── types.py                   # TypedDict для типобезопасной работы с данными
@@ -86,9 +92,10 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │       │           │   ├── header.js  # Компонент шапки
 │       │           │   └── stepper.js # Компонент пошагового выбора
 │       │           └── views/
-│       │               ├── add.js     # Экран добавления врача (stepper)
-│       │               ├── doctors.js # Экран списка отслеживаемых врачей
-│       │               └── slots.js   # Экран просмотра свободных слотов
+│       │               ├── add.js      # Экран добавления врача (stepper)
+│       │               ├── doctors.js  # Экран списка отслеживаемых врачей
+│       │               ├── patients.js # Экран пациентов Mini App
+│       │               └── slots.js    # Экран просмотра свободных слотов
 │       └── templates/                 # Jinja2 шаблоны
 │           ├── api_status.html
 │           ├── base.html
@@ -138,6 +145,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── design/                        # Дизайн-документы
 │   │   ├── api_change_detector_design.md
 │   │   ├── i18n_design.md
+│   │   ├── mini_app_deploy.md
 │   │   ├── mini_app_plan.md
 │   │   ├── td-utl-004-typeddict-design.md
 │   │   └── web_dashboard_design.md
@@ -223,11 +231,13 @@ zdrav.lenreg/                          # Корень проекта (тольк
 | `src/main.py`                      | Сборка и запуск: инициализация БД, API-клиента, бота aiogram, регистрация middleware и роутеров (включая [`mini_app.router`](src/handlers/mini_app.py)), запуск фоновых задач, graceful shutdown.                                                                                                                                                                                                                                                                    |
 | `src/api/`                         | Модели Pydantic для десериализации JSON-ответов API zdrav.lenreg.ru. HTTP-клиент `ZdravClient` с rate limiting (aiolimiter), retry, переиспользуемой сессией httpx.                                                                                                                                                                                                                                                                                                  |
 | `src/database/`                    | SQLite-движок (`Database`): WAL-режим, миграции, CRUD пользователей/пациентов/мониторинга/клиник/врачей/конфигов. `DatabaseManager` — потокобезопасный in-memory кэш с атомарными операциями. `types.py` — TypedDict для типобезопасной работы.                                                                                                                                                                                                                      |
+| `src/database/integrity.py`        | Проверка и восстановление целостности SQLite БД при старте: `PRAGMA integrity_check`, автоматическое восстановление при обнаружении повреждений.                                                                                                                                                                                                                                                                                                                     |
 | `src/filters/admin.py`             | Фильтр админ-доступа на основе ChatMemberUpdated: проверка членства пользователя в чате администраторов.                                                                                                                                                                                                                                                                                                                                                             |
 | `src/handlers/`                    | Обработчики команд и callback-запросов Telegram через aiogram Router. [`common.py`](src/handlers/common.py) — навигация пациент→город→клиника→врач, toggle мониторинга, кнопка Mini App. [`callbacks.py`](src/handlers/callbacks.py) — обработчики callback-запросов. [`registration.py`](src/handlers/registration.py) — FSM-сценарий добавления пациента. [`callback_parser.py`](src/handlers/callback_parser.py) — парсинг callback_data с поддержкой data_class. |
 | `src/handlers/mini_app.py`         | Обработчик `web_app_data` от Telegram Mini App. Принимает `sendData` от Mini App (открытие слотов, добавление врача), взаимодействует с БД через `DatabaseManager` и API через `ZdravClient`.                                                                                                                                                                                                                                                                        |
 | `src/i18n/__init__.py`             | Интернационализация и локализация: gettext-обёртки `_()` для пользовательских сообщений и `_data()` для дата-строк (названия месяцев, дней недели).                                                                                                                                                                                                                                                                                                                  |
 | `src/assets/`                      | Статические PNG-изображения для заголовков сообщений бота. Правила именования: `src/assets/README.md`. Отправляются через `send_photo()` с `caption`.                                                                                                                                                                                                                                                                                                                |
+| `src/assets/utils.py`              | Маппинги изображений для уведомлений и навигации: соответствие типов событий и экранов конкретным PNG-файлам из `src/assets/images/`.                                                                                                                                                                                                                                                                                                                                |
 | `src/keyboards/`                   | Построение inline-клавиатур: пациенты, города/районы, клиники, врачи, подтверждение удаления, регистрация. Кнопка `web_app` для запуска Mini App.                                                                                                                                                                                                                                                                                                                    |
 | `src/middleware/activity.py`       | Отслеживание активности пользователей: фиксация времени последнего действия, обновление `last_activity` в БД.                                                                                                                                                                                                                                                                                                                                                        |
 | `src/middleware/error_boundary.py` | Границы ошибок: перехват необработанных исключений в хендлерах, логирование с контекстом (пользователь, сообщение), отправка уведомления админам.                                                                                                                                                                                                                                                                                                                    |
@@ -246,7 +256,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 | `src/web/routers/pages.py`         | HTML-страницы дашборда (Jinja2): summary, users, user_detail, clinics, logs, api_status.                                                                                                                                                                                                                                                                                                                                                                             |
 | `src/web/routers/user_api.py`      | REST API для Mini App: `/api/user/profile`, `/api/user/doctors`, `/api/user/doctors/add`, `/api/user/doctors/remove`, `/api/user/doctors/toggle`, `/api/user/clinics`, `/api/user/specialities`, `/api/user/slots`, `/api/user/patients`, `/api/user/patients/check`. Всего 10 эндпоинтов.                                                                                                                                                                           |
 | `src/web/static/dashboard.css`     | Стили веб-дашборда: responsive layout, таблицы, графики, тёмная тема.                                                                                                                                                                                                                                                                                                                                                                                                |
-| `src/web/static/app/`              | Фронтенд Telegram Mini App (Vanilla JS SPA, 3 экрана): список врачей, добавление врача (stepper), просмотр слотов. Telegram-совместимая цветовая схема через CSS-переменные. Обёртка `fetch()` с автоматическим внедрением `initData` в заголовки.                                                                                                                                                                                                                   |
+| `src/web/static/app/`              | Фронтенд Telegram Mini App (Vanilla JS SPA, 4 экрана): список врачей, добавление врача (stepper), просмотр слотов, пациенты. Telegram-совместимая цветовая схема через CSS-переменные. Обёртка `fetch()` с автоматическим внедрением `initData` в заголовки.                                                                                                                                                                                                         |
 | `src/web/templates/`               | Jinja2-шаблоны: `base.html` (layout), `summary.html`, `users.html`, `user_detail.html`, `clinics.html`, `logs.html`, `api_status.html`.                                                                                                                                                                                                                                                                                                                              |
 
 ## Граф зависимостей (Mermaid)
@@ -263,6 +273,7 @@ graph TD
 
     subgraph DB
         DB_CORE[src.database.database]
+        DB_INTEGRITY[src.database.integrity]
         DB_MGR[src.database.manager]
         DB_MIG[src.database.migrations]
         DB_TYPES[src.database.types]
@@ -318,7 +329,8 @@ graph TD
     KB[src.keyboards.inline]
     FILTERS[src.filters.admin]
     I18N[src.i18n.__init__]
-    QDRANT[Qdrant (векторная БД)]
+    ASSETS_UTILS[src.assets.utils]
+    QDRANT[Qdrant — инфраструктурная зависимость: Roo Code Codebase Indexing]
     ENTRY[src.main.py]
 
     MODELS --> CLIENT
@@ -339,7 +351,7 @@ graph TD
     CFG --> H_REG
     CFG --> MW_RL
     CFG --> MW_ACT
-    CFG --> QDRANT
+    CFG -.-> QDRANT
     CFG --> WEB_APP
     CFG --> SVC_EXP
     CFG --> H_MINI_APP
@@ -348,6 +360,7 @@ graph TD
     DB_CORE --> DB_MGR
     DB_CORE --> DB_MIG
     DB_TYPES --> DB_CORE
+    DB_CORE --> DB_INTEGRITY
 
     CLIENT --> H_COMMON
     CLIENT --> H_REG
@@ -398,6 +411,8 @@ graph TD
 
     KB --> H_COMMON
     KB --> H_REG
+    H_COMMON --> ASSETS_UTILS
+    SVC_MON --> ASSETS_UTILS
 
     MW_ACT --> ENTRY
     MW_ERR --> ENTRY
@@ -432,7 +447,8 @@ graph TD
     WEB_API --> DB_MGR
     WEB_API --> SVC_MET
     WEB_PAGES --> DB_MGR
-    WEB_PAGES --> WEB_API
+    WEB_PAGES --> DB_TYPES
+    WEB_PAGES --> SVC_HC
     WEB_AUTH --> CFG
     WEB_AUTH_INIT --> CFG
     WEB_USER_API --> DB_MGR
@@ -459,13 +475,13 @@ graph TD
 
 6. **Фоновые задачи** запускаются как `asyncio.Task` и корректно останавливаются через `task.cancel()` + `asyncio.gather(return_exceptions=True)`.
 
-7. **Qdrant как векторное хранилище для семантического поиска (Codebase Indexing)** — сервис qdrant/qdrant, порты 6333 (HTTP) и 6334 (gRPC). Конфигурация через `QDRANT_URL` и `QDRANT_API_KEY` в `.env`. Используется для семантического индексирования кодовой базы проекта.
+7. **Qdrant — инфраструктурная зависимость (Roo Code Codebase Indexing)** — сервис qdrant/qdrant, порты 6333 (HTTP) и 6334 (gRPC). Конфигурация через `QDRANT_URL` и `QDRANT_API_KEY` в `.env`. Используется исключительно для семантического индексирования кодовой базы инструментом Roo Code, не является частью бизнес-логики бота.
 
 8. **Rate limiting** на двух уровнях: API-клиент (`aiolimiter.AsyncLimiter`) и Telegram-хендлеры (`UserRateLimitMiddleware` с Redis Sorted Sets).
 
 9. **Тесты** используют временные SQLite-файлы в `tests/test_data/`, очищаемые после сессии. Redis-зависимости мокируются через `fakeredis`.
 
-10. **Telegram Mini App** — Vanilla JS SPA (без фреймворков), размещается в `src/web/static/app/`. Аутентификация через HMAC-SHA256 верификацию `initData` (middleware [`auth_initdata.py`](src/web/auth_initdata.py)). Бэкенд API — [`user_api.py`](src/web/routers/user_api.py) (10 эндпоинтов). Интеграция с ботом через [`web_app_data`](src/handlers/mini_app.py) хендлер и кнопку `web_app` в [`keyboards/inline.py`](src/keyboards/inline.py).
+10. **Telegram Mini App** — Vanilla JS SPA (без фреймворков), размещается в `src/web/static/app/`. 4 экрана: список врачей, добавление врача (stepper), просмотр слотов, пациенты. Аутентификация через HMAC-SHA256 верификацию `initData` (middleware [`auth_initdata.py`](src/web/auth_initdata.py)). Бэкенд API — [`user_api.py`](src/web/routers/user_api.py) (10 эндпоинтов). Интеграция с ботом через [`web_app_data`](src/handlers/mini_app.py) хендлер и кнопку `web_app` в [`keyboards/inline.py`](src/keyboards/inline.py).
 
 ## Конфигурационные файлы
 

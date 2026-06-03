@@ -4714,3 +4714,85 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 ### Результаты тестов
 
 Не применимо (bash-скрипт, проверен синтаксически).
+
+## 2026-05-26 — Настройка SSH и синхронизация БД VPS
+
+### Выполненные задачи
+
+1. **Полная замена БД на VPS локальной копией**
+   - Бот остановлен, создан бэкап `/root/zdrav.lenreg/data/bot.db.backup.20260526_230920`
+   - Локальный `data/bot.db` скопирован на VPS через scp
+   - Бот запущен, статус `healthy`
+   - Итог: 665 врачей, 71 клиника, 58 специальностей, 21 config, 20 monitoring_log, 4 пациента, 1 мониторинг — идентично локальной БД
+
+2. **Настройка SSH-подключения к VPS**
+   - Создан новый Ed25519 ключ без пароля: `C:/Users/acidgrip/.ssh/vps_zdrav_nopass`
+   - Публичный ключ добавлен на VPS (195.58.39.52:2244) в `~/.ssh/authorized_keys`
+   - Обновлён [`.roo/rules/vps.md`](.roo/rules/vps.md): путь к ключу заменён на `vps_zdrav_nopass`
+
+3. **Диагностика VPS**
+   - Docker: все 3 контейнера работают (bot, qdrant, redis) — `healthy`
+   - Бот: стабилен, doctor_discovery активен, healthcheck OK (uptime ~1ч)
+   - БД: 450 врачей, 71 клиника, 58 специальностей, config 21 ключ
+
+4. **Диагностика локальной БД**
+   - 665 врачей, 71 клиника, 58 специальностей, config 19 ключей
+
+5. **Синхронизация config**
+   - На VPS установлены: `discovery_patient_adult=2343192`, `discovery_patient_child=2509768` (были пусты — doctor_discovery не работал)
+   - Локально добавлены: `slot_detail_threshold=10`, `slot_compact_threshold=15`
+   - Итог: 21 ключ config идентичен между VPS и локальной БД
+
+### Изменённые файлы
+
+- [`.roo/rules/vps.md`](.roo/rules/vps.md) — путь к SSH-ключу
+- `data/bot.db` — таблица config (+2 ключа локально)
+
+### Ключи SSH
+
+- Новый (рабочий): `C:/Users/acidgrip/.ssh/vps_zdrav_nopass`
+- Старый (с паролем): `C:/Users/acidgrip/.ssh/vps_zdrav`
+
+### Примечания
+
+- Разница в количестве врачей (450 vs 665) — следствие пустых discovery_patient на VPS; после исправления doctor_discovery заполнит таблицу на следующем цикле
+- user\_\* и monitoring_log различаются ожидаемо (dev vs prod)
+
+---
+
+## 2026-05-29 — Полный аудит проекта
+
+**Режим:** project-research → code
+
+### Выполненные задачи
+
+- **Полный аудит проекта** (архитектура + Spec-First + безопасность) — 16 проблем найдено, 11 исправлено
+
+#### Направление 1: Spec-First (1 критическая проблема → исправлена)
+
+- Добавлены поля `IsDoc` и `IsTech` в схему `SpecialityItem` в [`docs/openapi.yaml:641-646`](docs/openapi.yaml:641)
+- Перегенерированы JSON-схемы через [`scripts/generate_api_schemas.py`](scripts/generate_api_schemas.py)
+- [`docs/schemas/SpecialityItem.json`](docs/schemas/SpecialityItem.json) обновлён
+
+#### Направление 2: Архитектурная документация (8 проблем → исправлены)
+
+- Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
+  - Добавлены в дерево: `src/database/integrity.py`, `src/assets/utils.py`, `src/web/static/app/js/views/patients.js`, `_design_lab/`, `docs/design/mini_app_deploy.md`
+  - Граф Mermaid: добавлены узлы `DB_INTEGRITY`, `ASSETS_UTILS`; рёбра `WEB_PAGES → DB_TYPES`, `WEB_PAGES → SVC_HC`; удалено ребро `WEB_PAGES → WEB_API`; Qdrant обновлён как инфраструктурная зависимость (пунктир)
+  - Таблица зон ответственности: добавлены `integrity.py`, `assets/utils.py`
+
+#### Направление 3: Безопасность (2 проблемы → исправлены)
+
+- Добавлены 5 ключей в [`.env`](.env): `CHECK_INTERVAL=300`, `DISCOVERY_INTERVAL=1800`, `CLEANUP_INTERVAL=3600`, `QDRANT_URL=""`, `QDRANT_API_KEY=""`
+- `WEB_DASHBOARD_API_KEY` — семантическое расхождение документировано, не требует исправления
+
+### Изменённые файлы
+
+- [`docs/openapi.yaml`](docs/openapi.yaml) — добавлены поля IsDoc, IsTech в SpecialityItem
+- [`docs/schemas/SpecialityItem.json`](docs/schemas/SpecialityItem.json) — перегенерирован
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — синхронизирован с кодовой базой
+- [`.env`](.env) — добавлены 5 недостающих ключей
+
+### Тесты
+
+Не запускались (аудит документации и конфигурации, без изменений в коде).
