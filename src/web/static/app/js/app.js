@@ -11,6 +11,7 @@ import { renderAddDoctor } from './views/add.js';
 import { renderSlots } from './views/slots.js';
 import { renderPatients } from './views/patients.js';
 import { renderHeader } from './components/header.js';
+import './components/toast.js'; // Сайд-эффект: устанавливает window.showToast
 
 // ============================================================
 // Глобальное состояние приложения

@@ -218,6 +218,14 @@ function bindSlotEvents(container, patients, params) {
           } else {
             window.showToast('Талоны не найдены');
           }
+        } else if (isInTelegram()) {
+          // Fallback: toast-модуль ещё не загружен — используем Telegram alert
+          window.Telegram.WebApp.showPopup({
+            title: 'Проверка слотов',
+            message:
+              total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
+            buttons: [{ type: 'ok' }]
+          });
         }
 
         // Тактильный отклик

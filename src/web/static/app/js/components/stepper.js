@@ -285,34 +285,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   }
 
   /**
-   * Показывает toast-уведомление внизу экрана.
-   * @param {string} message — текст уведомления
-   */
-  function showToast(message) {
-    // Удалить старый toast если есть
-    const old = document.getElementById('stepper-toast');
-    if (old) old.remove();
-
-    const toast = document.createElement('div');
-    toast.id = 'stepper-toast';
-    toast.className = 'stepper-toast';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    // Анимация появления
-    requestAnimationFrame(() => toast.classList.add('stepper-toast--visible'));
-
-    // Авто-скрытие через 4 секунды
-    setTimeout(() => {
-      toast.classList.remove('stepper-toast--visible');
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
-  }
-
-  // Экспорт в глобальную область видимости для использования из других модулей
-  window.showToast = showToast;
-
-  /**
    * Обновляет содержимое stepper (список элементов).
    */
   function updateContent() {
