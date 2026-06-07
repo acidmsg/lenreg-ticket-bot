@@ -210,59 +210,11 @@ function bindSlotEvents(container, patients, params) {
         });
 
         const total = result.total || 0;
-        const slots = result.slots || [];
 
-        // Перерисовываем список слотов
-        const slotsContainer = container;
-
-        // Удаляем старые группы слотов и сообщение об отсутствии
-        const oldSlots = slotsContainer.querySelectorAll(
-          '.slot-group, .empty-state'
-        );
-        oldSlots.forEach((el) => el.remove());
-
-        const footerNote = slotsContainer.querySelector('.text-center.mt-md');
-        if (footerNote) footerNote.remove();
-
-        if (slots.length === 0) {
-          const noSlotsEl = document.createElement('div');
-          noSlotsEl.className = 'empty-state';
-          noSlotsEl.style.paddingTop = '20px';
-          noSlotsEl.innerHTML = `<div class="empty-state__icon">📅</div>
-             <p class="empty-state__text">
-               На данный момент свободных слотов нет.
-               Мы уведомим вас, когда они появятся.
-             </p>`;
-          slotsContainer.appendChild(noSlotsEl);
-        } else {
-          const grouped = {};
-          slots.forEach((slot) => {
-            const date = slot.date || '—';
-            if (!grouped[date]) grouped[date] = [];
-            grouped[date].push(slot.time || '—');
-          });
-          const sortedDates = Object.keys(grouped).sort();
-          sortedDates.forEach((date) => {
-            const slotEl = document.createElement('div');
-            slotEl.innerHTML = createSlotCard({
-              date,
-              times: grouped[date]
-            });
-            slotsContainer.appendChild(slotEl.firstElementChild);
-          });
-          const note = document.createElement('p');
-          note.className = 'text-center mt-md';
-          note.style.cssText =
-            'color: var(--tg-hint-color); font-size: var(--font-sm);';
-          note.textContent =
-            'Для записи на приём откройте сайт zdrav.lenreg.ru';
-          slotsContainer.appendChild(note);
-        }
-
-        // Toast-уведомление о результате проверки
+        // Только toast-уведомление, без перерисовки слотов
         if (window.showToast) {
           if (total > 0) {
-            window.showToast(`Талоны найдены: ${total}`);
+            window.showToast('Талоны найдены: ' + total);
           } else {
             window.showToast('Талоны не найдены');
           }

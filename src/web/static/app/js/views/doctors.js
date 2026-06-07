@@ -181,21 +181,13 @@ function bindDoctorEvents(container, doctors) {
           monitoring_id: monitoringId
         });
 
-        // Обновляем статус в DOM
-        const card = btn.closest('.doctor-card');
-        if (card) {
-          const statusEl = card.querySelector('.status');
-          if (statusEl) {
-            const freeTickets = result.total || 0;
-            if (freeTickets > 0) {
-              statusEl.className = 'status status--available';
-              statusEl.innerHTML = `<span class="status__dot status__dot--available"></span>
-                 <span class="status__label">🟢 Есть слоты (${freeTickets})</span>`;
-            } else {
-              statusEl.className = 'status status--no-slots';
-              statusEl.innerHTML = `<span class="status__dot status__dot--no-slots"></span>
-                 <span class="status__label">🔴 Нет слотов</span>`;
-            }
+        // Только toast-уведомление, без изменения DOM
+        const total = result.total || 0;
+        if (window.showToast) {
+          if (total > 0) {
+            window.showToast('Талоны найдены: ' + total);
+          } else {
+            window.showToast('Талоны не найдены');
           }
         }
 
