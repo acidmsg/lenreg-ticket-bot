@@ -55,6 +55,28 @@ def _mon_key(key: str) -> str:
     return f"{_MONITORING_KEY_PREFIX}{key}"
 
 
+async def get_cache_key(key: str) -> Any | None:
+    """
+    Читает значение из мониторингового кэша Redis.
+
+    Возвращает десериализованное значение (обычно list[str] — слоты,
+    или строка ``"NONE"``, или словарь) либо None, если ключ не найден
+    или Redis недоступен.
+    """
+    redis = await get_redis()
+    if not redis.is_available:
+        return None
+    rkey = _mon_key(key)
+    try:
+        raw = await redis.client.get(rkey)
+        if raw is None:
+            return None
+        return json.loads(raw)
+    except Exception as e:
+        logger.error(f"Ошибка чтения кэша [{key}]: {e}")
+        return None
+
+
 async def swap_cache_key(key: str, new_value: Any) -> Any:
     """
     Атомарно читает старое значение и записывает новое, если отличается.

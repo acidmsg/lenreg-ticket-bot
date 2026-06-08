@@ -25,7 +25,7 @@ from src.api.models import (
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import PatientInfo
-from src.utils.cache import swap_cache_key
+from src.utils.cache import get_cache_key, swap_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -174,12 +174,35 @@ async def get_profile(request: Request) -> dict[str, Any]:
     }
 
 
+def _parse_cache_status(cached_value: Any) -> tuple[str, int]:
+    """Разбирает значение Redis-кэша мониторинга в (status, free_tickets).
+
+    - Непустой list слотов → ``("slots_available", len(слоты))``
+    - Пустой list или ``"NONE"`` → ``("no_slots", 0)``
+    - None (ключа нет) или любой другой тип → ``("checking", 0)``
+    """
+    if cached_value is None:
+        return ("checking", 0)
+    if isinstance(cached_value, list):
+        count = len(cached_value)
+        return ("slots_available", count) if count > 0 else ("no_slots", 0)
+    if cached_value == "NONE":
+        return ("no_slots", 0)
+    # Неизвестный формат (например, словарь от POST /doctors/check)
+    return ("checking", 0)
+
+
 @router.get("/doctors")
 async def get_doctors(
     request: Request,
     patient_id: str | None = Query(None, description="Фильтр по пациенту"),
 ) -> dict[str, Any]:
-    """Список отслеживаемых врачей со статусом слотов."""
+    """Список отслеживаемых врачей со статусом слотов.
+
+    Читает актуальный статус из Redis-кэша мониторинга (ключ
+    ``mon:{telegram_id}_{p_id}_{d_id}``), заполняемого ``monitor.py``.
+    При недоступности Redis — возвращает ``"checking"`` / 0.
+    """
     db = _get_db(request)
     telegram_id = _get_telegram_id(request)
 
@@ -200,7 +223,11 @@ async def get_doctors(
         for d_id, d_info in doctors.items():
             clinic_name = await db.get_clinic_name(d_info.get("clinic_id", ""))
 
-            # Статус — пока заглушка; реальный статус обновляется monitor.py
+            # Читаем актуальный статус слотов из Redis-кэша мониторинга
+            cache_key = f"{telegram_id}_{p_id}_{d_id}"
+            cached_value = await get_cache_key(cache_key)
+            status, free_tickets = _parse_cache_status(cached_value)
+
             doctors_list.append(
                 {
                     "monitoring_id": f"{p_id}_{d_id}",
@@ -211,8 +238,8 @@ async def get_doctors(
                     "specialty": d_info.get("specialty", ""),
                     "clinic_id": d_info.get("clinic_id", ""),
                     "clinic_name": clinic_name or "",
-                    "status": "checking",
-                    "free_tickets": 0,
+                    "status": status,
+                    "free_tickets": free_tickets,
                     "last_check": None,
                 }
             )
