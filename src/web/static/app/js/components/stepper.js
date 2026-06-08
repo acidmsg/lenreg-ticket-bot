@@ -43,6 +43,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   /** Таймер debounce для API-поиска */
   let _searchDebounce = null;
 
+  /** Флаг: данные шага были загружены хотя бы раз */
+  let _dataLoaded = false;
+
   /**
    * Переходит к следующему шагу, сохраняя выбранный элемент.
    *
@@ -148,7 +151,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         ${searchHtml}
         ${clinicLinkHtml}
         <div class="stepper__content" id="stepper-content">
-          ${isLoading ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
+          ${isLoading || (!_dataLoaded && stepData.length === 0) ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
         </div>
         <div class="stepper__actions">
           ${backButtonHtml}
