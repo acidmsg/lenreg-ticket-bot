@@ -988,6 +988,7 @@ body {
   list-style: none;
   margin: 0 0 var(--gap-sm);
   padding: 0 0 var(--gap-sm);
+  padding-left: 20px;
   border-top: 1px solid rgb(0 0 0 / 6%);
   border-bottom: 1px solid rgb(0 0 0 / 6%);
 }

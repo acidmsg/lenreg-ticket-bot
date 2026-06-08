@@ -327,7 +327,9 @@ async function loadDoctors(selections = []) {
     label: extractDoctorName(d) || 'Неизвестный врач',
     specialty: d.specialty_name || '',
     subtitle:
-      d.free_tickets !== undefined ? `Свободных слотов: ${d.free_tickets}` : '',
+      d.free_tickets !== undefined
+        ? `Свободных номерков: ${d.free_tickets}`
+        : '',
     _monitored: monitoredDoctorIds.has(String(d.doctor_id))
   }));
 }

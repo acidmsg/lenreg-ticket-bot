@@ -94,13 +94,13 @@ function renderSlotInfo(data, monitoringId) {
           class="btn--refresh"
           id="slots-refresh-btn"
           data-monitoring-id="${escapeHtml(monitoringId || '')}"
-          title="Проверить слоты"
-          aria-label="Принудительная проверка слотов"
+          title="Проверить номерки"
+          aria-label="Принудительная проверка номерков"
         >${lucideIcon('refresh-cw', 20)}</button>
       </div>
       ${specialty ? `<div class="card__subtitle">${escapeHtml(specialty)}</div>` : ''}
       ${clinicName ? `<div class="card__meta"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${escapeHtml(clinicName)}</div>` : ''}
-      ${total > 0 ? `<div class="status status--available mt-md"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Найдено слотов: ${total}</div>` : ''}
+      ${total > 0 ? `<div class="status status--available mt-md"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Найдено номерков: ${total}</div>` : ''}
     </div>
   `;
 }
@@ -115,7 +115,7 @@ function renderNoSlots() {
     <div class="empty-state" style="padding-top: 20px;">
       <div class="empty-state__icon">${lucideIcon('calendar', 48)}</div>
       <p class="empty-state__text">
-        На данный момент свободных слотов нет.
+        На данный момент свободных номерков нет.
         Мы уведомим вас, когда они появятся.
       </p>
     </div>
@@ -222,7 +222,7 @@ function bindSlotEvents(container, patients, params) {
         } else if (isInTelegram()) {
           // Fallback: toast-модуль ещё не загружен — используем Telegram alert
           window.Telegram.WebApp.showPopup({
-            title: 'Проверка слотов',
+            title: 'Проверка номерков',
             message:
               total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
             buttons: [{ type: 'ok' }]

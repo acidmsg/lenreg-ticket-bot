@@ -74,7 +74,7 @@ function renderEmpty() {
       <div class="empty-state__icon">${lucideIcon('stethoscope', 48)}</div>
       <p class="empty-state__text">
         Вы пока не отслеживаете ни одного врача.
-        Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных слотов.
+        Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных номерков.
       </p>
       <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Новый мониторинг</button>
     </div>
@@ -193,7 +193,7 @@ function bindDoctorEvents(container, doctors) {
         } else if (isInTelegram()) {
           // Fallback: toast-модуль ещё не загружен — используем Telegram alert
           window.Telegram.WebApp.showPopup({
-            title: 'Проверка слотов',
+            title: 'Проверка номерков',
             message:
               total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
             buttons: [{ type: 'ok' }]

@@ -58,12 +58,12 @@ export function createDoctorCard({
       </ul>`
       : '';
 
-  // Футер со статусом слотов
+  // Футер со статусом номерков
   const footerHtml =
-    freeTickets > 0
+    Number(freeTickets) > 0
       ? `<div class="card__footer card__footer--slots">
         <span class="lucide-icon">${lucideIcon('circle-check', 14)}</span>
-        <span style="color: var(--tg-green-color, #22c55e);">Доступно номерков: ${freeTickets}</span>
+        <span style="color: var(--tg-green-color, #22c55e);">Есть номерки! (${freeTickets})</span>
       </div>`
       : `<div class="card__footer card__footer--noslots">
         <span class="lucide-icon">${lucideIcon('circle-x', 14)}</span>
@@ -81,8 +81,8 @@ export function createDoctorCard({
           <button
             class="btn--refresh"
             data-monitoring-id="${escapeHtml(monitoringId)}"
-            title="Проверить слоты"
-            aria-label="Принудительная проверка слотов"
+            title="Проверить номерки"
+            aria-label="Принудительная проверка номерков"
           >${lucideIcon('refresh-cw', 20)}</button>
           ${
             statusInfo.html
@@ -135,20 +135,20 @@ function getStatusInfo(status, freeTickets) {
       return {
         class: 'status--available',
         html: `<span class="status__dot status__dot--available"></span>
-          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть слоты (${freeTickets})</span>`
+          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть номерки (${freeTickets})</span>`
       };
     case 'no_slots':
       return {
         class: 'status--no-slots',
         html: `<span class="status__dot status__dot--no-slots"></span>
-          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет слотов</span>`
+          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет номерков</span>`
       };
     case 'checking':
     default:
       return {
         class: 'status--checking',
         html: `<span class="status__dot status__dot--active status__pulse"></span>
-          <span class="status__label"><span class="lucide-icon">${lucideIcon('loader-circle', 14)}</span> мониторинг</span>`,
+          <span class="status__label">мониторинг</span>`,
         pulseClass: 'status__pulse'
       };
   }

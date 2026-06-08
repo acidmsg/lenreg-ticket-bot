@@ -179,7 +179,7 @@ function render() {
 
     case 'slots':
       content = `
-        ${renderHeader('Свободные слоты', true, userName)}
+        ${renderHeader('Свободные номерки', true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
       break;
