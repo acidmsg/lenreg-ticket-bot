@@ -233,6 +233,15 @@ body {
   opacity: 0.6;
 }
 
+/* Иконки в FAB */
+.fab .lucide-icon {
+  margin-right: 8px;
+}
+
+.fab .lucide-icon:only-child {
+  margin-right: 0;
+}
+
 .btn .lucide-icon:only-child {
   margin-right: 0;
 }
@@ -378,6 +387,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: var(--gap-xs);
   z-index: 20;
   transition:
     transform 0.15s,
@@ -774,9 +784,17 @@ body {
   margin-bottom: var(--gap-md);
 }
 
+.search-bar__wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
 .search-bar__input {
   width: 100%;
   padding: var(--gap-sm) var(--gap-md);
+  padding-right: 40px;
   border-radius: 10px;
   border: 1px solid rgb(0 0 0 / 12%);
   background-color: var(--tg-secondary-bg-color);
@@ -784,6 +802,29 @@ body {
   font-size: var(--font-md);
   outline: none;
   transition: border-color 0.2s;
+}
+
+.search-bar__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tg-hint-color);
+  cursor: pointer;
+  padding: 0;
+}
+
+.search-bar__clear:hover {
+  background: var(--tg-secondary-bg-color);
+  color: var(--tg-text-color);
 }
 
 .search-bar__input:focus {
@@ -841,9 +882,33 @@ body {
 }
 
 @keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
   to {
     transform: rotate(360deg);
   }
+}
+
+.lucide-icon--spin {
+  animation: spin 1s linear infinite;
+}
+
+/* === Спиннер stepper с иконкой и текстом === */
+.stepper-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-md);
+  padding: var(--gap-2xl) 0;
+  color: var(--tg-hint-color);
+}
+
+.stepper-spinner__text {
+  font-size: var(--font-md);
+  color: var(--tg-hint-color);
 }
 
 /* === Кнопка принудительной проверки слотов 🔄 === */

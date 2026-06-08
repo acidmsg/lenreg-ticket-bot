@@ -116,13 +116,18 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       step.searchPlaceholder !== undefined
         ? `
         <div class="search-bar">
-          <input
-            type="text"
-            class="search-bar__input"
-            placeholder="${escapeHtml(step.searchPlaceholder)}"
-            id="stepper-search"
-            autocomplete="off"
-          >
+          <div class="search-bar__wrapper">
+            <input
+              type="text"
+              class="search-bar__input"
+              placeholder="${escapeHtml(step.searchPlaceholder)}"
+              id="stepper-search"
+              autocomplete="off"
+            >
+            <button type="button" class="search-bar__clear" id="stepper-search-clear" aria-label="Очистить">
+              <span class="lucide-icon">${lucideIcon('x', 16)}</span>
+            </button>
+          </div>
         </div>
       `
         : '';
@@ -168,8 +173,9 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
   function renderLoading() {
     return `
-      <div class="spinner">
-        <div class="spinner__icon"></div>
+      <div class="stepper-spinner">
+        <span class="lucide-icon lucide-icon--spin">${lucideIcon('loader-circle', 24)}</span>
+        <span class="stepper-spinner__text">Загрузка...</span>
       </div>
     `;
   }
@@ -369,6 +375,16 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const searchInput = document.getElementById('stepper-search');
     if (!searchInput) return;
 
+    const clearBtn = document.getElementById('stepper-search-clear');
+    if (clearBtn) {
+      clearBtn.style.display = 'none';
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.focus();
+        searchInput.dispatchEvent(new Event('input'));
+      });
+    }
+
     const step = steps[currentStep];
     const isDoctorMode =
       _currentSearchMode === 'doctors' && step.searchMode !== undefined;
@@ -402,6 +418,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       if (hintEl) hintEl.remove();
 
       const query = e.target.value;
+
+      // Показать/скрыть кнопку очистки
+      if (clearBtn) {
+        clearBtn.style.display = query ? 'flex' : 'none';
+      }
 
       // Скрыть/показать кнопку «Выбрать поликлинику»
       const clinicBtn = document.getElementById('stepper-switch-clinics');
