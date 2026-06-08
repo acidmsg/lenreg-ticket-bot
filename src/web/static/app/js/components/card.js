@@ -58,9 +58,9 @@ export function createDoctorCard({
       </ul>`
       : '';
 
-  // Футер со статусом номерков
+  // Футер со статусом номерков — синхронизирован с заголовком (ориентируется на status)
   const footerHtml =
-    Number(freeTickets) > 0
+    status === 'slots_available'
       ? `<div class="card__footer card__footer--slots">
         <span class="lucide-icon">${lucideIcon('circle-check', 14)}</span>
         <span style="color: var(--tg-green-color, #22c55e);">Есть номерки! (${freeTickets})</span>
