@@ -225,7 +225,7 @@ body {
 
 /* Иконки в кнопках */
 .btn .lucide-icon {
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
 /* Иконки в empty-state */
@@ -1025,6 +1025,7 @@ body {
   align-items: center;
   flex-shrink: 0;
   font-size: var(--font-sm);
+  color: var(--tg-hint-color);
 }
 
 .monitoring-patient__name {
