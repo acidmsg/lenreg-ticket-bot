@@ -175,10 +175,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
   function renderLoading() {
     return `
       <div class="stepper-spinner">
-        <span class="lucide-icon lucide-icon--spin">${lucideIcon('loader-circle', 24)}</span>
-        <span class="stepper-spinner__text">Загрузка...</span>
-      </div>
-    `;
+        <span class="lucide-icon lucide-icon--spin">${lucideIcon('refresh-cw', 48)}</span>
+      </div>`;
   }
 
   function renderItems(items, renderItem, isLastStep = false) {

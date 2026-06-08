@@ -895,20 +895,15 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* === Спиннер stepper с иконкой и текстом === */
+/* === Спиннер stepper с иконкой === */
 .stepper-spinner {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--gap-md);
   padding: var(--gap-2xl) 0;
   color: var(--tg-hint-color);
-}
-
-.stepper-spinner__text {
-  font-size: var(--font-md);
-  color: var(--tg-hint-color);
+  width: 50%;
+  margin: 0 auto;
 }
 
 /* === Кнопка принудительной проверки слотов 🔄 === */
