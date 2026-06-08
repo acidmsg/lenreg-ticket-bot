@@ -122,7 +122,8 @@
 
   ```yaml
   healthcheck:
-    test: ['CMD', 'python', '-c', "import sqlite3; sqlite3.connect('data/bot.db')"]
+    test:
+      ["CMD", "python", "-c", "import sqlite3; sqlite3.connect('data/bot.db')"]
     interval: 30s
     timeout: 10s
     retries: 3
@@ -137,10 +138,10 @@
      healthcheck:
        test:
          [
-           'CMD',
-           'python',
-           '-c',
-           "import redis; r = redis.Redis(host='redis', port=6379); r.ping()"
+           "CMD",
+           "python",
+           "-c",
+           "import redis; r = redis.Redis(host='redis', port=6379); r.ping()",
          ]
      ```
 

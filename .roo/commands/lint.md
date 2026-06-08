@@ -1,5 +1,5 @@
 ---
-description: 'Линтинг: ruff (check+fix+format) + mypy + markdownlint + prettier'
+description: "Линтинг: ruff (check+fix+format) + mypy + markdownlint + prettier"
 ---
 
 Выполни полный цикл линтинга и форматирования проекта:

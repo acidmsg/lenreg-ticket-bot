@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gauge Design Lab — Canvas-виджет мониторинга</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="demo-container">
+      <!-- Заголовок -->
+      <header class="demo-header">
+        <h1 class="demo-header__title">Gauge Design Lab</h1>
+        <p class="demo-header__subtitle">Canvas-виджет мониторинга · 5 состояний · retina 2x</p>
+      </header>
+
+      <!-- Канвас-виджет -->
+      <div class="gauge-wrapper">
+        <canvas id="gauge" width="280" height="280"></canvas>
+      </div>
+
+      <!-- Кнопки переключения состояний -->
+      <div class="state-buttons" id="state-buttons">
+        <button class="state-btn state-btn--active" data-state="active">🟢 Активен</button>
+        <button class="state-btn" data-state="searching">🔵 Поиск</button>
+        <button class="state-btn" data-state="paused">🟠 Пауза</button>
+        <button class="state-btn" data-state="error">🔴 Ошибка</button>
+        <button class="state-btn" data-state="no_data">⚫ Нет данных</button>
+      </div>
+
+      <!-- Кнопка автоматического цикла -->
+      <button class="auto-btn" id="auto-cycle-btn">▶ Реальное переключение</button>
+
+      <!-- Описание текущего состояния -->
+      <div class="state-description" id="state-description">
+        <p class="state-description__name">Мониторинг активен</p>
+        <p class="state-description__detail">Пульсирующая дуга 270° · счётчик слотов</p>
+      </div>
+
+      <!-- Футер -->
+      <footer class="demo-footer">Gauge Design Lab · Canvas 2D · Telegram Mini App</footer>
+    </div>
+
+    <script src="gauge.js"></script>
+    <script>
+      /**
+       * Демо-стенд Gauge Widget.
+       * Управление состояниями, автоцикл, демо-счётчик слотов.
+       */
+      (function () {
+        'use strict';
+
+        // =====================================================================
+        // Конфигурация состояний для демо
+        // =====================================================================
+
+        var STATES = ['active', 'searching', 'paused', 'error', 'no_data'];
+
+        /** Описания состояний (название + детали). */
+        var STATE_INFO = {
+          active: {
+            name: 'Мониторинг активен',
+            detail: 'Пульсирующая дуга 270° · счётчик слотов'
+          },
+          searching: {
+            name: 'Поиск слотов',
+            detail: 'Вращающаяся дуга-спиннер · поиск доступных записей'
+          },
+          paused: {
+            name: 'Мониторинг на паузе',
+            detail: 'Статичная дуга 60° · значок паузы ‖'
+          },
+          error: {
+            name: 'Ошибка мониторинга',
+            detail: 'Красная дуга · ✕ в центре · мигание'
+          },
+          no_data: {
+            name: 'Нет данных',
+            detail: 'Серая пунктирная окружность · прочерк в центре'
+          }
+        };
+
+        // =====================================================================
+        // DOM-элементы
+        // =====================================================================
+
+        var canvas = document.getElementById('gauge');
+        var stateButtons = document.getElementById('state-buttons');
+        var autoCycleBtn = document.getElementById('auto-cycle-btn');
+        var descriptionEl = document.getElementById('state-description');
+
+        // =====================================================================
+        // Состояние демо
+        // =====================================================================
+
+        var currentState = 'active';
+        var autoCycleRunning = false;
+        var autoCycleTimer = null;
+        var autoCycleIndex = 0;
+        var demoTimer = null;
+        var demoTimerSeconds = 55;
+
+        // =====================================================================
+        // Инициализация виджета
+        // =====================================================================
+
+        renderGauge(canvas, 'active', {
+          slotsCount: 12,
+          label: 'Мониторинг активен',
+          nextCheckIn: 55
+        });
+
+        // =====================================================================
+        // Комбинированный демо-таймер: счётчик слотов + таймер проверки
+        // =====================================================================
+
+        function stopAllDemoTimers() {
+          if (demoTimer !== null) {
+            clearInterval(demoTimer);
+            demoTimer = null;
+          }
+        }
+
+        /**
+         * Запуск комбинированного демо-таймера:
+         * - Каждую секунду: обновление nextCheckIn
+         * - Каждые 3 секунды: случайное изменение slotsCount
+         */
+        function startAllDemoTimers() {
+          stopAllDemoTimers();
+          demoTimerSeconds = 55;
+
+          var tickCount = 0;
+          demoTimer = setInterval(function () {
+            if (getCurrentState() !== 'active' || isMorphing()) {
+              return;
+            }
+            tickCount++;
+
+            // Таймер обратного отсчёта (каждую секунду)
+            demoTimerSeconds = demoTimerSeconds > 0 ? demoTimerSeconds - 1 : 55;
+            updateOptions({ nextCheckIn: demoTimerSeconds });
+
+            // Случайный счётчик слотов (каждые 3 секунды)
+            if (tickCount % 3 === 0) {
+              var newCount = Math.floor(Math.random() * 30) + 1;
+              updateOptions({ slotsCount: newCount });
+            }
+          }, 1000);
+        }
+
+        // =====================================================================
+        // Переключение состояний
+        // =====================================================================
+
+        /**
+         * Переключение на указанное состояние с обновлением UI.
+         * @param {string} state - Новое состояние.
+         */
+        function switchToState(state) {
+          if (state === currentState && !isMorphing()) {
+            return;
+          }
+
+          currentState = state;
+
+          // Обновление виджета
+          var label = STATE_INFO[state].name;
+          var opts = { label: label };
+
+          if (state === 'active') {
+            opts.slotsCount = Math.floor(Math.random() * 30) + 1;
+            opts.nextCheckIn = demoTimerSeconds;
+          }
+
+          updateOptions(opts);
+          setState(state);
+
+          // Обновление активной кнопки
+          var buttons = stateButtons.querySelectorAll('.state-btn');
+          buttons.forEach(function (btn) {
+            if (btn.getAttribute('data-state') === state) {
+              btn.classList.add('state-btn--active');
+            } else {
+              btn.classList.remove('state-btn--active');
+            }
+          });
+
+          // Обновление описания
+          var info = STATE_INFO[state];
+          descriptionEl.querySelector('.state-description__name').textContent = info.name;
+          descriptionEl.querySelector('.state-description__detail').textContent = info.detail;
+
+          // Управление демо-таймерами
+          if (state === 'active') {
+            startAllDemoTimers();
+          } else {
+            stopAllDemoTimers();
+          }
+        }
+
+        // =====================================================================
+        // Обработчики кнопок состояний
+        // =====================================================================
+
+        stateButtons.addEventListener('click', function (e) {
+          var btn = e.target.closest('.state-btn');
+          if (!btn) return;
+
+          var state = btn.getAttribute('data-state');
+          if (state) {
+            // Остановка автоцикла при ручном переключении
+            if (autoCycleRunning) {
+              stopAutoCycle();
+            }
+            switchToState(state);
+          }
+        });
+
+        // =====================================================================
+        // Автоматический цикл «реальное переключение»
+        // =====================================================================
+
+        /**
+         * Запуск автоматического цикла по всем состояниям.
+         * Каждые 2.5 секунды переключает на следующее состояние.
+         */
+        function startAutoCycle() {
+          if (autoCycleRunning) return;
+          autoCycleRunning = true;
+          autoCycleBtn.textContent = '⏸ Остановить цикл';
+          autoCycleBtn.classList.add('auto-btn--running');
+
+          autoCycleIndex = STATES.indexOf(currentState);
+          if (autoCycleIndex === -1) autoCycleIndex = 0;
+
+          function cycleNext() {
+            if (!autoCycleRunning) return;
+            autoCycleIndex = (autoCycleIndex + 1) % STATES.length;
+            switchToState(STATES[autoCycleIndex]);
+            autoCycleTimer = setTimeout(cycleNext, 2500);
+          }
+
+          autoCycleTimer = setTimeout(cycleNext, 2500);
+        }
+
+        /**
+         * Остановка автоматического цикла.
+         */
+        function stopAutoCycle() {
+          autoCycleRunning = false;
+          if (autoCycleTimer !== null) {
+            clearTimeout(autoCycleTimer);
+            autoCycleTimer = null;
+          }
+          autoCycleBtn.textContent = '▶ Реальное переключение';
+          autoCycleBtn.classList.remove('auto-btn--running');
+        }
+
+        autoCycleBtn.addEventListener('click', function () {
+          if (autoCycleRunning) {
+            stopAutoCycle();
+          } else {
+            startAutoCycle();
+          }
+        });
+
+        // =====================================================================
+        // Старт демо
+        // =====================================================================
+
+        startAllDemoTimers();
+      })();
+    </script>
+  </body>
+</html>

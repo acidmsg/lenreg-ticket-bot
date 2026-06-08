@@ -1,36 +1,29 @@
 # SESSION_LOG
 
-## 2026-06-03 — Исправление 3 замечаний к кнопке 🔄 (force check)
-
-**Режим:** orchestrator → project-research → code
+## 2026-06-07 — Проверка и исправление кнопки обновления мониторинга
 
 ### Выполненные задачи
 
-1. **Добавлена обработка 504 Gateway Timeout** — [`force_check_doctor()`](src/web/routers/user_api.py:940-1041)
-   - Добавлен флаг `all_timeouts = True` перед retry-циклом
-   - Флаг сбрасывается при не-таймаут ошибках (`NetworkError`, `JSONDecodeError`, `Exception`, HTTP 403/429)
-   - При `httpx.TimeoutException` и статусах >= 500 флаг не сбрасывается
-   - После цикла: `all_timeouts` → 504 "Таймаут при запросе к API zdrav.lenreg.ru.", иначе → 502
+- **Верификация кнопки обновления мониторинга** (project-research)
+  - Проверено: кнопка на главной [`card.js:67-72`](src/web/static/app/js/components/card.js:67), кнопка внутри карточки [`slots.js:92-98`](src/web/static/app/js/views/slots.js:92)
+  - Проверено: API-запрос POST /api/user/doctors/check, бэкенд [`user_api.py:872-1085`](src/web/routers/user_api.py:872)
+  - Выявлено: toast не виден — `window.showToast` определён внутри замыкания `createStepper()` и недоступен на главной
 
-2. **Убрано поле `free_tickets` из `ForceCheckResponse`** — оставлено только `total`
-   - [`user_api.py:1066`](src/web/routers/user_api.py:1066) — удалён `"free_tickets": total`
-   - [`openapi.yaml:1499-1501`](docs/openapi.yaml:1499) — удалено поле `free_tickets` из схемы
-   - [`doctors.js:189`](src/web/static/app/js/views/doctors.js:189) — `result.free_tickets` → `result.total`
-
-3. **Теги приведены к единому стилю `Сущность (Уточнение)`**
-   - [`openapi.yaml:32`](docs/openapi.yaml:32) — `Фоновые сервисы` → `Фоновые сервисы (asyncio)`
-   - [`openapi.yaml:36-37`](docs/openapi.yaml:36) — `Mini App API` → `Mini App (JSON API)` + описание
-   - [`openapi.yaml:489`](docs/openapi.yaml:489) — синхронизирован тег на пути
-   - [`user_api.py:32`](src/web/routers/user_api.py:32) — `tags=["Mini App"]` → `tags=["Mini App (JSON API)"]`
+- **Исправление невидимости toast** (debug)
+  - Создан [`toast.js`](src/web/static/app/js/components/toast.js) — независимый модуль, устанавливает `window.showToast` при загрузке
+  - Импорт в [`app.js:14`](src/web/static/app/js/app.js:14) с сайд-эффектом
+  - Fallback `Telegram.WebApp.showPopup()` в [`doctors.js:192-200`](src/web/static/app/js/views/doctors.js:192) и [`slots.js:221-229`](src/web/static/app/js/views/slots.js:221)
+  - Toast-код удалён из [`stepper.js`](src/web/static/app/js/components/stepper.js)
 
 ### Изменённые файлы
 
-- [`src/web/routers/user_api.py`](src/web/routers/user_api.py) — строки 32, 940-1041, 1066
-- [`docs/openapi.yaml`](docs/openapi.yaml) — строки 32, 36-37, 489, 1499-1504
-- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — строка 189
-- `docs/schemas/*.json` — 12 схем перегенерировано
+- [`src/web/static/app/js/components/toast.js`](src/web/static/app/js/components/toast.js) — новый файл
+- [`src/web/static/app/js/app.js`](src/web/static/app/js/app.js) — добавлен импорт toast.js
+- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — fallback showPopup
+- [`src/web/static/app/js/views/slots.js`](src/web/static/app/js/views/slots.js) — fallback showPopup
+- [`src/web/static/app/js/components/stepper.js`](src/web/static/app/js/components/stepper.js) — удалён toast-код
 
-### Результаты проверок
+### Деплой
 
-- `ruff check src` — All checks passed
-- `python scripts/generate_api_schemas.py` — 12 схем обновлено успешно
+- Коммит `866c948`, ветка `mini_app_beta`
+- VPS: бот пересобран, healthcheck ✅

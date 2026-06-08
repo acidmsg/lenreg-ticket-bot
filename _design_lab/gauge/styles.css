@@ -1,0 +1,197 @@
+/*
+ * Gauge Design Lab — Стили демо-стенда Canvas-виджета мониторинга.
+ * Тёмный фон в стиле Telegram, минималистичный дизайн.
+ */
+
+/* ===== Сброс ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  background-color: #0a0e14;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+}
+
+/* ===== Контейнер демо-стенда ===== */
+.demo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 32px 20px;
+  max-width: 480px;
+  width: 100%;
+}
+
+/* ===== Заголовок ===== */
+.demo-header {
+  text-align: center;
+}
+
+.demo-header__title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f0f0f0;
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+}
+
+.demo-header__subtitle {
+  font-size: 13px;
+  color: #7a8a9a;
+}
+
+/* ===== Канвас-виджет ===== */
+.gauge-wrapper {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+#gauge {
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 0 24px rgb(0 0 0 / 40%);
+}
+
+/* ===== Кнопки состояний ===== */
+.state-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.state-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  background: rgb(255 255 255 / 4%);
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+  user-select: none;
+}
+
+.state-btn:hover {
+  background: rgb(255 255 255 / 8%);
+  border-color: rgb(255 255 255 / 15%);
+  color: #e0e0e0;
+}
+
+/* Активная кнопка — цвет зависит от data-state */
+.state-btn--active[data-state="active"] {
+  background: rgb(34 197 94 / 15%);
+  border-color: #22c55e;
+  color: #22c55e;
+  box-shadow: 0 0 12px rgb(34 197 94 / 25%);
+}
+
+.state-btn--active[data-state="searching"] {
+  background: rgb(59 130 246 / 15%);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  box-shadow: 0 0 12px rgb(59 130 246 / 25%);
+}
+
+.state-btn--active[data-state="paused"] {
+  background: rgb(245 158 11 / 15%);
+  border-color: #f59e0b;
+  color: #f59e0b;
+  box-shadow: 0 0 12px rgb(245 158 11 / 25%);
+}
+
+.state-btn--active[data-state="error"] {
+  background: rgb(239 68 68 / 15%);
+  border-color: #ef4444;
+  color: #ef4444;
+  box-shadow: 0 0 12px rgb(239 68 68 / 25%);
+}
+
+.state-btn--active[data-state="no_data"] {
+  background: rgb(107 114 128 / 15%);
+  border-color: #6b7280;
+  color: #9ca3af;
+  box-shadow: 0 0 12px rgb(107 114 128 / 20%);
+}
+
+/* ===== Кнопка автоцикла ===== */
+.auto-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 3%);
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+  user-select: none;
+}
+
+.auto-btn:hover {
+  background: rgb(255 255 255 / 6%);
+  border-color: rgb(255 255 255 / 20%);
+  color: #e0e0e0;
+}
+
+.auto-btn--running {
+  background: rgb(34 197 94 / 12%);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+/* ===== Описание состояния ===== */
+.state-description {
+  text-align: center;
+  min-height: 48px;
+}
+
+.state-description__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f0f0;
+  margin-bottom: 4px;
+}
+
+.state-description__detail {
+  font-size: 12px;
+  color: #7a8a9a;
+}
+
+/* ===== Футер ===== */
+.demo-footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 11px;
+  color: #4a5568;
+}

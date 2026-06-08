@@ -4796,3 +4796,109 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 ### Тесты
 
 Не запускались (аудит документации и конфигурации, без изменений в коде).
+
+---
+
+## 2026-06-03 — Исправление 3 замечаний к кнопке 🔄 (force check)
+
+**Режим:** orchestrator → project-research → code
+
+### Выполненные задачи
+
+1. **Добавлена обработка 504 Gateway Timeout** — [`force_check_doctor()`](src/web/routers/user_api.py:940-1041)
+   - Добавлен флаг `all_timeouts = True` перед retry-циклом
+   - Флаг сбрасывается при не-таймаут ошибках (`NetworkError`, `JSONDecodeError`, `Exception`, HTTP 403/429)
+   - При `httpx.TimeoutException` и статусах >= 500 флаг не сбрасывается
+   - После цикла: `all_timeouts` → 504 "Таймаут при запросе к API zdrav.lenreg.ru.", иначе → 502
+
+2. **Убрано поле `free_tickets` из `ForceCheckResponse`** — оставлено только `total`
+   - [`user_api.py:1066`](src/web/routers/user_api.py:1066) — удалён `"free_tickets": total`
+   - [`openapi.yaml:1499-1501`](docs/openapi.yaml:1499) — удалено поле `free_tickets` из схемы
+   - [`doctors.js:189`](src/web/static/app/js/views/doctors.js:189) — `result.free_tickets` → `result.total`
+
+3. **Теги приведены к единому стилю `Сущность (Уточнение)`**
+   - [`openapi.yaml:32`](docs/openapi.yaml:32) — `Фоновые сервисы` → `Фоновые сервисы (asyncio)`
+   - [`openapi.yaml:36-37`](docs/openapi.yaml:36) — `Mini App API` → `Mini App (JSON API)` + описание
+   - [`openapi.yaml:489`](docs/openapi.yaml:489) — синхронизирован тег на пути
+   - [`user_api.py:32`](src/web/routers/user_api.py:32) — `tags=["Mini App"]` → `tags=["Mini App (JSON API)"]`
+
+### Изменённые файлы
+
+- [`src/web/routers/user_api.py`](src/web/routers/user_api.py) — строки 32, 940-1041, 1066
+- [`docs/openapi.yaml`](docs/openapi.yaml) — строки 32, 36-37, 489, 1499-1504
+- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — строка 189
+- `docs/schemas/*.json` — 12 схем перегенерировано
+
+### Результаты проверок
+
+- `ruff check src` — All checks passed
+- `python scripts/generate_api_schemas.py` — 12 схем обновлено успешно
+
+---
+
+## 🪃 Сессия 2026-06-03 — Кнопка принудительной проверки слотов (🔄) в Mini App
+
+**Дата:** 2026-06-03
+**Режим:** orchestrator → project-research (×3) → code (×2)
+
+## Выполненные задачи
+
+- **Исследование**: изучены inline-клавиатуры, callback_data, сервис мониторинга, Mini App frontend и API-эндпоинты
+- **Реализация**: добавлен новый API-эндпоинт `POST /api/user/doctors/check` с handler-ом `force_check_doctor` в [`user_api.py:872`](src/web/routers/user_api.py:872), кнопка 🔄 в карточке врача [`card.js:67`](src/web/static/app/js/components/card.js:67) и на экране слотов [`slots.js:92`](src/web/static/app/js/views/slots.js:92), CSS-стили и анимация в [`style.css:787`](src/web/static/app/css/style.css:787)
+- **Валидация**: Ruff — 0 ошибок, markdownlint — 0 ошибок, prettier — применён, тесты — 30/31 пройдено (1 предсуществующее падение в `test_no_patients_shows_welcome`)
+
+## Изменённые файлы
+
+- [`docs/openapi.yaml`](docs/openapi.yaml)
+- [`src/web/routers/user_api.py`](src/web/routers/user_api.py)
+- [`src/web/static/app/js/components/card.js`](src/web/static/app/js/components/card.js)
+- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js)
+- [`src/web/static/app/js/views/slots.js`](src/web/static/app/js/views/slots.js)
+- [`src/web/static/app/css/style.css`](src/web/static/app/css/style.css)
+
+## Результаты тестов
+
+- Ruff: All checks passed
+- markdownlint: 0 errors
+- pytest: 30 passed, 1 failed (предсуществующее: `test_no_patients_shows_welcome`)
+
+---
+
+## 2026-06-07 — Исследование toast-уведомлений в Mini App (project-research mode)
+
+### Выполненные задачи
+
+- [`stepper.js:291-313`](src/web/static/app/js/components/stepper.js:291) — найдено определение `showToast` и экспорт в `window.showToast`
+- [`stepper.js:358-360`](src/web/static/app/js/components/stepper.js:358) — пример вызова при дублировании врача
+- [`add.js:196-205`](src/web/static/app/js/views/add.js:196) — пример вызова с перехватом клика + HapticFeedback
+- [`slots.js:262-268`](src/web/static/app/js/views/slots.js:262) — пример вызова при проверке слотов
+- [`style.css:879-902`](src/web/static/app/css/style.css:879) — CSS-стили `.stepper-toast` и `.stepper-toast--visible`
+
+### Изменённые файлы
+
+Нет изменений (чисто исследовательская задача)
+
+### Выводы
+
+- `showToast(message)` — только текст, без type/duration
+- Единый стиль без вариантов (нет success/error/warning)
+- Длительность хардкодна: 4 секунды
+- 3 места вызова: stepper.js, add.js, slots.js
+
+---
+
+## 2026-06-07 — Изменение обработчиков кнопки 🔄 в doctors.js и slots.js
+
+### Выполненные задачи
+
+- [`doctors.js:169-210`](src/web/static/app/js/views/doctors.js:169) — обработчик кнопки 🔄: убран DOM-мутагенез статуса карточки, добавлен toast через `window.showToast()`
+- [`slots.js:196-252`](src/web/static/app/js/views/slots.js:196) — обработчик кнопки 🔄: убрана перерисовка слотов, оставлен только toast
+
+### Изменённые файлы
+
+- [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — строки 169-210
+- [`src/web/static/app/js/views/slots.js`](src/web/static/app/js/views/slots.js) — строки 196-252
+
+### Результаты тестов
+
+Не запускались (только JS-файлы)

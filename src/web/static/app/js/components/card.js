@@ -130,28 +130,14 @@ export function createSlotCard({ date, times }) {
  * @returns {{ class: string, html: string, pulseClass?: string }}
  */
 function getStatusInfo(status, freeTickets) {
-  switch (status) {
-    case 'slots_available':
-      return {
-        class: 'status--available',
-        html: `<span class="status__dot status__dot--available"></span>
-          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть номерки (${freeTickets})</span>`
-      };
-    case 'no_slots':
-      return {
-        class: 'status--no-slots',
-        html: `<span class="status__dot status__dot--no-slots"></span>
-          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет номерков</span>`
-      };
-    case 'checking':
-    default:
-      return {
-        class: 'status--checking',
-        html: `<span class="status__dot status__dot--active status__pulse"></span>
-          <span class="status__label">мониторинг</span>`,
-        pulseClass: 'status__pulse'
-      };
-  }
+  // Все статусы показывают одинаково: зелёная мигающая точка + «мониторинг».
+  // Информация о наличии/отсутствии номерков — только в футере карточки.
+  return {
+    class: 'status--checking',
+    html: `<span class="status__dot status__dot--active status__pulse"></span>
+      <span class="status__label">мониторинг</span>`,
+    pulseClass: 'status__pulse'
+  };
 }
 
 /**

@@ -655,10 +655,10 @@ src/web/static/app/
 ```javascript
 // Псевдокод инициализации
 Telegram.WebApp.ready();
-Telegram.WebApp.MainButton.setText('Закрыть')
+Telegram.WebApp.MainButton.setText("Закрыть")
   .show()
   .onClick(() => {
-    Telegram.WebApp.sendData(JSON.stringify({ action: 'closed' }));
+    Telegram.WebApp.sendData(JSON.stringify({ action: "closed" }));
     Telegram.WebApp.close();
   });
 Telegram.WebApp.BackButton.onClick(() => router.back());
@@ -977,8 +977,8 @@ MINI_APP_INITDATA_MAX_AGE: int = 86400  # 24 часа
 services:
   bot:
     ports:
-      - '8090:8090' # Веб-дашборд + Mini App
-      - '9090:9090' # Prometheus метрики (уже есть)
+      - "8090:8090" # Веб-дашборд + Mini App
+      - "9090:9090" # Prometheus метрики (уже есть)
 ```
 
 Или, для production, использовать nginx reverse proxy:

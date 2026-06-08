@@ -988,9 +988,18 @@ body {
   list-style: none;
   margin: 0 0 var(--gap-sm);
   padding: 0 0 var(--gap-sm);
-  padding-left: 20px;
   border-top: 1px solid rgb(0 0 0 / 6%);
   border-bottom: 1px solid rgb(0 0 0 / 6%);
+}
+
+/* На главном экране (карточка врача) — без левых отступов */
+.doctor-card .monitoring-patients {
+  padding-left: 0;
+}
+
+/* Отступ для списка пациентов только на странице слотов (где есть заголовок «Пациенты:») */
+.slots-patients .monitoring-patients {
+  padding-left: 20px;
 }
 
 .monitoring-patients__title {

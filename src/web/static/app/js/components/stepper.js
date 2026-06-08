@@ -282,7 +282,10 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       showError(error.message || 'Ошибка загрузки данных');
       return;
     } finally {
-      if (loadId === _loadId) isLoading = false;
+      if (loadId === _loadId) {
+        isLoading = false;
+        _dataLoaded = true;
+      }
     }
     if (loadId !== _loadId) return;
     updateContent();

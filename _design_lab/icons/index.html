@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Дизайн-лаборатория иконок — zdrav.lenreg</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="demo-container">
+      <!-- ===== Заголовок ===== -->
+      <header class="demo-header">
+        <h1 class="demo-header__title">Дизайн-лаборатория иконок</h1>
+        <p class="demo-header__subtitle">
+          44 иконки · 10 стилевых вариаций · Canvas 2D · Retina-ready
+        </p>
+      </header>
+
+      <!-- ===== Табы стилей ===== -->
+      <div class="style-tabs" id="style-tabs">
+        <button class="style-tab style-tab--active" data-style="outline_thin">Outline Thin</button>
+        <button class="style-tab" data-style="outline_bold">Outline Bold</button>
+        <button class="style-tab" data-style="filled_solid">Filled Solid</button>
+        <button class="style-tab" data-style="filled_soft">Filled Soft</button>
+        <button class="style-tab" data-style="duotone_blue_orange">Duotone</button>
+        <button class="style-tab" data-style="neon">Neon</button>
+        <button class="style-tab" data-style="rounded_bold">Rounded Bold</button>
+        <button class="style-tab" data-style="geometric_sharp">Geometric</button>
+        <button class="style-tab" data-style="minimal_dot">Minimal Dot</button>
+        <button class="style-tab" data-style="dark_inverse">Dark Inverse</button>
+      </div>
+
+      <!-- ===== Кнопка «Показать все» ===== -->
+      <button class="show-all-btn" id="show-all-btn">Показать все 10 стилей</button>
+
+      <!-- ===== Сетка иконок ===== -->
+      <div class="icons-grid" id="icons-grid"></div>
+
+      <!-- ===== Контейнер для «всех стилей» ===== -->
+      <div class="all-styles-container" id="all-styles-container" style="display: none"></div>
+
+      <!-- ===== Футер ===== -->
+      <footer class="demo-footer">
+        Icons Design Lab · zdrav.lenreg · Canvas 2D · Telegram Mini App
+      </footer>
+    </div>
+
+    <script src="icons.js"></script>
+    <script>
+      /**
+       * Демо-стенд иконок.
+       * Управление переключением стилей, отрисовка всех 44 иконок на мини-канвасах.
+       */
+      (function () {
+        'use strict';
+
+        // =====================================================================
+        // Конфигурация
+        // =====================================================================
+
+        /** Логический размер иконки (CSS-пиксели). */
+        var LOGICAL_SIZE = 24;
+
+        /** Физический размер канваса (логический × dpr). */
+        var PHYSICAL_SIZE;
+
+        /** Текущий dpr. */
+        var DPR;
+
+        /** Активный стиль. */
+        var currentStyle = 'outline_thin';
+
+        /** Режим «все стили» активен? */
+        var showAllActive = false;
+
+        // =====================================================================
+        // DOM-элементы
+        // =====================================================================
+
+        var styleTabs = document.getElementById('style-tabs');
+        var showAllBtn = document.getElementById('show-all-btn');
+        var iconsGrid = document.getElementById('icons-grid');
+        var allStylesContainer = document.getElementById('all-styles-container');
+
+        // =====================================================================
+        // Инициализация DPR
+        // =====================================================================
+
+        function initDPR() {
+          DPR = window.devicePixelRatio || 1;
+          PHYSICAL_SIZE = Math.floor(LOGICAL_SIZE * DPR);
+        }
+
+        // =====================================================================
+        // Создание мини-канваса для иконки
+        // =====================================================================
+
+        /**
+         * Создать canvas-элемент с правильными размерами под retina.
+         * @returns {HTMLCanvasElement}
+         */
+        function createIconCanvas() {
+          var canvas = document.createElement('canvas');
+          canvas.width = PHYSICAL_SIZE;
+          canvas.height = PHYSICAL_SIZE;
+          canvas.style.width = LOGICAL_SIZE + 'px';
+          canvas.style.height = LOGICAL_SIZE + 'px';
+          canvas.classList.add('icon-canvas');
+          return canvas;
+        }
+
+        // =====================================================================
+        // Отрисовка одной иконки
+        // =====================================================================
+
+        /**
+         * Отрисовать иконку на канвасе.
+         * @param {HTMLCanvasElement} canvas - Канвас.
+         * @param {object} iconDef - Определение иконки из ICON_LIST.
+         * @param {object} style - Объект стиля из IconStyles.
+         */
+        function drawIcon(canvas, iconDef, style) {
+          var ctx = canvas.getContext('2d');
+          // Сброс трансформации
+          canvas.width = PHYSICAL_SIZE;
+          canvas.height = PHYSICAL_SIZE;
+          ctx.scale(DPR, DPR);
+
+          // Очистка
+          ctx.clearRect(0, 0, LOGICAL_SIZE, LOGICAL_SIZE);
+
+          // Отрисовка фона для dark_inverse
+          if (style.bgFill) {
+            var helpers = window.IconHelpers;
+            ctx.fillStyle = style.bgFill;
+            helpers.drawRoundedRect(
+              ctx,
+              0,
+              0,
+              LOGICAL_SIZE,
+              LOGICAL_SIZE,
+              (style.bgRadius || 0) * (LOGICAL_SIZE / window.GRID_SIZE)
+            );
+            ctx.fill();
+          }
+
+          // Отрисовка иконки
+          iconDef.fn(ctx, LOGICAL_SIZE / 2, LOGICAL_SIZE / 2, LOGICAL_SIZE, style);
+        }
+
+        // =====================================================================
+        // Построение сетки иконок
+        // =====================================================================
+
+        /**
+         * Построить DOM-сетку иконок в указанном контейнере.
+         * @param {HTMLElement} container - Контейнер для сетки.
+         * @param {Array} iconList - Список определений иконок.
+         * @returns {Array<{canvas, iconDef}>} Массив пар canvas+iconDef.
+         */
+        function buildIconGrid(container, iconList) {
+          var items = [];
+          container.innerHTML = '';
+
+          for (var i = 0; i < iconList.length; i++) {
+            var iconDef = iconList[i];
+            var cell = document.createElement('div');
+            cell.classList.add('icon-cell');
+
+            var canvas = createIconCanvas();
+            cell.appendChild(canvas);
+
+            var label = document.createElement('span');
+            label.classList.add('icon-label');
+            label.textContent = iconDef.name;
+            cell.appendChild(label);
+
+            container.appendChild(cell);
+            items.push({ canvas: canvas, iconDef: iconDef });
+          }
+
+          return items;
+        }
+
+        // =====================================================================
+        // Отрисовка всех иконок в сетке
+        // =====================================================================
+
+        /**
+         * Отрисовать все иконки в массиве с указанным стилем.
+         * @param {Array} items - Массив {canvas, iconDef}.
+         * @param {object} style - Объект стиля.
+         */
+        function renderAllIcons(items, style) {
+          for (var i = 0; i < items.length; i++) {
+            drawIcon(items[i].canvas, items[i].iconDef, style);
+          }
+        }
+
+        // =====================================================================
+        // Главная сетка
+        // =====================================================================
+
+        /** Элементы главной сетки. */
+        var mainGridItems = [];
+
+        function initMainGrid() {
+          mainGridItems = buildIconGrid(iconsGrid, window.ICON_LIST);
+        }
+
+        function renderMainGrid(styleKey) {
+          var style = window.IconStyles[styleKey];
+          if (!style) return;
+          renderAllIcons(mainGridItems, style);
+        }
+
+        // =====================================================================
+        // Режим «все 10 стилей»
+        // =====================================================================
+
+        /** Элементы всех стилевых секций. */
+        var allStyleItems = [];
+
+        function buildAllStylesView() {
+          allStylesContainer.innerHTML = '';
+          allStyleItems = [];
+
+          var styleKeys = Object.keys(window.IconStyles);
+          for (var sk = 0; sk < styleKeys.length; sk++) {
+            var styleKey = styleKeys[sk];
+            var style = window.IconStyles[styleKey];
+
+            // Секция стиля
+            var section = document.createElement('div');
+            section.classList.add('style-section');
+
+            var heading = document.createElement('h2');
+            heading.classList.add('style-section__heading');
+            heading.textContent = style.name;
+            section.appendChild(heading);
+
+            var grid = document.createElement('div');
+            grid.classList.add('icons-grid');
+            grid.classList.add('icons-grid--compact');
+            section.appendChild(grid);
+
+            allStylesContainer.appendChild(section);
+
+            var items = buildIconGrid(grid, window.ICON_LIST);
+            allStyleItems.push({ styleKey: styleKey, style: style, items: items });
+          }
+
+          // Отрисовываем все
+          for (var ai = 0; ai < allStyleItems.length; ai++) {
+            renderAllIcons(allStyleItems[ai].items, allStyleItems[ai].style);
+          }
+        }
+
+        function toggleAllStyles() {
+          showAllActive = !showAllActive;
+
+          if (showAllActive) {
+            iconsGrid.style.display = 'none';
+            allStylesContainer.style.display = 'block';
+            showAllBtn.textContent = 'Скрыть все стили';
+            showAllBtn.classList.add('show-all-btn--active');
+
+            if (allStyleItems.length === 0) {
+              buildAllStylesView();
+            }
+          } else {
+            iconsGrid.style.display = '';
+            allStylesContainer.style.display = 'none';
+            showAllBtn.textContent = 'Показать все 10 стилей';
+            showAllBtn.classList.remove('show-all-btn--active');
+          }
+        }
+
+        // =====================================================================
+        // Переключение стилей
+        // =====================================================================
+
+        /**
+         * Переключить активный стиль.
+         * @param {string} styleKey - Ключ стиля.
+         */
+        function switchStyle(styleKey) {
+          if (styleKey === currentStyle) return;
+
+          currentStyle = styleKey;
+
+          // Обновление активного таба
+          var tabs = styleTabs.querySelectorAll('.style-tab');
+          for (var t = 0; t < tabs.length; t++) {
+            if (tabs[t].getAttribute('data-style') === styleKey) {
+              tabs[t].classList.add('style-tab--active');
+            } else {
+              tabs[t].classList.remove('style-tab--active');
+            }
+          }
+
+          // Перерисовка главной сетки
+          renderMainGrid(styleKey);
+        }
+
+        // =====================================================================
+        // Обработчики событий
+        // =====================================================================
+
+        styleTabs.addEventListener('click', function (e) {
+          var tab = e.target.closest('.style-tab');
+          if (!tab) return;
+
+          var styleKey = tab.getAttribute('data-style');
+          if (styleKey) {
+            // Если режим «все стили» активен — выключаем
+            if (showAllActive) {
+              toggleAllStyles();
+            }
+            switchStyle(styleKey);
+          }
+        });
+
+        showAllBtn.addEventListener('click', function () {
+          toggleAllStyles();
+        });
+
+        // Обработка изменения DPR (например, при перемещении окна на другой монитор)
+        window.addEventListener('resize', function () {
+          var newDPR = window.devicePixelRatio || 1;
+          if (newDPR !== DPR) {
+            initDPR();
+            rebuildAll();
+          }
+        });
+
+        // =====================================================================
+        // Перестроение всего
+        // =====================================================================
+
+        function rebuildAll() {
+          // Пересоздаём главную сетку
+          initMainGrid();
+          renderMainGrid(currentStyle);
+
+          // Сбрасываем режим «все стили»
+          if (showAllActive) {
+            allStyleItems = [];
+            buildAllStylesView();
+          }
+        }
+
+        // =====================================================================
+        // Старт
+        // =====================================================================
+
+        initDPR();
+        initMainGrid();
+        renderMainGrid(currentStyle);
+      })();
+    </script>
+  </body>
+</html>
