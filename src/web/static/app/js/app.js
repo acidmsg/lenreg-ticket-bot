@@ -11,6 +11,7 @@ import { renderAddDoctor } from './views/add.js';
 import { renderSlots } from './views/slots.js';
 import { renderPatients } from './views/patients.js';
 import { renderHeader } from './components/header.js';
+import { lucideIcon } from './components/icon.js';
 import './components/toast.js'; // Сайд-эффект: устанавливает window.showToast
 
 // ============================================================
@@ -163,8 +164,8 @@ function render() {
         ${renderHeader('Мониторинг врачей', state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
         <div class="fab-group">
-          <button class="btn btn--secondary btn--sm" id="btn-patients">👤 Пациенты</button>
-          <button class="fab" id="fab-add">➕ Новый мониторинг</button>
+          <button class="btn btn--secondary btn--sm" id="btn-patients"><span class="lucide-icon">${lucideIcon('users', 16)}</span> Пациенты</button>
+          <button class="fab" id="fab-add"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Новый мониторинг</button>
         </div>
       `;
       break;
@@ -257,7 +258,7 @@ function init() {
     // Показываем сообщение, если открыто вне Telegram
     app.innerHTML = `
       <div class="outside-telegram">
-        <div class="outside-telegram__icon">📱</div>
+        <div class="outside-telegram__icon">${lucideIcon('smartphone', 64)}</div>
         <p class="outside-telegram__text">
           Откройте это приложение через Telegram Mini App.
         </p>
@@ -293,7 +294,7 @@ function init() {
   if (initDataError) {
     app.innerHTML = `
       <div class="outside-telegram">
-        <div class="outside-telegram__icon">🔐</div>
+        <div class="outside-telegram__icon">${lucideIcon('lock', 64)}</div>
         <p class="outside-telegram__text">${escapeHtml(initDataError)}</p>
         <button class="btn btn--primary mt-md" id="initdata-close-btn">
           Закрыть

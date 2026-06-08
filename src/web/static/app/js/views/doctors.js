@@ -8,6 +8,7 @@
 import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createDoctorCard } from '../components/card.js';
+import { lucideIcon } from '../components/icon.js';
 import { navigate } from '../app.js';
 
 /**
@@ -70,12 +71,12 @@ function renderSkeletons() {
 function renderEmpty() {
   return `
     <div class="empty-state">
-      <div class="empty-state__icon">👨‍⚕️</div>
+      <div class="empty-state__icon">${lucideIcon('stethoscope', 48)}</div>
       <p class="empty-state__text">
         Вы пока не отслеживаете ни одного врача.
         Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных слотов.
       </p>
-      <button class="btn btn--primary" id="empty-add-btn">➕ Новый мониторинг</button>
+      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Новый мониторинг</button>
     </div>
   `;
 }
@@ -89,9 +90,9 @@ function renderEmpty() {
 function renderError(message) {
   return `
     <div class="error-state">
-      <div class="empty-state__icon">⚠️</div>
+      <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="error-retry-btn">🔄 Повторить</button>
+      <button class="btn btn--primary" id="error-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
     </div>
   `;
 }
@@ -153,7 +154,7 @@ function bindDoctorEvents(container, doctors) {
   // Клик по карточке врача → открыть слоты (кроме кликов на кнопках)
   container.querySelectorAll('.doctor-card').forEach((card) => {
     card.addEventListener('click', (e) => {
-      // Не реагируем на клики по кнопкам удаления пациентов и кнопке 🔄
+      // Не реагируем на клики по кнопкам удаления пациентов и кнопке обновления
       if (e.target.closest('.monitoring-patient__delete')) return;
       if (e.target.closest('.btn--refresh')) return;
 
@@ -166,7 +167,7 @@ function bindDoctorEvents(container, doctors) {
     });
   });
 
-  // Кнопка принудительной проверки слотов 🔄
+  // Кнопка принудительной проверки слотов (обновление)
   container.querySelectorAll('.btn--refresh').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();

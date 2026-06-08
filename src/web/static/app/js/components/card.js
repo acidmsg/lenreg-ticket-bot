@@ -5,6 +5,8 @@
  * @module components/card
  */
 
+import { lucideIcon } from './icon.js';
+
 /**
  * Создаёт HTML карточки врача со списком отслеживающих пациентов.
  *
@@ -40,7 +42,7 @@ export function createDoctorCard({
           .map(
             (p) => `
           <li class="monitoring-patient">
-            <span class="monitoring-patient__icon">👤</span>
+            <span class="monitoring-patient__icon">${lucideIcon('user', 16)}</span>
             <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
             <span
               class="monitoring-patient__delete"
@@ -49,7 +51,7 @@ export function createDoctorCard({
               title="Удалить мониторинг для этого пациента"
               role="button"
               tabindex="0"
-            >🗑</span>
+            >${lucideIcon('trash-2', 16)}</span>
           </li>`
           )
           .join('')}
@@ -69,7 +71,7 @@ export function createDoctorCard({
             data-monitoring-id="${escapeHtml(monitoringId)}"
             title="Проверить слоты"
             aria-label="Принудительная проверка слотов"
-          >🔄</button>
+          >${lucideIcon('refresh-cw', 20)}</button>
           <span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
             <span class="status__dot ${statusInfo.dotClass}"></span>
             <span class="status__label">${statusInfo.label}</span>
@@ -77,7 +79,7 @@ export function createDoctorCard({
         </div>
       </div>
       ${patientsHtml}
-      <div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>
+      <div class="card__meta"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${escapeHtml(clinicName)}</div>
     </div>
   `;
 }
@@ -117,13 +119,13 @@ function getStatusInfo(status, freeTickets) {
       return {
         class: 'status--available',
         dotClass: 'status__dot--available',
-        label: `🟢 Есть слоты (${freeTickets})`
+        label: `<span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть слоты (${freeTickets})`
       };
     case 'no_slots':
       return {
         class: 'status--no-slots',
         dotClass: 'status__dot--no-slots',
-        label: '🔴 Нет слотов'
+        label: `<span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет слотов`
       };
     case 'checking':
     default:

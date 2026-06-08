@@ -1002,6 +1002,24 @@ body {
   opacity: 1;
 }
 
+/* === Lucide inline icons — вертикальное выравнивание === */
+.lucide-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -1px; /* оптическая компенсация */
+}
+
+/* Иконки в кнопках */
+.btn svg {
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* Иконки в empty-state */
+.empty-state__icon svg {
+  opacity: 0.6;
+}
+
 /* === Утилиты === */
 .text-center {
   text-align: center;

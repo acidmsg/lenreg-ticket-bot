@@ -8,6 +8,7 @@
 import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createSlotCard } from '../components/card.js';
+import { lucideIcon } from '../components/icon.js';
 
 /**
  * Рендерит экран слотов в указанный контейнер.
@@ -50,7 +51,7 @@ export async function renderSlots(container, params) {
 
     container.innerHTML = html;
 
-    // Привязываем обработчики (удаление пациентов + кнопка 🔄)
+    // Привязываем обработчики (удаление пациентов + кнопка обновления)
     bindSlotEvents(container, patients || [], params);
   } catch (error) {
     container.innerHTML = renderError(error.message);
@@ -95,11 +96,11 @@ function renderSlotInfo(data, monitoringId) {
           data-monitoring-id="${escapeHtml(monitoringId || '')}"
           title="Проверить слоты"
           aria-label="Принудительная проверка слотов"
-        >🔄</button>
+        >${lucideIcon('refresh-cw', 20)}</button>
       </div>
       ${specialty ? `<div class="card__subtitle">${escapeHtml(specialty)}</div>` : ''}
-      ${clinicName ? `<div class="card__meta">🏥 ${escapeHtml(clinicName)}</div>` : ''}
-      ${total > 0 ? `<div class="status status--available mt-md">🟢 Найдено слотов: ${total}</div>` : ''}
+      ${clinicName ? `<div class="card__meta"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${escapeHtml(clinicName)}</div>` : ''}
+      ${total > 0 ? `<div class="status status--available mt-md"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Найдено слотов: ${total}</div>` : ''}
     </div>
   `;
 }
@@ -112,7 +113,7 @@ function renderSlotInfo(data, monitoringId) {
 function renderNoSlots() {
   return `
     <div class="empty-state" style="padding-top: 20px;">
-      <div class="empty-state__icon">📅</div>
+      <div class="empty-state__icon">${lucideIcon('calendar', 48)}</div>
       <p class="empty-state__text">
         На данный момент свободных слотов нет.
         Мы уведомим вас, когда они появятся.
@@ -164,21 +165,21 @@ function renderPatientsBlock(patients) {
     .map(
       (p) => `
       <li class="monitoring-patient">
-        <span class="monitoring-patient__icon">👤</span>
+        <span class="monitoring-patient__icon">${lucideIcon('user', 16)}</span>
         <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
         <button
           class="monitoring-patient__delete"
           data-entry-id="${escapeHtml(p.entryId)}"
           data-patient-name="${escapeHtml(p.name)}"
           title="Удалить мониторинг для этого пациента"
-        >🗑</button>
+        >${lucideIcon('trash-2', 16)}</button>
       </li>`
     )
     .join('');
 
   return `
     <div class="slots-patients">
-      <div class="monitoring-patients__title">👤 Пациенты:</div>
+      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon('users', 14)}</span> Пациенты:</div>
       <ul class="monitoring-patients">
         ${patientsHtml}
       </ul>
@@ -193,7 +194,7 @@ function renderPatientsBlock(patients) {
  * @param {Array} patients — список пациентов
  */
 function bindSlotEvents(container, patients, params) {
-  // Кнопка принудительной проверки слотов 🔄
+  // Кнопка принудительной проверки слотов (обновление)
   const refreshBtn = container.querySelector('#slots-refresh-btn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async (e) => {
@@ -317,9 +318,9 @@ function bindSlotEvents(container, patients, params) {
 function renderError(message) {
   return `
     <div class="error-state">
-      <div class="empty-state__icon">⚠️</div>
+      <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="slots-retry-btn">🔄 Повторить</button>
+      <button class="btn btn--primary" id="slots-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
     </div>
   `;
 }

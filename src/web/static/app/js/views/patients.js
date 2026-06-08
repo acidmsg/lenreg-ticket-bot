@@ -7,6 +7,7 @@
 
 import { apiGet, apiPost } from '../api.js';
 import { isInTelegram } from '../auth.js';
+import { lucideIcon } from '../components/icon.js';
 import { navigate } from '../app.js';
 
 /**
@@ -46,12 +47,12 @@ function renderPatientList(patients) {
   if (patients.length === 0) {
     return `
       <div class="empty-state">
-        <div class="empty-state__icon">👤</div>
+        <div class="empty-state__icon">${lucideIcon('user', 48)}</div>
         <p class="empty-state__text">
           У вас пока нет добавленных пациентов.
           Добавьте пациента, чтобы начать отслеживать врачей.
         </p>
-        <button class="btn btn--primary" id="patient-add-btn">➕ Добавить пациента</button>
+        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Добавить пациента</button>
       </div>
       <div id="patient-form-container"></div>
     `;
@@ -63,8 +64,8 @@ function renderPatientList(patients) {
       <li class="list__item">
         <div class="list__item-content">
           <div class="list__item-title">${escapeHtml(p.fio || 'Пациент')}</div>
-          ${p.bday ? `<div class="list__item-subtitle">📅 ${escapeHtml(p.bday)}</div>` : ''}
-          ${p.alias ? `<div class="list__item-subtitle">🏷 ${escapeHtml(p.alias)}</div>` : ''}
+          ${p.bday ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('calendar', 14)}</span> ${escapeHtml(p.bday)}</div>` : ''}
+          ${p.alias ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('tag', 14)}</span> ${escapeHtml(p.alias)}</div>` : ''}
         </div>
       </li>
     `
@@ -74,7 +75,7 @@ function renderPatientList(patients) {
   return `
     <ul class="list">${items}</ul>
     <div class="mt-md text-center">
-      <button class="btn btn--primary" id="patient-add-btn">➕ Добавить пациента</button>
+      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Добавить пациента</button>
     </div>
     <div id="patient-form-container"></div>
   `;
@@ -114,10 +115,10 @@ function renderAddForm() {
         </div>
         <div class="card__actions">
           <button type="submit" class="btn btn--primary" id="patient-submit-btn">
-            ✓ Добавить
+            <span class="lucide-icon">${lucideIcon('check', 16)}</span> Добавить
           </button>
           <button type="button" class="btn btn--secondary" id="patient-cancel-btn">
-            ✕ Отмена
+            <span class="lucide-icon">${lucideIcon('x', 16)}</span> Отмена
           </button>
         </div>
       </form>
@@ -207,7 +208,7 @@ function bindFormEvents(formContainer) {
 
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = '⏳ Поиск...';
+        submitBtn.innerHTML = `<span class="lucide-icon">${lucideIcon('loader-circle', 16)}</span> Поиск...`;
       }
       hideFormError(errorEl);
 
@@ -235,7 +236,7 @@ function bindFormEvents(formContainer) {
         showFormError(errorEl, error.message);
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.textContent = '✓ Добавить';
+          submitBtn.innerHTML = `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Добавить`;
         }
       }
     });
@@ -273,9 +274,9 @@ function hideFormError(el) {
 function renderError(message) {
   return `
     <div class="error-state">
-      <div class="empty-state__icon">⚠️</div>
+      <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="patients-retry-btn">🔄 Повторить</button>
+      <button class="btn btn--primary" id="patients-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
     </div>
   `;
 }

@@ -11,6 +11,7 @@
 import { apiGet, apiPost } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createStepper } from '../components/stepper.js';
+import { lucideIcon } from '../components/icon.js';
 import { navigate } from '../app.js';
 
 /**
@@ -39,15 +40,14 @@ export function renderAddDoctor(container) {
     },
     {
       title: 'Поиск врача',
-      description: '🔍 Начните вводить фамилию, имя или отчество врача',
+      description: `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`,
       searchPlaceholder: 'Фамилия, имя или отчество...',
       searchMode: 'doctors',
       onSearchModeChange: (mode) => {
         const step = steps[1];
         if (mode === 'doctors') {
           step.title = 'Поиск врача';
-          step.description =
-            '🔍 Начните вводить фамилию, имя или отчество врача';
+          step.description = `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
           step.searchPlaceholder = 'Фамилия, имя или отчество...';
         } else {
           step.title = 'Выбор поликлиники';
@@ -377,7 +377,7 @@ async function searchDoctorsGlobally(selections = []) {
     value: d,
     label: d.name || 'Неизвестный врач',
     specialty: d.specialty_name || '',
-    subtitle: `🏥 ${d.clinic_name || ''}`,
+    subtitle: `<span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${d.clinic_name || ''}`,
     // Флаг для stepper: пропустить шаг выбора врача внутри клиники
     _skipNext: true,
     _monitored: monitoredDoctorIds.has(String(d.doctor_id))
@@ -400,7 +400,7 @@ function renderPatientItem(item) {
       <div class="list__item-title">${escapeHtml(item.label)}</div>
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
-    <span class="list__item-arrow">→</span>
+    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
   `;
 }
 
@@ -416,7 +416,7 @@ function renderClinicItem(item) {
       <div class="list__item-title">${escapeHtml(item.label)}</div>
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
-    <span class="list__item-arrow">→</span>
+    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
   `;
 }
 
@@ -455,7 +455,7 @@ function renderDoctorSearchItem(item) {
       ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
       ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
-    <span class="list__item-arrow">→</span>
+    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
   `;
 }
 
@@ -486,7 +486,7 @@ function renderDoctorItem(item) {
       ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
-    <span class="list__item-arrow">→</span>
+    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
   `;
 }
 
@@ -508,18 +508,18 @@ function renderConfirmation(item) {
 
   return `
     <div class="confirm-card">
-      <div class="confirm-card__icon">📋</div>
+      <div class="confirm-card__icon">${lucideIcon('file-text', 48)}</div>
       <div class="confirm-card__details">
-        <div class="confirm-label">👤 Пациент</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('user', 14)}</span> Пациент</div>
         <div class="confirm-value">${escapeHtml(patientName)}</div>
-        <div class="confirm-label">🏥 Клиника</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> Клиника</div>
         <div class="confirm-value">${escapeHtml(clinicName)}</div>
-        <div class="confirm-label">👨‍⚕️ Врач</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('stethoscope', 14)}</span> Врач</div>
         <div class="confirm-value">${escapeHtml(doctorName)}</div>
         ${
           specialtyName
             ? `
-        <div class="confirm-label">🔬 Специальность</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('microscope', 14)}</span> Специальность</div>
         <div class="confirm-value">${escapeHtml(specialtyName)}</div>`
             : ''
         }

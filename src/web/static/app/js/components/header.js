@@ -5,6 +5,8 @@
  * @module components/header
  */
 
+import { lucideIcon } from './icon.js';
+
 /**
  * Рендерит HTML шапки.
  *
@@ -15,7 +17,7 @@
  */
 export function renderHeader(title, showBack = false, userName = '') {
   const backButtonHtml = showBack
-    ? `<button class="app-header__back" aria-label="Назад" id="header-back">←</button>`
+    ? `<button class="app-header__back" aria-label="Назад" id="header-back">${lucideIcon('chevron-left', 24)}</button>`
     : '';
 
   const userNameHtml = userName

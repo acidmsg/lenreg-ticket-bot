@@ -9,6 +9,8 @@
  * @module components/stepper
  */
 
+import { lucideIcon } from './icon.js';
+
 /**
  * Создаёт экземпляр stepper и рендерит его в контейнер.
  *
@@ -92,7 +94,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
       displayDesc = isClinicMode
         ? 'Выберите поликлинику из списка'
-        : '🔍 Начните вводить фамилию, имя или отчество врача';
+        : `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
     }
 
     const dotsHTML = steps
@@ -126,14 +128,14 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     const clinicLinkHtml =
       _currentSearchMode === 'doctors'
         ? `<div class="stepper__alt-action">
-            <button class="btn btn--secondary btn--sm stepper__clinic-btn" id="stepper-switch-clinics">🏥 Выбрать поликлинику</button>
+            <button class="btn btn--secondary btn--sm stepper__clinic-btn" id="stepper-switch-clinics"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> Выбрать поликлинику</button>
           </div>`
         : '';
 
     const canGoBack = currentStep > 0;
     const backButtonHtml = canGoBack
-      ? `<button class="btn btn--secondary" id="stepper-back">← Назад</button>`
-      : `<button class="btn btn--danger" id="stepper-cancel">✕ Отмена</button>`;
+      ? `<button class="btn btn--secondary" id="stepper-back"><span class="lucide-icon">${lucideIcon('arrow-left', 16)}</span> Назад</button>`
+      : `<button class="btn btn--danger" id="stepper-cancel"><span class="lucide-icon">${lucideIcon('x', 16)}</span> Отмена</button>`;
 
     const isLastStep = currentStep === steps.length - 1;
     const nextBtnClass = isLastStep ? '' : ' stepper__btn--next';
@@ -142,7 +144,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       <div class="stepper">
         <div class="stepper__progress">${progressHtml}</div>
         <h2 class="stepper__title">${escapeHtml(displayTitle)}</h2>
-        <p class="stepper__description">${escapeHtml(displayDesc)}</p>
+        <p class="stepper__description">${displayDesc}</p>
         ${searchHtml}
         ${clinicLinkHtml}
         <div class="stepper__content" id="stepper-content">
@@ -151,7 +153,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         <div class="stepper__actions">
           ${backButtonHtml}
           <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep ? '' : ' disabled'}>
-            ${isLastStep ? '✓ Готово' : 'Далее →'}
+            ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `Далее <span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span>`}
           </button>
         </div>
       </div>
@@ -173,7 +175,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     if (!items || items.length === 0) {
       return `
         <div class="empty-state">
-          <div class="empty-state__icon">📭</div>
+          <div class="empty-state__icon">${lucideIcon('circle-slash', 48)}</div>
           <p class="empty-state__text">Ничего не найдено</p>
         </div>
       `;
@@ -205,8 +207,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
           const clinicStep = steps[currentStep];
           clinicStep.searchMode = 'doctors';
           clinicStep.title = 'Поиск врача';
-          clinicStep.description =
-            '🔍 Начните вводить фамилию, имя или отчество врача';
+          clinicStep.description = `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
           clinicStep.searchPlaceholder = 'Фамилия, имя или отчество...';
           stepData = [];
           render();
@@ -305,7 +306,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       if (searchQuery === '') {
         contentEl.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state__icon">🔍</div>
+            <div class="empty-state__icon">${lucideIcon('search', 48)}</div>
             <p class="empty-state__text">Начните вводить фамилию, имя или отчество врача</p>
           </div>
         `;
@@ -434,7 +435,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     contentEl.innerHTML = `
       <div class="error-state">
         <p class="error-state__text">${escapeHtml(message)}</p>
-        <button class="btn btn--primary" id="stepper-retry">🔄 Повторить</button>
+        <button class="btn btn--primary" id="stepper-retry"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
       </div>
     `;
 
