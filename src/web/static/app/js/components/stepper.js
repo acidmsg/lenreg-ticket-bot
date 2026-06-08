@@ -80,6 +80,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       clearTimeout(_searchDebounce);
       _searchDebounce = null;
     }
+    _dataLoaded = false;
 
     const step = steps[currentStep];
 
@@ -377,12 +378,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const clearBtn = document.getElementById('stepper-search-clear');
     if (clearBtn) {
-      clearBtn.style.display = 'none';
-      clearBtn.addEventListener('click', () => {
+      clearBtn.style.display = searchInput.value.trim() ? 'flex' : 'none';
+      clearBtn.onclick = () => {
         searchInput.value = '';
         searchInput.focus();
         searchInput.dispatchEvent(new Event('input'));
-      });
+      };
     }
 
     const step = steps[currentStep];
