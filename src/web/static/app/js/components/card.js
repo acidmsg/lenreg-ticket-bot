@@ -58,6 +58,18 @@ export function createDoctorCard({
       </ul>`
       : '';
 
+  // Футер со статусом слотов
+  const footerHtml =
+    freeTickets > 0
+      ? `<div class="card__footer card__footer--slots">
+        <span class="lucide-icon">${lucideIcon('circle-check', 14)}</span>
+        <span style="color: var(--tg-green-color, #22c55e);">Доступно номерков: ${freeTickets}</span>
+      </div>`
+      : `<div class="card__footer card__footer--noslots">
+        <span class="lucide-icon">${lucideIcon('circle-x', 14)}</span>
+        <span style="color: var(--tg-destructive-color); opacity: 0.7;">Номерков на данный момент нет</span>
+      </div>`;
+
   return `
     <div class="card doctor-card" data-entry-id="${escapeHtml(firstEntryId)}">
       <div class="card__header">
@@ -72,14 +84,18 @@ export function createDoctorCard({
             title="Проверить слоты"
             aria-label="Принудительная проверка слотов"
           >${lucideIcon('refresh-cw', 20)}</button>
-          <span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
-            <span class="status__dot ${statusInfo.dotClass}"></span>
-            <span class="status__label">${statusInfo.label}</span>
-          </span>
+          ${
+            statusInfo.html
+              ? `<span class="status ${statusInfo.class}${statusInfo.pulseClass ? ' ' + statusInfo.pulseClass : ''}">
+            ${statusInfo.html}
+          </span>`
+              : ''
+          }
         </div>
       </div>
       ${patientsHtml}
       <div class="card__meta"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${escapeHtml(clinicName)}</div>
+      ${footerHtml}
     </div>
   `;
 }
@@ -111,30 +127,25 @@ export function createSlotCard({ date, times }) {
  *
  * @param {string} status — статус ('slots_available', 'no_slots', 'checking')
  * @param {number} freeTickets — количество свободных слотов
- * @returns {{ class: string, dotClass: string, label: string }}
+ * @returns {{ class: string, html: string, pulseClass?: string }}
  */
 function getStatusInfo(status, freeTickets) {
   switch (status) {
     case 'slots_available':
       return {
         class: 'status--available',
-        dotClass: 'status__dot--available',
-        label: `<span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть слоты (${freeTickets})`
+        html: `<span class="status__dot status__dot--available"></span>
+          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Есть слоты (${freeTickets})</span>`
       };
     case 'no_slots':
       return {
         class: 'status--no-slots',
-        dotClass: 'status__dot--no-slots',
-        label: `<span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет слотов`
+        html: `<span class="status__dot status__dot--no-slots"></span>
+          <span class="status__label"><span class="lucide-icon">${lucideIcon('circle-x', 14)}</span> Нет слотов</span>`
       };
     case 'checking':
     default:
-      return {
-        class: 'status--checking',
-        dotClass: 'status__dot--active',
-        label: `<span class="lucide-icon">${lucideIcon('loader-circle', 14)}</span> мониторинг`,
-        pulseClass: 'status__pulse'
-      };
+      return { class: '', html: '', pulseClass: '' };
   }
 }
 

@@ -320,7 +320,7 @@ function renderError(message) {
     <div class="error-state">
       <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="slots-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
+      <button class="btn btn--primary" id="slots-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
     </div>
   `;
 }

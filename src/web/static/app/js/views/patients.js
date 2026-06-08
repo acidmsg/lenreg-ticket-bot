@@ -52,7 +52,7 @@ function renderPatientList(patients) {
           У вас пока нет добавленных пациентов.
           Добавьте пациента, чтобы начать отслеживать врачей.
         </p>
-        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Добавить пациента</button>
+        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
       </div>
       <div id="patient-form-container"></div>
     `;
@@ -75,7 +75,7 @@ function renderPatientList(patients) {
   return `
     <ul class="list">${items}</ul>
     <div class="mt-md text-center">
-      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Добавить пациента</button>
+      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
     </div>
     <div id="patient-form-container"></div>
   `;
@@ -276,7 +276,7 @@ function renderError(message) {
     <div class="error-state">
       <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="patients-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
+      <button class="btn btn--primary" id="patients-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
     </div>
   `;
 }

@@ -377,7 +377,7 @@ async function searchDoctorsGlobally(selections = []) {
     value: d,
     label: d.name || 'Неизвестный врач',
     specialty: d.specialty_name || '',
-    subtitle: `<span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${d.clinic_name || ''}`,
+    subtitle: d.clinic_name || '',
     // Флаг для stepper: пропустить шаг выбора врача внутри клиники
     _skipNext: true,
     _monitored: monitoredDoctorIds.has(String(d.doctor_id))
@@ -453,7 +453,7 @@ function renderDoctorSearchItem(item) {
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
       ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-      ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
+      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
     </div>
     <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
   `;

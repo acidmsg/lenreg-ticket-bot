@@ -153,7 +153,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         <div class="stepper__actions">
           ${backButtonHtml}
           <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep ? '' : ' disabled'}>
-            ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `Далее <span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span>`}
+            ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span> Далее`}
           </button>
         </div>
       </div>
@@ -435,7 +435,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     contentEl.innerHTML = `
       <div class="error-state">
         <p class="error-state__text">${escapeHtml(message)}</p>
-        <button class="btn btn--primary" id="stepper-retry"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
+        <button class="btn btn--primary" id="stepper-retry"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
       </div>
     `;
 

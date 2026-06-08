@@ -76,7 +76,7 @@ function renderEmpty() {
         Вы пока не отслеживаете ни одного врача.
         Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных слотов.
       </p>
-      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Новый мониторинг</button>
+      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Новый мониторинг</button>
     </div>
   `;
 }
@@ -92,7 +92,7 @@ function renderError(message) {
     <div class="error-state">
       <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="error-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 18)}</span> Повторить</button>
+      <button class="btn btn--primary" id="error-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
     </div>
   `;
 }
