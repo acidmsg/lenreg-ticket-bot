@@ -132,7 +132,7 @@ function getStatusInfo(status, freeTickets) {
       return {
         class: 'status--checking',
         dotClass: 'status__dot--active',
-        label: 'мониторинг',
+        label: `<span class="lucide-icon">${lucideIcon('loader-circle', 14)}</span> мониторинг`,
         pulseClass: 'status__pulse'
       };
   }

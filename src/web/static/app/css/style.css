@@ -188,6 +188,9 @@ body {
 }
 
 .card__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--font-sm);
   color: var(--tg-subtitle-color);
 }
@@ -664,6 +667,9 @@ body {
 }
 
 .stepper__description {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--font-sm);
   color: var(--tg-hint-color);
   margin-bottom: var(--gap-lg);
@@ -853,6 +859,9 @@ body {
 
 /* Подзаголовок подтверждения — блок с фоном */
 .confirm-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: var(--tg-secondary-bg-color);
   padding: 6px 10px;
   border-radius: 8px;
@@ -934,6 +943,9 @@ body {
 }
 
 .monitoring-patients__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--font-sm);
   font-weight: 500;
   color: var(--tg-hint-color);
@@ -959,6 +971,8 @@ body {
 }
 
 .monitoring-patient__icon {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: var(--font-sm);
 }
@@ -1002,22 +1016,33 @@ body {
   opacity: 1;
 }
 
-/* === Lucide inline icons — вертикальное выравнивание === */
+/* Lucide inline icons — вертикальное выравнивание */
 .lucide-icon {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   vertical-align: middle;
-  margin-top: -1px; /* оптическая компенсация */
+  flex-shrink: 0;
+}
+
+/* Иконка + текст в одной строке */
+.lucide-icon + *,
+* + .lucide-icon {
+  vertical-align: middle;
 }
 
 /* Иконки в кнопках */
-.btn svg {
-  vertical-align: middle;
-  margin-right: 4px;
+.btn .lucide-icon {
+  margin-right: 6px;
 }
 
 /* Иконки в empty-state */
-.empty-state__icon svg {
+.empty-state__icon .lucide-icon {
   opacity: 0.6;
+}
+
+.btn .lucide-icon:only-child {
+  margin-right: 0;
 }
 
 /* === Утилиты === */
