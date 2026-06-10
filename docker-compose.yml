@@ -79,10 +79,8 @@ services:
       retries: 3
     ports:
       - '127.0.0.1:9090:9090'
-      # Веб-дашборд: слушает только на localhost.
-      # Для внешнего доступа настроить reverse-proxy (Caddy/Nginx) с HTTPS,
-      # проксирующий запросы на 127.0.0.1:8080.
-      - '127.0.0.1:8080:8080'
+      # Веб-дашборд: доступен снаружи через Cloudflare (Origin Rule: 8080).
+      - '8080:8080'
     networks:
       - zdrav_network
     deploy:
