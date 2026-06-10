@@ -747,7 +747,7 @@ async def toggle_doctor(
 
     already_monitored = d_id in user_data["monitoring"].get(p_id, {})
 
-    await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec)
+    await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec, date="")
 
     raw_p = user_data.get("patients", {}).get(p_id)
     if raw_p is None:

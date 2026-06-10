@@ -41,6 +41,9 @@ class MonitoringEntry(TypedDict):
     specialty: str
     """Специальность врача."""
 
+    date: str
+    """Дата приёма в формате 'ДД.ММ.ГГГГ' (может быть пустой)."""
+
 
 class LastMessageEntry(TypedDict):
     """Запись о последнем сообщении (ключ в user_data['last_messages'])."""

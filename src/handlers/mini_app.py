@@ -107,6 +107,7 @@ async def _handle_doctor_added(
                     d_name=doctor_name,
                     clinic_id=clinic_id,
                     d_spec=specialty,
+                    date="",
                 )
                 logger.info(
                     "Mini App fallback: врач {} (d_id={}) добавлен через "

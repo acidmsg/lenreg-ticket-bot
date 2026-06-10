@@ -16,7 +16,7 @@ class MonitoringRepository(BaseRepository):
     ) -> dict[str, dict[str, MonitoringEntry]]:
         """Возвращает словарь мониторинга пользователя."""
         cursor = await self._c.execute(
-            "SELECT p_id, d_id, name, clinic_id, specialty "
+            "SELECT p_id, d_id, name, clinic_id, specialty, date "
             "FROM user_monitoring WHERE uid = ?",
             (uid,),
         )
@@ -30,6 +30,7 @@ class MonitoringRepository(BaseRepository):
                 "name": row["name"],
                 "clinic_id": row["clinic_id"],
                 "specialty": row["specialty"],
+                "date": row["date"],
             }
         return result
 
@@ -41,13 +42,14 @@ class MonitoringRepository(BaseRepository):
         name: str,
         clinic_id: str,
         specialty: str,
+        date: str = "",
     ) -> None:
         """Добавляет или обновляет запись мониторинга."""
         await self._c.execute(
             """INSERT OR REPLACE INTO user_monitoring
-               (uid, p_id, d_id, name, clinic_id, specialty)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (uid, p_id, d_id, name, clinic_id, specialty),
+               (uid, p_id, d_id, name, clinic_id, specialty, date)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (uid, p_id, d_id, name, clinic_id, specialty, date),
         )
         await self._c.commit()
 

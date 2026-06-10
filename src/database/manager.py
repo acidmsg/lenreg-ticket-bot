@@ -150,6 +150,7 @@ class DatabaseManager:
                         name=d_info.get("name", ""),
                         clinic_id=d_info.get("clinic_id", ""),
                         specialty=d_info.get("specialty", ""),
+                        date=d_info.get("date", ""),
                     )
 
     async def update_user(self, uid: str, update_dict: UserDataUpdate) -> None:
@@ -256,7 +257,14 @@ class DatabaseManager:
                         self._data_cache[uid] = updated
 
     async def toggle_monitoring(
-        self, uid: str, p_id: str, d_id: str, d_name: str, clinic_id: str, d_spec: str
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        d_name: str,
+        clinic_id: str,
+        d_spec: str,
+        date: str = "",
     ) -> None:
         uid = str(uid)
         async with self._lock:
@@ -272,6 +280,7 @@ class DatabaseManager:
                     "name": d_name,
                     "clinic_id": clinic_id,
                     "specialty": d_spec,
+                    "date": date,
                 }
                 user_data["monitoring"][p_id][d_id] = mon_entry
                 await self._db.add_monitoring_entry(
@@ -281,6 +290,7 @@ class DatabaseManager:
                     name=d_name,
                     clinic_id=clinic_id,
                     specialty=d_spec,
+                    date=date,
                 )
             updated = await self._db.get_user(uid)
             if updated:

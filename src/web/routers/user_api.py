@@ -64,6 +64,9 @@ class AddDoctorRequest(BaseModel):
     specialty_name: str = Field(
         default="", description="Название специальности (опционально, из Mini App)"
     )
+    date: str = Field(
+        default="", description="Дата приёма в формате ДД.ММ.ГГГГ (опционально)"
+    )
 
 
 class AddPatientRequest(BaseModel):
@@ -289,6 +292,7 @@ async def add_doctor(
             d_name=doctor_name,
             clinic_id=body.clinic_id,
             d_spec=specialty_name,
+            date=body.date,
         )
 
         return {

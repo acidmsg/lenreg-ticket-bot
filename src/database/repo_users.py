@@ -171,7 +171,7 @@ class UserRepository(BaseRepository):
     ) -> dict[str, dict[str, MonitoringEntry]]:
         """Возвращает словарь мониторинга пользователя (для агрегации в get_user)."""
         cursor = await self._c.execute(
-            "SELECT p_id, d_id, name, clinic_id, specialty "
+            "SELECT p_id, d_id, name, clinic_id, specialty, date "
             "FROM user_monitoring WHERE uid = ?",
             (uid,),
         )
@@ -185,5 +185,6 @@ class UserRepository(BaseRepository):
                 "name": row["name"],
                 "clinic_id": row["clinic_id"],
                 "specialty": row["specialty"],
+                "date": row["date"],
             }
         return result

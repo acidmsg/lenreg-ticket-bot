@@ -93,7 +93,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     // Динамические заголовки ТОЛЬКО для шага clinic (currentStep === 1).
     let displayTitle = step.title;
     let displayDesc = step.description;
-    if (currentStep === 1 && _currentSearchMode !== null) {
+    if (currentStep === 2 && _currentSearchMode !== null) {
       const isClinicMode = _currentSearchMode === 'clinics';
       displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
       displayDesc = isClinicMode
@@ -147,7 +147,8 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       : `<button class="btn btn--danger" id="stepper-cancel"><span class="lucide-icon">${lucideIcon('x', 16)}</span> Отмена</button>`;
 
     const isLastStep = currentStep === steps.length - 1;
-    const nextBtnClass = isLastStep ? '' : ' stepper__btn--next';
+    const isWidget = step.type === 'widget';
+    const nextBtnClass = isLastStep || isWidget ? '' : ' stepper__btn--next';
 
     container.innerHTML = `
       <div class="stepper">
@@ -157,11 +158,11 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         ${searchHtml}
         ${clinicLinkHtml}
         <div class="stepper__content" id="stepper-content">
-          ${isLoading || (!_dataLoaded && stepData.length === 0) ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep)}
+          ${isLoading || (!_dataLoaded && stepData.length === 0) ? renderLoading() : renderItems(stepData, step.renderItem, isLastStep && !isWidget)}
         </div>
         <div class="stepper__actions">
           ${backButtonHtml}
-          <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep ? '' : ' disabled'}>
+          <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${(isLastStep || isWidget) ? '' : ' disabled'}>
             ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span> Далее`}
           </button>
         </div>
@@ -246,6 +247,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
+        const isWidget = steps[currentStep].type === 'widget';
+        if (isWidget) {
+          // Для widget: выбранное значение уже в stepData[0] (изменено виджетом)
+          advanceStep(0);
+          return;
+        }
         if (currentStep === steps.length - 1) {
           if (onComplete) {
             onComplete(selections);
@@ -305,6 +312,14 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
 
     const isLastStep = currentStep === steps.length - 1;
 
+    // Widget-шаг: рендерим напрямую, не как список
+    const isWidget = steps[currentStep].type === 'widget';
+    if (isWidget && stepData.length > 0) {
+      contentEl.innerHTML = steps[currentStep].renderItem(stepData[0]);
+      setupSearchListener();
+      return;
+    }
+
     if (isLoading) {
       contentEl.innerHTML = renderLoading();
       return;
@@ -350,10 +365,12 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       });
     });
 
+    const isWidgetAuto = steps[currentStep].type === 'widget';
     if (
       stepData.length === 1 &&
       items.length === 1 &&
-      _currentSearchMode !== 'doctors'
+      _currentSearchMode !== 'doctors' &&
+      !isWidgetAuto
     ) {
       items[0].classList.add('stepper-item--selected');
       setTimeout(() => {

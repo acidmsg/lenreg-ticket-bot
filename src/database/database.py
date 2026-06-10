@@ -139,10 +139,11 @@ class Database:
         name: str,
         clinic_id: str,
         specialty: str,
+        date: str = "",
     ) -> None:
         """Добавляет или обновляет запись мониторинга."""
         return await self.monitoring.add_monitoring_entry(
-            uid, p_id, d_id, name, clinic_id, specialty
+            uid, p_id, d_id, name, clinic_id, specialty, date
         )
 
     async def remove_monitoring_entry(self, uid: str, p_id: str, d_id: str) -> None:

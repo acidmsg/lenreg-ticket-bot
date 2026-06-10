@@ -97,8 +97,19 @@ CREATE INDEX IF NOT EXISTS idx_monitoring_log_ts ON monitoring_log(ts);
     logger.info("Миграция v6: создана таблица monitoring_log")
 
 
+async def migrate_v7_add_date_column(db) -> None:
+    """Добавляет колонку date в таблицу user_monitoring."""
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    await c.execute("ALTER TABLE user_monitoring ADD COLUMN date TEXT DEFAULT ''")
+    await c.commit()
+    logger.info("Миграция v7: добавлена колонка date в user_monitoring")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
     (6, migrate_v6_monitoring_log),
+    (7, migrate_v7_add_date_column),
 ]
