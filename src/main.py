@@ -5,11 +5,15 @@
 healthcheck, очистка), Prometheus-метрики и веб-дашборд.
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import socket
 import threading
 import time
+from contextlib import suppress
+from typing import TYPE_CHECKING
 
 import aiofiles.os
 from aiogram import Bot, Dispatcher
@@ -28,11 +32,10 @@ from src.middleware.userdata import UserDataPreloadMiddleware
 from src.services.cleanup import cleanup_loop
 from src.services.doctor_discovery import discovery_loop, sync_clinic_names
 from src.services.error_notifier import error_notifier
-from src.services.healthcheck import _safe_set, healthcheck_loop
+from src.services.healthcheck import healthcheck_loop, safe_set
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import monitor_loop
-from src.services.schema_watcher import schema_check_loop
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
     _parse_proxy_host_port,
@@ -40,6 +43,9 @@ from src.utils.proxy_discovery import (
     discover_proxy,
 )
 from src.utils.redis import RedisClient
+
+if TYPE_CHECKING:
+    from aiogram.client.session.aiohttp import AiohttpSession
 
 # Константы retry-логики для прокси и Telegram API
 _PROXY_RETRIES = 3
@@ -107,29 +113,14 @@ async def _start_background_tasks(
             )
         )
     )
-    await _safe_set("discovery_tasks_alive", 1)
+    await safe_set("discovery_tasks_alive", 1)
 
     tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))
     tasks.append(asyncio.create_task(cleanup_loop(bot, db)))
 
-    # API Schema Change Detection (F8)
-    if settings.SCHEMA_CHECK_ENABLED:
-        tasks.append(
-            asyncio.create_task(
-                schema_check_loop(
-                    api,
-                    error_notifier,
-                    prometheus_metrics,
-                    interval=settings.SCHEMA_CHECK_INTERVAL,
-                )
-            )
-        )
-        logger.info(
-            "Запущена проверка схем API (интервал: {}с)",
-            settings.SCHEMA_CHECK_INTERVAL,
-        )
-    else:
-        logger.info("Проверка схем API отключена (SCHEMA_CHECK_ENABLED=False)")
+    # Статическая валидация схем API выполняется через scripts/generate_api_schemas.py
+    # в процессе разработки. Рантайм-проверка схем (schema_check_loop) отключена
+    # в пользу статического подхода — см. Задачу 2.8 ROADMAP.
 
     logger.info(f"Запущено {len(tasks)} фоновых задач")
     return tasks
@@ -291,28 +282,28 @@ async def run_dashboard(
         logger.exception("Ошибка при запуске uvicorn-сервера веб-дашборда")
 
 
-async def main() -> None:
-    """Основная функция запуска бота."""
-    # Настройка логирования (Loguru)
+async def bootstrap_logging() -> None:
+    """Настройка логирования (Loguru), Sentry, интернационализации."""
     setup_logging()
-
-    # Инициализация Sentry (после настройки логирования, чтобы избежать
-    # дедлока между BreadcrumbHandler Sentry и InterceptHandler loguru
-    # при вызове logging.basicConfig(force=True) на Python 3.14)
+    # Инициализация Sentry после логирования — избегаем дедлока между
+    # BreadcrumbHandler Sentry и InterceptHandler loguru на Python 3.14
     error_notifier.init_sentry()
-
-    # Инициализация интернационализации (i18n)
     setup_i18n(settings.BOT_LANGUAGE)
 
+
+async def bootstrap_redis() -> RedisClient:
+    """Инициализация Redis клиента (до FSM-хранилища)."""
+    return await RedisClient.get_instance()
+
+
+async def bootstrap_database() -> tuple[Database, DatabaseManager, ZdravClient]:
+    """Инициализация БД, API-клиента, сидирование, загрузка конфигов из БД."""
     # Убедимся, что каталог 'data' существует
     data_dir = os.path.dirname(settings.SQLITE_DB_PATH)
     if data_dir and not await aiofiles.os.path.exists(data_dir):
         await aiofiles.os.makedirs(data_dir)
 
-    # Инициализация Redis (до FSM-хранилища)
-    redis_client = await RedisClient.get_instance()
-
-    # Инициализация SQLite
+    # Инициализация SQLite + DatabaseManager
     database = Database(settings.SQLITE_DB_PATH)
     db = DatabaseManager(database)
     await db.load()
@@ -320,10 +311,8 @@ async def main() -> None:
     # Инициализация API клиента
     api = ZdravClient()
 
-    # Сидирование псевдонимов специальностей из fallback (если таблица пуста)
+    # Сидирование из fallback-констант (если таблицы пусты)
     await database.seed_specialty_aliases_from_fallback()
-
-    # Сидирование конфигов из defaults settings (если таблица config пуста)
     await database.seed_config_from_defaults()
 
     # Загрузка конфигов из БД (переопределяет значения из settings)
@@ -341,71 +330,99 @@ async def main() -> None:
     # Синхронизация названий клиник из API
     await sync_clinic_names(api, database)
 
-    # --- Инициализация бота с прокси (если настроен) ---
-    session = None
-    if settings.PROXY_URL:
-        from urllib.parse import urlparse
+    return database, db, api
 
-        # Валидация формата URL прокси
-        parsed = urlparse(settings.PROXY_URL)
-        if not parsed.scheme or not parsed.netloc:
-            raise ValueError(
-                f"Неверный формат PROXY_URL: {settings.PROXY_URL}. "
-                "Ожидается URL вида http://user:pass@host:port"
+
+async def bootstrap_proxy() -> AiohttpSession | None:
+    """Разрешение прокси и создание AiohttpSession (если PROXY_URL настроен).
+
+    Returns:
+        AiohttpSession с прокси или None, если прокси не настроен.
+    """
+    if not settings.PROXY_URL:
+        return None
+
+    from urllib.parse import urlparse
+
+    # Валидация формата URL прокси
+    parsed = urlparse(settings.PROXY_URL)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(
+            f"Неверный формат PROXY_URL: {settings.PROXY_URL}. "
+            "Ожидается URL вида http://user:pass@host:port"
+        )
+
+    # Разрешение прокси: если хост = "auto" — автоопределение IP
+    proxy_url = settings.PROXY_URL
+    host, port = _parse_proxy_host_port(proxy_url)
+    if host == "auto":
+        discovered = await discover_proxy(port)
+        if discovered is None:
+            raise ConnectionError(
+                f"Автоопределение прокси не удалось — "
+                f"ни один адрес не ответил на порту {port}"
             )
+        proxy_url = discovered
 
-        from aiogram.client.session.aiohttp import AiohttpSession
+    # Проверка доступности прокси до создания сессии
+    await check_proxy_connectivity(proxy_url)
 
-        # Разрешение прокси: если хост = "auto" — автоопределение IP
-        proxy_url = settings.PROXY_URL
-        host, port = _parse_proxy_host_port(proxy_url)
-        if host == "auto":
-            discovered = await discover_proxy(port)
-            if discovered is None:
-                raise ConnectionError(
-                    "Автоопределение прокси не удалось — "
-                    "ни один адрес не ответил на порту "
-                    f"{port}"
+    # Создание AiohttpSession с retry при падении прокси
+    last_session_error: Exception | None = None
+    for attempt in range(1, _PROXY_RETRIES + 1):
+        try:
+            session = AiohttpSession(proxy=proxy_url)
+            logger.info(f"AiohttpSession с прокси создана (попытка {attempt})")
+            return session
+        except Exception as e:
+            last_session_error = e
+            if attempt < _PROXY_RETRIES:
+                logger.warning(
+                    f"Не удалось создать сессию с прокси "
+                    f"(попытка {attempt}/{_PROXY_RETRIES}): {e}"
                 )
-            proxy_url = discovered
+                await asyncio.sleep(_PROXY_RETRY_DELAY)
 
-        # Проверка доступности прокси до создания сессии
-        await check_proxy_connectivity(proxy_url)
+    logger.error("Не удалось создать сессию с прокси после всех попыток")
+    raise last_session_error  # type: ignore[misc]
 
-        # Создание AiohttpSession с retry при падении прокси
-        last_session_error: Exception | None = None
-        for attempt in range(1, _PROXY_RETRIES + 1):
-            try:
-                session = AiohttpSession(proxy=proxy_url)
-                logger.info(f"AiohttpSession с прокси создана (попытка {attempt})")
-                last_session_error = None
-                break
-            except Exception as e:
-                last_session_error = e
-                if attempt < _PROXY_RETRIES:
-                    logger.warning(
-                        f"Не удалось создать сессию с прокси "
-                        f"(попытка {attempt}/{_PROXY_RETRIES}): {e}"
-                    )
-                    await asyncio.sleep(_PROXY_RETRY_DELAY)
 
-        if last_session_error is not None:
-            logger.error("Не удалось создать сессию с прокси после всех попыток")
-            raise last_session_error
+async def bootstrap_bot(
+    session: AiohttpSession | None,
+    redis_client: RedisClient,
+) -> tuple[Bot, Dispatcher]:
+    """Создание бота, FSM-хранилище, middleware, роутеры, проверка связи.
 
+    Returns:
+        (bot, dispatcher) — готовые к запуску поллинга.
+    """
     bot = Bot(token=settings.BOT_TOKEN, session=session)
 
     # FSM-хранилище: Redis если доступен, иначе MemoryStorage (graceful degradation)
+    # TTL = 30 минут (1800 секунд) для предотвращения утечки ключей
+    _fsm_ttl = 1800
     if redis_client.is_available:
         from aiogram.fsm.storage.redis import RedisStorage
 
-        dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
-        logger.info("FSM-хранилище: Redis")
+        dp = Dispatcher(
+            storage=RedisStorage.from_url(
+                settings.REDIS_URL,
+                state_ttl=_fsm_ttl,
+                data_ttl=_fsm_ttl,
+            )
+        )
+        logger.info(
+            "FSM-хранилище: Redis (state_ttl={}s, data_ttl={}s)",
+            _fsm_ttl,
+            _fsm_ttl,
+        )
     else:
         from aiogram.fsm.storage.memory import MemoryStorage
 
         dp = Dispatcher(storage=MemoryStorage())
-        logger.warning("FSM-хранилище: MemoryStorage (Redis недоступен)")
+        logger.warning(
+            "FSM-хранилище: MemoryStorage (Redis недоступен, TTL не поддерживается)"
+        )
 
     # Регистрация middleware (порядок важен: outer выполняется первым)
     dp.update.outer_middleware(ErrorBoundaryMiddleware())
@@ -428,18 +445,26 @@ async def main() -> None:
     # Проверка связи с Telegram API до запуска фоновых задач
     await _bot_me_with_retry(bot)
 
-    # Запуск фоновых задач только после подтверждения связи с Telegram
-    background_tasks = await _start_background_tasks(bot, api, db, database)
+    return bot, dp
 
+
+async def bootstrap_web(
+    db: DatabaseManager,
+    api: ZdravClient,
+) -> tuple[asyncio.Task | None, web.AppRunner | None]:
+    """Запуск веб-дашборда и Prometheus-метрик (если включены в настройках).
+
+    Returns:
+        (dashboard_task, metrics_runner) — для последующей остановки.
+    """
     # Запуск Prometheus HTTP-сервера
     metrics_runner: web.AppRunner | None = None
-    _metrics_site: web.TCPSite | None = None
     try:
-        metrics_runner, _metrics_site = await _start_metrics_server(db)
+        metrics_runner, _ = await _start_metrics_server(db)
     except OSError as e:
         logger.warning(f"Не удалось запустить сервер метрик: {e}")
 
-    # Запуск веб-дашборда (F5)
+    # Запуск веб-дашборда
     dashboard_task: asyncio.Task | None = None
     if settings.WEB_DASHBOARD_ENABLED:
         try:
@@ -457,9 +482,26 @@ async def main() -> None:
             logger.info("Задача веб-дашборда создана")
         except Exception as e:
             logger.error(f"Не удалось создать задачу веб-дашборда: {e}", exc_info=True)
-            dashboard_task = None
     else:
         logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")
+
+    return dashboard_task, metrics_runner
+
+
+async def main() -> None:
+    """Основная функция запуска бота — оркестрирует все bootstrap-этапы."""
+    await bootstrap_logging()
+
+    redis_client = await bootstrap_redis()
+    database, db, api = await bootstrap_database()
+    session = await bootstrap_proxy()
+    bot, dp = await bootstrap_bot(session, redis_client)
+
+    # Запуск фоновых задач (только после проверки связи с Telegram)
+    background_tasks = await _start_background_tasks(bot, api, db, database)
+
+    # Запуск веб-инфраструктуры (дашборд + метрики)
+    dashboard_task, metrics_runner = await bootstrap_web(db, api)
 
     logger.info("Бот запущен и готов помогать!")
 
@@ -498,6 +540,15 @@ async def main() -> None:
         logger.info("Бот остановлен.")
 
 
+async def _shutdown_notify(error_notifier, exc: Exception, context: str) -> None:
+    """Аварийное уведомление с таймаутом, исключающим deadlock при shutdown."""
+    with suppress(asyncio.TimeoutError, Exception):
+        await asyncio.wait_for(
+            error_notifier.notify(exc, context=context),
+            timeout=5.0,
+        )
+
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
@@ -507,8 +558,10 @@ if __name__ == "__main__":
         logger.info("Бот остановлен.")
     except Exception as e:
         logger.exception("Необработанная ошибка при запуске")
-        # Попытка отправить уведомление (может не сработать на старте)
+        # Попытка отправить уведомление с таймаутом — без риска deadlock
         try:
-            asyncio.run(error_notifier.notify(e, context="startup_crash"))
+            asyncio.run(_shutdown_notify(error_notifier, e, "startup_crash"))
         except Exception:
             logger.debug("Не удалось отправить уведомление об ошибке старта")
+        finally:
+            os._exit(1)

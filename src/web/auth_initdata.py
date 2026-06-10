@@ -55,13 +55,11 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
 
         logger.debug("Mini App middleware: проверка initData для пути %s", path)
 
-        # --- Dev-режим: bypass при ENVIRONMENT=development ---
-        if settings.ENVIRONMENT == "development" and not request.headers.get(
-            "X-Telegram-InitData"
-        ):
+        # --- Аутентификация управляется флагом MINI_APP_AUTH_ENABLED ---
+        if not settings.MINI_APP_AUTH_ENABLED:
             logger.warning(
-                "Mini App middleware: bypass в dev-режиме — заголовок "
-                "X-Telegram-InitData отсутствует. Запрос пропущен без проверки."
+                "Mini App middleware: проверка initData ОТКЛЮЧЕНА "
+                "(MINI_APP_AUTH_ENABLED=False). Все запросы пропускаются без проверки."
             )
             return await call_next(request)
 

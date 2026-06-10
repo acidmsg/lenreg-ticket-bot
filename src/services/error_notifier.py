@@ -9,7 +9,6 @@ import asyncio
 import traceback
 from typing import Any
 
-import aiohttp
 import httpx
 import sentry_sdk
 from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
@@ -32,7 +31,7 @@ def _before_send(event: Any, hint: dict[str, Any]) -> Any | None:
     if exc_info is not None:
         exc_type, _exc_value, _tb = exc_info
         # Игнорируем сетевые ошибки
-        if issubclass(exc_type, (aiohttp.ClientError, asyncio.TimeoutError)):
+        if issubclass(exc_type, (httpx.HTTPError, asyncio.TimeoutError)):
             return None
         # Игнорируем системные сигналы завершения
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
@@ -132,9 +131,7 @@ class ErrorNotifier:
             logger.error(f"Failed to send NTFY notification: {e}", exc_info=True)
         except Exception as e:
             # Последний fallback для неожиданных ошибок (кодировка, память и т.п.)
-            logger.error(
-                f"Unexpected error in NTFY notification: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error in NTFY notification: {e}", exc_info=True)
 
     def _notify_sentry(
         self,
@@ -151,9 +148,7 @@ class ErrorNotifier:
                         scope.set_extra(k, v)
                 sentry_sdk.capture_exception(error)
         except Exception as e:
-            logger.error(
-                f"Failed to send Sentry notification: {e}", exc_info=True
-            )
+            logger.error(f"Failed to send Sentry notification: {e}", exc_info=True)
 
     # ── Schema Change Notifications (F8) ───────────────────────────
 

@@ -12,21 +12,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
-from src.database.types import UserData
 from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
 
 router = APIRouter()
-
-
-def _count_active_monitorings(db_data: dict[str, UserData]) -> int:
-    """Считает количество активных мониторингов (разные p_id у пользователей)."""
-    return sum(
-        1
-        for u_info in db_data.values()
-        for p_id, doctors in u_info.get("monitoring", {}).items()
-        if doctors
-    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -34,10 +23,10 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
     """Главная страница — сводка."""
     try:
         db = request.app.state.db
-        db_data = db.data
 
         stats = await db.get_total_stats()
-        active_monitorings = _count_active_monitorings(db_data)
+        user_stats = db.get_user_statistics()
+        active_monitorings = user_stats["active_monitorings"]
 
         # Последние 10 алертов из лога
         recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)

@@ -1,12 +1,5 @@
 {
   "$defs": {
-    "ApiError": {
-      "additionalProperties": true,
-      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
-      "properties": {},
-      "title": "ApiError",
-      "type": "object"
-    },
     "CheckPatientData": {
       "description": "response.check_patient.",
       "properties": {
@@ -50,7 +43,9 @@
       "type": "boolean"
     },
     "error": {
-      "$ref": "#/$defs/ApiError"
+      "additionalProperties": true,
+      "title": "Error",
+      "type": "object"
     }
   },
   "title": "CheckPatientResponse",

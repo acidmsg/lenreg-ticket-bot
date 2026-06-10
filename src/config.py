@@ -145,6 +145,12 @@ class Settings(BaseSettings):
     # Environment tag for Sentry (synced to DB)
     ENVIRONMENT: str = "production"
 
+    # === Аутентификация Mini App ===
+    # Принудительно включает/отключает проверку initData для Mini App API.
+    # True — проверка всегда включена (независимо от ENVIRONMENT).
+    # False — проверка отключена (только для локальной разработки).
+    MINI_APP_AUTH_ENABLED: bool = True
+
     # === Rate limiting (M3) ===
     # Max messages per user per time period (handler-level, synced to DB)
     USER_RATE_LIMIT_MAX: int = 30
@@ -189,9 +195,45 @@ class Settings(BaseSettings):
         Если пароль не задан или REDIS_URL уже содержит `@` (т.е. пароль уже
         встроен), URL не изменяется.
         """
-        if self.REDIS_PASSWORD and "@" not in self.REDIS_URL.split("://", 1)[1]:
-            scheme, rest = self.REDIS_URL.split("://", 1)
-            self.REDIS_URL = f"{scheme}://:{self.REDIS_PASSWORD}@{rest}"
+        # Проверка ENVIRONMENT: development-режим опасен в production
+        if self.ENVIRONMENT == "development":
+            logger.warning(
+                "⚠️ ENVIRONMENT=development! Это отключает некоторые проверки "
+                "безопасности. Убедитесь, что это не production-окружение. "
+                "Аутентификация Mini App управляется флагом MINI_APP_AUTH_ENABLED "
+                "независимо от ENVIRONMENT."
+            )
+
+        if not self.REDIS_PASSWORD:
+            logger.warning(
+                "REDIS_PASSWORD не задан! Redis-подключение будет без аутентификации. "
+                "Если Redis настроен с `requirepass`, подключение упадёт с NOAUTH."
+            )
+            return
+
+        if "://" not in self.REDIS_URL:
+            logger.error(
+                "REDIS_URL имеет нестандартный формат (нет '://'): %s — "
+                "пропускаем встраивание пароля",
+                self.REDIS_URL,
+            )
+            return
+
+        scheme, rest = self.REDIS_URL.split("://", 1)
+
+        if "@" in rest:
+            logger.debug(
+                "REDIS_URL уже содержит пароль или имя пользователя (@): %s — "
+                "пропускаем встраивание",
+                self.REDIS_URL,
+            )
+            return
+
+        self.REDIS_URL = f"{scheme}://:{self.REDIS_PASSWORD}@{rest}"
+        logger.info(
+            "Пароль Redis встроен в REDIS_URL (схема: %s, хост сокрыт)",
+            scheme,
+        )
 
     # Валидация: если CSRF_TOKEN пустой — логируем WARNING
     @field_validator("CSRF_TOKEN")
@@ -241,11 +283,11 @@ async def load_config_from_db(database) -> None:
             CONFIG_KEY_REFERER_URL: ("REFERER_URL", str),
             CONFIG_KEY_CSRF_TOKEN: ("CSRF_TOKEN", str),
             CONFIG_KEY_ADMIN_IDS: ("ADMIN_IDS", str),
+            CONFIG_KEY_ENVIRONMENT: ("ENVIRONMENT", str),
             CONFIG_KEY_ERROR_NOTIFY_ENABLED: (
                 "ERROR_NOTIFY_ENABLED",
                 lambda v: v.lower() in ("1", "true", "yes"),
             ),
-            CONFIG_KEY_ENVIRONMENT: ("ENVIRONMENT", str),
             CONFIG_KEY_USER_RATE_LIMIT_MAX: ("USER_RATE_LIMIT_MAX", int),
             CONFIG_KEY_USER_RATE_LIMIT_PERIOD: ("USER_RATE_LIMIT_PERIOD", int),
             CONFIG_KEY_METRICS_PORT: ("METRICS_PORT", int),
@@ -272,11 +314,27 @@ async def load_config_from_db(database) -> None:
             ),
         }
 
+        # Ключи, для которых требуется дополнительная валидация значения
+        _validators: dict[str, Callable[[str], bool]] = {
+            CONFIG_KEY_CSRF_TOKEN: lambda v: "***" not in v and v != "",
+        }
+
         all_config = await database.get_all_config()
         loaded = 0
         for key, value in all_config.items():
             if key in mapping:
                 attr_name, cast_type = mapping[key]
+
+                # Дополнительная валидация для критичных ключей
+                if key in _validators and not _validators[key](value):
+                    logger.error(
+                        "config[%s] содержит мусорное значение '%s' — "
+                        "используется дефолтное значение из .env",
+                        key,
+                        value,
+                    )
+                    continue
+
                 try:
                     setattr(settings, attr_name, cast_type(value))
                     loaded += 1

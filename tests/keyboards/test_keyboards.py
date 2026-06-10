@@ -5,18 +5,18 @@
 from typing import ClassVar
 
 from src.handlers.callbacks import (
-    AddPatient,
+    CB_ADD_PATIENT,
+    CB_BACK_TO_MAIN,
+    CB_CANCEL_REGISTRATION,
+    CB_SKIP_ALIAS,
+    CB_STOP_ALL,
     BackToCities,
     BackToClinics,
-    BackToMain,
-    CancelRegistration,
     CitySelect,
     ClinicSelect,
     DeletePatientAsk,
     DeletePatientConfirm,
     PatientSelect,
-    SkipAlias,
-    StopAllMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
     ToggleDoctor,
@@ -51,24 +51,24 @@ class TestRegistrationKeyboard:
 
         mk = get_registration_keyboard(step="alias")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", SkipAlias().pack()) in buttons
-        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
+        assert ("Пропустить", CB_SKIP_ALIAS) in buttons
+        assert ("❌ Отмена регистрации", CB_CANCEL_REGISTRATION) in buttons
 
     def test_fio_step_no_skip_button(self):
         from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="fio")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", SkipAlias().pack()) not in buttons
-        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
+        assert ("Пропустить", CB_SKIP_ALIAS) not in buttons
+        assert ("❌ Отмена регистрации", CB_CANCEL_REGISTRATION) in buttons
 
     def test_bday_step_no_skip_button(self):
         from src.keyboards.inline import get_registration_keyboard
 
         mk = get_registration_keyboard(step="bday")
         buttons = _extract_buttons(mk)
-        assert ("Пропустить", SkipAlias().pack()) not in buttons
-        assert ("❌ Отмена регистрации", CancelRegistration().pack()) in buttons
+        assert ("Пропустить", CB_SKIP_ALIAS) not in buttons
+        assert ("❌ Отмена регистрации", CB_CANCEL_REGISTRATION) in buttons
 
 
 # ── T4.2 get_confirm_deletion ─────────────────────────────────────────
@@ -160,7 +160,7 @@ class TestPatientSelection:
         mk = get_patient_selection({}, {})
         buttons = _extract_buttons(mk)
         assert len(buttons) == 1
-        assert buttons[0] == ("➕ Добавить пациента", AddPatient().pack())
+        assert buttons[0] == ("➕ Добавить пациента", CB_ADD_PATIENT)
 
     def test_patients_sorted_by_display_name(self):
         from src.keyboards.inline import get_patient_selection
@@ -177,7 +177,7 @@ class TestPatientSelection:
         assert buttons[3] == ("🗑", DeletePatientAsk(p_id="p2").pack())
         assert buttons[4] == ("👤 Сын", PatientSelect(p_id="p3").pack())
         assert buttons[5] == ("🗑", DeletePatientAsk(p_id="p3").pack())
-        assert buttons[6] == ("➕ Добавить пациента", AddPatient().pack())
+        assert buttons[6] == ("➕ Добавить пациента", CB_ADD_PATIENT)
 
     def test_monitoring_count_shown(self):
         from src.keyboards.inline import get_patient_selection
@@ -201,7 +201,7 @@ class TestPatientSelection:
         monitoring: dict[str, dict[str, dict]] = {"p1": {"d1": {}}}
         mk = get_patient_selection(self.SAMPLE_PATIENTS, monitoring)
         buttons = _extract_buttons(mk)
-        assert ("🛑 Сбросить весь мониторинг", StopAllMonitoring().pack()) in buttons
+        assert ("🛑 Сбросить весь мониторинг", CB_STOP_ALL) in buttons
 
     def test_no_stop_all_when_no_monitoring(self):
         from src.keyboards.inline import get_patient_selection
@@ -210,7 +210,7 @@ class TestPatientSelection:
         buttons = _extract_buttons(mk)
         assert (
             "🛑 Сбросить весь мониторинг",
-            StopAllMonitoring().pack(),
+            CB_STOP_ALL,
         ) not in buttons
 
     def test_row_structure_patients_in_pairs(self):
@@ -242,7 +242,7 @@ class TestCitySelection:
         assert ("📍 Санкт-Петербург", CitySelect(p_id="p1", idx="2").pack()) in buttons
         assert ("📍 Казань", CitySelect(p_id="p1", idx="3").pack()) in buttons
         assert ("🏥 Все", CitySelect(p_id="p1", idx="all").pack()) in buttons
-        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
+        assert ("⬅️ Назад к списку", CB_BACK_TO_MAIN) in buttons
 
     def test_monitoring_counts_per_city(self):
         from src.keyboards.inline import get_city_selection
@@ -380,7 +380,7 @@ class TestDoctorSelection:
             "⬅️ К выбору клиники",
             BackToClinics(p_id="p1", city_idx="2").pack(),
         ) in buttons
-        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
+        assert ("⬅️ Назад к списку", CB_BACK_TO_MAIN) in buttons
 
     def test_stop_clinic_button_when_monitoring_in_clinic(self):
         from src.keyboards.inline import get_doctor_selection
@@ -573,7 +573,7 @@ class TestClinicSelection:
         )
         buttons = _extract_buttons(mk)
         assert ("⬅️ К выбору города", BackToCities(p_id="p1").pack()) in buttons
-        assert ("⬅️ Назад к списку", BackToMain().pack()) in buttons
+        assert ("⬅️ Назад к списку", CB_BACK_TO_MAIN) in buttons
 
     def test_stop_patient_button_when_monitoring(self):
         from src.keyboards.inline import get_clinic_selection
@@ -621,7 +621,6 @@ class TestClinicSelection:
         )
         buttons = _extract_buttons(mk)
         assert self._sel_c("p1", "271", "3") in [b[1] for b in buttons]
-        assert (
-            StopPatientMonitoring(p_id="p1", origin="clinic", city_idx="3").pack()
-            in [b[1] for b in buttons]
-        )
+        assert StopPatientMonitoring(
+            p_id="p1", origin="clinic", city_idx="3"
+        ).pack() in [b[1] for b in buttons]

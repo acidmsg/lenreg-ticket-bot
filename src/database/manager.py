@@ -11,7 +11,6 @@ from src.database.types import (
     DoctorEntry,
     LastMessageEntry,
     MonitoringEntry,
-    MonitoringLogEntry,
     PatientInfo,
     UserData,
     UserDataUpdate,
@@ -19,7 +18,12 @@ from src.database.types import (
 
 
 class DatabaseManager:
-    """Обёртка над Database."""
+    """Обёртка над Database.
+
+    Проксирует все вызовы, не определённые в этом классе, в нижележащий
+    ``self._db`` через ``__getattr__``. Это позволяет избежать написания
+    методов-прокладок вида ``async def foo(...): return await self._db.foo(...)``.
+    """
 
     def __init__(self, db: Database):
         self._db = db
@@ -29,6 +33,56 @@ class DatabaseManager:
     @property
     def data(self) -> dict[str, UserData]:
         return copy.deepcopy(self._data_cache)
+
+    def __getattr__(self, name: str):
+        """Проксирует отсутствующие атрибуты в self._db."""
+        # Избегаем рекурсии: __getattr__ вызывается только если атрибут
+        # не найден обычным способом (в __dict__ или через @property).
+        db = self.__dict__.get("_db")
+        if db is None:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}' "
+                f"(and _db is not initialised)"
+            )
+        return getattr(db, name)
+
+    def get_user_statistics(self) -> dict:
+        """Возвращает агрегированную статистику пользователей из кэша.
+
+        Returns:
+            Словарь с ключами:
+            - total_users: количество уникальных пользователей в кэше
+            - total_patients: общее число пациентов
+            - total_monitored_doctors: общее число уникальных отслеживаемых врачей
+            - active_monitorings: количество активных мониторингов
+              (пар patient_id с непустым списком врачей)
+        """
+        total_users = len(self._data_cache)
+        total_patients = sum(
+            len(u_info.get("patients", {})) for u_info in self._data_cache.values()
+        )
+        total_monitored_doctors = sum(
+            len(
+                set(
+                    d_id
+                    for doctors in u_info.get("monitoring", {}).values()
+                    for d_id in doctors
+                )
+            )
+            for u_info in self._data_cache.values()
+        )
+        active_monitorings = sum(
+            1
+            for u_info in self._data_cache.values()
+            for doctors in u_info.get("monitoring", {}).values()
+            if doctors
+        )
+        return {
+            "total_users": total_users,
+            "total_patients": total_patients,
+            "total_monitored_doctors": total_monitored_doctors,
+            "active_monitorings": active_monitorings,
+        }
 
     async def refresh_cache(self) -> None:
         async with self._lock:
@@ -252,97 +306,14 @@ class DatabaseManager:
             if updated:
                 self._data_cache[uid] = updated
 
-    # ── Врачи ───────────────────────────────────────────────
+    # ── Врачи (метод с отличающимся именем) ──────────────────
 
     async def get_doctors_for_clinic(self, clinic_id: str) -> dict[str, DoctorEntry]:
+        """Возвращает словарь врачей клиники (прокси к get_clinic_doctors)."""
         return await self._db.get_clinic_doctors(str(clinic_id))
-
-    async def merge_doctors(self, clinic_id: str, doctors: list) -> None:
-        return await self._db.merge_doctors(str(clinic_id), doctors)
-
-    async def get_clinic_name(self, clinic_id: str) -> str | None:
-        return await self._db.get_clinic_name(str(clinic_id))
-
-    async def get_all_clinic_names(self) -> dict[str, str]:
-        return await self._db.get_all_clinic_names()
 
     # ── Управление подключением ─────────────────────────────
 
     async def load(self) -> None:
         await self._db.connect()
         await self.refresh_cache()
-
-    # ── Monitoring Log ───────────────────────────────────────
-
-    async def add_monitoring_log(
-        self,
-        uid: str,
-        p_id: str,
-        d_id: str,
-        doctor_name: str,
-        patient_name: str,
-        specialty: str,
-        clinic_name: str,
-        slot_date: str,
-        status: str,
-        ts: float,
-    ) -> None:
-        """Добавляет запись в лог мониторинга."""
-        return await self._db.add_monitoring_log(
-            uid=uid,
-            p_id=p_id,
-            d_id=d_id,
-            doctor_name=doctor_name,
-            patient_name=patient_name,
-            specialty=specialty,
-            clinic_name=clinic_name,
-            slot_date=slot_date,
-            status=status,
-            ts=ts,
-        )
-
-    async def get_user_monitoring_logs(
-        self, uid: str, limit: int = 5000, offset: int = 0
-    ) -> list[MonitoringLogEntry]:
-        """Возвращает логи мониторинга пользователя."""
-        return await self._db.get_user_monitoring_logs(uid, limit=limit, offset=offset)
-
-    async def get_user_monitoring_logs_count(self, uid: str) -> int:
-        """Возвращает количество записей лога пользователя."""
-        return await self._db.get_user_monitoring_logs_count(uid)
-
-    # ── Дашборд: глобальные запросы ─────────────────────────
-
-    async def get_total_stats(self) -> dict:
-        """Агрегированная статистика для дашборда."""
-        return await self._db.get_total_stats()
-
-    async def get_all_monitoring_logs(
-        self,
-        limit: int = 50,
-        offset: int = 0,
-        uid: str | None = None,
-        status: str | None = None,
-    ) -> list[MonitoringLogEntry]:
-        """Лог мониторинга с пагинацией и фильтрацией."""
-        return await self._db.get_all_monitoring_logs(
-            limit=limit, offset=offset, uid=uid, status=status
-        )
-
-    async def get_all_monitoring_logs_count(
-        self, uid: str | None = None, status: str | None = None
-    ) -> int:
-        """Количество записей лога мониторинга."""
-        return await self._db.get_all_monitoring_logs_count(uid=uid, status=status)
-
-    async def get_all_user_ids(self) -> list[str]:
-        """Возвращает список всех UID пользователей."""
-        return await self._db.get_all_user_ids()
-
-    async def get_user(self, uid: str) -> UserData | None:
-        """Возвращает сырые данные пользователя из БД (минуя кэш)."""
-        return await self._db.get_user(uid)
-
-    async def get_clinic_doctor_count(self, clinic_id: str) -> int:
-        """Количество врачей в клинике."""
-        return await self._db.get_clinic_doctor_count(clinic_id)

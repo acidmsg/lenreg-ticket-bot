@@ -74,12 +74,6 @@ class DateInfo(BaseModel):
     day: str = ""
 
 
-class ApiError(BaseModel):
-    """Объект ошибки (пока не документирован, оставляем гибким)."""
-
-    model_config = {"extra": "allow"}
-
-
 # ── Request models ────────────────────────────────────────────
 
 
@@ -154,7 +148,7 @@ class CheckPatientResponse(BaseModel):
 
     response: CheckPatientData = Field(default_factory=CheckPatientData)
     success: bool = False
-    error: ApiError = Field(default_factory=ApiError)
+    error: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── speciality_list ───────────────────────────────────────────
@@ -196,7 +190,7 @@ class SpecialityListResponse(BaseModel):
 
     response: list[SpecialityItem] = Field(default_factory=list)
     success: bool = False
-    error: ApiError = Field(default_factory=ApiError)
+    error: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── doctor_list ───────────────────────────────────────────────
@@ -221,7 +215,7 @@ class DoctorListResponse(BaseModel):
 
     response: list[DoctorItem] = Field(default_factory=list)
     success: bool = False
-    error: ApiError = Field(default_factory=ApiError)
+    error: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── appointment_list ──────────────────────────────────────────
@@ -244,7 +238,7 @@ class AppointmentListResponse(BaseModel):
 
     response: dict[str, list[AppointmentSlot]] = Field(default_factory=dict)
     success: bool | None = None  # не всегда приходит в этом эндпоинте
-    error: ApiError = Field(default_factory=ApiError)
+    error: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── clinic_list ───────────────────────────────────────────────
@@ -263,4 +257,4 @@ class ClinicListResponse(BaseModel):
 
     response: list[ClinicItem] = Field(default_factory=list)
     success: bool = False
-    error: ApiError = Field(default_factory=ApiError)
+    error: dict[str, Any] = Field(default_factory=dict)

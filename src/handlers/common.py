@@ -14,22 +14,22 @@ from src.api.zdrav_client import ZdravClient
 from src.assets.utils import get_nav_image_path, get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
-from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo
+from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo, UserData
 from src.filters.admin import IsAdmin
 from src.handlers.callback_parser import cb_filter
 from src.handlers.callbacks import (
+    CB_BACK_TO_MAIN,
+    CB_EXPORT_CSV,
+    CB_EXPORT_JSON,
+    CB_NOOP,
+    CB_STOP_ALL,
     BackToCities,
     BackToClinics,
-    BackToMain,
     CitySelect,
     ClinicSelect,
     DeletePatientAsk,
     DeletePatientConfirm,
-    ExportCSV,
-    ExportJSON,
-    Noop,
     PatientSelect,
-    StopAllMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
     ToggleDoctor,
@@ -484,7 +484,7 @@ async def cmd_start(message: Message, db: DatabaseManager, bot: Bot) -> None:
             )
 
 
-@router.callback_query(cb_filter(BackToMain))
+@router.callback_query(F.data == CB_BACK_TO_MAIN)
 async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
     """Возврат в главное меню с изображением-заголовком patient_select."""
     if not call.from_user or not call.message or not isinstance(call.message, Message):
@@ -521,6 +521,78 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
             )
 
 
+async def _show_city_selection(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    p_id: str,
+    user_data: UserData,
+) -> None:
+    """Показывает список городов с изображением clinic_select.
+
+    Используется из select_patient и back_to_cities.
+    """
+    if not isinstance(call.message, Message):
+        return
+    cities = await db._db.get_distinct_cities()
+    clinics_data = await db._db.get_active_clinics()
+
+    await _send_nav_photo(
+        call.bot,
+        call.message,
+        "clinic",
+        _("select-city-prompt"),
+        get_city_selection(
+            p_id,
+            cities=cities,
+            monitoring=user_data.get("monitoring"),
+            clinics_data=clinics_data,
+        ),
+        db=db,
+    )
+
+
+async def _show_clinic_selection(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    p_id: str,
+    city_idx: str,
+    user_data: UserData,
+) -> None:
+    """Показывает список клиник для выбранного города с изображением clinic_select.
+
+    Используется из select_city и back_to_clinics.
+    """
+    if not isinstance(call.message, Message):
+        return
+    raw_p = user_data["patients"].get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
+
+    clinic_names = await db.get_all_clinic_names()
+    clinics_data = await db._db.get_active_clinics()
+    cities = await db._db.get_distinct_cities()
+
+    selected_city, city_label = _decode_city_from_idx(str(city_idx), cities)
+
+    await _send_nav_photo(
+        call.bot,
+        call.message,
+        "clinic",
+        city_label,
+        _build_clinic_selection_kb(
+            p_id,
+            p_info.get("bday", settings.DEFAULT_BIRTHDAY),
+            selected_city=selected_city,
+            monitoring=user_data.get("monitoring"),
+            clinic_names=clinic_names,
+            clinics_data=clinics_data,
+            city_idx=city_idx,
+        ),
+        db=db,
+    )
+
+
 @router.callback_query(cb_filter(PatientSelect))
 async def select_patient(
     call: CallbackQuery, db: DatabaseManager, callback_data: PatientSelect
@@ -532,26 +604,7 @@ async def select_patient(
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
     user_data["patients"].get(p_id, {})
-
-    # Получаем города активных клиник
-    cities = await db._db.get_distinct_cities()
-    clinics_data = await db._db.get_active_clinics()
-    monitoring = user_data.get("monitoring")
-
-    if isinstance(call.message, Message):
-        await _send_nav_photo(
-            call.bot,
-            call.message,
-            "clinic",
-            _("select-city-prompt"),
-            get_city_selection(
-                p_id,
-                cities=cities,
-                monitoring=monitoring,
-                clinics_data=clinics_data,
-            ),
-            db=db,
-        )
+    await _show_city_selection(call, db, p_id, user_data)
 
 
 @router.callback_query(cb_filter(CitySelect))
@@ -561,38 +614,11 @@ async def select_city(
     """Выбор города → список клиник с изображением clinic_select."""
     if not call.message or not call.from_user:
         return
-    p_id = callback_data.p_id
-    idx_or_all = callback_data.idx
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    raw_p = user_data["patients"].get(p_id)
-    if raw_p is None:
-        return
-    p_info: PatientInfo = raw_p
-
-    clinic_names = await db.get_all_clinic_names()
-    clinics_data = await db._db.get_active_clinics()
-    cities = await db._db.get_distinct_cities()
-
-    selected_city, city_label = _decode_city_from_idx(idx_or_all, cities)
-
-    if isinstance(call.message, Message):
-        await _send_nav_photo(
-            call.bot,
-            call.message,
-            "clinic",
-            city_label,
-            _build_clinic_selection_kb(
-                p_id,
-                p_info.get("bday", settings.DEFAULT_BIRTHDAY),
-                selected_city=selected_city,
-                monitoring=user_data.get("monitoring"),
-                clinic_names=clinic_names,
-                clinics_data=clinics_data,
-                city_idx=idx_or_all,
-            ),
-            db=db,
-        )
+    await _show_clinic_selection(
+        call, db, callback_data.p_id, callback_data.idx, user_data
+    )
 
 
 @router.callback_query(cb_filter(BackToCities))
@@ -605,23 +631,7 @@ async def back_to_cities(
     p_id = callback_data.p_id
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    cities = await db._db.get_distinct_cities()
-    clinics_data = await db._db.get_active_clinics()
-
-    if isinstance(call.message, Message):
-        await _send_nav_photo(
-            call.bot,
-            call.message,
-            "clinic",
-            _("select-city-prompt"),
-            get_city_selection(
-                p_id,
-                cities=cities,
-                monitoring=user_data.get("monitoring"),
-                clinics_data=clinics_data,
-            ),
-            db=db,
-        )
+    await _show_city_selection(call, db, p_id, user_data)
 
 
 @router.callback_query(cb_filter(BackToClinics))
@@ -634,38 +644,11 @@ async def back_to_clinics(
     """
     if not call.message or not call.from_user:
         return
-    p_id = callback_data.p_id
-    city_idx = callback_data.city_idx
     uid = str(call.from_user.id)
     user_data = await db.get_user_data(uid)
-    raw_p = user_data["patients"].get(p_id)
-    if raw_p is None:
-        return
-    p_info: PatientInfo = raw_p
-
-    clinic_names = await db.get_all_clinic_names()
-    clinics_data = await db._db.get_active_clinics()
-    cities = await db._db.get_distinct_cities()
-
-    selected_city, city_label = _decode_city_from_idx(str(city_idx), cities)
-
-    if isinstance(call.message, Message):
-        await _send_nav_photo(
-            call.bot,
-            call.message,
-            "clinic",
-            city_label,
-            _build_clinic_selection_kb(
-                p_id,
-                p_info.get("bday", settings.DEFAULT_BIRTHDAY),
-                selected_city=selected_city,
-                monitoring=user_data.get("monitoring"),
-                clinic_names=clinic_names,
-                clinics_data=clinics_data,
-                city_idx=city_idx,
-            ),
-            db=db,
-        )
+    await _show_clinic_selection(
+        call, db, callback_data.p_id, callback_data.city_idx, user_data
+    )
 
 
 @router.callback_query(cb_filter(ClinicSelect))
@@ -1048,7 +1031,7 @@ async def stop_clinic_monitoring(
         )
 
 
-@router.callback_query(cb_filter(StopAllMonitoring))
+@router.callback_query(F.data == CB_STOP_ALL)
 async def stop_all_monitoring(
     call: CallbackQuery, db: DatabaseManager, bot: Bot
 ) -> None:
@@ -1080,7 +1063,7 @@ async def stop_all_monitoring(
         )
 
 
-@router.callback_query(cb_filter(Noop))
+@router.callback_query(F.data == CB_NOOP)
 async def handle_noop(call: CallbackQuery) -> None:
     """Заглушка для кнопки-разделителя."""
     await call.answer()
@@ -1170,8 +1153,8 @@ async def cmd_export(message: Message, db: DatabaseManager) -> None:
 
     # Inline-клавиатура выбора формата
     builder = InlineKeyboardBuilder()
-    builder.button(text=_("btn-csv"), callback_data=ExportCSV().pack())
-    builder.button(text=_("btn-json"), callback_data=ExportJSON().pack())
+    builder.button(text=_("btn-csv"), callback_data=CB_EXPORT_CSV)
+    builder.button(text=_("btn-json"), callback_data=CB_EXPORT_JSON)
     builder.adjust(2)
 
     await message.answer(
@@ -1181,7 +1164,7 @@ async def cmd_export(message: Message, db: DatabaseManager) -> None:
     )
 
 
-@router.callback_query(F.data.in_({ExportCSV().pack(), ExportJSON().pack()}))
+@router.callback_query(F.data.in_({CB_EXPORT_CSV, CB_EXPORT_JSON}))
 async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> None:
     """Генерация и отправка файла экспорта."""
     if not call.from_user or not isinstance(call.message, Message):
@@ -1194,7 +1177,7 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> 
 
     uid = str(call.from_user.id)
     chat_id = call.message.chat.id
-    is_csv = call.data == ExportCSV().pack()
+    is_csv = call.data == CB_EXPORT_CSV
 
     await call.answer(_("export-generating"))
 

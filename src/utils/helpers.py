@@ -2,9 +2,15 @@
 Вспомогательные функции для форматирования отображаемых данных.
 """
 
+import hashlib
+import hmac
+import json
 import re
+import time as time_module
 from collections import defaultdict
 from datetime import datetime, time
+from typing import Any
+from urllib.parse import parse_qs
 
 from loguru import logger
 
@@ -12,6 +18,32 @@ from src.i18n import _data
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
+
+
+def safe_name(value: Any) -> str:
+    """Извлекает строковое имя врача из значения, которое может быть объектом.
+
+    Используется как fallback, если ``_coerce_str`` в models.py не сработал
+    (например, при чтении из БД старых данных, где name сохранён как dict).
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        # Пытаемся извлечь Name, name, или собрать из ФИО
+        name_value = value.get("Name") or value.get("name") or ""
+        if name_value and isinstance(name_value, str):
+            return name_value
+        parts = [
+            value.get(k, "")
+            for k in ("last_name", "first_name", "middle_name")
+            if value.get(k)
+        ]
+        if parts:
+            return " ".join(parts)
+    return str(value)
+
 
 # ── Дни недели (сокращения для отображения) ─────────────────────
 _WEEKDAYS = [
@@ -37,14 +69,17 @@ async def load_specialty_aliases_from_db(db) -> None:
 
 
 def is_child(bday_str: str) -> bool:
+    """Проверяет, является ли пациент ребёнком (<18 лет) по дате рождения.
+
+    Использует ``dateutil.relativedelta`` для точного вычисления возраста
+    (учитывает високосные годы). При ошибке парсинга или отсутствии даты
+    считает взрослым.
     """
-    Определяет, является ли пациент ребёнком (< 18 лет).
-    Принимает дату рождения в формате '%Y-%m-%d'.
-    При ошибке парсинга или отсутствии даты считает взрослым.
-    """
+    from dateutil.relativedelta import relativedelta
+
     try:
         bday = datetime.strptime(bday_str, "%Y-%m-%d")
-        age = (datetime.now() - bday).days // 365
+        age = int(relativedelta(datetime.now(), bday).years)
         return age < 18
     except (ValueError, TypeError):
         return False
@@ -356,3 +391,107 @@ def format_notification_text(
         f"{spec_text}🧑‍⚕️ {d_name_display}\n"
         f"👤 {p_label}\n{header_or_status}\n\n{slots_display}{link}"
     )
+
+
+# ── Верификация Telegram initData (HMAC-SHA256) ─────────────────
+
+# Сигнатура — HMAC-SHA256("WebAppData", BOT_TOKEN), используемая как ключ
+# для вычисления хеша data_check_string.
+_WEB_APP_DATA_KEY = b"WebAppData"
+
+
+def verify_telegram_init_data(
+    init_data_raw: str,
+    bot_token: str,
+    max_age: int = 86400,
+) -> tuple[bool, str | None, int | None]:
+    """Проверяет HMAC-SHA256 подпись initData из Telegram Mini App.
+
+    Алгоритм верификации (Telegram Mini App Validation):
+    1. Распарсить initData как application/x-www-form-urlencoded.
+    2. Извлечь поле hash (контрольная сумма).
+    3. Отсортировать все поля, кроме hash, по алфавиту.
+    4. Сформировать data_check_string: key1=value1\\nkey2=value2\\n...
+    5. Вычислить secret_key = HMAC-SHA256("WebAppData", BOT_TOKEN).
+    6. Вычислить computed_hash = HMAC-SHA256(data_check_string, secret_key).
+    7. Сравнить computed_hash (hex) с hash через ``hmac.compare_digest``.
+    8. Проверить auth_date (не старше max_age и не из будущего).
+
+    Args:
+        init_data_raw: Сырая строка initData (application/x-www-form-urlencoded).
+        bot_token: Токен бота Telegram.
+        max_age: Максимальный возраст initData в секундах (по умолчанию 86400).
+
+    Returns:
+        (is_valid, error_message, telegram_id):
+        - is_valid: True если подпись корректна и данные не просрочены.
+        - error_message: Описание ошибки или None.
+        - telegram_id: Извлечённый telegram_id из поля user.id или None.
+    """
+    if not init_data_raw:
+        return False, "initData отсутствует", None
+
+    # Шаг 1: парсинг initData
+    try:
+        parsed = parse_qs(init_data_raw, keep_blank_values=True)
+    except Exception:
+        return False, "Некорректный формат initData", None
+
+    # Приводим значения к плоскому словарю
+    fields: dict[str, str] = {
+        key: value[0] if value else "" for key, value in parsed.items()
+    }
+
+    # Шаг 2: извлечение hash
+    received_hash = fields.pop("hash", None)
+    if not received_hash:
+        return False, "Поле hash отсутствует в initData", None
+
+    # Шаг 3-4: формирование data_check_string
+    sorted_fields = sorted(fields.items(), key=lambda item: item[0])
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted_fields)
+
+    # Шаг 5-6: вычисление HMAC-SHA256 подписи
+    secret_key = hmac.new(
+        _WEB_APP_DATA_KEY,
+        bot_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    computed_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    # Шаг 7: сравнение хешей
+    if not hmac.compare_digest(computed_hash, received_hash):
+        return False, "Неверная подпись initData", None
+
+    # Шаг 8: проверка auth_date
+    auth_date_str = fields.get("auth_date", "0")
+    try:
+        auth_date = int(auth_date_str)
+    except (ValueError, TypeError):
+        return False, "Некорректное значение auth_date", None
+
+    now = int(time_module.time())
+    if now - auth_date > max_age:
+        return False, "initData просрочена", None
+    if auth_date > now:
+        return False, "auth_date из будущего", None
+
+    # Извлечение telegram_id из JSON-поля user
+    user_json = fields.get("user", "")
+    if not user_json:
+        return False, "Поле user отсутствует в initData", None
+
+    try:
+        user_data = json.loads(user_json)
+    except json.JSONDecodeError:
+        return False, "Некорректный JSON в поле user", None
+
+    telegram_id = user_data.get("id")
+    if telegram_id is None:
+        return False, "Поле user.id отсутствует", None
+
+    return True, None, int(telegram_id)

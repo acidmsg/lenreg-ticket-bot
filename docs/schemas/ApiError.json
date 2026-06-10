@@ -1,7 +1,0 @@
-{
-  "additionalProperties": true,
-  "description": "Объект ошибки (пока не документирован, оставляем гибким).",
-  "properties": {},
-  "title": "ApiError",
-  "type": "object"
-}

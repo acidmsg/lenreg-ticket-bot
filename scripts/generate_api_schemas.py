@@ -23,7 +23,6 @@ _project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_project_root))
 
 from src.api.models import (  # noqa: E402
-    ApiError,
     AppointmentListResponse,
     AppointmentSlot,
     CheckPatientData,
@@ -52,7 +51,6 @@ MODELS: list[type[BaseModel]] = [
     ClinicListResponse,
     ClinicItem,
     DateInfo,
-    ApiError,
 ]
 
 SCHEMAS_DIR = Path("docs/schemas")

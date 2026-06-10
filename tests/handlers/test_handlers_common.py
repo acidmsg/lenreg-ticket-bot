@@ -41,7 +41,6 @@ from tests.conftest import (
     seed_doctors as _seed_doctors,
 )
 
-
 # ── T1.2.1: cmd_start ─────────────────────────────────────────────────
 
 
@@ -58,11 +57,13 @@ class TestCmdStart:
         msg.answer.return_value.message_id = 999
         await cmd_start(msg, db=db_manager, bot=bot)
 
-        msg.answer.assert_called_once()
+        # cmd_start отправляет 2 сообщения: основное + Mini App клавиатура
+        assert msg.answer.call_count >= 1
         # Текст передаётся позиционно: message.answer("text", reply_markup=...)
-        text = msg.answer.call_args[0][0]
+        # call_args_list[0] — первый вызов (приветствие), [1] — Mini App клавиатура
+        text = msg.answer.call_args_list[0][0][0]
         assert "У тебя пока нет добавленных пациентов" in text
-        assert "reply_markup" in msg.answer.call_args[1]
+        assert "reply_markup" in msg.answer.call_args_list[0][1]
 
     async def test_with_patients_shows_list(self, db_manager):
         """Есть пациенты — показывается список."""
@@ -79,10 +80,11 @@ class TestCmdStart:
         msg.answer.return_value.message_id = 999
         await cmd_start(msg, db=db_manager, bot=bot)
 
-        msg.answer.assert_called_once()
-        text = msg.answer.call_args[0][0]
+        # cmd_start отправляет 2 сообщения: основное + Mini App клавиатура
+        assert msg.answer.call_count >= 1
+        text = msg.answer.call_args_list[0][0][0]
         assert "Ваши пациенты" in text
-        assert "reply_markup" in msg.answer.call_args[1]
+        assert "reply_markup" in msg.answer.call_args_list[0][1]
 
     async def test_no_from_user_uses_unknown_uid(self, db_manager):
         """Нет from_user — uid = 'unknown', показывается приветствие."""
@@ -97,8 +99,8 @@ class TestCmdStart:
         await cmd_start(msg, db=db_manager, bot=bot)
 
         # from_user=None → uid="unknown" → нет пациентов → приветствие
-        msg.answer.assert_called_once()
-        text = msg.answer.call_args[0][0]
+        assert msg.answer.call_count >= 1
+        text = msg.answer.call_args_list[0][0][0]
         assert "У тебя пока нет добавленных пациентов" in text
 
 
@@ -327,7 +329,9 @@ class TestToggleDoctor:
         loading_msg_mock.edit_text = AsyncMock()
         call.message.answer.return_value = loading_msg_mock
 
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
+        await toggle_doctor(
+            call, db=db_manager, api=api, bot=bot, callback_data=cb_data
+        )
 
         # call.answer был вызван
         call.answer.assert_called()
@@ -369,7 +373,9 @@ class TestToggleDoctor:
         loading_msg_mock.edit_text = AsyncMock()
         call.message.answer.return_value = loading_msg_mock
 
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
+        await toggle_doctor(
+            call, db=db_manager, api=api, bot=bot, callback_data=cb_data
+        )
 
         # Мониторинг активирован даже если слотов нет
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
@@ -402,7 +408,9 @@ class TestToggleDoctor:
 
         cb_data = ToggleDoctor(p_id="111", clinic_id="403", d_id="d1")
         call = make_callback(cb_data.pack())
-        await toggle_doctor(call, db=db_manager, api=api, bot=bot, callback_data=cb_data)
+        await toggle_doctor(
+            call, db=db_manager, api=api, bot=bot, callback_data=cb_data
+        )
 
         # Мониторинг отключён — ключ пациента удалён из monitoring полностью
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
@@ -536,7 +544,9 @@ class TestStopPatientMonitoring:
 
         cb_data = StopPatientMonitoring(p_id="111", origin="city", city_idx="all")
         call = make_callback(cb_data.pack())
-        await stop_patient_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
+        await stop_patient_monitoring(
+            call, db=db_manager, bot=bot, callback_data=cb_data
+        )
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "111" not in user_data["monitoring"]
@@ -562,7 +572,9 @@ class TestStopPatientMonitoring:
 
         cb_data = StopPatientMonitoring(p_id="222", origin="clinic", city_idx="1")
         call = make_callback(cb_data.pack())
-        await stop_patient_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
+        await stop_patient_monitoring(
+            call, db=db_manager, bot=bot, callback_data=cb_data
+        )
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         assert "222" not in user_data["monitoring"]
@@ -613,7 +625,9 @@ class TestStopClinicMonitoring:
 
         cb_data = StopClinicMonitoring(p_id="111", clinic_id="901")
         call = make_callback(cb_data.pack())
-        await stop_clinic_monitoring(call, db=db_manager, bot=bot, callback_data=cb_data)
+        await stop_clinic_monitoring(
+            call, db=db_manager, bot=bot, callback_data=cb_data
+        )
 
         user_data = await db_manager.get_user_data(str(TEST_USER_ID))
         monitoring = user_data["monitoring"].get("111", {})

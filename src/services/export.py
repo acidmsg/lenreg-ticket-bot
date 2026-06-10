@@ -20,6 +20,29 @@ from src.database.types import PatientInfo
 from src.i18n import _
 
 
+async def _collect_export_data(
+    db_manager: DatabaseManager, user_id: int
+) -> tuple[str, dict, dict, list, dict[str, str]]:
+    """Собирает общие данные для экспорта: patients, monitoring, logs, clinic_names.
+
+    Returns:
+        (uid, patients, monitoring, logs, clinic_names)
+    Raises:
+        ValueError: Если у пользователя нет данных для экспорта.
+    """
+    uid = str(user_id)
+    user_data = await db_manager.get_user_data(uid)
+    patients = user_data.get("patients", {})
+    monitoring = user_data.get("monitoring", {})
+
+    if not patients and not monitoring:
+        raise ValueError(_("export-no-data-error"))
+
+    logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
+    clinic_names = await db_manager.get_all_clinic_names()
+    return uid, patients, monitoring, logs, clinic_names
+
+
 async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> str:
     """
     Экспорт данных мониторинга пользователя в CSV.
@@ -37,20 +60,11 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
     Raises:
         ValueError: Если у пользователя нет данных для экспорта.
     """
-    uid = str(user_id)
+    uid, patients, monitoring, logs, clinic_names = await _collect_export_data(
+        db_manager, user_id
+    )
 
-    # Получаем данные пользователя
-    user_data = await db_manager.get_user_data(uid)
-    patients = user_data.get("patients", {})
-    monitoring = user_data.get("monitoring", {})
-
-    if not patients and not monitoring:
-        raise ValueError(_("export-no-data-error"))
-
-    # Получаем логи мониторинга
-    logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
-
-    # Создаём временный CSV-файл (асинхронно)
+    # Создаём временный CSV-файл
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(
@@ -85,7 +99,6 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
 
     # Если логов нет, пишем текущую конфигурацию мониторинга
     if not rows_written:
-        clinic_names = await db_manager.get_all_clinic_names()
         now_str = _format_timestamp(time.time())
 
         for p_id, doctors in monitoring.items():
@@ -154,18 +167,9 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
     Raises:
         ValueError: Если у пользователя нет данных для экспорта.
     """
-    uid = str(user_id)
-
-    # Получаем данные пользователя
-    user_data = await db_manager.get_user_data(uid)
-    patients = user_data.get("patients", {})
-    monitoring = user_data.get("monitoring", {})
-
-    if not patients and not monitoring:
-        raise ValueError(_("export-no-data-error"))
-
-    # Получаем логи мониторинга
-    logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
+    uid, patients, monitoring, logs, clinic_names = await _collect_export_data(
+        db_manager, user_id
+    )
 
     # Группируем логи по пациенту → врачу
     log_by_patient: dict[str, dict[str, list[dict]]] = {}
@@ -182,8 +186,6 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
                 "timestamp": _format_timestamp(entry["ts"]),
             }
         )
-
-    clinic_names = await db_manager.get_all_clinic_names()
 
     # Собираем структуру
     export_data: dict[str, Any] = {

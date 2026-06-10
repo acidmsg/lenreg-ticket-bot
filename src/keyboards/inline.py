@@ -1,27 +1,21 @@
-from datetime import datetime
-
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from dateutil.relativedelta import (
-    relativedelta,
-)
-from loguru import logger
 
 from src.config import settings
 from src.database.types import ClinicInfo
 from src.handlers.callbacks import (
-    AddPatient,
+    CB_ADD_PATIENT,
+    CB_BACK_TO_MAIN,
+    CB_CANCEL_REGISTRATION,
+    CB_SKIP_ALIAS,
+    CB_STOP_ALL,
     BackToCities,
     BackToClinics,
-    BackToMain,
-    CancelRegistration,
     CitySelect,
     ClinicSelect,
     DeletePatientAsk,
     DeletePatientConfirm,
     PatientSelect,
-    SkipAlias,
-    StopAllMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
     ToggleDoctor,
@@ -63,7 +57,7 @@ def get_patient_selection(patients: dict, monitoring: dict):
         builder.button(text=label, callback_data=PatientSelect(p_id=p_id).pack())
         builder.button(text="🗑", callback_data=DeletePatientAsk(p_id=p_id).pack())
 
-    builder.button(text=_("btn-add-patient"), callback_data=AddPatient().pack())
+    builder.button(text=_("btn-add-patient"), callback_data=CB_ADD_PATIENT)
 
     # Определяем, есть ли хоть один активный мониторинг
     has_active_monitoring = any(len(docs) > 0 for docs in monitoring.values())
@@ -71,7 +65,7 @@ def get_patient_selection(patients: dict, monitoring: dict):
     if has_active_monitoring:
         builder.button(
             text=_("btn-reset-all-monitoring"),
-            callback_data=StopAllMonitoring().pack(),
+            callback_data=CB_STOP_ALL,
         )
 
     adjustments = [2] * len(patients) + [1]
@@ -166,7 +160,7 @@ def get_doctor_selection(
         text=_("btn-back-to-clinics"),
         callback_data=BackToClinics(p_id=p_id, city_idx=city_idx).pack(),
     )
-    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
+    builder.button(text=_("btn-back-to-list"), callback_data=CB_BACK_TO_MAIN)
 
     # Кнопка сброса мониторинга этой клиники —
     # только если есть мониторинг в этой клинике
@@ -286,7 +280,7 @@ def get_city_selection(
         )
 
     # Навигация и сброс
-    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
+    builder.button(text=_("btn-back-to-list"), callback_data=CB_BACK_TO_MAIN)
     if has_patient_monitoring:
         builder.button(
             text=_("btn-reset-patient-monitoring"),
@@ -318,12 +312,7 @@ def get_clinic_selection(
     if clinic_names is None:
         clinic_names = {}
 
-    try:
-        bday = datetime.strptime(bday_str, "%Y-%m-%d")
-        age = relativedelta(datetime.now(), bday).years
-    except (ValueError, TypeError):
-        logger.exception("Не удалось распарсить дату рождения: {}", bday_str)
-        age = 18
+    patient_is_child = is_child(bday_str)
 
     p_monitoring = monitoring.get(p_id, {}) if monitoring else {}
 
@@ -337,9 +326,9 @@ def get_clinic_selection(
         clinic_type = clinic.get("type", "adult")
 
         # Фильтрация по возрасту
-        if clinic_type == "child" and age >= 18:
+        if clinic_type == "child" and not patient_is_child:
             continue
-        if clinic_type == "adult" and age < 18:
+        if clinic_type == "adult" and patient_is_child:
             continue
 
         # Фильтрация по городу
@@ -365,7 +354,7 @@ def get_clinic_selection(
         text=_("btn-back-to-cities"),
         callback_data=BackToCities(p_id=p_id).pack(),
     )
-    builder.button(text=_("btn-back-to-list"), callback_data=BackToMain().pack())
+    builder.button(text=_("btn-back-to-list"), callback_data=CB_BACK_TO_MAIN)
 
     # Кнопка сброса мониторинга этого пациента —
     # только если есть хоть один мониторинг у пациента
@@ -384,9 +373,9 @@ def get_clinic_selection(
 def get_registration_keyboard(step: str):
     builder = InlineKeyboardBuilder()
     if step == "alias":
-        builder.button(text=_("btn-skip"), callback_data=SkipAlias().pack())
+        builder.button(text=_("btn-skip"), callback_data=CB_SKIP_ALIAS)
     builder.button(
-        text=_("btn-cancel-registration"), callback_data=CancelRegistration().pack()
+        text=_("btn-cancel-registration"), callback_data=CB_CANCEL_REGISTRATION
     )
     builder.adjust(1)
     return builder.as_markup()

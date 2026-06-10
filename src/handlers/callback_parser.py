@@ -37,12 +37,25 @@ def _parse_callback_arg(parts: list[str], index: int, default: str = "all") -> s
     return default
 
 
-def cb_filter(cb_class: type[CallbackData]) -> Any:
-    """Создаёт экземпляр CallbackData-фильтра для магического фильтра aiogram.
+def cb_filter(cb_class: type[CallbackData] | str) -> Any:
+    """Создаёт фильтр для магического фильтра aiogram.
+
+    Поддерживает как типизированные CallbackData (с полями), так и строковые константы
+    префиксов (для callback'ов без полезной нагрузки).
 
     Использование:
-        @router.callback_query(PatientSelect.filter())
+        # Типизированный CallbackData с полями:
+        @router.callback_query(cb_filter(PatientSelect))
         async def handler(call: CallbackQuery, callback_data: PatientSelect):
             p_id = callback_data.p_id
+
+        # Строковая константа (без полей):
+        @router.callback_query(cb_filter(CB_BACK_TO_MAIN))
+        async def handler(call: CallbackQuery):
+            ...
     """
+    if isinstance(cb_class, str):
+        from aiogram import F
+
+        return F.data == cb_class
     return cb_class.filter()

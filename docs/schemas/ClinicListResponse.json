@@ -1,12 +1,5 @@
 {
   "$defs": {
-    "ApiError": {
-      "additionalProperties": true,
-      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
-      "properties": {},
-      "title": "ApiError",
-      "type": "object"
-    },
     "ClinicItem": {
       "description": "Одна клиника из списка.",
       "properties": {
@@ -45,7 +38,9 @@
       "type": "boolean"
     },
     "error": {
-      "$ref": "#/$defs/ApiError"
+      "additionalProperties": true,
+      "title": "Error",
+      "type": "object"
     }
   },
   "title": "ClinicListResponse",

@@ -9,27 +9,43 @@ API-эндпоинты для Telegram Mini App.
 """
 
 import datetime
-import json
 import logging
 from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
-from src.api.models import (
-    AppointmentListRequest,
-    AppointmentListResponse,
-)
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import PatientInfo
-from src.utils.cache import get_cache_key, swap_cache_key
+from src.utils.cache import get_cache_key
+from src.utils.helpers import safe_name
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/user", tags=["Mini App (JSON API)"])
+
+
+# ── Вспомогательные функции ──────────────────────────────────
+
+
+def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
+    """Сериализует словарь пациентов в список словарей для JSON-ответа."""
+    result: list[dict[str, Any]] = []
+    for p_id, p_info in patients.items():
+        entry: dict[str, Any] = {
+            "patient_id": p_id,
+            "fio": p_info.get("fio", ""),
+            "bday": p_info.get("bday", ""),
+        }
+        if "alias" in p_info:
+            entry["alias"] = p_info["alias"]
+        if "confirmed_clinics" in p_info:
+            entry["confirmed_clinics"] = p_info["confirmed_clinics"]
+        result.append(entry)
+    return result
 
 
 # ── Pydantic-модели для тел запросов ─────────────────────────
@@ -106,34 +122,6 @@ def _monitoring_id_to_parts(monitoring_id: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-# ── Вспомогательная: безопасное извлечение строки имени ────────
-
-
-def _safe_name(value: Any) -> str:
-    """Извлекает строковое имя врача из значения, которое может быть объектом.
-
-    Используется как fallback, если _coerce_str в models.py не сработал
-    (например, при чтении из БД старых данных, где name сохранён как dict).
-    """
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, dict):
-        # Пытаемся извлечь Name, name, или собрать из ФИО
-        name_value = value.get("Name") or value.get("name") or ""
-        if name_value and isinstance(name_value, str):
-            return name_value
-        parts = [
-            value.get(k, "")
-            for k in ("last_name", "first_name", "middle_name")
-            if value.get(k)
-        ]
-        if parts:
-            return " ".join(parts)
-    return str(value)
-
-
 # ── Эндпоинты ────────────────────────────────────────────────
 
 
@@ -145,18 +133,7 @@ async def get_profile(request: Request) -> dict[str, Any]:
 
     user_data = await db.get_user_data(telegram_id)
 
-    patients_list: list[dict[str, Any]] = []
-    for p_id, p_info in user_data.get("patients", {}).items():
-        patient_entry: dict[str, Any] = {
-            "patient_id": p_id,
-            "fio": p_info.get("fio", ""),
-            "bday": p_info.get("bday", ""),
-        }
-        if "alias" in p_info:
-            patient_entry["alias"] = p_info["alias"]
-        if "confirmed_clinics" in p_info:
-            patient_entry["confirmed_clinics"] = p_info["confirmed_clinics"]
-        patients_list.append(patient_entry)
+    patients_list = _serialize_patients(user_data.get("patients", {}))
 
     monitoring = user_data.get("monitoring", {})
     monitoring_count = sum(len(doctors) for doctors in monitoring.values())
@@ -234,7 +211,7 @@ async def get_doctors(
                     "patient_id": p_id,
                     "patient_name": patient_name,
                     "doctor_id": d_id,
-                    "doctor_name": _safe_name(d_info.get("name", "")),
+                    "doctor_name": safe_name(d_info.get("name", "")),
                     "specialty": d_info.get("specialty", ""),
                     "clinic_id": d_info.get("clinic_id", ""),
                     "clinic_name": clinic_name or "",
@@ -295,7 +272,7 @@ async def add_doctor(
                 for doc in doctors:
                     if str(doc.get("IdDoc", "")) == body.doctor_id:
                         if not body.doctor_name:
-                            doctor_name = _safe_name(doc.get("Name", doctor_name))
+                            doctor_name = safe_name(doc.get("Name", doctor_name))
                         if not body.specialty_name:
                             specialty_name = doc.get("SpesialityName", specialty_name)
                         break
@@ -559,7 +536,7 @@ async def get_available_doctors(
         doctors.append(
             {
                 "doctor_id": doc_id,
-                "name": _safe_name(doc_info.get("name", "")),
+                "name": safe_name(doc_info.get("name", "")),
                 "specialty_name": doc_specialty,
                 "specialty_id": specialty_id or "",
                 "free_tickets": slots.get("free_tickets", 0),
@@ -622,18 +599,7 @@ async def get_patients(request: Request) -> dict[str, Any]:
 
     user_data = await db.get_user_data(telegram_id)
 
-    patients_list: list[dict[str, Any]] = []
-    for p_id, p_info in user_data.get("patients", {}).items():
-        patient_entry: dict[str, Any] = {
-            "patient_id": p_id,
-            "fio": p_info.get("fio", ""),
-            "bday": p_info.get("bday", ""),
-        }
-        if "alias" in p_info:
-            patient_entry["alias"] = p_info["alias"]
-        if "confirmed_clinics" in p_info:
-            patient_entry["confirmed_clinics"] = p_info["confirmed_clinics"]
-        patients_list.append(patient_entry)
+    patients_list = _serialize_patients(user_data.get("patients", {}))
 
     return {"patients": patients_list}
 
@@ -903,9 +869,9 @@ async def force_check_doctor(
 ) -> dict[str, Any] | JSONResponse:
     """Принудительная проверка слотов врача (живой запрос к API zdrav.lenreg.ru).
 
-    Выполняет мгновенную проверку слотов отслеживаемого врача,
-    обновляет кэш мониторинга через ``swap_cache_key`` и возвращает
-    актуальный статус. Уведомления Telegram при этом НЕ отправляются.
+    Делегирует в сервисный слой :func:`src.services.monitor.force_check_single_doctor`,
+    который выполняет живой запрос, обновляет кэш и возвращает статус слотов.
+    Уведомления Telegram при этом НЕ отправляются.
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -915,193 +881,71 @@ async def force_check_doctor(
     try:
         p_id, d_id = _monitoring_id_to_parts(body.monitoring_id)
     except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": str(e)},
-        )
+        return JSONResponse(status_code=400, content={"detail": str(e)})
 
-    monitoring_id = body.monitoring_id
-
-    # 2. Получаем данные пользователя
+    # 2. Получаем данные пользователя и проверяем, что врач отслеживается
     user_data = await db.get_user_data(telegram_id)
-    if not user_data or not user_data.get("patients"):
-        return JSONResponse(
-            status_code=404,
-            content={"detail": "Пользователь не найден или не имеет пациентов."},
-        )
-
-    # 3. Проверяем, что врач отслеживается
     patient_doctors = user_data.get("monitoring", {}).get(p_id, {})
     if d_id not in patient_doctors:
         return JSONResponse(
             status_code=404,
             content={
                 "detail": (
-                    f"Врач с monitoring_id='{monitoring_id}' не найден в мониторинге."
+                    f"Врач с monitoring_id='{body.monitoring_id}' "
+                    f"не найден в мониторинге."
                 ),
             },
         )
 
     d_info = patient_doctors[d_id]
-    doctor_name = d_info.get("name", d_id)
-    clinic_id = d_info.get("clinic_id", "")
-    specialty = d_info.get("specialty", "")
+    p_info = cast(PatientInfo, user_data.get("patients", {}).get(p_id, {}))
 
-    # 4. Живой запрос к API zdrav.lenreg.ru (аналогично ZdravClient.check_slots,
-    #    но с сохранением сырой модели для кэша)
-    clinic_name = await db.get_clinic_name(clinic_id) or clinic_id
-
-    payload = AppointmentListRequest.model_validate(
-        {
-            "doctor_form-doctor_id": d_id,
-            "doctor_form-clinic_id": clinic_id,
-            "doctor_form-patient_id": p_id,
-            "doctor_form-history_id": "",
-            "doctor_form-appointment_type": "",
-        }
-    ).model_dump(by_alias=True)
-
-    raw_model: AppointmentListResponse | None = None
-    slots: list[dict[str, str]] = []
-
-    all_timeouts = True
+    # 3. Делегируем проверку в сервисный слой
+    from src.services.monitor import force_check_single_doctor
 
     try:
-        client = await api._get_client()
-        for attempt in range(3):
-            try:
-                res = await client.post(
-                    f"{api.base_url}/appointment_list/",
-                    data=payload,
-                    headers=api._get_headers(),
-                )
-                if res.status_code == 200:
-                    raw_model = api._validate_response(
-                        res.json(),
-                        AppointmentListResponse,
-                        "appointment_list",
-                        f"{api.base_url}/appointment_list/",
-                    )
-                    assert raw_model is not None, (
-                        "validate_response вернул None при status_code=200"
-                    )
-                    # Форматируем слоты из модели
-                    for date, items in raw_model.response.items():
-                        for s in items:
-                            t = s.date_start.time
-                            if t:
-                                slots.append(
-                                    {
-                                        "date": date,
-                                        "time": t,
-                                        "clinic_id": clinic_id,
-                                    }
-                                )
-                    # Сортируем по дате и времени
-                    slots.sort(key=lambda x: (x["date"], x["time"]))
-                    break
-                elif res.status_code in (403, 429):
-                    all_timeouts = False
-                    logger.warning(
-                        "Блокировка API (force_check): %s для monitoring_id=%s",
-                        res.status_code,
-                        monitoring_id,
-                    )
-                    return JSONResponse(
-                        status_code=502,
-                        content={
-                            "detail": "API zdrav.lenreg.ru временно недоступно "
-                            "(блокировка запроса)."
-                        },
-                    )
-                elif res.status_code >= 500:
-                    if attempt < 2:
-                        await _asleep(2)
-                    continue
-                else:
-                    all_timeouts = False
-                    logger.warning(
-                        "API вернул статус %s для monitoring_id=%s",
-                        res.status_code,
-                        monitoring_id,
-                    )
-                    if attempt < 2:
-                        await _asleep(2)
-            except httpx.TimeoutException:
-                logger.error(
-                    "Таймаут API (force_check), попытка %d для monitoring_id=%s",
-                    attempt + 1,
-                    monitoring_id,
-                )
-                if attempt < 2:
-                    await _asleep(2)
-            except httpx.NetworkError:
-                all_timeouts = False
-                logger.error(
-                    "Сетевая ошибка API (force_check), попытка %d для monitoring_id=%s",
-                    attempt + 1,
-                    monitoring_id,
-                )
-                if attempt < 2:
-                    await _asleep(2)
-            except (json.JSONDecodeError, ValidationError):
-                all_timeouts = False
-                logger.error(
-                    "Ошибка парсинга API (force_check), "
-                    "попытка %d для monitoring_id=%s",
-                    attempt + 1,
-                    monitoring_id,
-                )
-                if attempt < 2:
-                    await _asleep(2)
-            except Exception:
-                all_timeouts = False
-                logger.exception(
-                    "Неожиданная ошибка API (force_check) для monitoring_id=%s",
-                    monitoring_id,
-                )
-                if attempt < 2:
-                    await _asleep(2)
-
-        # Если после всех попыток нет модели — ошибка API
-        if raw_model is None:
-            if all_timeouts:
-                return JSONResponse(
-                    status_code=504,
-                    content={"detail": "Таймаут при запросе к API zdrav.lenreg.ru."},
-                )
-            else:
-                return JSONResponse(
-                    status_code=502,
-                    content={"detail": "API zdrav.lenreg.ru недоступно."},
-                )
-
+        slots_raw, _cache_key = await force_check_single_doctor(
+            api=api,
+            uid=telegram_id,
+            p_id=p_id,
+            d_id=d_id,
+            d_info=d_info,
+            p_info=p_info,
+            db=db,
+        )
     except Exception:
         logger.exception(
-            "Критическая ошибка при запросе к API для monitoring_id=%s",
-            monitoring_id,
+            "Ошибка при проверке слотов для monitoring_id=%s", body.monitoring_id
         )
         return JSONResponse(
             status_code=502,
             content={"detail": "API zdrav.lenreg.ru недоступно."},
         )
 
-    # 5. Обновляем кэш мониторинга
-    cache_key = f"{telegram_id}:{p_id}:{d_id}"
-    try:
-        cache_value = raw_model.model_dump(mode="json")
-        await swap_cache_key(cache_key, cache_value)
-    except Exception:
-        logger.exception("Ошибка обновления кэша для cache_key=%s", cache_key)
-        # Не фейлим весь запрос из-за ошибки кэша
+    # 4. Форматируем ответ
+    doctor_name = d_info.get("name", d_id)
+    clinic_id = d_info.get("clinic_id", "")
+    specialty = d_info.get("specialty", "")
+    clinic_name = await db.get_clinic_name(clinic_id) or clinic_id
 
-    # 6. Формируем ответ
+    slots: list[dict[str, str]] = []
+    if slots_raw:
+        for slot_str in slots_raw:
+            parts = slot_str.split(" в ", 1)
+            slots.append(
+                {
+                    "date": parts[0].strip() if parts else slot_str,
+                    "time": parts[1].strip() if len(parts) > 1 else "",
+                    "clinic_id": clinic_id,
+                }
+            )
+
     total = len(slots)
     now_iso = datetime.datetime.now(datetime.UTC).isoformat()
 
     return {
         "status": "ok",
-        "monitoring_id": monitoring_id,
+        "monitoring_id": body.monitoring_id,
         "doctor_name": doctor_name,
         "specialty": specialty,
         "clinic_name": clinic_name,
@@ -1110,10 +954,3 @@ async def force_check_doctor(
         "slots": slots,
         "checked_at": now_iso,
     }
-
-
-async def _asleep(seconds: float) -> None:
-    """Обёртка над asyncio.sleep для использования в модуле."""
-    import asyncio
-
-    await asyncio.sleep(seconds)

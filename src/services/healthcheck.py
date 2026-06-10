@@ -95,29 +95,19 @@ class HealthMetrics:
 
 # Глобальный экземпляр метрик
 metrics = HealthMetrics()
-_metrics_lock = asyncio.Lock()  # только для групповых операций (множество полей)
-
-# Per-metric locks для изоляции одиночных операций над разными метриками
-_metrics_locks: dict[str, asyncio.Lock] = {}
+_metrics_lock = asyncio.Lock()
 
 
-def _get_lock(attr: str) -> asyncio.Lock:
-    """Возвращает per-metric lock (lazy initialization)."""
-    if attr not in _metrics_locks:
-        _metrics_locks[attr] = asyncio.Lock()
-    return _metrics_locks[attr]
-
-
-async def _safe_increment(attr: str, delta: int = 1) -> None:
-    """Атомарный инкремент поля metrics (per-metric lock)."""
-    async with _get_lock(attr):
+async def safe_increment(attr: str, delta: int = 1) -> None:
+    """Атомарный инкремент поля metrics (под _metrics_lock)."""
+    async with _metrics_lock:
         current = getattr(metrics, attr, 0)
         setattr(metrics, attr, current + delta)
 
 
-async def _safe_set(attr: str, value) -> None:
-    """Атомарная установка поля metrics (per-metric lock)."""
-    async with _get_lock(attr):
+async def safe_set(attr: str, value) -> None:
+    """Атомарная установка поля metrics (под _metrics_lock)."""
+    async with _metrics_lock:
         setattr(metrics, attr, value)
 
 
@@ -130,7 +120,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
     2. Фиксирует бинарный результат: доступен / недоступен
     3. Логирует состояние
     """
-    await _safe_set("healthcheck_loop_alive", True)
+    await safe_set("healthcheck_loop_alive", True)
     logger.info("Healthcheck-цикл запущен")
 
     while True:
@@ -146,18 +136,18 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 )
                 if specialties is not None:
                     ok = True
-                    await _safe_increment("api_success_total")
-                    await _safe_increment("api_checks_total")
+                    await safe_increment("api_success_total")
+                    await safe_increment("api_checks_total")
                 else:
-                    await _safe_increment("api_checks_total")
-                    await _safe_increment("api_errors_total")
-                    await _safe_set("last_api_error_time", time.time())
-                    await _safe_set("last_api_error_message", "API вернул None")
+                    await safe_increment("api_checks_total")
+                    await safe_increment("api_errors_total")
+                    await safe_set("last_api_error_time", time.time())
+                    await safe_set("last_api_error_message", "API вернул None")
             except Exception as e:
-                await _safe_increment("api_checks_total")
-                await _safe_increment("api_errors_total")
-                await _safe_set("last_api_error_time", time.time())
-                await _safe_set("last_api_error_message", str(e)[:200])
+                await safe_increment("api_checks_total")
+                await safe_increment("api_errors_total")
+                await safe_set("last_api_error_time", time.time())
+                await safe_set("last_api_error_message", str(e)[:200])
                 logger.error(f"Healthcheck: ошибка API: {e}")
 
             # Атомарно фиксируем снапшот
@@ -169,67 +159,35 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 uptime = metrics.uptime_str()
                 api_health = metrics.api_health_str()
 
-            total_users = len(db.data)
-            total_monitored_doctors = sum(
-                len(
-                    set(
-                        d_id
-                        for doctors in u_info.get("monitoring", {}).values()
-                        for d_id in doctors
-                    )
-                )
-                for u_info in db.data.values()
-            )
-            total_patients = sum(
-                len(u_info.get("patients", {})) for u_info in db.data.values()
-            )
+            stats = db.get_user_statistics()
 
             # Логируем состояние
             logger.info(
                 f"Healthcheck | "
                 f"Uptime: {uptime} | "
                 f"API: {api_health} | "
-                f"Users: {total_users} | "
-                f"Patients: {total_patients} | "
-                f"Monitored: {total_monitored_doctors}"
+                f"Users: {stats['total_users']} | "
+                f"Patients: {stats['total_patients']} | "
+                f"Monitored: {stats['total_monitored_doctors']}"
             )
 
             # Пауза до следующего цикла
             await asyncio.sleep(settings.CHECK_INTERVAL)
 
         except asyncio.CancelledError:
-            await _safe_set("healthcheck_loop_alive", False)
+            await safe_set("healthcheck_loop_alive", False)
             logger.info("Healthcheck-цикл остановлен (cancelled)")
             break
         except Exception as e:
-            await _safe_set("last_error_time", time.time())
-            await _safe_set("last_error_message", f"Healthcheck error: {e}")
+            await safe_set("last_error_time", time.time())
+            await safe_set("last_error_message", f"Healthcheck error: {e}")
             logger.error(f"Ошибка в healthcheck-цикле: {e}", exc_info=True)
             await asyncio.sleep(60)
 
 
 async def format_status_report(db: DatabaseManager) -> str:
     """Форматирует отчёт о состоянии бота для команды /status."""
-    total_users = len(db.data)
-    total_patients = sum(len(u_info.get("patients", {})) for u_info in db.data.values())
-    total_monitored_doctors = sum(
-        len(
-            set(
-                d_id
-                for doctors in u_info.get("monitoring", {}).values()
-                for d_id in doctors
-            )
-        )
-        for u_info in db.data.values()
-    )
-
-    # Считаем количество активных мониторингов (врачей с возможными номерками)
-    active_monitorings = sum(
-        1
-        for u_info in db.data.values()
-        for p_id, doctors in u_info.get("monitoring", {}).items()
-        if doctors
-    )
+    stats = db.get_user_statistics()
 
     # Читаем метрики под локом — атомарный снапшот
     async with _metrics_lock:
@@ -248,10 +206,10 @@ async def format_status_report(db: DatabaseManager) -> str:
         "———",
         _("status-uptime").format(uptime=uptime),
         "",
-        _("status-users").format(n=total_users),
-        _("status-patients").format(n=total_patients),
-        _("status-monitored").format(n=active_monitorings),
-        _("status-doctors-monitored").format(n=total_monitored_doctors),
+        _("status-users").format(n=stats["total_users"]),
+        _("status-patients").format(n=stats["total_patients"]),
+        _("status-monitored").format(n=stats["active_monitorings"]),
+        _("status-doctors-monitored").format(n=stats["total_monitored_doctors"]),
         "",
         _("status-api-header"),
         f"{api_health}",

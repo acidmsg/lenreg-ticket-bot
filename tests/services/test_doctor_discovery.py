@@ -55,6 +55,8 @@ class TestFetchSpecialties:
             "LastDate": None,
             "NearestDate": None,
             "CountFreeParticipantIE": 0,
+            "IsDoc": False,
+            "IsTech": False,
         }
         assert result[1].model_dump(by_alias=True) == {
             "IdSpesiality": "2",
@@ -64,6 +66,8 @@ class TestFetchSpecialties:
             "LastDate": None,
             "NearestDate": None,
             "CountFreeParticipantIE": 0,
+            "IsDoc": False,
+            "IsTech": False,
         }
         api.fetch_speciality_list.assert_called_once_with("p123", "272", limiter=None)
 

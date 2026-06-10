@@ -1,12 +1,5 @@
 {
   "$defs": {
-    "ApiError": {
-      "additionalProperties": true,
-      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
-      "properties": {},
-      "title": "ApiError",
-      "type": "object"
-    },
     "AppointmentSlot": {
       "description": "Один слот в списке записи.",
       "properties": {
@@ -93,7 +86,9 @@
       "title": "Success"
     },
     "error": {
-      "$ref": "#/$defs/ApiError"
+      "additionalProperties": true,
+      "title": "Error",
+      "type": "object"
     }
   },
   "title": "AppointmentListResponse",

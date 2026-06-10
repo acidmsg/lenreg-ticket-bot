@@ -10,45 +10,20 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from src.database.types import UserData
 from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
 
 router = APIRouter()
 
 
-def _count_active_monitorings(db_data: dict[str, UserData]) -> int:
-    """Считает количество активных мониторингов."""
-    return sum(
-        1
-        for u_info in db_data.values()
-        for p_id, doctors in u_info.get("monitoring", {}).items()
-        if doctors
-    )
-
-
-def _count_total_monitored_doctors(db_data: dict[str, UserData]) -> int:
-    """Считает количество отслеживаемых врачей."""
-    return sum(
-        len(
-            set(
-                d_id
-                for doctors in u_info.get("monitoring", {}).values()
-                for d_id in doctors
-            )
-        )
-        for u_info in db_data.values()
-    )
-
-
 @router.get("/dashboard/summary")
 async def api_summary(request: Request) -> dict[str, Any]:
     """JSON-сводка состояния системы."""
     db = request.app.state.db
-    db_data = db.data
 
     stats = await db.get_total_stats()
-    active_monitorings = _count_active_monitorings(db_data)
+    user_stats = db.get_user_statistics()
+    active_monitorings = user_stats["active_monitorings"]
     recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)
 
     async with _metrics_lock:

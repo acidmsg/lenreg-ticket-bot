@@ -1,7 +1,6 @@
 import asyncio
 import random
 import time
-from pathlib import Path
 
 from aiogram import Bot
 from loguru import logger
@@ -13,43 +12,14 @@ from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
 from src.handlers.common import _send_or_update_message
 from src.i18n import _
-from src.services.healthcheck import _safe_set
-from src.utils.cache import swap_cache_key
+from src.services.healthcheck import safe_set
+from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
     format_notification_text,
     format_slots,
     shorten_fio,
     shorten_specialty,
 )
-
-
-async def _send_notification(
-    bot: Bot,
-    uid: str,
-    text: str,
-    db: DatabaseManager,
-    p_id: str,
-    d_id: str,
-    photo_path: Path | None = None,
-) -> None:
-    """Отправляет уведомление пользователю.
-
-    При наличии photo_path использует send_photo (изображение + caption),
-    иначе — обычное send_message. Старое сообщение предварительно удаляется
-    для эффекта «приклеивания».
-    """
-    try:
-        await _send_or_update_message(
-            bot,
-            int(uid),
-            db,
-            p_id,
-            d_id,
-            text,
-            photo_path=photo_path,
-        )
-    except Exception as e:
-        logger.error(f"Ошибка отправки уведомления: {e}")
 
 
 def _handle_disappeared(
@@ -162,7 +132,7 @@ async def _check_single_doctor(
     p_info: PatientInfo,
     empty_counts_lock: asyncio.Lock,
     empty_counts: dict[str, int],
-    bot: Bot,
+    bot: Bot | None,
     db: DatabaseManager,
     *,
     initial_sync: bool = False,
@@ -173,6 +143,7 @@ async def _check_single_doctor(
     Семафор ограничивает количество одновременных HTTP-запросов к API.
 
     При ``initial_sync=True`` уведомления подавляются — кэш только заполняется.
+    При ``bot=None`` уведомления не отправляются (используется из REST API).
     """
     # Jitter вне семафора — распределяем старты запросов во времени,
     # не занимая слоты семафора ожиданием
@@ -333,8 +304,21 @@ async def _check_single_doctor(
             link,
         )
 
-    photo_path = get_notify_image_path(notify_type)
-    await _send_notification(bot, uid, msg, db, p_id, d_id, photo_path=photo_path)
+    # Отправка уведомления только если передан bot (из REST API bot=None)
+    if bot is not None:
+        photo_path = get_notify_image_path(notify_type)
+        try:
+            await _send_or_update_message(
+                bot,
+                int(uid),
+                db,
+                p_id,
+                d_id,
+                msg,
+                photo_path=photo_path,
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отправки уведомления: {e}")
 
 
 async def monitor_loop(
@@ -355,7 +339,7 @@ async def monitor_loop(
             уведомлений.  Используется для подавления ложных уведомлений
             после перезапуска бота.
     """
-    await _safe_set("monitor_loop_alive", True)
+    await safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
 
     empty_counts: dict[str, int] = {}
@@ -438,3 +422,53 @@ async def monitor_loop(
                 )
                 _initial_sync = False
             await asyncio.sleep(60)
+
+
+async def force_check_single_doctor(
+    api: ZdravClient,
+    uid: str,
+    p_id: str,
+    d_id: str,
+    d_info: MonitoringEntry | str,
+    p_info: PatientInfo,
+    db: DatabaseManager,
+) -> tuple[list[str] | None, str]:
+    """Принудительная проверка слотов одного врача без отправки уведомлений.
+
+    Использует :func:`_check_single_doctor` с ``initial_sync=True`` —
+    выполняет живой запрос к API, обновляет кэш мониторинга и пишет лог,
+    но НЕ отправляет Telegram-уведомления.
+
+    Используется REST API ``POST /api/user/doctors/check`` для мгновенной
+    проверки слотов по запросу пользователя.
+
+    Returns:
+        (slots, cache_key) — сырые слоты (list[str] или None при ошибке)
+        и ключ кэша для последующего чтения статуса.
+    """
+    semaphore = asyncio.Semaphore(1)
+    empty_counts: dict[str, int] = {}
+    empty_counts_lock = asyncio.Lock()
+
+    await _check_single_doctor(
+        semaphore=semaphore,
+        api=api,
+        uid=uid,
+        p_id=p_id,
+        d_id=d_id,
+        d_info=d_info,
+        p_info=p_info,
+        empty_counts_lock=empty_counts_lock,
+        empty_counts=empty_counts,
+        bot=None,  # Без уведомлений
+        db=db,
+        initial_sync=True,
+    )
+
+    cache_key = f"{uid}_{p_id}_{d_id}"
+    cached = await get_cache_key(cache_key)
+
+    # Приводим к list[str] | None
+    if isinstance(cached, list):
+        return cached, cache_key
+    return None, cache_key

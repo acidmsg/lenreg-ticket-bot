@@ -164,22 +164,10 @@ class PrometheusMetrics:
             # Длительность healthcheck
             self._healthcheck_duration.set(health_metrics.last_check_duration)
 
-        # Активные пользователи (из БД)
-        total_users = len(db.data)
-        self._active_users.set(float(total_users))
-
-        # Отслеживаемые врачи (из БД)
-        total_monitored = sum(
-            len(
-                set(
-                    d_id
-                    for doctors in u_info.get("monitoring", {}).values()
-                    for d_id in doctors
-                )
-            )
-            for u_info in db.data.values()
-        )
-        self._monitored_doctors.set(float(total_monitored))
+        # Активные пользователи и отслеживаемые врачи (из БД)
+        stats = db.get_user_statistics()
+        self._active_users.set(float(stats["total_users"]))
+        self._monitored_doctors.set(float(stats["total_monitored_doctors"]))
 
         # Статус Redis
         redis = await RedisClient.get_instance()

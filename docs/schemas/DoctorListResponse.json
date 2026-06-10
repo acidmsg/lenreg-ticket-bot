@@ -1,12 +1,5 @@
 {
   "$defs": {
-    "ApiError": {
-      "additionalProperties": true,
-      "description": "Объект ошибки (пока не документирован, оставляем гибким).",
-      "properties": {},
-      "title": "ApiError",
-      "type": "object"
-    },
     "DateInfo": {
       "description": "Вложенный объект даты (LastDate, NearestDate, date_start, date_end).",
       "properties": {
@@ -131,7 +124,9 @@
       "type": "boolean"
     },
     "error": {
-      "$ref": "#/$defs/ApiError"
+      "additionalProperties": true,
+      "title": "Error",
+      "type": "object"
     }
   },
   "title": "DoctorListResponse",

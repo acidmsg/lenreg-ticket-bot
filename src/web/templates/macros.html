@@ -1,0 +1,13 @@
+{# Общие макросы для шаблонов дашборда. #} {% macro status_badge(status) -%} {% if status ==
+'появился' or status == 'увеличилось' %}
+<span class="badge badge-ok">{{ status }}</span>
+{% elif status == 'исчез' or status == 'уменьшилось' %}
+<span class="badge badge-warn">{{ status }}</span>
+{% else %}
+<span class="badge">{{ status }}</span>
+{% endif %} {%- endmacro %} {% macro background_task_row(name, alive) -%}
+<tr>
+  <td>{{ name }}</td>
+  <td>{% if alive %}✅ alive{% else %}❌ dead{% endif %}</td>
+</tr>
+{%- endmacro %}

@@ -1,13 +1,12 @@
 """
-Tests for services/monitor.py — full cycle monitor_loop + _send_notification
+Tests for services/monitor.py — full cycle monitor_loop + _send_or_update_message
 with mocked API, Bot, and DatabaseManager.
 """
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from aiogram.exceptions import TelegramAPIError
-from src.services.monitor import _send_notification, monitor_loop
+from src.services.monitor import monitor_loop
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,84 +68,6 @@ def _make_user_data(
     }
 
 
-# ── _send_notification ───────────────────────────────────────────────────────
-
-
-class TestSendNotification:
-    """Tests for _send_notification function."""
-
-    async def test_sends_new_message_no_previous(self):
-        """Sends a new message when there is no previous message_id."""
-        bot = _make_mock_bot()
-        db = _make_mock_db()
-        db.get_last_message_id.return_value = None
-
-        sent_msg = MagicMock()
-        sent_msg.message_id = 555
-        bot.send_message.return_value = sent_msg
-
-        await _send_notification(bot, "123", "Hello!", db, "p1", "d1")
-
-        bot.delete_message.assert_not_called()
-        # uid преобразуется в int при вызове _send_or_update_message
-        bot.send_message.assert_called_once_with(
-            123, "Hello!", parse_mode="Markdown", reply_markup=None
-        )
-        db.set_last_message_id.assert_called_once_with("123", "p1", "d1", 555)
-
-    async def test_deletes_previous_message_and_sends_new(self):
-        """Deletes previous message before sending a new one."""
-        bot = _make_mock_bot()
-        db = _make_mock_db()
-        db.get_last_message_id.return_value = 100
-
-        sent_msg = MagicMock()
-        sent_msg.message_id = 200
-        bot.send_message.return_value = sent_msg
-
-        await _send_notification(bot, "123", "Updated!", db, "p1", "d1")
-
-        bot.delete_message.assert_called_once_with(123, 100)
-        bot.send_message.assert_called_once_with(
-            123, "Updated!", parse_mode="Markdown", reply_markup=None
-        )
-        db.set_last_message_id.assert_called_once_with("123", "p1", "d1", 200)
-
-    async def test_handles_delete_message_exception_gracefully(self):
-        """If delete_message raises, send_message still proceeds."""
-        bot = _make_mock_bot()
-        bot.delete_message.side_effect = TelegramAPIError(
-            method=MagicMock(), message="Message not found"
-        )
-        db = _make_mock_db()
-        db.get_last_message_id.return_value = 999
-
-        sent_msg = MagicMock()
-        sent_msg.message_id = 300
-        bot.send_message.return_value = sent_msg
-
-        # Should not raise
-        await _send_notification(bot, "123", "Msg", db, "p1", "d1")
-
-        bot.delete_message.assert_called_once_with(123, 999)
-        bot.send_message.assert_called_once_with(
-            123, "Msg", parse_mode="Markdown", reply_markup=None
-        )
-
-    async def test_handles_send_message_exception_gracefully(self):
-        """If send_message raises, no crash and no set_last_message_id."""
-        bot = _make_mock_bot()
-        bot.send_message.side_effect = Exception("Telegram API error")
-        db = _make_mock_db()
-        db.get_last_message_id.return_value = None
-
-        # Should not raise
-        await _send_notification(bot, "123", "Msg", db, "p1", "d1")
-
-        bot.send_message.assert_called_once()
-        db.set_last_message_id.assert_not_called()
-
-
 # ── monitor_loop ─────────────────────────────────────────────────────────────
 
 
@@ -204,13 +125,18 @@ class TestMonitorLoop:
         swap_mock = AsyncMock(return_value=swap_cache_return)
         monkeypatch.setattr("src.services.monitor.swap_cache_key", swap_mock)
 
-        # Mock _safe_set (imported at module top in src.services.monitor)
+        # Mock safe_set (imported from healthcheck in src.services.monitor)
         safe_set_mock = AsyncMock()
-        monkeypatch.setattr("src.services.monitor._safe_set", safe_set_mock)
+        monkeypatch.setattr("src.services.monitor.safe_set", safe_set_mock)
 
-        # Mock _send_notification (same module) to avoid real bot calls
+        # Mock get_notify_image_path to avoid filesystem access in tests
+        monkeypatch.setattr(
+            "src.services.monitor.get_notify_image_path", lambda nt: None
+        )
+
+        # Mock _send_or_update_message (imported from common) to avoid real bot calls
         notify_mock = AsyncMock()
-        monkeypatch.setattr("src.services.monitor._send_notification", notify_mock)
+        monkeypatch.setattr("src.services.monitor._send_or_update_message", notify_mock)
 
         return bot, api, db, swap_mock, safe_set_mock, notify_mock
 
@@ -246,11 +172,11 @@ class TestMonitorLoop:
         notify_mock.assert_called_once()
         call_args = notify_mock.call_args[0]
         assert call_args[0] is bot
-        assert call_args[1] == "123"
-        assert "Появились свободные номерки" in call_args[2]
-        assert call_args[3] is db
-        assert call_args[4] == "p1"
-        assert call_args[5] == "d1"
+        assert call_args[1] == 123  # int(uid)
+        assert call_args[2] is db
+        assert call_args[3] == "p1"
+        assert call_args[4] == "d1"
+        assert "Появились свободные номерки" in call_args[5]
 
     async def test_monitors_doctor_slots_disappeared(self, monkeypatch):
         """Slots disappear (was a list, now empty) → notification sent."""
@@ -274,7 +200,7 @@ class TestMonitorLoop:
 
         notify_mock.assert_called_once()
         call_args = notify_mock.call_args[0]
-        assert "Номерков в данный момент нет" in call_args[2]
+        assert "Номерков в данный момент нет" in call_args[5]
 
     async def test_monitors_doctor_no_change(self, monkeypatch):
         """Slots unchanged → no notification sent."""
@@ -406,7 +332,7 @@ class TestMonitorLoop:
     async def test_multiple_doctors_all_checked(self, monkeypatch):
         """All monitored doctors across patients are checked."""
         user_data = {
-            "u1": {
+            "1": {
                 "patients": {
                     "p1": {"fio": "Пациент 1", "clinic_id": "272"},
                     "p2": {"fio": "Пациент 2", "clinic_id": "271"},
@@ -436,14 +362,14 @@ class TestMonitorLoop:
             }
         }
 
-        # sleep_raises_on_call=5: 3 per-doctor + 1 jitter = 4, raise on 5th
+        # sleep_raises_on_call=4: 3 per-doctor jitter + raise on 4th (outer sleep)
         bot, api, db, _swap_mock, _safe_set_mock, notify_mock = (
             self._setup_monitor_mocks(
                 monkeypatch,
                 user_data,
                 check_slots_return=["2026-05-15 в 10:00"],
                 swap_cache_return=None,
-                sleep_raises_on_call=5,
+                sleep_raises_on_call=4,
             )
         )
 
@@ -457,7 +383,7 @@ class TestMonitorLoop:
     async def test_legacy_string_doctor_info(self, monkeypatch):
         """Doctor info stored as plain string (not dict) still works."""
         user_data = {
-            "u1": {
+            "1": {
                 "patients": {"p1": {"fio": "Пациент", "clinic_id": "272"}},
                 "monitoring": {"p1": {"d1": "Иванов Иван Иванович"}},
                 "last_messages": {},
@@ -470,6 +396,7 @@ class TestMonitorLoop:
                 user_data,
                 check_slots_return=["2026-05-15 в 10:00"],
                 swap_cache_return=None,
+                sleep_raises_on_call=2,
             )
         )
 
@@ -495,8 +422,8 @@ class TestMonitorLoop:
         await monitor_loop(bot, api, db, initial_sync=False)
 
         call_args = notify_mock.call_args[0]
-        assert "Петя" in call_args[2]
-        assert "Петров Пётр Петрович" not in call_args[2]
+        assert "Петя" in call_args[5]
+        assert "Петров Пётр Петрович" not in call_args[5]
 
     # ── Generic exception in loop body ───────────────────────────────────
 
@@ -532,9 +459,12 @@ class TestMonitorLoop:
         swap_mock = AsyncMock(return_value=None)
         monkeypatch.setattr("src.services.monitor.swap_cache_key", swap_mock)
         safe_set_mock = AsyncMock()
-        monkeypatch.setattr("src.services.healthcheck._safe_set", safe_set_mock)
+        monkeypatch.setattr("src.services.healthcheck.safe_set", safe_set_mock)
         notify_mock = AsyncMock()
-        monkeypatch.setattr("src.services.monitor._send_notification", notify_mock)
+        monkeypatch.setattr("src.services.monitor._send_or_update_message", notify_mock)
+        monkeypatch.setattr(
+            "src.services.monitor.get_notify_image_path", lambda nt: None
+        )
 
         # Should complete without raising
         await monitor_loop(bot, api, db)
@@ -564,8 +494,8 @@ class TestMonitorLoop:
 
         notify_mock.assert_called_once()
         call_args = notify_mock.call_args[0]
-        assert "🆕" in call_args[2]
-        assert "11:00" in call_args[2]
+        assert "🆕" in call_args[5]
+        assert "11:00" in call_args[5]
 
     # ── Initial sync suppression ──────────────────────────────────────────
 
