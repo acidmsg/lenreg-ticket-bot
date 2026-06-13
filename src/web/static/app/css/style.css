@@ -1,41 +1,109 @@
 /*
- * Mini App — стили с CSS-переменными Telegram
- * Мобильный-first, адаптивная вёрстка, тёмная тема
+ * Mini App — дизайн-система «Здрав.ЛенРег»
+ * Мобильный-first, адаптивная вёрстка, тёмная/светлая темы
+ * Токены: docs/design/design-system.md
  */
 
-/* === CSS-переменные Telegram (значения по умолчанию) === */
+/* === Дизайн-токены: типографика, отступы, размеры, радиусы, анимации === */
 :root {
-  --tg-bg-color: #0a0a10;
-  --tg-secondary-bg-color: #12121c;
-  --tg-text-color: #e0e8f8;
-  --tg-hint-color: #89b;
-  --tg-button-color: #09b653;
-  --tg-button-text-color: #0a0a10;
-  --tg-destructive-color: #ea336f;
-  --tg-section-header-color: #09b653;
-  --tg-subtitle-color: #89b;
-  --tg-link-color: #09b653;
+  /* ===== Типографика ===== */
+  --font-family:
+    -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue",
+    arial, sans-serif;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 22px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.6;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
 
-  /* Расширенные переменные */
-  --card-radius: 12px;
-  --card-shadow: 0 2px 8px rgb(0 0 0 / 30%);
-  --card-padding: 16px;
-  --gap-xs: 4px;
-  --gap-sm: 8px;
-  --gap-md: 12px;
-  --gap-lg: 16px;
-  --gap-xl: 20px;
-  --gap-2xl: 40px;
-  --font-sm: 13px;
-  --font-md: 15px;
-  --font-lg: 17px;
-  --font-xl: 20px;
+  /* ===== Отступы ===== */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 40px;
+  --space-5xl: 48px;
 
-  /* Статусные цвета */
+  /* ===== Размеры ===== */
+  --size-control-sm: 36px;
+  --size-control-md: 44px;
+  --size-control-lg: 52px;
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+  --size-fab: 56px;
+  --size-dot: 8px;
+  --size-stepper-dot: 24px;
+  --size-chip: 32px;
+
+  /* ===== Радиусы ===== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ===== Анимации ===== */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+}
+
+/* === Тёмная тема «Неоновая плазма» (по умолчанию) === */
+:root,
+[data-theme="dark"] {
+  --color-bg-primary: #0a0a10;
+  --color-bg-secondary: #12121c;
+  --color-text-primary: #e0e8f8;
+  --color-text-secondary: #89b;
+  --color-accent: #09b653;
+  --color-accent-text: #0a0a10;
+  --color-accent-hover: #07a048;
+  --color-danger: #ea336f;
+  --color-danger-text: #fff;
+  --color-border: rgb(255 255 255 / 8%);
+  --color-border-strong: rgb(255 255 255 / 14%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-md: 0 2px 8px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 4px 16px rgb(0 0 0 / 40%);
   --status-available: #09b653;
   --status-noslots: #ea336f;
   --status-checking: #555acf;
-  --status-unknown: #879;
+  --status-unknown: #789;
+}
+
+/* === Светлая тема «Медицинская чистота» === */
+[data-theme="light"] {
+  --color-bg-primary: #f4f6f9;
+  --color-bg-secondary: #fff;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-accent: #3b82f6;
+  --color-accent-text: #fff;
+  --color-accent-hover: #2563eb;
+  --color-danger: #ef4444;
+  --color-danger-text: #fff;
+  --color-border: rgb(0 0 0 / 8%);
+  --color-border-strong: rgb(0 0 0 / 14%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-md: 0 1px 3px rgb(0 0 0 / 6%);
+  --shadow-lg: 0 4px 12px rgb(0 0 0 / 10%);
+  --status-available: #22c55e;
+  --status-noslots: #ef4444;
+  --status-checking: #3b82f6;
+  --status-unknown: #94a3b8;
 }
 
 /* === Сброс и базовые стили === */
@@ -56,12 +124,10 @@ html {
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-  background-color: var(--tg-bg-color);
-  color: var(--tg-text-color);
-  line-height: 1.4;
+  font-family: var(--font-family);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -90,9 +156,9 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  padding: var(--gap-md) var(--card-padding);
-  background-color: var(--tg-secondary-bg-color);
-  border-bottom: 1px solid rgb(0 0 0 / 8%);
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -107,12 +173,12 @@ body {
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--tg-button-color);
+  color: var(--color-accent);
   cursor: pointer;
   font-size: 18px;
-  margin-right: var(--gap-md);
+  margin-right: var(--space-md);
   flex-shrink: 0;
-  transition: background-color 0.15s;
+  transition: background-color var(--transition-fast);
 }
 
 .app-header__back:active {
@@ -120,8 +186,8 @@ body {
 }
 
 .app-header__title {
-  font-size: var(--font-lg);
-  font-weight: 600;
+  font-size: var(--font-xl);
+  font-weight: var(--font-weight-semibold);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -129,8 +195,8 @@ body {
 }
 
 .app-header__user {
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -141,20 +207,20 @@ body {
   min-height: 0;
   overflow-y: auto;
   width: 100%;
-  padding: var(--gap-lg) var(--card-padding);
+  padding: var(--space-lg) var(--space-lg);
   padding-bottom: 80px; /* Отступ для FAB */
 }
 
 /* === Карточки === */
 .card {
-  background-color: var(--tg-secondary-bg-color);
-  border-radius: var(--card-radius);
-  padding: var(--card-padding);
-  margin-bottom: var(--gap-md);
-  box-shadow: var(--card-shadow);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-md);
   transition:
-    transform 0.1s,
-    box-shadow 0.1s;
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .card:active {
@@ -170,21 +236,21 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--gap-md);
-  margin-bottom: var(--gap-sm);
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
 }
 
 .card__title {
-  font-size: var(--font-md);
-  font-weight: 600;
-  color: var(--tg-text-color);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   flex: 1;
 }
 
 .card__subtitle {
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
-  margin-bottom: var(--gap-xs);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
 }
 
 /* Lucide inline icons — вертикальное выравнивание */
@@ -250,14 +316,14 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  font-size: var(--font-sm);
-  color: var(--tg-subtitle-color);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
 }
 
 .card__actions {
   display: flex;
-  gap: var(--gap-sm);
-  margin-top: var(--gap-md);
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
   flex-wrap: wrap;
 }
 
@@ -265,9 +331,9 @@ body {
 .status {
   display: inline-flex;
   align-items: center;
-  gap: var(--gap-xs);
-  font-size: var(--font-sm);
-  font-weight: 500;
+  gap: var(--space-xs);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
 }
 
@@ -280,16 +346,16 @@ body {
 }
 
 .status--checking {
-  color: var(--tg-text-color);
+  color: var(--color-text-primary);
 }
 
 .status--checking .status__label {
-  font-weight: 400;
+  font-weight: var(--font-weight-normal);
 }
 
 .status__dot {
-  width: 8px;
-  height: 8px;
+  width: var(--size-dot);
+  height: var(--size-dot);
   border-radius: 50%;
   display: inline-block;
 }
@@ -315,18 +381,18 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-sm) var(--gap-xl);
-  border-radius: 10px;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-xl);
+  border-radius: var(--radius-lg);
   border: none;
-  font-size: var(--font-md);
-  font-weight: 500;
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
-    opacity 0.15s,
-    transform 0.1s;
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
   white-space: nowrap;
-  min-height: 44px;
+  height: var(--size-control-md);
 }
 
 .btn:active {
@@ -335,26 +401,26 @@ body {
 }
 
 .btn--primary {
-  background-color: var(--tg-button-color);
-  color: var(--tg-button-text-color);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .btn--secondary {
-  background-color: var(--tg-secondary-bg-color);
-  color: var(--tg-button-color);
-  border: 1px solid var(--tg-button-color);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
 }
 
 .btn--danger {
   background-color: transparent;
-  color: var(--tg-destructive-color);
-  border: 1px solid var(--tg-destructive-color);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
 }
 
 .btn--text {
   background-color: transparent;
-  color: var(--tg-button-color);
-  padding: var(--gap-sm) var(--gap-md);
+  color: var(--color-accent);
+  padding: var(--space-sm) var(--space-md);
 }
 
 .btn--block {
@@ -362,9 +428,9 @@ body {
 }
 
 .btn--sm {
-  padding: 6px var(--gap-md);
-  font-size: var(--font-sm);
-  min-height: 36px;
+  padding: 6px var(--space-md);
+  font-size: var(--font-xs);
+  height: var(--size-control-sm);
 }
 
 .btn:disabled {
@@ -376,28 +442,28 @@ body {
 /* === FAB (floating action button) === */
 .fab {
   position: fixed;
-  bottom: var(--gap-xl);
+  bottom: var(--space-xl);
   left: 50%;
   transform: translateX(-50%);
-  background-color: var(--tg-button-color);
-  color: var(--tg-button-text-color);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+  box-shadow: var(--shadow-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--gap-xs);
+  gap: var(--space-xs);
   z-index: 20;
   transition:
-    transform 0.15s,
-    box-shadow 0.15s;
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
   width: calc(100% - 40px);
   max-width: 440px;
-  border-radius: 14px;
-  height: 48px;
-  font-size: var(--font-md);
-  font-weight: 500;
+  border-radius: var(--radius-full);
+  height: var(--size-control-lg);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .fab:active {
@@ -407,11 +473,11 @@ body {
 /* === Группа кнопок внизу экрана (пациенты + FAB) === */
 .fab-group {
   position: fixed;
-  bottom: var(--gap-xl);
+  bottom: var(--space-xl);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: var(--gap-sm);
+  gap: var(--space-sm);
   align-items: flex-end;
   z-index: 20;
   width: calc(100% - 40px);
@@ -438,30 +504,30 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--tg-secondary-bg-color) 25%,
+    var(--color-bg-secondary) 25%,
     rgb(128 128 128 / 12%) 50%,
-    var(--tg-secondary-bg-color) 75%
+    var(--color-bg-secondary) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .skeleton--card {
   height: 120px;
-  margin-bottom: var(--gap-md);
-  border-radius: var(--card-radius);
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-lg);
 }
 
 .skeleton--text {
   height: 16px;
-  margin-bottom: var(--gap-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .skeleton--title {
   height: 20px;
   width: 60%;
-  margin-bottom: var(--gap-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .skeleton--chip {
@@ -494,25 +560,25 @@ body {
 /* === Пиксельные точки индикатора stepper === */
 
 .stepper__dot {
-  width: 8px;
-  height: 8px;
+  width: var(--size-dot);
+  height: var(--size-dot);
   border-radius: 50%;
-  background: var(--tg-hint-color);
+  background: var(--color-text-secondary);
   opacity: 0.3;
-  transition: all 0.3s;
+  transition: all var(--transition-slow);
 }
 
 .stepper__dot--done {
-  background: var(--tg-link-color);
+  background: var(--color-accent);
   opacity: 0.6;
 }
 
 .stepper__dot--current {
   width: 12px;
   height: 12px;
-  background: var(--tg-button-color);
+  background: var(--color-accent);
   opacity: 1;
-  box-shadow: 0 0 8px var(--tg-button-color);
+  box-shadow: 0 0 8px var(--color-accent);
   animation: dot-pulse 2s ease-in-out infinite;
 }
 
@@ -523,13 +589,13 @@ body {
 @keyframes dot-pulse {
   0%,
   100% {
-    box-shadow: 0 0 4px var(--tg-button-color);
+    box-shadow: 0 0 4px var(--color-accent);
   }
 
   50% {
     box-shadow:
-      0 0 14px var(--tg-button-color),
-      0 0 20px var(--tg-button-color);
+      0 0 14px var(--color-accent),
+      0 0 20px var(--color-accent);
   }
 }
 
@@ -540,25 +606,23 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--gap-2xl) var(--gap-xl);
+  padding: var(--space-4xl) var(--space-xl);
   flex: 1;
 }
 
 .empty-state__icon {
   font-size: 48px;
-  margin-bottom: var(--gap-lg);
+  margin-bottom: var(--space-lg);
   opacity: 0.6;
 }
 
 .empty-state__text {
-  font-size: var(--font-md);
-  color: var(--tg-hint-color);
-  margin-bottom: var(--gap-lg);
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-lg);
   max-width: 280px;
   line-height: 1.5;
 }
-
-/* === Выделенный элемент списка === */
 
 /* === Сообщение об ошибке === */
 .error-state {
@@ -567,13 +631,13 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--gap-2xl) var(--gap-xl);
+  padding: var(--space-4xl) var(--space-xl);
 }
 
 .error-state__text {
-  font-size: var(--font-md);
-  color: var(--tg-destructive-color);
-  margin-bottom: var(--gap-lg);
+  font-size: var(--font-sm);
+  color: var(--color-danger);
+  margin-bottom: var(--space-lg);
 }
 
 /* === Списки === */
@@ -582,13 +646,13 @@ body {
 }
 
 .list__item {
-  padding: var(--gap-md) var(--card-padding);
-  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--transition-fast);
   display: flex;
   align-items: center;
-  gap: var(--gap-md);
+  gap: var(--space-md);
 }
 
 .list__item:last-child {
@@ -605,21 +669,21 @@ body {
 }
 
 .list__item-title {
-  font-size: var(--font-md);
-  font-weight: 500;
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .list__item-subtitle {
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
   margin-top: 2px;
 }
 
 .list__item-arrow {
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   font-size: 14px;
   flex-shrink: 0;
 }
@@ -630,11 +694,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--card-padding);
-  background: var(--tg-secondary-bg-color);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
-  margin-bottom: var(--gap-sm);
+  padding: var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-sm);
 }
 
 .patient-card__info {
@@ -651,11 +715,11 @@ body {
   padding: 4px;
   border: none;
   background: transparent;
-  color: var(--tg-destructive-color);
+  color: var(--color-danger);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
-  margin-left: var(--gap-sm);
+  margin-left: var(--space-sm);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -670,61 +734,62 @@ body {
 /* === Выделенный элемент списка === */
 .list__item--selected,
 .stepper-item--selected {
-  background-color: var(--tg-button-color);
-  color: var(--tg-button-text-color);
-  border-radius: 8px;
-  outline: 2px solid var(--tg-button-color);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border-radius: var(--radius-md);
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
   transition:
-    background-color 0.2s,
-    outline-color 0.2s;
+    background-color var(--transition-normal),
+    outline-color var(--transition-normal);
 }
 
 .list__item--selected .list__item-arrow,
 .stepper-item--selected .list__item-arrow {
-  color: var(--tg-button-text-color);
+  color: var(--color-accent-text);
 }
 
 .list__item--selected .list__item-title,
 .stepper-item--selected .list__item-title {
-  color: var(--tg-button-text-color);
+  color: var(--color-accent-text);
 }
 
 .list__item--selected .list__item-subtitle,
 .stepper-item--selected .list__item-subtitle {
-  color: var(--tg-button-text-color);
+  color: var(--color-accent-text);
   opacity: 0.7;
 }
 
 /* === Слоты (группировка по датам) === */
 .slot-group {
-  margin-bottom: var(--gap-lg);
+  margin-bottom: var(--space-lg);
 }
 
 .slot-group__date {
-  font-size: var(--font-md);
-  font-weight: 600;
-  color: var(--tg-section-header-color);
-  margin-bottom: var(--gap-sm);
-  padding-left: var(--gap-xs);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+  margin-bottom: var(--space-sm);
+  padding-left: var(--space-xs);
 }
 
 .slot-group__times {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--gap-sm);
+  gap: var(--space-sm);
 }
 
 .slot-chip {
   display: inline-flex;
   align-items: center;
-  padding: var(--gap-sm) var(--gap-md);
-  background-color: var(--tg-secondary-bg-color);
-  border-radius: 8px;
-  font-size: var(--font-md);
-  font-weight: 500;
-  color: var(--tg-text-color);
-  border: 1px solid rgb(0 0 0 / 8%);
+  padding: 0 var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  height: var(--size-chip);
 }
 
 /* === Stepper (пошаговый выбор) === */
@@ -740,43 +805,43 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--gap-md);
-  padding: var(--gap-sm) 0;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
   flex-shrink: 0;
   width: 100%;
 }
 
 .stepper__step-counter {
   text-align: center;
-  margin-bottom: var(--gap-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .stepper__step-badge {
   display: inline-block;
-  font-size: var(--font-sm);
-  font-weight: 500;
-  color: var(--tg-button-color);
-  background-color: var(--tg-secondary-bg-color);
-  padding: var(--gap-xs) var(--gap-md);
-  border-radius: 12px;
-  border: 1px solid rgb(0 0 0 / 8%);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-accent);
+  background-color: var(--color-bg-secondary);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
 }
 
 .stepper__title {
   font-size: var(--font-xl);
-  font-weight: 600;
-  margin-bottom: var(--gap-xs);
-  padding: 0 var(--card-padding);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-xs);
+  padding: 0 var(--space-lg);
 }
 
 .stepper__description {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
-  margin-bottom: var(--gap-lg);
-  padding: 0 var(--card-padding);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-lg);
+  padding: 0 var(--space-lg);
 }
 
 .stepper__content {
@@ -784,18 +849,18 @@ body {
   min-height: 0;
   overflow-y: auto;
   width: 100%;
-  padding: 0 var(--card-padding);
-  padding-bottom: var(--gap-lg);
+  padding: 0 var(--space-lg);
+  padding-bottom: var(--space-lg);
 }
 
 .stepper__actions {
   display: flex;
-  gap: var(--gap-md);
+  gap: var(--space-md);
   flex-shrink: 0;
   width: 100%;
-  padding: var(--gap-md) var(--gap-lg);
-  border-top: 1px solid rgb(0 0 0 / 8%);
-  background-color: var(--tg-bg-color);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg-primary);
   z-index: 10;
 }
 
@@ -811,20 +876,20 @@ body {
 /* Кнопка «Выбрать поликлинику» под полем поиска */
 .stepper__alt-action {
   text-align: center;
-  padding: var(--gap-sm) 0;
+  padding: var(--space-sm) 0;
 }
 
 .stepper__clinic-btn {
   font-size: 13px;
   padding: 6px 14px;
   justify-content: center;
-  margin-top: var(--gap-sm);
+  margin-top: var(--space-sm);
 }
 
 /* === Поиск/фильтрация === */
 .search-bar {
-  padding: var(--gap-sm) var(--card-padding);
-  margin-bottom: var(--gap-md);
+  padding: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-md);
 }
 
 .search-bar__wrapper {
@@ -836,40 +901,40 @@ body {
 
 .search-bar__input {
   width: 100%;
-  padding: var(--gap-sm) var(--gap-md);
+  padding: var(--space-sm) var(--space-md);
   padding-right: 40px;
-  border-radius: 10px;
-  border: 1px solid rgb(0 0 0 / 12%);
-  background-color: var(--tg-secondary-bg-color);
-  color: var(--tg-text-color);
-  font-size: var(--font-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-normal);
 }
 
 .form__input {
   width: 100%;
   padding: 10px 14px;
-  background: var(--tg-secondary-bg-color);
-  border: 1px solid rgb(0 0 0 / 12%);
-  border-radius: 10px;
-  color: var(--tg-text-color);
-  font-size: var(--font-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-normal);
   box-sizing: border-box;
 }
 
 .form__input:focus {
-  border-color: var(--tg-button-color);
+  border-color: var(--color-accent);
 }
 
 .form__label {
   display: block;
-  font-size: var(--font-md);
-  font-weight: 500;
-  color: var(--tg-text-color);
-  margin-bottom: var(--gap-xs);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
 }
 
 /* === Форма добавления пациента === */
@@ -877,7 +942,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: var(--gap-sm) var(--card-padding) var(--gap-lg) var(--card-padding);
+  padding: var(--space-sm) var(--space-lg) var(--space-lg) var(--space-lg);
   overflow-y: auto;
 }
 
@@ -894,39 +959,39 @@ body {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   cursor: pointer;
   padding: 0;
 }
 
 .search-bar__clear:hover {
-  background: var(--tg-secondary-bg-color);
-  color: var(--tg-text-color);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .search-bar__input:focus {
-  border-color: var(--tg-button-color);
+  border-color: var(--color-accent);
 }
 
 .search-bar__input::placeholder {
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
 }
 
 /* === Инлайн-подсказка в stepper === */
 .stepper-hint {
-  background: var(--tg-secondary-bg-color);
-  border: 1px solid var(--tg-hint-color);
-  border-radius: 10px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--radius-lg);
   padding: 8px 10px;
   max-width: 320px;
-  margin: 0 auto var(--gap-sm) auto;
+  margin: 0 auto var(--space-sm) auto;
   animation: hint-fade-in 0.4s ease-out;
 }
 
 .stepper-hint__text {
-  font-size: 12px;
-  color: var(--tg-hint-color);
-  line-height: 1.4;
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
 }
 
 @keyframes hint-fade-in {
@@ -946,14 +1011,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--gap-2xl) 0;
+  padding: var(--space-4xl) 0;
 }
 
 .spinner__icon {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--tg-secondary-bg-color);
-  border-top-color: var(--tg-button-color);
+  border: 3px solid var(--color-bg-secondary);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -977,8 +1042,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--gap-2xl) 0;
-  color: var(--tg-hint-color);
+  padding: var(--space-4xl) 0;
+  color: var(--color-text-secondary);
   width: 50%;
   margin: 0 auto;
 }
@@ -993,20 +1058,20 @@ body {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--tg-theme-hint-color, #999);
+  color: var(--color-text-secondary);
   font-size: 18px;
   cursor: pointer;
   border-radius: 50%;
   transition:
-    background 0.2s,
-    color 0.2s;
+    background var(--transition-normal),
+    color var(--transition-normal);
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
 .btn--refresh:hover {
-  background: var(--tg-theme-secondary-bg-color, #f0f0f0);
-  color: var(--tg-theme-text-color, #333);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .btn--refresh--loading {
@@ -1019,7 +1084,7 @@ body {
 .card__header-actions {
   display: flex;
   align-items: center;
-  gap: var(--gap-sm);
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 
@@ -1030,12 +1095,12 @@ body {
 
 .confirm-card {
   text-align: center;
-  padding: var(--gap-lg) 0;
+  padding: var(--space-lg) 0;
 }
 
 .confirm-card__icon {
   font-size: 56px;
-  margin-bottom: var(--gap-lg);
+  margin-bottom: var(--space-lg);
 }
 
 .confirm-card__details {
@@ -1049,20 +1114,20 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  background: var(--tg-secondary-bg-color);
+  background: var(--color-bg-secondary);
   padding: 6px 10px;
-  border-radius: 8px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
   font-size: 13px;
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   margin-bottom: 2px;
 }
 
 /* Значение подтверждения — без фона, заметнее на фоне подзаголовка */
 .confirm-value {
   padding: 4px 10px 12px;
-  font-size: 15px;
-  color: var(--tg-text-color);
+  font-size: var(--font-sm);
+  color: var(--color-text-primary);
 }
 
 /* === Блокированная карточка врача (уже отслеживается) === */
@@ -1078,18 +1143,18 @@ body {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: var(--tg-secondary-bg-color);
-  color: var(--tg-text-color);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   padding: 10px 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   font-size: 14px;
   z-index: 1000;
   opacity: 0;
   transition:
-    opacity 0.3s,
-    transform 0.3s;
+    opacity var(--transition-slow),
+    transform var(--transition-slow);
   pointer-events: none;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+  box-shadow: var(--shadow-lg);
 }
 
 .stepper-toast--visible {
@@ -1110,23 +1175,23 @@ body {
 
 .outside-telegram__icon {
   font-size: 64px;
-  margin-bottom: var(--gap-lg);
+  margin-bottom: var(--space-lg);
 }
 
 .outside-telegram__text {
-  font-size: var(--font-md);
-  color: var(--tg-hint-color);
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
   max-width: 280px;
-  line-height: 1.5;
+  line-height: var(--line-height-relaxed);
 }
 
 /* === Пациенты в карточке мониторинга === */
 .monitoring-patients {
   list-style: none;
-  margin: 0 0 var(--gap-sm);
-  padding: 0 0 var(--gap-sm);
-  border-top: 1px solid rgb(0 0 0 / 6%);
-  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  margin: 0 0 var(--space-sm);
+  padding: 0 0 var(--space-sm);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 /* На главном экране (карточка врача) — без левых отступов */
@@ -1143,24 +1208,24 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: var(--font-sm);
-  font-weight: 500;
-  color: var(--tg-hint-color);
-  margin-bottom: var(--gap-xs);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
 }
 
 /* === Пациенты на экране слотов === */
 .slots-patients {
-  margin-bottom: var(--gap-lg);
+  margin-bottom: var(--space-lg);
 }
 
 .slots-patients .monitoring-patients__title {
-  margin-bottom: var(--gap-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .monitoring-patient {
-  font-size: var(--font-sm);
-  color: var(--tg-text-color);
+  font-size: var(--font-xs);
+  color: var(--color-text-primary);
   padding: 2px 0;
   display: flex;
   align-items: center;
@@ -1171,8 +1236,8 @@ body {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  font-size: var(--font-sm);
-  color: var(--tg-hint-color);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
 }
 
 .monitoring-patient__name {
@@ -1181,7 +1246,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
 }
 
 .monitoring-patient__delete {
@@ -1192,24 +1257,24 @@ body {
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   font-size: 13px;
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
   opacity: 0.5;
   transition:
-    color 0.15s,
-    background-color 0.15s,
-    opacity 0.15s;
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    opacity var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
   outline: none;
 }
 
 .monitoring-patient__delete:hover {
-  color: var(--tg-destructive-color);
+  color: var(--color-danger);
   background: rgb(255 59 48 / 10%);
   opacity: 1;
 }
@@ -1221,8 +1286,8 @@ body {
   gap: 6px;
   padding: 8px 12px;
   margin-top: 8px;
-  border-radius: 6px;
-  font-size: var(--font-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
 }
 
 .card__footer--slots {
@@ -1239,115 +1304,61 @@ body {
 }
 
 .mt-md {
-  margin-top: var(--gap-md);
+  margin-top: var(--space-md);
 }
 
 .mb-md {
-  margin-bottom: var(--gap-md);
+  margin-bottom: var(--space-md);
 }
 
 .hidden {
   display: none !important;
 }
 
-/* === Тёмная тема — палитра «Неоновая плазма» (форсированная) === */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --tg-bg-color: #0a0a10 !important;
-    --tg-secondary-bg-color: #12121c !important;
-    --tg-text-color: #e0e8f8 !important;
-    --tg-hint-color: #89b !important;
-    --tg-button-color: #09b653 !important;
-    --tg-button-text-color: #0a0a10 !important;
-    --tg-destructive-color: #ea336f !important;
-    --tg-section-header-color: #09b653 !important;
-    --tg-subtitle-color: #89b !important;
-    --tg-link-color: #09b653 !important;
-    --card-shadow: 0 2px 8px rgb(0 0 0 / 40%);
-  }
-
-  .list__item {
-    border-bottom-color: rgb(9 182 83 / 8%);
-  }
-
-  .list__item:active {
-    background-color: rgb(9 182 83 / 6%);
-  }
-
-  .stepper__actions {
-    border-top-color: rgb(9 182 83 / 10%);
-  }
-
-  .slot-chip {
-    border-color: rgb(9 182 83 / 12%);
-  }
-
-  .search-bar__input {
-    border-color: rgb(9 182 83 / 12%);
-  }
-
-  .app-header {
-    border-bottom-color: rgb(9 182 83 / 10%);
-  }
-
-  .stepper__step-badge {
-    border-color: rgb(144 202 249 / 12%);
-  }
-
-  .monitoring-patients {
-    border-top-color: rgb(144 202 249 / 8%);
-    border-bottom-color: rgb(144 202 249 / 8%);
-  }
-
-  .monitoring-patient__delete {
-    color: rgb(144 202 249 / 25%);
-  }
-}
-
 /* === Vanilla Calendar Pro — адаптация под тему мини-приложения === */
 .vanilla-calendar,
 [data-calendar-theme="dark"].vanilla-calendar {
-  background-color: var(--tg-secondary-bg-color);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   font-family: inherit;
   z-index: 100;
 }
 
 [data-calendar-theme="dark"] .vanilla-calendar-day__btn {
-  background-color: var(--tg-secondary-bg-color);
+  background-color: var(--color-bg-secondary);
 }
 
 .vanilla-calendar-header {
-  color: var(--tg-text-color);
+  color: var(--color-text-primary);
 }
 
 .vanilla-calendar-month,
 .vanilla-calendar-year {
-  color: var(--tg-text-color);
-  font-size: var(--font-lg);
-  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-semibold);
 }
 
 .vanilla-calendar-arrow {
-  color: var(--tg-text-color);
+  color: var(--color-text-primary);
 }
 
 .vanilla-calendar-arrow:hover {
-  color: var(--tg-button-color);
+  color: var(--color-accent);
 }
 
 .vanilla-calendar-weekday {
-  color: var(--tg-hint-color);
-  font-size: var(--font-md);
-  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .vanilla-calendar-day__btn {
-  color: var(--tg-text-color);
-  border-radius: 8px;
-  font-size: var(--font-md);
-  font-weight: 500;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
   border: 1px solid transparent;
   min-width: 38px;
   min-height: 38px;
@@ -1358,13 +1369,13 @@ body {
 }
 
 .vanilla-calendar-day__btn_today {
-  border-color: var(--tg-button-color);
+  border-color: var(--color-accent);
 }
 
 .vanilla-calendar-day__btn_selected {
-  background: var(--tg-button-color);
-  color: var(--tg-button-text-color);
-  font-weight: 600;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .vanilla-calendar-day__btn_prev,
@@ -1374,6 +1385,30 @@ body {
 }
 
 .vanilla-calendar-day__btn:disabled {
-  color: var(--tg-hint-color);
+  color: var(--color-text-secondary);
   opacity: 0.35;
+}
+
+/* === Fallback: prefers-color-scheme для браузеров вне Telegram === */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg-primary: #f4f6f9;
+    --color-bg-secondary: #fff;
+    --color-text-primary: #1e293b;
+    --color-text-secondary: #64748b;
+    --color-accent: #3b82f6;
+    --color-accent-text: #fff;
+    --color-accent-hover: #2563eb;
+    --color-danger: #ef4444;
+    --color-danger-text: #fff;
+    --color-border: rgb(0 0 0 / 8%);
+    --color-border-strong: rgb(0 0 0 / 14%);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
+    --shadow-md: 0 1px 3px rgb(0 0 0 / 6%);
+    --shadow-lg: 0 4px 12px rgb(0 0 0 / 10%);
+    --status-available: #22c55e;
+    --status-noslots: #ef4444;
+    --status-checking: #3b82f6;
+    --status-unknown: #94a3b8;
+  }
 }

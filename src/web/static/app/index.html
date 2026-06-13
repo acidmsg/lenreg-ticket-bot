@@ -12,6 +12,20 @@
     <link rel="stylesheet" href="/static/app/vendor/vanilla-calendar.min.css" />
     <link rel="stylesheet" href="css/style.css?v=3" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      (function () {
+        function applyTheme(scheme) {
+          document.documentElement.dataset.theme = scheme || 'dark';
+        }
+        // Telegram Mini App
+        if (window.Telegram && window.Telegram.WebApp) {
+          applyTheme(window.Telegram.WebApp.colorScheme);
+          window.Telegram.WebApp.onEvent('themeChanged', function () {
+            applyTheme(window.Telegram.WebApp.colorScheme);
+          });
+        }
+      })();
+    </script>
     <script src="/static/app/vendor/vanilla-calendar.min.js"></script>
   </head>
   <body>

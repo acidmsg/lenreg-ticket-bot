@@ -1,0 +1,664 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Размеры элементов — Дизайн-система мини-приложения «ЗдравЛенРег»
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Базовые токены размеров ─────────────────────────────────────────────── */
+:root {
+  /* Высоты контролов */
+  --size-control-sm: 36px;
+  --size-control-md: 44px;
+  --size-control-lg: 52px;
+
+  /* Иконки */
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+
+  /* Специфичные */
+  --size-fab: 56px;
+  --size-dot: 8px;
+  --size-stepper-dot: 24px;
+  --size-chip: 32px;
+
+  /* Типографика */
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 22px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.6;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
+  --font-family-system:
+    -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue",
+    arial, sans-serif;
+  --font-family-mono:
+    "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", consolas,
+    monospace;
+}
+
+/* ── Тёмная тема ────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg-primary: #0a0a10;
+  --color-bg-secondary: #12121c;
+  --color-text-primary: #e0e8f8;
+  --color-text-secondary: #89b;
+  --color-accent: #09b653;
+  --color-accent-text: #0a0a10;
+  --color-danger: #ea336f;
+  --color-border: rgb(255 255 255 / 8%);
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 30%);
+
+  /* Специфичные цвета для sizes */
+  --color-dot-available: #09b653;
+  --color-dot-no-slots: #ea336f;
+  --color-dot-checking: #6366f1;
+  --color-stepper-done: #09b653;
+  --color-stepper-current: #6366f1;
+  --color-stepper-pending: rgb(255 255 255 / 12%);
+  --color-chip-bg: rgb(255 255 255 / 6%);
+  --color-chip-text: #e0e8f8;
+  --color-chip-accent-bg: rgb(9 182 83 / 15%);
+  --color-chip-accent-text: #09b653;
+}
+
+/* ── Светлая тема ───────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-bg-primary: #f4f6f9;
+  --color-bg-secondary: #fff;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-accent: #3b82f6;
+  --color-accent-text: #fff;
+  --color-danger: #ef4444;
+  --color-border: rgb(0 0 0 / 8%);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 6%);
+
+  /* Специфичные цвета для sizes */
+  --color-dot-available: #22c55e;
+  --color-dot-no-slots: #ef4444;
+  --color-dot-checking: #6366f1;
+  --color-stepper-done: #22c55e;
+  --color-stepper-current: #6366f1;
+  --color-stepper-pending: rgb(0 0 0 / 8%);
+  --color-chip-bg: rgb(0 0 0 / 4%);
+  --color-chip-text: #1e293b;
+  --color-chip-accent-bg: rgb(59 130 246 / 12%);
+  --color-chip-accent-text: #3b82f6;
+}
+
+/* ── Сброс и базовые стили ──────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family-system);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+}
+
+body {
+  min-height: 100vh;
+  padding: 48px 24px 64px;
+}
+
+/* ── Шапка страницы ─────────────────────────────────────────────────────── */
+.page-header {
+  max-width: 900px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.page-header h1 {
+  font-size: 36px;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.page-subtitle {
+  font-size: var(--font-md);
+  color: var(--color-text-secondary);
+  margin-bottom: 24px;
+}
+
+/* ── Переключатель темы ─────────────────────────────────────────────────── */
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.theme-label {
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  margin-right: 4px;
+}
+
+.theme-btn {
+  padding: 6px 16px;
+  font-family: var(--font-family-system);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.theme-btn[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+/* ── Основной контент ───────────────────────────────────────────────────── */
+.page-content {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ── Секция ─────────────────────────────────────────────────────────────── */
+.spec-section {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 32px;
+}
+
+.section-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Общие утилиты для подписей ─────────────────────────────────────────── */
+.token-caption {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+  text-align: center;
+}
+
+.token-caption code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 1. Control Heights ─────────────────────────────────────────────────── */
+.controls-row {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  min-width: 120px;
+}
+
+.control-label {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.control-label code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+.control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family-system);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: default;
+  white-space: nowrap;
+  padding: 0 20px;
+}
+
+.control-btn-sm {
+  height: var(--size-control-sm);
+  font-size: var(--font-sm);
+  min-width: 80px;
+}
+
+.control-btn-md {
+  height: var(--size-control-md);
+  font-size: var(--font-md);
+  min-width: 110px;
+}
+
+.control-btn-lg {
+  height: var(--size-control-lg);
+  font-size: var(--font-lg);
+  min-width: 140px;
+}
+
+.control-input {
+  font-family: var(--font-family-system);
+  font-size: var(--font-md);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 14px;
+  outline: none;
+  width: 160px;
+}
+
+.control-input-sm {
+  height: var(--size-control-sm);
+  font-size: var(--font-sm);
+}
+
+.control-input-md {
+  height: var(--size-control-md);
+}
+
+.control-input-lg {
+  height: var(--size-control-lg);
+  font-size: var(--font-lg);
+}
+
+/* ── 2. Icon Sizes ──────────────────────────────────────────────────────── */
+.icons-row {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.icon-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.icon-btn-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  background: var(--color-accent);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.icon-btn-wrapper svg {
+  flex-shrink: 0;
+}
+
+.icon-standalone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+}
+
+.icon-size-value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.icon-size-value code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 3. FAB ─────────────────────────────────────────────────────────────── */
+.fab-context {
+  position: relative;
+  height: 200px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.fab-context::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      var(--color-border) 39px,
+      var(--color-border) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      var(--color-border) 39px,
+      var(--color-border) 40px
+    );
+  opacity: 0.3;
+}
+
+.fab {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: var(--size-fab);
+  height: var(--size-fab);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  cursor: default;
+  z-index: 1;
+}
+
+.fab svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.fab-label {
+  position: absolute;
+  right: 24px;
+  bottom: 8px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  z-index: 1;
+}
+
+.fab-label code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 4. Status Dot ──────────────────────────────────────────────────────── */
+.dots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dot {
+  width: var(--size-dot);
+  height: var(--size-dot);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-available {
+  background: var(--color-dot-available);
+}
+
+.dot-no-slots {
+  background: var(--color-dot-no-slots);
+}
+
+.dot-checking {
+  background: var(--color-dot-checking);
+}
+
+.dot-label {
+  font-size: var(--font-md);
+  color: var(--color-text-primary);
+}
+
+.dot-meta {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-left: auto;
+}
+
+.dot-meta code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 5. Stepper Dot ─────────────────────────────────────────────────────── */
+.stepper-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stepper-dot {
+  width: var(--size-stepper-dot);
+  height: var(--size-stepper-dot);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-semibold);
+  transition: all 0.2s ease;
+}
+
+.stepper-done {
+  background: var(--color-stepper-done);
+  color: #fff;
+}
+
+.stepper-current {
+  background: var(--color-stepper-current);
+  color: #fff;
+}
+
+.stepper-pending {
+  background: var(--color-stepper-pending);
+  color: var(--color-text-secondary);
+  border: 2px solid var(--color-border);
+}
+
+.stepper-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper-demo-label {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.stepper-demo-label code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 6. Slot Chip ───────────────────────────────────────────────────────── */
+.chips-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-chip);
+  padding: 0 14px;
+  font-family: var(--font-family-system);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-chip-text);
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.chip-accent {
+  background: var(--color-chip-accent-bg);
+  color: var(--color-chip-accent-text);
+  border-color: var(--color-chip-accent-bg);
+}
+
+.chip-meta {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-top: 12px;
+}
+
+.chip-meta code {
+  font-family: inherit;
+  color: var(--color-accent);
+  background: transparent;
+  padding: 0;
+}
+
+/* ── 7. Combined Card ───────────────────────────────────────────────────── */
+.combined-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  max-width: 420px;
+}
+
+.combined-card-header {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.combined-card-subtitle {
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+}
+
+.combined-card-slots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.combined-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-control-md);
+  padding: 0 24px;
+  font-family: var(--font-family-system);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: default;
+}
+
+/* ── Адаптив ────────────────────────────────────────────────────────────── */
+@media (width <= 600px) {
+  body {
+    padding: 24px 16px 48px;
+  }
+
+  .spec-section {
+    padding: 20px 16px;
+  }
+
+  .page-header h1 {
+    font-size: 28px;
+  }
+
+  .controls-row {
+    gap: 20px;
+  }
+
+  .control-input {
+    width: 130px;
+  }
+
+  .fab-context {
+    height: 160px;
+  }
+}
