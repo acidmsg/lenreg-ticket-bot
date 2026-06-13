@@ -127,13 +127,44 @@ export function renderPatientAddForm(container) {
     });
     calendar.init();
 
-    // Маска ввода даты: форматирует набор цифр как ДД.ММ.ГГГГ
+    // Умная маска ввода даты с посегментной валидацией цифр.
+    // Блокирует недопустимые символы на уровне ввода:
+    //   день: первая цифра 0-3, если 3 — вторая 0-1 (макс 31)
+    //   месяц: первая цифра 0-1, если 1 — вторая 0-2 (макс 12)
+    //   год: любые 4 цифры (итоговая проверка ≤ текущий год — в validateBday)
     bdayInput.addEventListener('input', () => {
-      const digits = bdayInput.value.replace(/\D/g, '').slice(0, 8);
+      const raw = bdayInput.value.replace(/\D/g, '');
+      let digits = '';
+
+      for (let i = 0; i < Math.min(raw.length, 8); i++) {
+        const ch = raw[i];
+        const d = parseInt(ch, 10);
+
+        if (i === 0) {
+          // Первая цифра дня: только 0-3
+          if (d < 0 || d > 3) break;
+        } else if (i === 1) {
+          // Вторая цифра дня: если первая = 3 → только 0-1; иначе 0-9
+          const d1 = parseInt(digits[0], 10);
+          if (d1 === 3 && d > 1) break;
+        } else if (i === 2) {
+          // Первая цифра месяца: только 0-1
+          if (d < 0 || d > 1) break;
+        } else if (i === 3) {
+          // Вторая цифра месяца: если первая = 1 → только 0-2; иначе 0-9
+          const m1 = parseInt(digits[2], 10);
+          if (m1 === 1 && d > 2) break;
+        }
+        // Для года (позиции 4-7) — любая цифра, ограничение в validateBday
+
+        digits += ch;
+      }
+
       let formatted = '';
       if (digits.length > 0) formatted += digits.slice(0, 2);
       if (digits.length > 2) formatted += '.' + digits.slice(2, 4);
       if (digits.length > 4) formatted += '.' + digits.slice(4, 8);
+
       if (bdayInput.value !== formatted) {
         bdayInput.value = formatted;
       }
@@ -192,6 +223,31 @@ export function renderPatientAddForm(container) {
         error: 'Дата рождения должна быть в формате ДД.ММ.ГГГГ'
       };
     }
+
+    const [d, m, y] = trimmed.split('.').map(Number);
+
+    // Проверка месяца
+    if (m < 1 || m > 12) {
+      return { valid: false, error: 'Некорректный месяц (01–12)' };
+    }
+
+    // Проверка дня с учётом реального календаря (високосные годы, разная длина месяцев)
+    const daysInMonth = new Date(y, m, 0).getDate();
+    if (d < 1 || d > daysInMonth) {
+      return {
+        valid: false,
+        error: `Некорректный день для выбранного месяца (1–${daysInMonth})`
+      };
+    }
+
+    // Проверка, что дата не в будущем
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const inputDate = new Date(y, m - 1, d);
+    if (inputDate > today) {
+      return { valid: false, error: 'Дата рождения не может быть в будущем' };
+    }
+
     return { valid: true, error: null };
   }
 
@@ -235,11 +291,17 @@ export function renderPatientAddForm(container) {
       setFieldError(bdayInput, bdayError, result.error);
     });
     bdayInput.addEventListener('input', () => {
-      if (bdayInput.classList.contains('form__input--invalid')) {
+      const len = bdayInput.value.trim().length;
+      if (len === 10) {
+        // Полная дата — валидируем немедленно
         const result = validateBday(bdayInput.value);
-        if (result.valid) {
-          setFieldError(bdayInput, bdayError, null);
-        }
+        setFieldError(bdayInput, bdayError, result.error);
+      } else if (
+        len < 10 &&
+        bdayInput.classList.contains('form__input--invalid')
+      ) {
+        // Сбрасываем ошибку при начале редактирования
+        setFieldError(bdayInput, bdayError, null);
       }
     });
   }
