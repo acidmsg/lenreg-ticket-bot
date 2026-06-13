@@ -108,6 +108,18 @@ export function renderPatientAddForm(container) {
       }
     });
     calendar.init();
+
+    // Маска ввода даты: форматирует набор цифр как ДД.ММ.ГГГГ
+    bdayInput.addEventListener('input', () => {
+      const digits = bdayInput.value.replace(/\D/g, '').slice(0, 8);
+      let formatted = '';
+      if (digits.length > 0) formatted += digits.slice(0, 2);
+      if (digits.length > 2) formatted += '.' + digits.slice(2, 4);
+      if (digits.length > 4) formatted += '.' + digits.slice(4, 8);
+      if (bdayInput.value !== formatted) {
+        bdayInput.value = formatted;
+      }
+    });
   }
 
   // ============================================================
