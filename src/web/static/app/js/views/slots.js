@@ -148,7 +148,7 @@ function renderSlotList(slots) {
 
   return `
     ${groupsHtml}
-    <p class="text-center mt-md" style="color: var(--tg-hint-color); font-size: var(--font-sm);">
+    <p class="text-center mt-md" style="color: var(--color-text-secondary); font-size: var(--font-sm);">
       Для записи на приём откройте сайт zdrav.lenreg.ru
     </p>
   `;

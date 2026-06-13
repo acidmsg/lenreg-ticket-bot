@@ -71,7 +71,7 @@ export function renderPatientAddForm(container) {
           >
         </div>
       </form>
-      <div id="patient-form-error" class="hidden mt-md" style="color: var(--tg-destructive-color); font-size: var(--font-sm);"></div>
+      <div id="patient-form-error" class="hidden mt-md" style="color: var(--color-danger); font-size: var(--font-sm);"></div>
       <div class="fab-group">
         <button class="btn btn--secondary btn--sm" id="patient-add-back">← Назад</button>
         <button class="fab" id="patient-add-submit">Добавить</button>

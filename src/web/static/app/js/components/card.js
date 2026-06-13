@@ -63,11 +63,11 @@ export function createDoctorCard({
     status === 'slots_available' && Number(freeTickets) > 0
       ? `<div class="card__footer card__footer--slots">
         <span class="lucide-icon">${lucideIcon('circle-check', 14)}</span>
-        <span style="color: var(--tg-green-color, #22c55e);">Есть номерки! (${freeTickets})</span>
+        <span style="color: var(--status-available);">Есть номерки! (${freeTickets})</span>
       </div>`
       : `<div class="card__footer card__footer--noslots">
         <span class="lucide-icon">${lucideIcon('circle-x', 14)}</span>
-        <span style="color: var(--tg-destructive-color); opacity: 0.7;">Номерков на данный момент нет</span>
+        <span style="color: var(--color-danger); opacity: 0.7;">Номерков на данный момент нет</span>
       </div>`;
 
   return `

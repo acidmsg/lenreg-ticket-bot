@@ -444,8 +444,8 @@ function renderDoctorSearchItem(item) {
         <div class="list__item-content">
           <div class="list__item-title">${escapeHtml(item.label)}</div>
           ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
-          <div class="list__item-subtitle" style="color: var(--tg-destructive-color);">уже отслеживается</div>
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ''}
+          <div class="list__item-subtitle" style="color: var(--color-danger);">уже отслеживается</div>
         </div>
       </div>
     `;
@@ -475,8 +475,8 @@ function renderDoctorItem(item) {
         <div class="list__item-content">
           <div class="list__item-title">${escapeHtml(item.label)}</div>
           ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--tg-hint-color);">${escapeHtml(item.subtitle)}</div>` : ''}
-          <div class="list__item-subtitle" style="color: var(--tg-destructive-color);">уже отслеживается</div>
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ''}
+          <div class="list__item-subtitle" style="color: var(--color-danger);">уже отслеживается</div>
         </div>
       </div>
     `;
@@ -526,7 +526,7 @@ function renderConfirmation(item) {
             : ''
         }
       </div>
-      <p class="text-center mt-md" style="color: var(--tg-hint-color);">
+      <p class="text-center mt-md" style="color: var(--color-text-secondary);">
         Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг.
       </p>
     </div>

@@ -41,59 +41,13 @@ const state = {
  *
  * @param {object} themeParams — Telegram.WebApp.themeParams
  */
-function applyTheme(themeParams) {
-  if (!themeParams) return;
-
-  const root = document.documentElement;
-  const mapping = {
-    bg_color: '--tg-bg-color',
-    text_color: '--tg-text-color',
-    hint_color: '--tg-hint-color',
-    button_color: '--tg-button-color',
-    button_text_color: '--tg-button-text-color',
-    secondary_bg_color: '--tg-secondary-bg-color',
-    section_header_text_color: '--tg-section-header-color',
-    subtitle_text_color: '--tg-subtitle-color',
-    destructive_text_color: '--tg-destructive-color',
-    link_color: '--tg-link-color'
-  };
-
-  Object.entries(mapping).forEach(([tgKey, cssVar]) => {
-    if (themeParams[tgKey]) {
-      root.style.setProperty(cssVar, themeParams[tgKey], 'important');
-    }
-  });
-
-  // Устанавливаем color-scheme для нативной тёмной темы
-  if (window.Telegram && window.Telegram.WebApp) {
-    const colorScheme = window.Telegram.WebApp.colorScheme;
-    root.style.setProperty('color-scheme', colorScheme);
-  }
-}
-
 /**
  * Принудительное переопределение цветовой схемы.
- * Обходит инлайн-стили Telegram WebView на мобильных устройствах,
- * используя третий аргумент 'important' в setProperty.
+ * Устанавливает data-theme="dark" для принудительного применения тёмной темы,
+ * блокируя попытки Telegram WebView переопределить цвета через инлайн-стили.
  */
 function forceThemeOverride() {
-  const theme = {
-    bg_color: '#0a0a10',
-    secondary_bg_color: '#12121c',
-    text_color: '#e0e8f8',
-    hint_color: '#89b',
-    button_color: '#09b653',
-    button_text_color: '#0a0a10',
-    destructive_text_color: '#ea336f',
-    section_header_text_color: '#09b653',
-    subtitle_text_color: '#89b',
-    link_color: '#09b653'
-  };
-
-  const root = document.documentElement;
-  Object.entries(theme).forEach(([key, val]) => {
-    root.style.setProperty('--tg-' + key, val, 'important');
-  });
+  document.documentElement.setAttribute('data-theme', 'dark');
 }
 
 // ============================================================
@@ -288,10 +242,10 @@ function init() {
   tg.ready();
   tg.expand();
 
-  // Применяем форсированную тему (с MutationObserver-защитой от перезаписи Telegram)
+  // Применяем форсированную тему
   forceThemeOverride();
 
-  // При смене темы в Telegram — переприменить форсированные цвета
+  // При смене темы в Telegram — переприменить форсированную тему
   tg.onEvent('themeChanged', () => {
     forceThemeOverride();
   });

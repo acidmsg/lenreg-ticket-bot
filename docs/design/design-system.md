@@ -23,45 +23,49 @@
 
 ### 2.1. Тёмная тема — «Неоновая плазма»
 
-| Имя токена               | Значение                     | Назначение                |
-| ------------------------ | ---------------------------- | ------------------------- |
-| `--color-bg-primary`     | `#0a0a10`                    | Фон страницы              |
-| `--color-bg-secondary`   | `#12121c`                    | Фон карточек / панелей    |
-| `--color-text-primary`   | `#e0e8f8`                    | Основной текст            |
-| `--color-text-secondary` | `#8899bb`                    | Второстепенный текст      |
-| `--color-accent`         | `#09b653`                    | Основной акцент (зелёный) |
-| `--color-accent-text`    | `#0a0a10`                    | Текст на accent-фоне      |
-| `--color-accent-hover`   | `#07a048`                    | Accent при наведении      |
-| `--color-danger`         | `#ea336f`                    | Удаление / опасность      |
-| `--color-danger-text`    | `#ffffff`                    | Текст на danger-фоне      |
-| `--color-border`         | `rgba(255,255,255, 0.08)`    | Тонкие границы            |
-| `--color-border-strong`  | `rgba(255,255,255, 0.14)`    | Выраженные границы        |
-| `--shadow-card`          | `0 2px 8px rgb(0,0,0 / 30%)` | Тень карточки             |
-| `--status-available`     | `#09b653`                    | Слоты доступны            |
-| `--status-noslots`       | `#ea336f`                    | Слотов нет                |
-| `--status-checking`      | `#555acf`                    | Проверка                  |
-| `--status-unknown`       | `#778899`                    | Неизвестно                |
+| Имя токена                  | Значение                     | Назначение                    |
+| --------------------------- | ---------------------------- | ----------------------------- |
+| `--color-bg-primary`        | `#0a0a10`                    | Фон страницы                  |
+| `--color-bg-secondary`      | `#12121c`                    | Фон карточек / панелей        |
+| `--color-text-primary`      | `#e0e8f8`                    | Основной текст                |
+| `--color-text-secondary`    | `#8899bb`                    | Второстепенный текст          |
+| `--color-accent`            | `#09b653`                    | Основной акцент (зелёный)     |
+| `--color-accent-text`       | `#0a0a10`                    | Текст на accent-фоне          |
+| `--color-accent-hover`      | `#07a048`                    | Accent при наведении          |
+| `--color-danger`            | `#ea336f`                    | Удаление / опасность          |
+| `--color-danger-text`       | `#ffffff`                    | Текст на danger-фоне          |
+| `--color-border`            | `rgba(255,255,255, 0.08)`    | Тонкие границы                |
+| `--color-border-strong`     | `rgba(255,255,255, 0.14)`    | Выраженные границы            |
+| `--color-monitoring`        | `#90caf9`                    | Цвет элементов мониторинга    |
+| `--color-monitoring-border` | `rgba(144, 202, 249, 0.12)`  | Границы элементов мониторинга |
+| `--shadow-card`             | `0 2px 8px rgb(0,0,0 / 30%)` | Тень карточки                 |
+| `--status-available`        | `#09b653`                    | Слоты доступны                |
+| `--status-noslots`          | `#ea336f`                    | Слотов нет                    |
+| `--status-checking`         | `#555acf`                    | Проверка                      |
+| `--status-unknown`          | `#778899`                    | Неизвестно                    |
 
 ### 2.2. Светлая тема — «Медицинская чистота»
 
-| Имя токена               | Значение                      | Назначение               |
-| ------------------------ | ----------------------------- | ------------------------ |
-| `--color-bg-primary`     | `#f4f6f9`                     | Фон страницы             |
-| `--color-bg-secondary`   | `#ffffff`                     | Фон карточек             |
-| `--color-text-primary`   | `#1e293b`                     | Основной текст           |
-| `--color-text-secondary` | `#64748b`                     | Второстепенный текст     |
-| `--color-accent`         | `#3b82f6`                     | Основной акцент (синий)  |
-| `--color-accent-text`    | `#ffffff`                     | Текст на accent-фоне     |
-| `--color-accent-hover`   | `#2563eb`                     | Accent при наведении     |
-| `--color-danger`         | `#ef4444`                     | Удаление / опасность     |
-| `--color-danger-text`    | `#ffffff`                     | Текст на danger-фоне     |
-| `--color-border`         | `rgba(0,0,0, 0.08)`           | Тонкие границы           |
-| `--color-border-strong`  | `rgba(0,0,0, 0.14)`           | Выраженные границы       |
-| `--shadow-card`          | `0 1px 3px rgba(0,0,0, 0.06)` | Тень карточки            |
-| `--status-available`     | `#22c55e`                     | Слоты доступны (зелёный) |
-| `--status-noslots`       | `#ef4444`                     | Слотов нет               |
-| `--status-checking`      | `#3b82f6`                     | Проверка                 |
-| `--status-unknown`       | `#94a3b8`                     | Неизвестно               |
+| Имя токена                  | Значение                      | Назначение                    |
+| --------------------------- | ----------------------------- | ----------------------------- |
+| `--color-bg-primary`        | `#f4f6f9`                     | Фон страницы                  |
+| `--color-bg-secondary`      | `#ffffff`                     | Фон карточек                  |
+| `--color-text-primary`      | `#1e293b`                     | Основной текст                |
+| `--color-text-secondary`    | `#64748b`                     | Второстепенный текст          |
+| `--color-accent`            | `#3b82f6`                     | Основной акцент (синий)       |
+| `--color-accent-text`       | `#ffffff`                     | Текст на accent-фоне          |
+| `--color-accent-hover`      | `#2563eb`                     | Accent при наведении          |
+| `--color-danger`            | `#ef4444`                     | Удаление / опасность          |
+| `--color-danger-text`       | `#ffffff`                     | Текст на danger-фоне          |
+| `--color-border`            | `rgba(0,0,0, 0.08)`           | Тонкие границы                |
+| `--color-border-strong`     | `rgba(0,0,0, 0.14)`           | Выраженные границы            |
+| `--color-monitoring`        | `#1565c0`                     | Цвет элементов мониторинга    |
+| `--color-monitoring-border` | `rgba(21, 101, 192, 0.12)`    | Границы элементов мониторинга |
+| `--shadow-card`             | `0 1px 3px rgba(0,0,0, 0.06)` | Тень карточки                 |
+| `--status-available`        | `#22c55e`                     | Слоты доступны (зелёный)      |
+| `--status-noslots`          | `#ef4444`                     | Слотов нет                    |
+| `--status-checking`         | `#3b82f6`                     | Проверка                      |
+| `--status-unknown`          | `#778899`                     | Неизвестно                    |
 
 Все цветовые токены объявлены в [`src/web/static/app/css/style.css`](../src/web/static/app/css/style.css:14)
 
@@ -244,6 +248,7 @@
 | `--tg-button-color`         | `--color-accent`         |
 | `--tg-button-text-color`    | `--color-accent-text`    |
 | `--tg-destructive-color`    | `--color-danger`         |
+| `--tg-green-color`          | `--status-available`     |
 | `--tg-section-header-color` | `--color-accent`         |
 | `--tg-subtitle-color`       | `--color-text-secondary` |
 | `--tg-link-color`           | `--color-accent`         |

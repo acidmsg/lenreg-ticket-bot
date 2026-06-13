@@ -75,6 +75,8 @@
   --color-danger-text: #fff;
   --color-border: rgb(255 255 255 / 8%);
   --color-border-strong: rgb(255 255 255 / 14%);
+  --color-monitoring: #90caf9;
+  --color-monitoring-border: rgb(144 202 249 / 12%);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 20%);
   --shadow-md: 0 2px 8px rgb(0 0 0 / 30%);
   --shadow-lg: 0 4px 16px rgb(0 0 0 / 40%);
@@ -97,13 +99,15 @@
   --color-danger-text: #fff;
   --color-border: rgb(0 0 0 / 8%);
   --color-border-strong: rgb(0 0 0 / 14%);
+  --color-monitoring: #1565c0;
+  --color-monitoring-border: rgb(21 101 192 / 12%);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
   --shadow-md: 0 1px 3px rgb(0 0 0 / 6%);
   --shadow-lg: 0 4px 12px rgb(0 0 0 / 10%);
   --status-available: #22c55e;
   --status-noslots: #ef4444;
   --status-checking: #3b82f6;
-  --status-unknown: #94a3b8;
+  --status-unknown: #789;
 }
 
 /* === Сброс и базовые стили === */
@@ -824,7 +828,7 @@ body {
   background-color: var(--color-bg-secondary);
   padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-monitoring-border);
 }
 
 .stepper__title {
@@ -1190,8 +1194,8 @@ body {
   list-style: none;
   margin: 0 0 var(--space-sm);
   padding: 0 0 var(--space-sm);
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-monitoring-border);
+  border-bottom: 1px solid var(--color-monitoring-border);
 }
 
 /* На главном экране (карточка врача) — без левых отступов */
@@ -1259,7 +1263,7 @@ body {
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-monitoring);
   font-size: 13px;
   cursor: pointer;
   user-select: none;
@@ -1403,12 +1407,14 @@ body {
     --color-danger-text: #fff;
     --color-border: rgb(0 0 0 / 8%);
     --color-border-strong: rgb(0 0 0 / 14%);
+    --color-monitoring: #1565c0;
+    --color-monitoring-border: rgb(21 101 192 / 12%);
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
     --shadow-md: 0 1px 3px rgb(0 0 0 / 6%);
     --shadow-lg: 0 4px 12px rgb(0 0 0 / 10%);
     --status-available: #22c55e;
     --status-noslots: #ef4444;
     --status-checking: #3b82f6;
-    --status-unknown: #94a3b8;
+    --status-unknown: #789;
   }
 }
