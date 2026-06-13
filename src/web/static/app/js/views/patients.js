@@ -89,8 +89,7 @@ export function renderPatientAddForm(container) {
       locale: 'ru',
       dateFormat: 'd.m.Y',
       defaultDate: '',
-      disableMobile: true,
-      static: true
+      disableMobile: false
     });
   }
 
