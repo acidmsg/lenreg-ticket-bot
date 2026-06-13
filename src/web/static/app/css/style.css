@@ -1305,39 +1305,39 @@ body {
 }
 
 /* === Vanilla Calendar Pro — адаптация под тему мини-приложения === */
-.v-calendar {
+.vanilla-calendar {
   background: var(--tg-secondary-bg-color);
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
   font-family: inherit;
 }
 
-.v-calendar__header {
+.vanilla-calendar-header {
   color: var(--tg-text-color);
 }
 
-.v-calendar__month,
-.v-calendar__year {
+.vanilla-calendar-month,
+.vanilla-calendar-year {
   color: var(--tg-text-color);
   font-size: var(--font-md);
   font-weight: 600;
 }
 
-.v-calendar__arrow {
+.vanilla-calendar-arrow {
   color: var(--tg-text-color);
 }
 
-.v-calendar__arrow:hover {
+.vanilla-calendar-arrow:hover {
   color: var(--tg-button-color);
 }
 
-.v-calendar__weekday {
+.vanilla-calendar-weekday {
   color: var(--tg-hint-color);
   font-size: var(--font-sm);
   font-weight: 500;
 }
 
-.v-calendar__day {
+.vanilla-calendar-day__btn {
   color: var(--tg-text-color);
   border-radius: 8px;
   font-size: var(--font-sm);
@@ -1345,26 +1345,27 @@ body {
   border: 1px solid transparent;
 }
 
-.v-calendar__day:hover {
+.vanilla-calendar-day__btn:hover {
   background: rgb(9 182 83 / 18%);
 }
 
-.v-calendar__day--today {
+.vanilla-calendar-day__btn_today {
   border-color: var(--tg-button-color);
 }
 
-.v-calendar__day--selected {
+.vanilla-calendar-day__btn_selected {
   background: var(--tg-button-color);
   color: var(--tg-button-text-color);
   font-weight: 600;
 }
 
-.v-calendar__day--other-month {
+.vanilla-calendar-day__btn_prev,
+.vanilla-calendar-day__btn_next {
   color: #4a5568;
   background: transparent;
 }
 
-.v-calendar__day--disabled {
+.vanilla-calendar-day__btn:disabled {
   color: var(--tg-hint-color);
   opacity: 0.35;
 }

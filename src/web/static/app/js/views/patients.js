@@ -85,6 +85,7 @@ export function renderPatientAddForm(container) {
   const bdayInput = container.querySelector('#patient-bday');
   if (bdayInput) {
     const calendar = new VanillaCalendar(bdayInput, {
+      input: true,
       settings: {
         lang: 'ru',
         selection: {
