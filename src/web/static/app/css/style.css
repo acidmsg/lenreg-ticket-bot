@@ -710,6 +710,18 @@ body {
   min-width: 0;
 }
 
+.patient-card__name {
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.patient-card__bday,
+.patient-card__alias {
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
 .patient-card__delete {
   display: inline-flex;
   align-items: center;
@@ -937,6 +949,22 @@ body {
 .form__input::placeholder {
   color: var(--color-text-secondary);
   opacity: 0.6;
+}
+
+.form__input--invalid {
+  border-color: var(--color-danger);
+}
+
+.form__input--invalid:focus {
+  border-color: var(--color-danger);
+}
+
+.form__error {
+  display: block;
+  font-size: var(--font-xs);
+  color: var(--color-danger);
+  margin-top: var(--space-xs);
+  min-height: 18px;
 }
 
 .form__label {
