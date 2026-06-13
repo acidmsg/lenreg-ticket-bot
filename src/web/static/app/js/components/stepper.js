@@ -93,7 +93,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     // Динамические заголовки ТОЛЬКО для шага clinic (currentStep === 1).
     let displayTitle = step.title;
     let displayDesc = step.description;
-    if (currentStep === 2 && _currentSearchMode !== null) {
+    if (currentStep === 1 && _currentSearchMode !== null) {
       const isClinicMode = _currentSearchMode === 'clinics';
       displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
       displayDesc = isClinicMode
@@ -162,7 +162,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
         </div>
         <div class="stepper__actions">
           ${backButtonHtml}
-          <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${(isLastStep || isWidget) ? '' : ' disabled'}>
+          <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? '' : ' disabled'}>
             ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span> Далее`}
           </button>
         </div>

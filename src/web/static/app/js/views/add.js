@@ -12,7 +12,6 @@ import { apiGet, apiPost } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createStepper } from '../components/stepper.js';
 import { lucideIcon } from '../components/icon.js';
-import { createDatePicker } from '../components/calendar.js';
 import { navigate } from '../app.js';
 
 /**
@@ -40,24 +39,12 @@ export function renderAddDoctor(container) {
       renderItem: renderPatientItem
     },
     {
-      type: 'widget',
-      title: 'Выберите дату',
-      description: 'На какую дату искать приём?',
-      loadData: async (selections) => {
-        // selectedDate — переменная в замыкании renderAddDoctor
-        return [{ value: { date: selectedDate || '' }, label: '' }];
-      },
-      renderItem: (item) => {
-        return renderDatePickerWidget(item);
-      }
-    },
-    {
       title: 'Поиск врача',
       description: `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`,
       searchPlaceholder: 'Фамилия, имя или отчество...',
       searchMode: 'doctors',
       onSearchModeChange: (mode) => {
-        const step = steps[2];
+        const step = steps[1];
         if (mode === 'doctors') {
           step.title = 'Поиск врача';
           step.description = `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
@@ -69,13 +56,13 @@ export function renderAddDoctor(container) {
         }
       },
       loadData: async (selections) => {
-        if (steps[2].searchMode === 'doctors') {
+        if (steps[1].searchMode === 'doctors') {
           return await searchDoctorsGlobally(selections);
         }
         return await loadClinics(selections);
       },
       renderItem: (item) => {
-        if (steps[2].searchMode === 'doctors') {
+        if (steps[1].searchMode === 'doctors') {
           return renderDoctorSearchItem(item);
         }
         return renderClinicItem(item);
@@ -94,30 +81,28 @@ export function renderAddDoctor(container) {
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
         const patient = selections[0]?.value || {};
-        const dateSelection = selections[1]?.value || {};
         let clinic, doctor;
 
-        if (selections.length >= 4 && selections[2]?._skipNext) {
-          // Глобальный поиск: selections[2] — врач с clinic_id/clinic_name внутри
-          doctor = selections[2]?.value || {};
+        if (selections[1]?._skipNext) {
+          // Глобальный поиск: selections[1] — врач с clinic_id/clinic_name внутри
+          doctor = selections[1]?.value || {};
           clinic = {
             name: doctor?.clinic_name || '',
             short_name: doctor?.clinic_name || ''
           };
         } else {
-          // Нормальный поток: selections[2] — поликлиника, selections[3] — врач
-          clinic = selections[2]?.value || {};
-          doctor = selections[3]?.value || {};
+          // Нормальный поток: selections[1] — поликлиника, selections[2] — врач
+          clinic = selections[1]?.value || {};
+          doctor = selections[2]?.value || {};
         }
 
         return [
           {
             _confirm: true,
             patient,
-            date: dateSelection.date || '',
             clinic,
             doctor,
-            _skipNext: selections[2]?._skipNext
+            _skipNext: selections[1]?._skipNext
           }
         ];
       },
@@ -135,11 +120,7 @@ export function renderAddDoctor(container) {
       const patient = selections[0]?.value;
       let clinic, doctor;
 
-      if (selections.length >= 3 && !selections[1]?._skipNext) {
-        // Нормальный поток
-        clinic = selections[1]?.value;
-        doctor = selections[2]?.value;
-      } else {
+      if (selections[1]?._skipNext) {
         // Глобальный поиск: doctor уже содержит clinic_id
         doctor = selections[1]?.value;
         clinic = {
@@ -147,6 +128,10 @@ export function renderAddDoctor(container) {
           short_name: doctor?.clinic_name || '',
           name: doctor?.clinic_name || ''
         };
+      } else {
+        // Нормальный поток
+        clinic = selections[1]?.value;
+        doctor = selections[2]?.value;
       }
 
       const clinicName = clinic?.short_name || clinic?.name || '';
@@ -313,9 +298,9 @@ async function loadDoctors(selections = []) {
     const patient = selections[0].value;
     params.patient_id = patient.patient_id || patient.id;
   }
-  // Шаг 2: поликлиника (после пациента [0] и даты [1])
-  if (selections.length > 2 && selections[2]?.value) {
-    const clinic = selections[2].value;
+  // Шаг 1: поликлиника (после пациента [0])
+  if (selections.length > 1 && selections[1]?.value) {
+    const clinic = selections[1].value;
     params.clinic_id = clinic.clinic_id || clinic.id;
   }
   // Если нет clinic_id — не вызываем API (гонка при быстром переключении)
@@ -519,7 +504,6 @@ function renderConfirmation(item) {
   const doctor = item.doctor || {};
 
   const patientName = patient.fio || 'Неизвестно';
-  const appointmentDate = item.date || 'Не выбрана';
   const clinicName = clinic.short_name || clinic.name || 'Неизвестно';
   const doctorName = extractDoctorName(doctor) || 'Неизвестно';
   const specialtyName = doctor.specialty_name || '';
@@ -530,8 +514,6 @@ function renderConfirmation(item) {
       <div class="confirm-card__details">
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon('user', 14)}</span> Пациент</div>
         <div class="confirm-value">${escapeHtml(patientName)}</div>
-        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('calendar', 14)}</span> Дата приёма</div>
-        <div class="confirm-value">${escapeHtml(appointmentDate)}</div>
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> Клиника</div>
         <div class="confirm-value">${escapeHtml(clinicName)}</div>
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon('stethoscope', 14)}</span> Врач</div>
@@ -637,69 +619,4 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = String(text);
   return div.innerHTML;
-}
-
-/**
- * Возвращает сегодняшнюю дату в ISO-формате 'YYYY-MM-DD'.
- *
- * @returns {string}
- */
-function getTodayISO() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/**
- * Возвращает максимальную дату (+3 месяца от сегодня) в ISO-формате 'YYYY-MM-DD'.
- *
- * @returns {string}
- */
-function getMaxDateISO() {
-  const now = new Date();
-  const maxDate = new Date(now);
-  maxDate.setMonth(maxDate.getMonth() + 3);
-  const y = maxDate.getFullYear();
-  const m = String(maxDate.getMonth() + 1).padStart(2, '0');
-  const d = String(maxDate.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/**
- * Рендерит виджет выбора даты для шага степпера.
- * Использует setTimeout для инициализации, т.к. степпер сначала вставляет HTML.
- *
- * @param {object} item — элемент данных шага, мутируется через item.value.date
- * @returns {string} HTML с контейнером для date-picker
- */
-function renderDatePickerWidget(item) {
-  const containerId = 'date-picker-widget';
-
-  // Инициализация виджета после вставки HTML в DOM
-  setTimeout(() => {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    // Удаляем предыдущий виджет если есть (при возврате назад/вперёд)
-    container.innerHTML = '';
-
-    const picker = createDatePicker({
-      container,
-      value: item.value?.date || '',
-      onChange: (dateStr) => {
-        // Мутируем item.value — степпер прочитает его при advanceStep
-        item.value.date = dateStr;
-        // Сохраняем в замыкание для восстановления при возврате
-        selectedDate = dateStr;
-      },
-      min: getTodayISO(),
-      max: getMaxDateISO()
-    });
-
-    picker.focus();
-  }, 0);
-
-  return `<div class="date-picker" id="${containerId}"></div>`;
 }
