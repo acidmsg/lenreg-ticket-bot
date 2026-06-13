@@ -81,16 +81,21 @@ export function renderPatientAddForm(container) {
 
   const errorEl = container.querySelector('#patient-form-error');
 
-  // Инициализируем flatpickr на поле ввода даты
+  // Инициализируем календарь на поле ввода даты
   const bdayInput = container.querySelector('#patient-bday');
-  let datePicker = null;
   if (bdayInput) {
-    datePicker = flatpickr(bdayInput, {
-      locale: 'ru',
-      dateFormat: 'd.m.Y',
-      defaultDate: '',
-      disableMobile: false
+    const calendar = new VanillaCalendar(bdayInput, {
+      settings: {
+        lang: 'ru',
+        selection: {
+          day: 'single'
+        },
+        visibility: {
+          theme: 'dark'
+        }
+      }
     });
+    calendar.init();
   }
 
   // Кнопка «Назад»
