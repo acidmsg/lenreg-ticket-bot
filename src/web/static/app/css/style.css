@@ -1516,12 +1516,12 @@ body {
 
 .date-input__field {
   width: 100%;
-  padding: var(--gap-md) var(--card-padding);
-  border-radius: var(--card-radius);
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid rgb(0 0 0 / 12%);
   background-color: var(--tg-secondary-bg-color);
   color: var(--tg-text-color);
-  font-size: var(--font-lg);
+  font-size: var(--font-md);
   font-family: inherit;
   text-align: center;
   letter-spacing: 2px;
@@ -1556,5 +1556,5 @@ body {
 /* === Виджет выбора даты (композит) === */
 .date-picker {
   width: 100%;
-  padding: var(--card-padding);
+  padding: 0;
 }
