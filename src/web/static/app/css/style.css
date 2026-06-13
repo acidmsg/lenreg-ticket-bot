@@ -1305,12 +1305,17 @@ body {
 }
 
 /* === Vanilla Calendar Pro — адаптация под тему мини-приложения === */
-.vanilla-calendar {
-  background: var(--tg-secondary-bg-color);
+.vanilla-calendar,
+[data-calendar-theme="dark"].vanilla-calendar {
+  background-color: var(--tg-secondary-bg-color);
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
   font-family: inherit;
   z-index: 100;
+}
+
+[data-calendar-theme="dark"] .vanilla-calendar-day__btn {
+  background-color: var(--tg-secondary-bg-color);
 }
 
 .vanilla-calendar-header {
