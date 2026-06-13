@@ -5,10 +5,10 @@
  * @module views/patients
  */
 
-import { apiGet, apiPost, apiDelete } from "../api.js";
-import { isInTelegram } from "../auth.js";
-import { lucideIcon } from "../components/icon.js";
-import { navigate } from "../app.js";
+import { apiGet, apiPost, apiDelete } from '../api.js';
+import { isInTelegram } from '../auth.js';
+import { lucideIcon } from '../components/icon.js';
+import { navigate } from '../app.js';
 
 /**
  * Рендерит экран пациентов в указанный контейнер.
@@ -26,7 +26,7 @@ export async function renderPatients(container) {
   `;
 
   try {
-    const data = await apiGet("/patients");
+    const data = await apiGet('/patients');
     const patients = data.patients || [];
 
     container.innerHTML = renderPatientList(patients);
@@ -81,31 +81,31 @@ export function renderPatientAddForm(container) {
     </div>
   `;
 
-  const errorEl = container.querySelector("#patient-form-error");
+  const errorEl = container.querySelector('#patient-form-error');
 
   // Инициализируем календарь на поле ввода даты
-  const bdayInput = container.querySelector("#patient-bday");
+  const bdayInput = container.querySelector('#patient-bday');
   if (bdayInput) {
     const calendar = new VanillaCalendar(bdayInput, {
       input: true,
       settings: {
-        lang: "ru",
+        lang: 'ru',
         selection: {
-          day: "single",
+          day: 'single'
         },
         visibility: {
-          theme: "dark",
-        },
+          theme: 'dark'
+        }
       },
       actions: {
         changeToInput(event, self) {
           const date = self.selectedDates[0];
           if (!date) return;
-          const [y, m, d] = date.split("-");
+          const [y, m, d] = date.split('-');
           self.HTMLInputElement.value = `${d}.${m}.${y}`;
           self.hide();
-        },
-      },
+        }
+      }
     });
     calendar.init();
   }
@@ -114,10 +114,9 @@ export function renderPatientAddForm(container) {
   // Валидация в реальном времени
   // ============================================================
 
-  const fioInput = container.querySelector("#patient-fio");
-  const bdayInput = container.querySelector("#patient-bday");
-  const fioError = container.querySelector("#patient-fio-error");
-  const bdayError = container.querySelector("#patient-bday-error");
+  const fioInput = container.querySelector('#patient-fio');
+  const fioError = container.querySelector('#patient-fio-error');
+  const bdayError = container.querySelector('#patient-bday-error');
 
   /**
    * Валидирует ФИО: три слова, только кириллица, дефисы и пробелы.
@@ -126,21 +125,21 @@ export function renderPatientAddForm(container) {
    * @returns {{ valid: boolean, error: string|null }}
    */
   function validateFio(value) {
-    const trimmed = (value || "").trim();
+    const trimmed = (value || '').trim();
     if (!trimmed) {
-      return { valid: false, error: "Введите фамилию, имя и отчество" };
+      return { valid: false, error: 'Введите фамилию, имя и отчество' };
     }
     if (!/^[а-яёА-ЯЁ\s-]+$/.test(trimmed)) {
       return {
         valid: false,
-        error: "Допустима только кириллица, пробелы и дефис",
+        error: 'Допустима только кириллица, пробелы и дефис'
       };
     }
     const parts = trimmed.split(/\s+/).filter(Boolean);
     if (parts.length !== 3) {
       return {
         valid: false,
-        error: "ФИО должно состоять из трёх слов: Фамилия Имя Отчество",
+        error: 'ФИО должно состоять из трёх слов: Фамилия Имя Отчество'
       };
     }
     return { valid: true, error: null };
@@ -153,14 +152,14 @@ export function renderPatientAddForm(container) {
    * @returns {{ valid: boolean, error: string|null }}
    */
   function validateBday(value) {
-    const trimmed = (value || "").trim();
+    const trimmed = (value || '').trim();
     if (!trimmed) {
-      return { valid: false, error: "Введите дату рождения" };
+      return { valid: false, error: 'Введите дату рождения' };
     }
     if (!/^\d{2}\.\d{2}\.\d{4}$/.test(trimmed)) {
       return {
         valid: false,
-        error: "Дата рождения должна быть в формате ДД.ММ.ГГГГ",
+        error: 'Дата рождения должна быть в формате ДД.ММ.ГГГГ'
       };
     }
     return { valid: true, error: null };
@@ -176,22 +175,22 @@ export function renderPatientAddForm(container) {
   function setFieldError(inputEl, errorEl, message) {
     if (!inputEl || !errorEl) return;
     if (message) {
-      inputEl.classList.add("form__input--invalid");
+      inputEl.classList.add('form__input--invalid');
       errorEl.textContent = message;
     } else {
-      inputEl.classList.remove("form__input--invalid");
-      errorEl.textContent = "";
+      inputEl.classList.remove('form__input--invalid');
+      errorEl.textContent = '';
     }
   }
 
   // blur — валидируем при уходе с поля
   if (fioInput) {
-    fioInput.addEventListener("blur", () => {
+    fioInput.addEventListener('blur', () => {
       const result = validateFio(fioInput.value);
       setFieldError(fioInput, fioError, result.error);
     });
-    fioInput.addEventListener("input", () => {
-      if (fioInput.classList.contains("form__input--invalid")) {
+    fioInput.addEventListener('input', () => {
+      if (fioInput.classList.contains('form__input--invalid')) {
         const result = validateFio(fioInput.value);
         if (result.valid) {
           setFieldError(fioInput, fioError, null);
@@ -201,12 +200,12 @@ export function renderPatientAddForm(container) {
   }
 
   if (bdayInput) {
-    bdayInput.addEventListener("blur", () => {
+    bdayInput.addEventListener('blur', () => {
       const result = validateBday(bdayInput.value);
       setFieldError(bdayInput, bdayError, result.error);
     });
-    bdayInput.addEventListener("input", () => {
-      if (bdayInput.classList.contains("form__input--invalid")) {
+    bdayInput.addEventListener('input', () => {
+      if (bdayInput.classList.contains('form__input--invalid')) {
         const result = validateBday(bdayInput.value);
         if (result.valid) {
           setFieldError(bdayInput, bdayError, null);
@@ -216,19 +215,19 @@ export function renderPatientAddForm(container) {
   }
 
   // Кнопка «Назад»
-  const backBtn = container.querySelector("#patient-add-back");
+  const backBtn = container.querySelector('#patient-add-back');
   if (backBtn) {
-    backBtn.addEventListener("click", () => {
-      navigate("patients");
+    backBtn.addEventListener('click', () => {
+      navigate('patients');
     });
   }
 
   // Кнопка «Добавить» (отправка формы)
-  const submitBtn = container.querySelector("#patient-add-submit");
+  const submitBtn = container.querySelector('#patient-add-submit');
   if (submitBtn) {
-    submitBtn.addEventListener("click", async () => {
-      const full_name = fioInput?.value?.trim() || "";
-      const birth_date = bdayInput?.value?.trim() || "";
+    submitBtn.addEventListener('click', async () => {
+      const full_name = fioInput?.value?.trim() || '';
+      const birth_date = bdayInput?.value?.trim() || '';
 
       // Валидация с подсветкой полей
       const fioResult = validateFio(full_name);
@@ -244,15 +243,15 @@ export function renderPatientAddForm(container) {
       hideFormError(errorEl);
 
       try {
-        await apiPost("/patients/add", { full_name, birth_date });
+        await apiPost('/patients/add', { full_name, birth_date });
 
         // Тактильный отклик (если доступен)
         if (isInTelegram() && window.Telegram.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
 
         // Возвращаемся на экран пациентов
-        navigate("patients");
+        navigate('patients');
       } catch (error) {
         showFormError(errorEl, error.message);
       }
@@ -270,12 +269,12 @@ function renderPatientList(patients) {
   if (patients.length === 0) {
     return `
       <div class="empty-state">
-        <div class="empty-state__icon">${lucideIcon("user", 48)}</div>
+        <div class="empty-state__icon">${lucideIcon('user', 48)}</div>
         <p class="empty-state__text">
           У вас пока нет добавленных пациентов.
           Добавьте пациента, чтобы начать отслеживать врачей.
         </p>
-        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить пациента</button>
+        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
       </div>
     `;
   }
@@ -285,22 +284,22 @@ function renderPatientList(patients) {
       (p) => `
       <li class="patient-card" data-patient-id="${escapeHtml(p.patient_id)}">
         <div class="patient-card__info">
-          <div class="patient-card__name">${escapeHtml(p.fio || "Без имени")}</div>
-          ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ""}
-          ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ""}
+          <div class="patient-card__name">${escapeHtml(p.fio || 'Без имени')}</div>
+          ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ''}
+          ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ''}
         </div>
         <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
-          ${lucideIcon("trash-2", 18)}
+          ${lucideIcon('trash-2', 18)}
         </button>
       </li>
-    `,
+    `
     )
-    .join("");
+    .join('');
 
   return `
     <ul class="list">${items}</ul>
     <div class="mt-md text-center">
-      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить пациента</button>
+      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
     </div>
   `;
 }
@@ -311,32 +310,32 @@ function renderPatientList(patients) {
  * @param {HTMLElement} container — контейнер
  */
 function bindEvents(container) {
-  const addBtn = container.querySelector("#patient-add-btn");
+  const addBtn = container.querySelector('#patient-add-btn');
   if (addBtn) {
-    addBtn.addEventListener("click", () => {
-      navigate("patient-add");
+    addBtn.addEventListener('click', () => {
+      navigate('patient-add');
     });
   }
 
   // Обработчики кнопок удаления пациента
-  container.querySelectorAll(".patient-card__delete").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
+  container.querySelectorAll('.patient-card__delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const patientId = btn.dataset.patientId;
       const confirmed = await showConfirm(
-        "Удалить пациента из списка отслеживаемых?",
+        'Удалить пациента из списка отслеживаемых?'
       );
       if (confirmed) {
         try {
           await apiDelete(`/patients/${patientId}`);
           // Перезагружаем список пациентов
-          const patientsContainer = container.closest("#patients-content");
+          const patientsContainer = container.closest('#patients-content');
           if (patientsContainer) {
             await renderPatients(patientsContainer);
           }
         } catch (error) {
           if (window.showToast) {
-            window.showToast(error.message, "error");
+            window.showToast(error.message, 'error');
           } else {
             alert(error.message);
           }
@@ -373,7 +372,7 @@ function showConfirm(message) {
 function showFormError(el, message) {
   if (!el) return;
   el.textContent = message;
-  el.classList.remove("hidden");
+  el.classList.remove('hidden');
 }
 
 /**
@@ -383,7 +382,7 @@ function showFormError(el, message) {
  */
 function hideFormError(el) {
   if (!el) return;
-  el.classList.add("hidden");
+  el.classList.add('hidden');
 }
 
 /**
@@ -395,9 +394,9 @@ function hideFormError(el) {
 function renderError(message) {
   return `
     <div class="error-state">
-      <div class="empty-state__icon">${lucideIcon("triangle-alert", 48)}</div>
+      <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
       <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="patients-retry-btn"><span class="lucide-icon">${lucideIcon("refresh-cw", 16)}</span> Повторить</button>
+      <button class="btn btn--primary" id="patients-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
     </div>
   `;
 }
@@ -408,9 +407,9 @@ function renderError(message) {
  * @param {HTMLElement} container — контейнер
  */
 function bindErrorEvents(container) {
-  const retryBtn = container.querySelector("#patients-retry-btn");
+  const retryBtn = container.querySelector('#patients-retry-btn');
   if (retryBtn) {
-    retryBtn.addEventListener("click", () => {
+    retryBtn.addEventListener('click', () => {
       renderPatients(container);
     });
   }
@@ -423,7 +422,7 @@ function bindErrorEvents(container) {
  * @returns {string} экранированный текст
  */
 function escapeHtml(text) {
-  const div = document.createElement("div");
+  const div = document.createElement('div');
   div.textContent = String(text);
   return div.innerHTML;
 }
