@@ -634,28 +634,44 @@ body {
 /* ── Карточка пациента с кнопкой удаления ── */
 .patient-card {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--card-padding);
+  background: var(--tg-secondary-bg-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  margin-bottom: var(--gap-sm);
+}
+
+.patient-card__info {
+  flex: 1;
+  min-width: 0;
 }
 
 .patient-card__delete {
-  position: absolute;
-  right: var(--gap-sm);
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
   border: none;
-  border-radius: 8px;
   background: transparent;
+  color: var(--tg-destructive-color);
   cursor: pointer;
-  transition: background-color 0.15s;
+  border-radius: 6px;
   flex-shrink: 0;
+  margin-left: var(--gap-sm);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .patient-card__delete:hover {
-  background-color: var(--tg-secondary-bg-color);
+  background: rgb(234 51 111 / 12%);
+}
+
+.patient-card__delete:active {
+  background: rgb(234 51 111 / 20%);
 }
 
 /* === Выделенный элемент списка === */

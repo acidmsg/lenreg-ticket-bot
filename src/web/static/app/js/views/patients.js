@@ -171,7 +171,7 @@ function renderPatientList(patients) {
           ${p.alias ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('tag', 14)}</span> ${escapeHtml(p.alias)}</div>` : ''}
         </div>
         <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
-          ${lucideIcon('trash-2', { size: 18, color: 'var(--tg-destructive-color)' })}
+          ${lucideIcon('trash-2', 18)}
         </button>
       </li>
     `
