@@ -48,11 +48,11 @@ export function renderPatientAddForm(container) {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="patient-add-form" style="display: flex; flex-direction: column; flex: 1;">
-      <div class="patient-add-form__title" style="font-size: var(--font-xl); font-weight: 600; margin-bottom: var(--gap-md);">Новый пациент</div>
+    <div class="patient-add-form">
+      <div class="patient-add-form__title" style="font-size: var(--font-xl); font-weight: 600; margin-bottom: var(--gap-md);">Заполните данные пациента</div>
       <form id="patient-form" autocomplete="off">
         <div class="mb-md">
-          <label class="card__subtitle" for="patient-fio">ФИО</label>
+          <label class="card__subtitle" for="patient-fio">Введите фамилию, имя и отчество пациента</label>
           <input
             type="text"
             id="patient-fio"
@@ -63,7 +63,7 @@ export function renderPatientAddForm(container) {
           >
         </div>
         <div class="mb-md">
-          <label class="card__subtitle">Дата рождения</label>
+          <label class="card__subtitle">Дата рождения пациента</label>
           <div id="patient-bday-picker"></div>
         </div>
       </form>

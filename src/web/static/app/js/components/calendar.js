@@ -700,24 +700,38 @@ export function createDateInput({ container, value, onChange, placeholder }) {
    * Обработчик события input.
    */
   function handleInput() {
+    if (inputEl._masking) return;
+    inputEl._masking = true;
+
     const cursorPos = inputEl.selectionStart;
-    const oldLength = inputEl.value.length;
+    const oldValue = inputEl.value;
+
+    // Считаем, сколько цифр было до курсора в старом значении
+    const digitsBeforeCursor = oldValue
+      .substring(0, cursorPos)
+      .replace(/[^\d]/g, '').length;
 
     const masked = applyMask();
     inputEl.value = masked;
 
-    // Коррекция позиции курсора
-    const newLength = masked.length;
-    let newCursorPos = cursorPos;
-
-    // Если добавилась точка — сдвигаем курсор
-    if (newLength > oldLength && masked.charAt(cursorPos - 1) === '.') {
-      newCursorPos += 1;
+    // Находим новую позицию курсора: пропускаем digitsBeforeCursor цифр
+    let newCursorPos = 0;
+    let digitCount = 0;
+    for (let i = 0; i < masked.length; i++) {
+      if (/\d/.test(masked[i])) {
+        if (digitCount >= digitsBeforeCursor) break;
+        digitCount++;
+      }
+      newCursorPos = i + 1;
     }
 
-    // Ограничиваем курсор
-    newCursorPos = Math.min(newCursorPos, masked.length);
+    // Если сразу за позицией курсора — точка, перепрыгиваем её
+    if (newCursorPos < masked.length && masked[newCursorPos] === '.') {
+      newCursorPos++;
+    }
+
     inputEl.setSelectionRange(newCursorPos, newCursorPos);
+    inputEl._masking = false;
 
     // Валидация при полном вводе
     clearError();

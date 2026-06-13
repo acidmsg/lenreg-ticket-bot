@@ -32,8 +32,8 @@
   --font-xl: 20px;
 
   /* Календарь */
-  --calendar-day-size: 40px;
-  --calendar-gap: 4px;
+  --calendar-day-size: 34px;
+  --calendar-gap: 2px;
   --calendar-today-border: #09b653;
   --calendar-other-month: #4a5568;
   --calendar-weekday: #6a7a8a;
@@ -869,6 +869,15 @@ body {
 
 .form__input:focus {
   border-color: var(--tg-button-color);
+}
+
+/* === Форма добавления пациента === */
+.patient-add-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 0 var(--card-padding);
+  overflow-y: auto;
 }
 
 .search-bar__clear {
