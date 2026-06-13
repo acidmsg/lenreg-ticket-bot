@@ -799,7 +799,7 @@ async def add_patient(
     }
 
 
-@router.delete("/patients/{patient_id}")
+@router.delete("/patients/{patient_id}", response_model=None)
 async def delete_patient(
     request: Request,
     patient_id: str,
