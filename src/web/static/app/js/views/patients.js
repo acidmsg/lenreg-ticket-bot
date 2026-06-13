@@ -48,15 +48,15 @@ export function renderPatientAddForm(container) {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="card mt-md" id="patient-add-form">
-      <div class="card__title mb-md">Новый пациент</div>
+    <div class="patient-add-form" style="display: flex; flex-direction: column; flex: 1;">
+      <div class="patient-add-form__title" style="font-size: var(--font-xl); font-weight: 600; margin-bottom: var(--gap-md);">Новый пациент</div>
       <form id="patient-form" autocomplete="off">
         <div class="mb-md">
           <label class="card__subtitle" for="patient-fio">ФИО</label>
           <input
             type="text"
             id="patient-fio"
-            class="search-bar__input"
+            class="form__input"
             placeholder="Фамилия Имя Отчество"
             required
             autocomplete="off"
@@ -68,6 +68,10 @@ export function renderPatientAddForm(container) {
         </div>
       </form>
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--tg-destructive-color); font-size: var(--font-sm);"></div>
+      <div class="fab-group">
+        <button class="btn btn--secondary btn--sm" id="patient-add-back">← Назад</button>
+        <button class="fab" id="patient-add-submit">Добавить</button>
+      </div>
     </div>
   `;
 
@@ -86,16 +90,18 @@ export function renderPatientAddForm(container) {
     });
   }
 
-  // Настраиваем MainButton
-  if (isInTelegram()) {
-    const mainButton = window.Telegram.WebApp.MainButton;
-    mainButton.setText('Добавить');
-    mainButton.show();
+  // Кнопка «Назад»
+  const backBtn = container.querySelector('#patient-add-back');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      navigate('patients');
+    });
+  }
 
-    // Удаляем старый обработчик, если был
-    mainButton.offClick?.(_mainClickHandler);
-
-    const _mainClickHandler = async () => {
+  // Кнопка «Добавить» (отправка формы)
+  const submitBtn = container.querySelector('#patient-add-submit');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', async () => {
       const fioInput = container.querySelector('#patient-fio');
       const full_name = fioInput?.value?.trim() || '';
       const birth_date = datePicker?.getValue() || '';
@@ -118,26 +124,22 @@ export function renderPatientAddForm(container) {
         return;
       }
 
-      mainButton.showProgress();
       hideFormError(errorEl);
 
       try {
         await apiPost('/patients/add', { full_name, birth_date });
 
-        // Тактильный отклик
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        mainButton.hideProgress();
-        mainButton.hide();
+        // Тактильный отклик (если доступен)
+        if (isInTelegram() && window.Telegram.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
 
         // Возвращаемся на экран пациентов
         navigate('patients');
       } catch (error) {
-        mainButton.hideProgress();
         showFormError(errorEl, error.message);
       }
-    };
-
-    mainButton.onClick(_mainClickHandler);
+    });
   }
 }
 
@@ -164,11 +166,11 @@ function renderPatientList(patients) {
   const items = patients
     .map(
       (p) => `
-      <li class="list__item patient-card">
-        <div class="list__item-content">
-          <div class="list__item-title">${escapeHtml(p.fio || 'Пациент')}</div>
-          ${p.bday ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('calendar', 14)}</span> ${escapeHtml(p.bday)}</div>` : ''}
-          ${p.alias ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('tag', 14)}</span> ${escapeHtml(p.alias)}</div>` : ''}
+      <li class="patient-card" data-patient-id="${escapeHtml(p.patient_id)}">
+        <div class="patient-card__info">
+          <div class="patient-card__name">${escapeHtml(p.fio || 'Без имени')}</div>
+          ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ''}
+          ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ''}
         </div>
         <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
           ${lucideIcon('trash-2', 18)}

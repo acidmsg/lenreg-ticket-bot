@@ -669,6 +669,12 @@ export function createDateInput({ container, value, onChange, placeholder }) {
    */
   function applyMask() {
     let val = inputEl.value.replace(/[^\d]/g, ''); // Только цифры
+
+    // Ограничиваем длину до построения результата (максимум 8 цифр)
+    if (val.length > 8) {
+      val = val.substring(0, 8);
+    }
+
     let result = '';
 
     if (val.length > 0) {
@@ -680,16 +686,11 @@ export function createDateInput({ container, value, onChange, placeholder }) {
     if (val.length > 2) {
       result += val.substring(2, 4);
     }
-    if (val.length >= 4) {
+    if (val.length >= 5) {
       result += '.';
     }
     if (val.length > 4) {
       result += val.substring(4, 8);
-    }
-
-    // Ограничиваем длину
-    if (val.length > 8) {
-      val = val.substring(0, 8);
     }
 
     return result;
@@ -710,12 +711,8 @@ export function createDateInput({ container, value, onChange, placeholder }) {
     let newCursorPos = cursorPos;
 
     // Если добавилась точка — сдвигаем курсор
-    if (
-      newLength > oldLength &&
-      (masked.charAt(cursorPos - 1) === '.' ||
-        (cursorPos > 2 && masked.charAt(2) === '.' && oldLength <= 2))
-    ) {
-      newCursorPos = cursorPos + 1;
+    if (newLength > oldLength && masked.charAt(cursorPos - 1) === '.') {
+      newCursorPos += 1;
     }
 
     // Ограничиваем курсор

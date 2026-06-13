@@ -854,6 +854,23 @@ body {
   transition: border-color 0.2s;
 }
 
+.form__input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--tg-secondary-bg-color);
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 10px;
+  color: var(--tg-text-color);
+  font-size: var(--font-md);
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form__input:focus {
+  border-color: var(--tg-button-color);
+}
+
 .search-bar__clear {
   position: absolute;
   right: 8px;

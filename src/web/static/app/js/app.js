@@ -235,8 +235,8 @@ function render() {
       break;
   }
 
-  // Скрываем MainButton при уходе с экранов, где она не нужна
-  if (isInTelegram() && state.route !== 'patient-add') {
+  // Скрываем MainButton — больше не используется ни на одном экране
+  if (isInTelegram() && window.Telegram?.WebApp?.MainButton) {
     window.Telegram.WebApp.MainButton.hide();
   }
 }
