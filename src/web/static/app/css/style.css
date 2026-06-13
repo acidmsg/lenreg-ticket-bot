@@ -1310,6 +1310,7 @@ body {
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
   font-family: inherit;
+  z-index: 100;
 }
 
 .vanilla-calendar-header {
@@ -1319,7 +1320,7 @@ body {
 .vanilla-calendar-month,
 .vanilla-calendar-year {
   color: var(--tg-text-color);
-  font-size: var(--font-md);
+  font-size: var(--font-lg);
   font-weight: 600;
 }
 
@@ -1333,16 +1334,18 @@ body {
 
 .vanilla-calendar-weekday {
   color: var(--tg-hint-color);
-  font-size: var(--font-sm);
+  font-size: var(--font-md);
   font-weight: 500;
 }
 
 .vanilla-calendar-day__btn {
   color: var(--tg-text-color);
   border-radius: 8px;
-  font-size: var(--font-sm);
+  font-size: var(--font-md);
   font-weight: 500;
   border: 1px solid transparent;
+  min-width: 38px;
+  min-height: 38px;
 }
 
 .vanilla-calendar-day__btn:hover {

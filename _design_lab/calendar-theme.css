@@ -1,0 +1,67 @@
+/* === Vanilla Calendar Pro — адаптация под тему мини-приложения === */
+/* Сохранено для экспериментов с новой темой — 2026-06-13 */
+
+.vanilla-calendar {
+  background: var(--tg-secondary-bg-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  font-family: inherit;
+}
+
+.vanilla-calendar-header {
+  color: var(--tg-text-color);
+}
+
+.vanilla-calendar-month,
+.vanilla-calendar-year {
+  color: var(--tg-text-color);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.vanilla-calendar-arrow {
+  color: var(--tg-text-color);
+}
+
+.vanilla-calendar-arrow:hover {
+  color: var(--tg-button-color);
+}
+
+.vanilla-calendar-weekday {
+  color: var(--tg-hint-color);
+  font-size: var(--font-sm);
+  font-weight: 500;
+}
+
+.vanilla-calendar-day__btn {
+  color: var(--tg-text-color);
+  border-radius: 8px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.vanilla-calendar-day__btn:hover {
+  background: rgb(9 182 83 / 18%);
+}
+
+.vanilla-calendar-day__btn_today {
+  border-color: var(--tg-button-color);
+}
+
+.vanilla-calendar-day__btn_selected {
+  background: var(--tg-button-color);
+  color: var(--tg-button-text-color);
+  font-weight: 600;
+}
+
+.vanilla-calendar-day__btn_prev,
+.vanilla-calendar-day__btn_next {
+  color: #4a5568;
+  background: transparent;
+}
+
+.vanilla-calendar-day__btn:disabled {
+  color: var(--tg-hint-color);
+  opacity: 0.35;
+}

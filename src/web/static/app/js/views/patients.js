@@ -94,6 +94,15 @@ export function renderPatientAddForm(container) {
         visibility: {
           theme: 'dark'
         }
+      },
+      actions: {
+        changeToInput(event, self) {
+          const date = self.selectedDates[0];
+          if (!date) return;
+          const [y, m, d] = date.split('-');
+          self.HTMLInputElement.value = `${d}.${m}.${y}`;
+          self.hide();
+        }
       }
     });
     calendar.init();
