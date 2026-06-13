@@ -86,6 +86,10 @@ export function renderPatientAddForm(container) {
   // Инициализируем календарь на поле ввода даты
   const bdayInput = container.querySelector('#patient-bday');
   if (bdayInput) {
+    // Сегодняшняя дата в YYYY-MM-DD — верхняя граница (нельзя родиться в будущем)
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
     const calendar = new VanillaCalendar(bdayInput, {
       input: true,
       settings: {
@@ -95,9 +99,23 @@ export function renderPatientAddForm(container) {
         },
         visibility: {
           theme: 'dark'
+        },
+        range: {
+          min: '1900-01-01',
+          max: todayStr,
+          disablePast: false
         }
       },
       actions: {
+        clickDay(event, self) {
+          // Блокируем выбор дат, отключённых библиотекой (за пределами range).
+          // Библиотека v2.9.10 не проверяет dayBtnDisabled в обработчике клика —
+          // только добавляет CSS-класс. Сбрасываем selectedDates до changeToInput.
+          const target = event.target;
+          if (target.classList.contains(self.CSSClasses.dayBtnDisabled)) {
+            self.selectedDates = [];
+          }
+        },
         changeToInput(event, self) {
           const date = self.selectedDates[0];
           if (!date) return;
