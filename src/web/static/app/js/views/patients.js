@@ -1,11 +1,11 @@
 /**
  * Экран управления пациентами.
- * Просмотр списка пациентов и добавление нового пациента.
+ * Просмотр списка пациентов, добавление (отдельный экран) и удаление.
  *
  * @module views/patients
  */
 
-import { apiGet, apiPost } from '../api.js';
+import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { lucideIcon } from '../components/icon.js';
 import { createDatePicker } from '../components/calendar.js';
@@ -39,56 +39,15 @@ export async function renderPatients(container) {
 }
 
 /**
- * Рендерит список пациентов и кнопку добавления.
+ * Рендерит форму добавления пациента на отдельном экране.
+ * Использует Telegram MainButton для отправки.
  *
- * @param {Array} patients — массив пациентов
- * @returns {string} HTML
+ * @param {HTMLElement} container — DOM-элемент для рендеринга
  */
-function renderPatientList(patients) {
-  if (patients.length === 0) {
-    return `
-      <div class="empty-state">
-        <div class="empty-state__icon">${lucideIcon('user', 48)}</div>
-        <p class="empty-state__text">
-          У вас пока нет добавленных пациентов.
-          Добавьте пациента, чтобы начать отслеживать врачей.
-        </p>
-        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
-      </div>
-      <div id="patient-form-container"></div>
-    `;
-  }
+export function renderPatientAddForm(container) {
+  if (!container) return;
 
-  const items = patients
-    .map(
-      (p) => `
-      <li class="list__item">
-        <div class="list__item-content">
-          <div class="list__item-title">${escapeHtml(p.fio || 'Пациент')}</div>
-          ${p.bday ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('calendar', 14)}</span> ${escapeHtml(p.bday)}</div>` : ''}
-          ${p.alias ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('tag', 14)}</span> ${escapeHtml(p.alias)}</div>` : ''}
-        </div>
-      </li>
-    `
-    )
-    .join('');
-
-  return `
-    <ul class="list">${items}</ul>
-    <div class="mt-md text-center">
-      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
-    </div>
-    <div id="patient-form-container"></div>
-  `;
-}
-
-/**
- * Рендерит форму добавления пациента.
- *
- * @returns {string} HTML формы
- */
-function renderAddForm() {
-  return `
+  container.innerHTML = `
     <div class="card mt-md" id="patient-add-form">
       <div class="card__title mb-md">Новый пациент</div>
       <form id="patient-form" autocomplete="off">
@@ -107,61 +66,15 @@ function renderAddForm() {
           <label class="card__subtitle">Дата рождения</label>
           <div id="patient-bday-picker"></div>
         </div>
-        <div class="card__actions">
-          <button type="submit" class="btn btn--primary" id="patient-submit-btn">
-            <span class="lucide-icon">${lucideIcon('check', 16)}</span> Добавить
-          </button>
-          <button type="button" class="btn btn--secondary" id="patient-cancel-btn">
-            <span class="lucide-icon">${lucideIcon('x', 16)}</span> Отмена
-          </button>
-        </div>
       </form>
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--tg-destructive-color); font-size: var(--font-sm);"></div>
     </div>
   `;
-}
 
-/**
- * Привязывает обработчики событий.
- *
- * @param {HTMLElement} container — контейнер
- */
-function bindEvents(container) {
-  const addBtn = container.querySelector('#patient-add-btn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const formContainer = container.querySelector('#patient-form-container');
-      if (formContainer) {
-        const existingForm = formContainer.querySelector('#patient-add-form');
-        if (existingForm) {
-          // Форма уже открыта — скрываем
-          existingForm.remove();
-          return;
-        }
-        formContainer.innerHTML = renderAddForm();
-        bindFormEvents(formContainer);
-      }
-    });
-  }
+  const errorEl = container.querySelector('#patient-form-error');
 
-  // Повторная привязка после программного клика
-  const formContainer = container.querySelector('#patient-form-container');
-  if (formContainer) {
-    const existingForm = formContainer.querySelector('#patient-add-form');
-    if (existingForm) {
-      bindFormEvents(formContainer);
-    }
-  }
-}
-
-/**
- * Привязывает обработчики формы добавления пациента.
- *
- * @param {HTMLElement} formContainer — контейнер с формой
- */
-function bindFormEvents(formContainer) {
-  // Инициализируем календарь один раз на уровне замыкания bindFormEvents
-  const pickerContainer = formContainer.querySelector('#patient-bday-picker');
+  // Инициализируем календарь
+  const pickerContainer = container.querySelector('#patient-bday-picker');
   let datePicker = null;
   if (pickerContainer) {
     datePicker = createDatePicker({
@@ -173,24 +86,17 @@ function bindFormEvents(formContainer) {
     });
   }
 
-  const form = formContainer.querySelector('#patient-form');
-  const cancelBtn = formContainer.querySelector('#patient-cancel-btn');
-  const errorEl = formContainer.querySelector('#patient-form-error');
+  // Настраиваем MainButton
+  if (isInTelegram()) {
+    const mainButton = window.Telegram.WebApp.MainButton;
+    mainButton.setText('Добавить');
+    mainButton.show();
 
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      const addForm = formContainer.querySelector('#patient-add-form');
-      if (addForm) addForm.remove();
-    });
-  }
+    // Удаляем старый обработчик, если был
+    mainButton.offClick?.(_mainClickHandler);
 
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const fioInput = form.querySelector('#patient-fio');
-      const submitBtn = form.querySelector('#patient-submit-btn');
-
+    const _mainClickHandler = async () => {
+      const fioInput = container.querySelector('#patient-fio');
       const full_name = fioInput?.value?.trim() || '';
       const birth_date = datePicker?.getValue() || '';
 
@@ -212,41 +118,131 @@ function bindFormEvents(formContainer) {
         return;
       }
 
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `<span class="lucide-icon">${lucideIcon('loader-circle', 16)}</span> Поиск...`;
-      }
+      mainButton.showProgress();
       hideFormError(errorEl);
 
       try {
-        const result = await apiPost('/patients/add', {
-          full_name,
-          birth_date
-        });
+        await apiPost('/patients/add', { full_name, birth_date });
 
         // Тактильный отклик
-        if (isInTelegram()) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        }
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        mainButton.hideProgress();
+        mainButton.hide();
 
-        // Закрываем форму и перезагружаем список
-        const addForm = formContainer.querySelector('#patient-add-form');
-        if (addForm) addForm.remove();
-
-        // Перезагружаем экран пациентов
-        const container = formContainer.closest('#patients-content');
-        if (container) {
-          await renderPatients(container);
-        }
+        // Возвращаемся на экран пациентов
+        navigate('patients');
       } catch (error) {
+        mainButton.hideProgress();
         showFormError(errorEl, error.message);
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Добавить`;
+      }
+    };
+
+    mainButton.onClick(_mainClickHandler);
+  }
+}
+
+/**
+ * Рендерит список пациентов и кнопку добавления (без inline-формы).
+ *
+ * @param {Array} patients — массив пациентов
+ * @returns {string} HTML
+ */
+function renderPatientList(patients) {
+  if (patients.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-state__icon">${lucideIcon('user', 48)}</div>
+        <p class="empty-state__text">
+          У вас пока нет добавленных пациентов.
+          Добавьте пациента, чтобы начать отслеживать врачей.
+        </p>
+        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
+      </div>
+    `;
+  }
+
+  const items = patients
+    .map(
+      (p) => `
+      <li class="list__item patient-card">
+        <div class="list__item-content">
+          <div class="list__item-title">${escapeHtml(p.fio || 'Пациент')}</div>
+          ${p.bday ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('calendar', 14)}</span> ${escapeHtml(p.bday)}</div>` : ''}
+          ${p.alias ? `<div class="list__item-subtitle"><span class="lucide-icon">${lucideIcon('tag', 14)}</span> ${escapeHtml(p.alias)}</div>` : ''}
+        </div>
+        <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
+          ${lucideIcon('trash-2', { size: 18, color: 'var(--tg-destructive-color)' })}
+        </button>
+      </li>
+    `
+    )
+    .join('');
+
+  return `
+    <ul class="list">${items}</ul>
+    <div class="mt-md text-center">
+      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
+    </div>
+  `;
+}
+
+/**
+ * Привязывает обработчики событий для списка пациентов.
+ *
+ * @param {HTMLElement} container — контейнер
+ */
+function bindEvents(container) {
+  const addBtn = container.querySelector('#patient-add-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      navigate('patient-add');
+    });
+  }
+
+  // Обработчики кнопок удаления пациента
+  container.querySelectorAll('.patient-card__delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const patientId = btn.dataset.patientId;
+      const confirmed = await showConfirm(
+        'Удалить пациента из списка отслеживаемых?'
+      );
+      if (confirmed) {
+        try {
+          await apiDelete(`/patients/${patientId}`);
+          // Перезагружаем список пациентов
+          const patientsContainer = container.closest('#patients-content');
+          if (patientsContainer) {
+            await renderPatients(patientsContainer);
+          }
+        } catch (error) {
+          if (window.showToast) {
+            window.showToast(error.message, 'error');
+          } else {
+            alert(error.message);
+          }
         }
       }
     });
+  });
+}
+
+/**
+ * Показывает диалог подтверждения.
+ * Использует Telegram.WebApp.showConfirm если доступен, иначе confirm().
+ *
+ * @param {string} message — текст подтверждения
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(message) {
+  if (isInTelegram() && window.Telegram.WebApp.showConfirm) {
+    return new Promise((resolve) => {
+      window.Telegram.WebApp.showConfirm(message, (confirmed) => {
+        resolve(confirmed);
+      });
+    });
   }
+  return Promise.resolve(confirm(message));
 }
 
 /**

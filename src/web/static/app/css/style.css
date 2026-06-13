@@ -631,6 +631,33 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Карточка пациента с кнопкой удаления ── */
+.patient-card {
+  position: relative;
+}
+
+.patient-card__delete {
+  position: absolute;
+  right: var(--gap-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  flex-shrink: 0;
+}
+
+.patient-card__delete:hover {
+  background-color: var(--tg-secondary-bg-color);
+}
+
 /* === Выделенный элемент списка === */
 .list__item--selected,
 .stepper-item--selected {
@@ -1239,6 +1266,7 @@ body {
   width: 100%;
   max-width: 320px;
   margin: 0 auto;
+  position: relative;
 }
 
 .calendar__header {
@@ -1278,6 +1306,84 @@ body {
   font-weight: 600;
   color: var(--tg-text-color);
   text-transform: capitalize;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.15s;
+}
+
+.calendar__month-label:hover {
+  background-color: var(--tg-secondary-bg-color);
+}
+
+/* ── Попап выбора месяца/года ── */
+.calendar__month-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background-color: var(--tg-secondary-bg-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--gap-md);
+  margin-top: var(--gap-xs);
+}
+
+.calendar__month-picker__year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gap-md);
+}
+
+.calendar__month-picker__year-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--tg-bg-color);
+  color: var(--tg-text-color);
+  font-size: 18px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.calendar__month-picker__year {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--tg-text-color);
+}
+
+.calendar__month-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap-sm);
+}
+
+.calendar__month-picker__month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--tg-bg-color);
+  color: var(--tg-text-color);
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.calendar__month-picker__month--selected {
+  background-color: var(--tg-button-color);
+  color: var(--tg-button-text-color);
 }
 
 .calendar__weekdays {

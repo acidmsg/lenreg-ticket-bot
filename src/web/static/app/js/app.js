@@ -191,6 +191,13 @@ function render() {
       `;
       break;
 
+    case 'patient-add':
+      content = `
+        ${renderHeader('Новый пациент', true, userName)}
+        <div class="app-view" id="patient-add-content"></div>
+      `;
+      break;
+
     default:
       navigate('doctors');
       return;
@@ -222,6 +229,15 @@ function render() {
     case 'patients':
       renderPatients(document.getElementById('patients-content'));
       break;
+
+    case 'patient-add':
+      renderPatientAddForm(document.getElementById('patient-add-content'));
+      break;
+  }
+
+  // Скрываем MainButton при уходе с экранов, где она не нужна
+  if (isInTelegram() && state.route !== 'patient-add') {
+    window.Telegram.WebApp.MainButton.hide();
   }
 }
 

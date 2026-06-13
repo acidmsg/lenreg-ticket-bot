@@ -8,6 +8,7 @@ API-эндпоинты для Telegram Mini App.
 Роутер монтируется с префиксом ``/api/user``.
 """
 
+import asyncio
 import datetime
 import logging
 from typing import Any, cast
@@ -112,6 +113,79 @@ def _get_api(request: Request):
             "Добавьте его при регистрации роутера в app.py."
         )
     return api
+
+
+async def _find_patient_id(
+    api,
+    fio: str,
+    birth_date: datetime.date,
+    db,
+    telegram_id: str,
+) -> tuple[str | None, str | None]:
+    """Поиск пациента с перебором clinic_id и защитой от зависания.
+
+    Возвращает (patient_id | None, error_detail | None).
+    """
+    clinic_ids_to_try: list[str] = []
+
+    # Этап 1: клиника по умолчанию
+    clinic_ids_to_try.append(settings.DEFAULT_CLINIC_ID)
+
+    # Этап 2: глобальный поиск
+    clinic_ids_to_try.append("")
+
+    # Этап 3: все активные clinic_id из БД
+    try:
+        active_ids = await db._db.get_active_clinic_ids()
+        for cid in active_ids:
+            if cid not in clinic_ids_to_try:
+                clinic_ids_to_try.append(cid)
+    except Exception:
+        logger.warning(
+            "Не удалось получить список активных clinic_id для пользователя %s",
+            telegram_id,
+        )
+
+    p_id: str | None = None
+    last_err: str | None = None
+
+    for clinic_id in clinic_ids_to_try:
+        try:
+            p_id, err = await api.fetch_patient_id(fio, birth_date, clinic_id)
+        except httpx.TimeoutException:
+            logger.error(
+                "Таймаут API при поиске пациента '%s' в clinic_id=%s",
+                fio,
+                clinic_id,
+            )
+            # При таймауте API — не продолжать перебор, сразу ошибка
+            return None, "api-timeout"
+        except httpx.NetworkError:
+            logger.error(
+                "Сетевая ошибка API при поиске пациента '%s' в clinic_id=%s",
+                fio,
+                clinic_id,
+            )
+            continue
+        except Exception:
+            logger.exception(
+                "Ошибка при поиске пациента '%s' в clinic_id=%s",
+                fio,
+                clinic_id,
+            )
+            continue
+
+        if p_id is not None:
+            logger.info(
+                "Пациент '%s' найден: p_id=%s, clinic_id=%s",
+                fio,
+                p_id,
+                clinic_id,
+            )
+            return p_id, None
+        last_err = err
+
+    return None, last_err
 
 
 def _monitoring_id_to_parts(monitoring_id: str) -> tuple[str, str]:
@@ -653,67 +727,29 @@ async def add_patient(
             },
         )
 
-    # Формируем список clinic_id для перебора
-    clinic_ids_to_try: list[str] = []
-
-    # Этап 1: клиника по умолчанию
-    clinic_ids_to_try.append(settings.DEFAULT_CLINIC_ID)
-
-    # Этап 2: глобальный поиск
-    clinic_ids_to_try.append("")
-
-    # Этап 3: все активные clinic_id из БД
+    # Поиск пациента с таймаутом
     try:
-        active_ids = await db._db.get_active_clinic_ids()
-        for cid in active_ids:
-            if cid not in clinic_ids_to_try:
-                clinic_ids_to_try.append(cid)
-    except Exception:
-        logger.warning(
-            "Не удалось получить список активных clinic_id для пользователя %s",
-            telegram_id,
+        p_id, last_err = await asyncio.wait_for(
+            _find_patient_id(api, fio, bday_date, db, telegram_id),
+            timeout=15.0,
+        )
+    except TimeoutError:
+        logger.error("Поиск пациента '%s' превысил таймаут 15с", fio)
+        return JSONResponse(
+            status_code=504,
+            content={
+                "detail": (
+                    "Поиск пациента занял слишком много времени. Попробуйте позже."
+                ),
+            },
         )
 
-    # Поиск пациента
-    p_id: str | None = None
-    last_err: str | None = None
-
-    for clinic_id in clinic_ids_to_try:
-        try:
-            p_id, err = await api.fetch_patient_id(fio, bday_date, clinic_id)
-        except httpx.TimeoutException:
-            logger.error(
-                "Таймаут API при поиске пациента '%s' в clinic_id=%s",
-                fio,
-                clinic_id,
-            )
-            continue
-        except httpx.NetworkError:
-            logger.error(
-                "Сетевая ошибка API при поиске пациента '%s' в clinic_id=%s",
-                fio,
-                clinic_id,
-            )
-            continue
-        except Exception:
-            logger.exception(
-                "Ошибка при поиске пациента '%s' в clinic_id=%s",
-                fio,
-                clinic_id,
-            )
-            continue
-
-        if p_id is not None:
-            logger.info(
-                "Пациент '%s' найден: p_id=%s, clinic_id=%s",
-                fio,
-                p_id,
-                clinic_id,
-            )
-            break
-        last_err = err
-
     if p_id is None:
+        if last_err == "api-timeout":
+            return JSONResponse(
+                status_code=504,
+                content={"detail": "Сервер zdrav.lenreg.ru не отвечает."},
+            )
         # Все clinic_id перебраны, пациент не найден
         return JSONResponse(
             status_code=404,
@@ -761,6 +797,31 @@ async def add_patient(
         "patient_id": p_id,
         "fio": fio,
     }
+
+
+@router.delete("/patients/{patient_id}")
+async def delete_patient(
+    request: Request,
+    patient_id: str,
+) -> dict[str, Any] | JSONResponse:
+    """Удалить пациента из списка отслеживаемых."""
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    user_data = await db.get_user_data(telegram_id)
+    if patient_id not in user_data.get("patients", {}):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Пациент не найден."},
+        )
+
+    await db.delete_patient(telegram_id, patient_id)
+    logger.info(
+        "Пациент %s удалён пользователем %s",
+        patient_id,
+        telegram_id,
+    )
+    return {"status": "deleted", "patient_id": patient_id}
 
 
 @router.get("/slots", response_model=None)

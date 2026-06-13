@@ -186,6 +186,83 @@ function getMonthName(month) {
   return names[month - 1] || '';
 }
 
+/**
+ * Возвращает краткое название месяца (3 буквы).
+ *
+ * @param {number} month — 1-based
+ * @returns {string}
+ */
+function getShortMonthName(month) {
+  const names = [
+    'Янв',
+    'Фев',
+    'Мар',
+    'Апр',
+    'Май',
+    'Июн',
+    'Июл',
+    'Авг',
+    'Сен',
+    'Окт',
+    'Ноя',
+    'Дек'
+  ];
+  return names[month - 1] || '';
+}
+
+/**
+ * Рендерит попап выбора месяца/года.
+ *
+ * @param {HTMLElement} container — DOM-элемент для рендеринга попапа
+ * @param {number} currentYear — текущий год просмотра
+ * @param {number} currentMonth — текущий месяц просмотра (1-based)
+ * @param {Function} onSelect — колбэк onSelect(year, month)
+ */
+function renderMonthPicker(container, currentYear, currentMonth, onSelect) {
+  let pickerYear = currentYear;
+
+  function render() {
+    container.innerHTML = `
+      <div class="calendar__month-picker__year-row">
+        <button type="button" class="calendar__month-picker__year-nav" data-action="prev" aria-label="Предыдущий год">&laquo;</button>
+        <span class="calendar__month-picker__year">${pickerYear}</span>
+        <button type="button" class="calendar__month-picker__year-nav" data-action="next" aria-label="Следующий год">&raquo;</button>
+      </div>
+      <div class="calendar__month-picker__grid">
+        ${Array.from({ length: 12 }, (_, i) => {
+          const m = i + 1;
+          const isSelected = m === currentMonth && pickerYear === currentYear;
+          return `<button type="button" class="calendar__month-picker__month${isSelected ? ' calendar__month-picker__month--selected' : ''}" data-month="${m}">${getShortMonthName(m)}</button>`;
+        }).join('')}
+      </div>
+    `;
+
+    // Обработчики навигации по годам
+    container
+      .querySelectorAll('.calendar__month-picker__year-nav')
+      .forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          pickerYear += action === 'prev' ? -1 : 1;
+          render();
+        });
+      });
+
+    // Обработчики выбора месяца
+    container
+      .querySelectorAll('.calendar__month-picker__month')
+      .forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const month = parseInt(btn.dataset.month, 10);
+          onSelect(pickerYear, month);
+        });
+      });
+  }
+
+  render();
+  container.hidden = false;
+}
+
 // ============================================================
 // createCalendar()
 // ============================================================
@@ -223,9 +300,10 @@ export function createCalendar({ container, value, onChange, min, max }) {
     <div class="calendar">
       <div class="calendar__header">
         <button class="calendar__nav calendar__nav--prev" type="button" aria-label="Предыдущий месяц"><</button>
-        <span class="calendar__month-label"></span>
+        <button type="button" class="calendar__month-label"></button>
         <button class="calendar__nav calendar__nav--next" type="button" aria-label="Следующий месяц">></button>
       </div>
+      <div class="calendar__month-picker" hidden></div>
       <div class="calendar__weekdays">
         ${getWeekdayNames()
           .map((n) => `<span>${n}</span>`)
@@ -426,6 +504,34 @@ export function createCalendar({ container, value, onChange, min, max }) {
       viewMonth++;
     }
     renderGrid();
+  });
+
+  // Клик по метке месяца — открыть попап выбора месяца/года
+  monthLabel.addEventListener('click', () => {
+    const pickerEl = container.querySelector('.calendar__month-picker');
+    if (!pickerEl) return;
+
+    // Если попап уже открыт — закрыть
+    if (!pickerEl.hidden) {
+      pickerEl.hidden = true;
+      return;
+    }
+
+    renderMonthPicker(pickerEl, viewYear, viewMonth, (year, month) => {
+      viewYear = year;
+      viewMonth = month;
+      renderGrid();
+      pickerEl.hidden = true;
+    });
+  });
+
+  // Закрытие попапа при клике вне
+  document.addEventListener('click', (e) => {
+    const pickerEl = container.querySelector('.calendar__month-picker');
+    if (!pickerEl || pickerEl.hidden) return;
+    if (!container.contains(e.target)) {
+      pickerEl.hidden = true;
+    }
   });
 
   // Первичный рендеринг

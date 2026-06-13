@@ -8,6 +8,7 @@
 import { getInitData, getInitDataError } from './auth.js';
 
 const BASE_PATH = '/api/user';
+const FETCH_TIMEOUT_MS = 20000; // 20 секунд
 
 /**
  * Проверяет наличие initData и выбрасывает ошибку с понятным сообщением.
@@ -18,6 +19,34 @@ function requireInitData() {
   const error = getInitDataError();
   if (error) {
     throw new Error(error);
+  }
+}
+
+/**
+ * Выполняет fetch с таймаутом через AbortController.
+ *
+ * @param {string} url — URL запроса
+ * @param {object} options — параметры fetch
+ * @returns {Promise<Response>}
+ * @throws {Error} при таймауте
+ */
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Сервер не отвечает (таймаут 20с). Попробуйте позже.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -52,7 +81,7 @@ export async function apiGet(path, params = {}) {
   }
   const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
 
-  const response = await fetch(`${BASE_PATH}${path}${queryString}`, {
+  const response = await fetchWithTimeout(`${BASE_PATH}${path}${queryString}`, {
     method: 'GET',
     headers
   });
@@ -80,7 +109,7 @@ export async function apiPost(path, body = {}) {
     headers['X-Telegram-InitData'] = initData;
   }
 
-  const response = await fetch(`${BASE_PATH}${path}`, {
+  const response = await fetchWithTimeout(`${BASE_PATH}${path}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body)
@@ -108,7 +137,7 @@ export async function apiDelete(path) {
     headers['X-Telegram-InitData'] = initData;
   }
 
-  const response = await fetch(`${BASE_PATH}${path}`, {
+  const response = await fetchWithTimeout(`${BASE_PATH}${path}`, {
     method: 'DELETE',
     headers
   });
