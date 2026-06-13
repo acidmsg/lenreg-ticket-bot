@@ -8,7 +8,6 @@
 import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { lucideIcon } from '../components/icon.js';
-import { createDatePicker } from '../components/calendar.js';
 import { navigate } from '../app.js';
 
 /**
@@ -62,8 +61,14 @@ export function renderPatientAddForm(container) {
           >
         </div>
         <div class="mb-md">
-          <label class="form__label">Дата рождения</label>
-          <div id="patient-bday-picker"></div>
+          <label class="form__label" for="patient-bday">Дата рождения</label>
+          <input
+            type="text"
+            id="patient-bday"
+            class="form__input"
+            placeholder="ДД.ММ.ГГГГ"
+            autocomplete="off"
+          >
         </div>
       </form>
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--tg-destructive-color); font-size: var(--font-sm);"></div>
@@ -76,16 +81,16 @@ export function renderPatientAddForm(container) {
 
   const errorEl = container.querySelector('#patient-form-error');
 
-  // Инициализируем календарь
-  const pickerContainer = container.querySelector('#patient-bday-picker');
+  // Инициализируем flatpickr на поле ввода даты
+  const bdayInput = container.querySelector('#patient-bday');
   let datePicker = null;
-  if (pickerContainer) {
-    datePicker = createDatePicker({
-      container: pickerContainer,
-      value: '',
-      onChange: (_dateStr) => {
-        // значение сохраняется в datePicker, читаем через getValue() при submit
-      }
+  if (bdayInput) {
+    datePicker = flatpickr(bdayInput, {
+      locale: 'ru',
+      dateFormat: 'd.m.Y',
+      defaultDate: '',
+      disableMobile: true,
+      static: true
     });
   }
 
@@ -103,7 +108,7 @@ export function renderPatientAddForm(container) {
     submitBtn.addEventListener('click', async () => {
       const fioInput = container.querySelector('#patient-fio');
       const full_name = fioInput?.value?.trim() || '';
-      const birth_date = datePicker?.getValue() || '';
+      const birth_date = bdayInput?.value?.trim() || '';
 
       // Простая валидация
       const parts = full_name.split(/\s+/).filter(Boolean);
