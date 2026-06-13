@@ -871,12 +871,20 @@ body {
   border-color: var(--tg-button-color);
 }
 
+.form__label {
+  display: block;
+  font-size: var(--font-md);
+  font-weight: 500;
+  color: var(--tg-text-color);
+  margin-bottom: var(--gap-xs);
+}
+
 /* === Форма добавления пациента === */
 .patient-add-form {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 0 var(--card-padding);
+  padding: var(--gap-sm) var(--card-padding) var(--gap-lg) var(--card-padding);
   overflow-y: auto;
 }
 

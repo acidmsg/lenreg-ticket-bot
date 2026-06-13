@@ -49,21 +49,20 @@ export function renderPatientAddForm(container) {
 
   container.innerHTML = `
     <div class="patient-add-form">
-      <div class="patient-add-form__title" style="font-size: var(--font-xl); font-weight: 600; margin-bottom: var(--gap-md);">Заполните данные пациента</div>
       <form id="patient-form" autocomplete="off">
         <div class="mb-md">
-          <label class="card__subtitle" for="patient-fio">Введите фамилию, имя и отчество пациента</label>
+          <label class="form__label" for="patient-fio">Фамилия Имя Отчество</label>
           <input
             type="text"
             id="patient-fio"
             class="form__input"
-            placeholder="Фамилия Имя Отчество"
+            placeholder="Иванов Пётр Иванович"
             required
             autocomplete="off"
           >
         </div>
         <div class="mb-md">
-          <label class="card__subtitle">Дата рождения пациента</label>
+          <label class="form__label">Дата рождения</label>
           <div id="patient-bday-picker"></div>
         </div>
       </form>
