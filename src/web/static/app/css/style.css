@@ -918,7 +918,8 @@ body {
 
 .form__input {
   width: 100%;
-  padding: 10px 14px;
+  height: var(--size-control-md);
+  padding: 0 var(--space-md);
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
@@ -931,6 +932,11 @@ body {
 
 .form__input:focus {
   border-color: var(--color-accent);
+}
+
+.form__input::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
 }
 
 .form__label {
