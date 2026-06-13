@@ -168,6 +168,21 @@ export function renderPatientAddForm(container) {
       if (bdayInput.value !== formatted) {
         bdayInput.value = formatted;
       }
+
+      // Явная валидация при достижении полной даты (10 символов).
+      // Программная установка bdayInput.value не вызывает input-событие,
+      // поэтому валидационный обработчик может не увидеть финальное значение.
+      // Вызов здесь гарантирует валидацию сразу после форматирования маской.
+      if (bdayInput.value.trim().length === 10) {
+        const result = validateBday(bdayInput.value);
+        setFieldError(bdayInput, bdayError, result.error);
+      } else if (
+        bdayInput.value.trim().length < 10 &&
+        bdayInput.classList.contains('form__input--invalid')
+      ) {
+        // Сбрасываем ошибку при стирании символов
+        setFieldError(bdayInput, bdayError, null);
+      }
     });
   }
 
