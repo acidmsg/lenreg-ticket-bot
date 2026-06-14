@@ -190,11 +190,13 @@ export function renderPatientAddForm(container) {
         bdayInput.value = formatted;
       }
 
-      // Явная валидация при достижении полной даты (10 символов).
+      // Прогрессивная синхронизация календаря при ручном вводе даты.
       // Программная установка bdayInput.value не вызывает input-событие,
       // поэтому валидационный обработчик может не увидеть финальное значение.
-      // Вызов здесь гарантирует валидацию сразу после форматирования маской.
-      if (bdayInput.value.trim().length === 10) {
+      const inputLen = bdayInput.value.trim().length;
+
+      if (inputLen === 10) {
+        // Полная дата (ДД.ММ.ГГГГ) — валидация + полная синхронизация календаря.
         const result = validateBday(bdayInput.value);
         setFieldError(bdayInput, bdayError, result.error);
 
@@ -221,8 +223,21 @@ export function renderPatientAddForm(container) {
         if (bdayInput._fromCalendar) {
           delete bdayInput._fromCalendar;
         }
+      } else if (inputLen === 5 && !bdayInput._fromCalendar) {
+        // Введён день и месяц (ДД.ММ), год ещё не введён.
+        // Переключаем календарь на введённый месяц, используя текущий год.
+        // День не подсвечиваем, т.к. год не завершён — месяц просто становится видимым.
+        const parts = bdayInput.value.split('.');
+        const m = parseInt(parts[1], 10);
+        if (m >= 1 && m <= 12) {
+          const currentYear = new Date().getFullYear();
+          calendar.selectedDates = []; // сбрасываем подсветку дня
+          calendar.selectedYear = currentYear;
+          calendar.selectedMonth = m - 1; // 0-based
+          calendar.update();
+        }
       } else if (
-        bdayInput.value.trim().length < 10 &&
+        inputLen < 10 &&
         bdayInput.classList.contains('form__input--invalid')
       ) {
         // Сбрасываем ошибку при стирании символов
@@ -435,6 +450,10 @@ function renderPatientList(patients) {
       </div>
     `;
   }
+
+  // Сортировка пациентов в алфавитном порядке по ФИО (кириллица).
+  // localeCompare('ru') обеспечивает корректную сортировку букв «ё», «Ё» и т.д.
+  patients.sort((a, b) => (a.fio || '').localeCompare(b.fio || '', 'ru'));
 
   const items = patients
     .map(
