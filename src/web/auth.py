@@ -1,12 +1,13 @@
 """
 Модуль аутентификации веб-дашборда.
 
-Проверяет X-API-Key заголовок через middleware только для путей дашборда:
-``/``, ``/users``, ``/logs``, ``/clinics``, ``/api-status``, ``/api/*``
-(кроме ``/api/user/*``).
+Проверяет X-API-Key заголовок через middleware **только для API-эндпоинтов**
+(``/api/*``), кроме публичных (``/api/user/*``, ``/app/``, ``/static/``).
 
-Публичные пути (``/app/``, ``/static/``, ``/api/user/``) не проверяются.
-Если WEB_DASHBOARD_API_KEY пуст — аутентификация отключена.
+HTML-страницы дашборда (``/``, ``/users``, ``/logs``, ``/clinics``, ``/backups``,
+``/api-status``) рендерятся сервером, не требуют API-ключа и доступны публично.
+
+Если WEB_DASHBOARD_API_KEY пуст — аутентификация отключена полностью.
 """
 
 from collections.abc import Awaitable, Callable
@@ -24,8 +25,18 @@ _PUBLIC_PATH_PREFIXES = (
 
 
 def _is_dashboard_path(path: str) -> bool:
-    """Возвращает True, если путь относится к дашборду и требует API-ключ."""
-    return all(not path.startswith(prefix) for prefix in _PUBLIC_PATH_PREFIXES)
+    """
+    Возвращает True, если путь требует API-ключ.
+
+    Только API-эндпоинты (``/api/*``) требуют аутентификации по ключу.
+    HTML-страницы дашборда (``/``, ``/users``, ``/logs``, ``/clinics``,
+    ``/backups``, ``/api-status``) доступны без ключа — они рендерятся
+    сервером и не отдают сырых данных.
+    """
+    if any(path.startswith(prefix) for prefix in _PUBLIC_PATH_PREFIXES):
+        return False
+    # Только /api/* эндпоинты требуют API-ключа
+    return path.startswith("/api")
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
