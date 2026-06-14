@@ -121,6 +121,9 @@ export function renderPatientAddForm(container) {
           if (!date) return;
           const [y, m, d] = date.split('-');
           self.HTMLInputElement.value = `${d}.${m}.${y}`;
+          // Флаг предотвращает обратную синхронизацию (маска → календарь)
+          // при программной установке значения из календаря
+          self.HTMLInputElement._fromCalendar = true;
           self.hide();
         }
       }
@@ -131,7 +134,7 @@ export function renderPatientAddForm(container) {
     // Блокирует недопустимые символы на уровне ввода:
     //   день: первая цифра 0-3, если 3 — вторая 0-1 (макс 31)
     //   месяц: первая цифра 0-1, если 1 — вторая 0-2 (макс 12)
-    //   год: любые 4 цифры (итоговая проверка ≤ текущий год — в validateBday)
+    //   год: 1xxx или 20xx (год ≥ 1900, итоговая проверка ≤ текущий — в validateBday)
     bdayInput.addEventListener('input', () => {
       const raw = bdayInput.value.replace(/\D/g, '');
       let digits = '';
@@ -154,8 +157,16 @@ export function renderPatientAddForm(container) {
           // Вторая цифра месяца: если первая = 1 → только 0-2; иначе 0-9
           const m1 = parseInt(digits[2], 10);
           if (m1 === 1 && d > 2) break;
+        } else if (i === 4) {
+          // Первая цифра года: только 1 или 2 (год ≥ 1900)
+          if (d < 1 || d > 2) break;
+        } else if (i === 5) {
+          // Вторая цифра года: если первая=1 → только 9 (19xx); если первая=2 → только 0 (20xx)
+          const y1 = parseInt(digits[4], 10);
+          if (y1 === 1 && d !== 9) break;
+          if (y1 === 2 && d !== 0) break;
         }
-        // Для года (позиции 4-7) — любая цифра, ограничение в validateBday
+        // Для третьей и четвёртой цифры года — любые цифры, ограничение в validateBday
 
         digits += ch;
       }
@@ -176,6 +187,24 @@ export function renderPatientAddForm(container) {
       if (bdayInput.value.trim().length === 10) {
         const result = validateBday(bdayInput.value);
         setFieldError(bdayInput, bdayError, result.error);
+
+        // Синхронизация календаря с ручным вводом:
+        // если дата валидна и ввод не из календаря — переключаем календарь
+        // на соответствующий месяц/год и подсвечиваем выбранную дату.
+        if (result.valid && !bdayInput._fromCalendar) {
+          const [d, m, y] = bdayInput.value.split('.').map(Number);
+          calendar.update({
+            year: y,
+            month: m,
+            dates: [
+              `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+            ]
+          });
+        }
+        // Сбрасываем флаг после обработки
+        if (bdayInput._fromCalendar) {
+          delete bdayInput._fromCalendar;
+        }
       } else if (
         bdayInput.value.trim().length < 10 &&
         bdayInput.classList.contains('form__input--invalid')
