@@ -85,7 +85,7 @@ COPY locales/ locales/
 # Директория для runtime-данных (SQLite, кэш)
 # Монтируется извне через docker-compose volume: ./data:/app/data
 # ---------------------------------------------------------------------------
-RUN mkdir -p /app/data && \
+RUN mkdir -p /app/data /app/logs && \
   chown -R appuser:appuser /app
 
 # ---------------------------------------------------------------------------
