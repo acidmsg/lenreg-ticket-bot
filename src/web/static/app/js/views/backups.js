@@ -249,8 +249,8 @@ function renderBackupRow(b) {
       <td class="cell-nowrap">${escapeHtml(b.size)}</td>
       <td>${renderIntegrityBadge(b.integrity)}</td>
       <td>
-        <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}">
-          Восстановить
+        <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" title="Восстановить">
+          ${lucideIcon('rotate-ccw', 18)}
         </button>
         <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;" title="Удалить бэкап">
           ${lucideIcon('trash-2', 18)}
