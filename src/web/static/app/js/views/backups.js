@@ -155,11 +155,29 @@ async function loadStatus() {
   const integrityEl = document.getElementById('status-integrity');
   const freeSpaceEl = document.getElementById('status-free-space');
 
+  if (!lastBackupEl || !lastSizeEl || !integrityEl || !freeSpaceEl) return;
+
   try {
     const data = await apiGet('/status');
 
-    if (data.last_backup && data.last_backup !== 'None') {
+    // Специальная обработка статуса "no_backups" — вообще нет ни одного бэкапа
+    if (data.status === 'no_backups') {
+      lastBackupEl.textContent = 'Нет бэкапов';
+      lastBackupEl.classList.add('text-muted');
+      lastSizeEl.textContent = '—';
+      integrityEl.textContent = '—';
+      freeSpaceEl.textContent = data.free_space_human || '—';
+      return;
+    }
+
+    // last_backup: "none" (скрипт) или null/undefined — показываем «Никогда»
+    if (
+      data.last_backup &&
+      data.last_backup !== 'none' &&
+      data.last_backup !== 'None'
+    ) {
       lastBackupEl.textContent = formatDateTime(data.last_backup);
+      lastBackupEl.classList.remove('text-muted');
     } else {
       lastBackupEl.textContent = 'Никогда';
       lastBackupEl.classList.add('text-muted');
@@ -167,7 +185,8 @@ async function loadStatus() {
 
     lastSizeEl.textContent = data.last_size_human || '—';
 
-    if (data.last_integrity) {
+    // integrity: "N/A" означает «не проверялась» (нет бэкапов для проверки)
+    if (data.last_integrity && data.last_integrity !== 'N/A') {
       integrityEl.innerHTML = renderIntegrityBadge(data.last_integrity);
     } else {
       integrityEl.textContent = '—';
@@ -177,6 +196,9 @@ async function loadStatus() {
   } catch (error) {
     lastBackupEl.textContent = 'Ошибка';
     lastBackupEl.style.color = 'var(--color-danger)';
+    lastSizeEl.textContent = '—';
+    integrityEl.textContent = '—';
+    freeSpaceEl.textContent = '—';
     console.error('Ошибка загрузки статуса бэкапов:', error);
   }
 }

@@ -6,13 +6,13 @@
 #   bash scripts/backup_healthcheck.sh
 #
 # Проверяет:
-#   1. Последний daily-бэкап не старше 24 часов
+#   1. Последний бэкап (по всем категориям) не старше 24 часов
 #   2. Последний бэкап проходит PRAGMA integrity_check
 #   3. В BACKUP_DIR есть минимум 100MB свободного места
 #   4. Количество бэкапов в каждой категории
 #
 # Вывод: JSON с результатом проверки
-# Код возврата: 0 — всё ok, 1 — есть проблемы
+# Код возврата: 0 — всё ok, 1 — есть проблемы, 2 — нет ни одного бэкапа
 #
 # Переменные окружения:
 #   BACKUP_DIR              — корневая директория бэкапов (default: data/backups)
@@ -43,41 +43,71 @@ json_escape() {
 }
 
 # ---------------------------------------------------------------------------
-# Поиск последнего daily-бэкапа
+# Поиск последнего бэкапа по всем категориям (daily, weekly, monthly, manual)
 # ---------------------------------------------------------------------------
-LATEST_DAILY=$(ls -1t "${BACKUP_DIR}/daily"/bot_*.db 2>/dev/null | head -1 || true)
+# Собираем все .db файлы из всех категорий, сортируем по mtime (новые первые),
+# берём самый свежий.
+LATEST_BACKUP_PATH=""
+for CAT in daily weekly monthly manual; do
+    CAT_DIR="${BACKUP_DIR}/${CAT}"
+    if [ -d "${CAT_DIR}" ]; then
+        FOUND=$(ls -1t "${CAT_DIR}"/bot_*.db 2>/dev/null | head -1 || true)
+        if [ -n "${FOUND}" ]; then
+            if [ -z "${LATEST_BACKUP_PATH}" ]; then
+                LATEST_BACKUP_PATH="${FOUND}"
+            else
+                # Сравниваем mtime: если FOUND новее LATEST_BACKUP_PATH — заменяем
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    FOUND_MTIME=$(stat -f %m "${FOUND}" 2>/dev/null || echo 0)
+                    LATEST_MTIME=$(stat -f %m "${LATEST_BACKUP_PATH}" 2>/dev/null || echo 0)
+                else
+                    FOUND_MTIME=$(stat -c %Y "${FOUND}" 2>/dev/null || echo 0)
+                    LATEST_MTIME=$(stat -c %Y "${LATEST_BACKUP_PATH}" 2>/dev/null || echo 0)
+                fi
+                if [ "${FOUND_MTIME}" -gt "${LATEST_MTIME}" ]; then
+                    LATEST_BACKUP_PATH="${FOUND}"
+                fi
+            fi
+        fi
+    fi
+done
 
-if [ -z "${LATEST_DAILY}" ]; then
-    STATUS="fail"
-    ISSUES+=("Нет ни одного daily-бэкапа в ${BACKUP_DIR}/daily/")
+if [ -z "${LATEST_BACKUP_PATH}" ]; then
+    # Вообще нет ни одного бэкапа ни в одной категории
+    STATUS="no_backups"
+    ISSUES+=("Нет ни одного бэкапа в ${BACKUP_DIR}/ (проверены daily, weekly, monthly, manual)")
     LAST_BACKUP="none"
     LAST_SIZE="0"
     LAST_SIZE_HUMAN="0 B"
-    AGE_HOURS="N/A"
+    AGE_HOURS=0
+    INTEGRITY="N/A"
 else
-    LAST_BACKUP=$(basename "${LATEST_DAILY}")
-    LAST_SIZE=$(stat -c%s "${LATEST_DAILY}" 2>/dev/null || stat -f%z "${LATEST_DAILY}" 2>/dev/null || echo 0)
+    LAST_BACKUP=$(basename "${LATEST_BACKUP_PATH}")
+    LAST_SIZE=$(stat -c%s "${LATEST_BACKUP_PATH}" 2>/dev/null || stat -f%z "${LATEST_BACKUP_PATH}" 2>/dev/null || echo 0)
     LAST_SIZE_HUMAN=$(numfmt --to=iec --suffix=B "${LAST_SIZE}" 2>/dev/null || echo "${LAST_SIZE} bytes")
 
     # Возраст последнего бэкапа в часах
     if [[ "$(uname)" == "Darwin" ]]; then
         # macOS: stat -f %m
-        FILE_MTIME=$(stat -f %m "${LATEST_DAILY}" 2>/dev/null)
+        FILE_MTIME=$(stat -f %m "${LATEST_BACKUP_PATH}" 2>/dev/null)
     else
         # Linux: stat -c %Y
-        FILE_MTIME=$(stat -c %Y "${LATEST_DAILY}" 2>/dev/null)
+        FILE_MTIME=$(stat -c %Y "${LATEST_BACKUP_PATH}" 2>/dev/null)
     fi
     NOW_EPOCH=$(date +%s)
     AGE_SECONDS=$((NOW_EPOCH - FILE_MTIME))
     AGE_HOURS=$((AGE_SECONDS / 3600))
 
-    if [ "${AGE_HOURS}" -gt "${MAX_AGE_HOURS}" ]; then
+    # Проверка возраста: только для авто-бэкапов (daily/weekly/monthly).
+    # Ручные (manual) бэкапы не имеют расписания, поэтому возраст не проверяется.
+    LATEST_CATEGORY=$(basename "$(dirname "${LATEST_BACKUP_PATH}")")
+    if [ "${LATEST_CATEGORY}" != "manual" ] && [ "${AGE_HOURS}" -gt "${MAX_AGE_HOURS}" ]; then
         STATUS="fail"
-        ISSUES+=("Последний бэкап старше ${MAX_AGE_HOURS} часов: возраст ${AGE_HOURS}ч (${LAST_BACKUP})")
+        ISSUES+=("Последний авто-бэкап старше ${MAX_AGE_HOURS} часов: возраст ${AGE_HOURS}ч (${LAST_BACKUP}, категория ${LATEST_CATEGORY})")
     fi
 
     # Проверка целостности последнего бэкапа
-    INTEGRITY_RESULT=$(sqlite3 "${LATEST_DAILY}" "PRAGMA integrity_check" 2>&1 || echo "ERROR: sqlite3 failed")
+    INTEGRITY_RESULT=$(sqlite3 "${LATEST_BACKUP_PATH}" "PRAGMA integrity_check" 2>&1 || echo "ERROR: sqlite3 failed")
     if [ "${INTEGRITY_RESULT}" != "ok" ]; then
         STATUS="fail"
         ISSUES+=("integrity_check для ${LAST_BACKUP}: ${INTEGRITY_RESULT}")

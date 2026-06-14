@@ -814,8 +814,10 @@ async def backup_status(request: Request) -> dict[str, Any] | JSONResponse:
     # Добавляем restore_in_container из настроек
     health_data["restore_in_container"] = settings.restore_in_container
 
-    # Если скрипт вернул код != 0, но JSON валидный — статус "issues"
-    if result.returncode != 0:
+    # Если скрипт вернул код != 0, но JSON валидный:
+    # - "fail" → "issues" (есть проблемы, но бэкапы существуют)
+    # - "no_backups" оставляем как есть (вообще нет бэкапов)
+    if result.returncode != 0 and health_data.get("status") != "no_backups":
         health_data["status"] = "issues"
 
     return health_data
