@@ -203,13 +203,19 @@ export function renderPatientAddForm(container) {
         // на соответствующий месяц/год и подсвечиваем выбранную дату.
         if (result.valid && !bdayInput._fromCalendar) {
           const [d, m, y] = bdayInput.value.split('.').map(Number);
-          // Прямая установка selectedDates перед update: в режиме input: true
-          // метод update({ dates }) не всегда корректно подсвечивает дату.
-          // Явная установка selectedDates + update гарантирует переключение
-          // месяца/года и подсветку выбранного дня.
+          // Параметры update() в VanillaCalendar Pro v2.9.10 — булевы флаги
+          // (true = «использовать сохранённое значение из settings.selected»),
+          // а не новые значения года/месяца. Передача числовых значений (year: 2025,
+          // month: 6) интерпретируется как truthy → месяц/год не меняются.
+          //
+          // Для переключения месяца/года нужно установить selectedYear/selectedMonth
+          // (0-based, как Date.getMonth()) до вызова update() без аргументов.
+          // Тогда be() возьмёт значения из selectedYear/selectedMonth/selectedDates.
           const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           calendar.selectedDates = [dateStr];
-          calendar.update({ year: y, month: m });
+          calendar.selectedYear = y;
+          calendar.selectedMonth = m - 1; // 0-based: январь=0, ..., декабрь=11
+          calendar.update();
         }
         // Сбрасываем флаг после обработки
         if (bdayInput._fromCalendar) {
