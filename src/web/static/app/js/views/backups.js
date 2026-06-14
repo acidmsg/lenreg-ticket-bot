@@ -326,7 +326,7 @@ function bindEvents() {
 }
 
 /**
- * Привязывает обработчики к кнопкам «Восстановить» в строках таблицы.
+ * Привязывает обработчики к кнопкам «Восстановить» и «Удалить» в строках таблицы.
  */
 function bindRowEvents() {
   document.querySelectorAll('.backup-restore-btn').forEach((btn) => {
@@ -335,6 +335,16 @@ function bindRowEvents() {
       const category = btn.dataset.category;
       if (filename) {
         openRestoreStep1(filename, category);
+      }
+    });
+  });
+
+  document.querySelectorAll('.backup-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const filename = btn.dataset.filename;
+      const category = btn.dataset.category;
+      if (filename) {
+        onDeleteBackup(filename, category);
       }
     });
   });
