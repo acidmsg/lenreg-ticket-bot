@@ -1,0 +1,85 @@
+{% extends "base.html" %} {% block title %}Резервное копирование — ZdravLenReg
+Dashboard{% endblock %} {% block content %} {% if api_key %}
+<meta name="x-api-key" content="{{ api_key }}" />
+{% endif %}
+
+<link rel="stylesheet" href="/static/app/css/style.css" />
+
+<h1>Резервное копирование</h1>
+
+<div id="view-backups">
+  <!-- Панель статуса -->
+  <div class="card backup-status" id="backup-status-panel">
+    <div class="backup-status__grid">
+      <div class="backup-status__item">
+        <span class="backup-status__label">Последний бэкап</span>
+        <span class="backup-status__value" id="status-last-backup">—</span>
+      </div>
+      <div class="backup-status__item">
+        <span class="backup-status__label">Размер</span>
+        <span class="backup-status__value" id="status-last-size">—</span>
+      </div>
+      <div class="backup-status__item">
+        <span class="backup-status__label">Целостность</span>
+        <span class="backup-status__value" id="status-integrity">—</span>
+      </div>
+      <div class="backup-status__item">
+        <span class="backup-status__label">Свободное место</span>
+        <span class="backup-status__value" id="status-free-space">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Панель действий -->
+  <div class="backup-actions">
+    <button class="btn backup-btn-create" id="btn-create-backup">
+      Создать бэкап сейчас
+    </button>
+    <button class="btn-link" id="btn-refresh-backups">Обновить</button>
+    <span class="backup-spinner hidden" id="backup-spinner"></span>
+  </div>
+
+  <!-- Таблица бэкапов -->
+  <div class="card">
+    <div class="backup-table-wrapper">
+      <table class="data-table backup-table" id="backup-table">
+        <thead>
+          <tr>
+            <th>Дата / время</th>
+            <th>Категория</th>
+            <th>Размер</th>
+            <th>Целостность</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="backup-table-body">
+          <tr>
+            <td colspan="5" class="text-muted">Загрузка...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно подтверждения восстановления -->
+<div class="backup-modal-overlay hidden" id="restore-modal-overlay">
+  <div class="backup-modal" id="restore-modal">
+    <div class="backup-modal__header">
+      <h3 class="backup-modal__title">Восстановление из бэкапа</h3>
+      <button class="backup-modal__close" id="restore-modal-close">
+        &times;
+      </button>
+    </div>
+    <div class="backup-modal__body" id="restore-modal-body">
+      <!-- Заполняется через JS -->
+    </div>
+    <div class="backup-modal__footer" id="restore-modal-footer">
+      <!-- Заполняется через JS -->
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/static/app/js/views/backups.js"></script>
+
+{% endblock %}

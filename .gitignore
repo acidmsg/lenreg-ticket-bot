@@ -43,6 +43,7 @@ logs/
 .env.local
 env.vps
 *.env.*
+!.env.example
 
 # IDE and editor files
 .vscode/

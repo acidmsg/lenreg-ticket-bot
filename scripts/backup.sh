@@ -1,111 +1,234 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Скрипт резервного копирования SQLite (bot.db) и Redis (dump.rdb)
+# Скрипт резервного копирования SQLite (bot.db)
 #
 # Использование:
 #   chmod +x scripts/backup.sh
-#   ./scripts/backup.sh
+#   bash scripts/backup.sh [daily|weekly|monthly]
 #
 # Что делает:
-#   1. Создаёт бэкап SQLite через .backup (безопасно при активных транзакциях)
-#   2. Выполняет Redis SAVE и копирует dump.rdb из Docker-тома
-#   3. Хранит последние 7 ежедневных бэкапов в /root/backups/
-#   4. Удаляет бэкапы старше 7 дней
+#   1. Блокирует параллельный запуск (lock-файл /tmp/backup.lock)
+#   2. Создаёт бэкап SQLite через .backup (безопасно при WAL)
+#   3. Верифицирует бэкап: integrity_check + количество таблиц
+#   4. Сохраняет в трёхуровневую структуру: daily/ → weekly/ → monthly/
+#   5. Ротирует старые бэкапы сверх лимита в каждой категории
+#   6. Отправляет алерты через NTFY при ошибках
 #
-# Cron (ежедневно в 03:00 МСК):
-#   0 3 * * * /root/zdrav.lenreg/scripts/backup.sh >> /root/backups/backup.log 2>&1
+# Переменные окружения (с дефолтами для хоста):
+#   SQLITE_DB_PATH   — путь к исходной БД (default: data/bot.db)
+#   BACKUP_DIR       — корневая директория бэкапов (default: data/backups)
+#   BACKUP_DAILY_RETENTION   — хранить N daily-бэкапов (default: 7)
+#   BACKUP_WEEKLY_RETENTION  — хранить N weekly-бэкапов (default: 4)
+#   BACKUP_MONTHLY_RETENTION — хранить N monthly-бэкапов (default: 3)
+#   NTFY_BACKUP_TOPIC        — URL NTFY-топика для алертов (default: пусто)
 #
-# Восстановление SQLite:
-#   cp /root/backups/bot_YYYYMMDD.db /root/zdrav.lenreg/data/bot.db
-#   docker compose -f /root/zdrav.lenreg/docker-compose.yml restart bot
-#
-# Восстановление Redis:
-#   docker compose -f /root/zdrav.lenreg/docker-compose.yml stop redis
-#   cp /root/backups/redis_dump_YYYYMMDD.rdb /root/zdrav.lenreg/data/redis/dump.rdb
-#   docker compose -f /root/zdrav.lenreg/docker-compose.yml start redis
+# Cron (ежедневно в 03:00 МСК = 00:00 UTC):
+#   0 0 * * * /root/zdrav.lenreg/scripts/backup.sh daily >> /root/backups/backup.log 2>&1
 # ==============================================================================
 
 set -euo pipefail
 
-PROJECT_DIR="/root/zdrav.lenreg"
-BACKUP_DIR="/root/backups"
-DATE_SUFFIX=$(date +%Y%m%d)
-KEEP_DAYS=7
+# ---------------------------------------------------------------------------
+# Параметризация через переменные окружения
+# ---------------------------------------------------------------------------
+DB_PATH="${SQLITE_DB_PATH:-data/bot.db}"
+BACKUP_DIR="${BACKUP_DIR:-data/backups}"
+RETENTION_DAYS="${BACKUP_DAILY_RETENTION:-7}"
+RETENTION_WEEKS="${BACKUP_WEEKLY_RETENTION:-4}"
+RETENTION_MONTHS="${BACKUP_MONTHLY_RETENTION:-3}"
+NTFY_URL="${NTFY_BACKUP_TOPIC:-}"
 
-# Создать директорию для бэкапов, если её нет
-mkdir -p "${BACKUP_DIR}"
+# Аргумент командной строки: daily (по умолчанию), weekly, monthly
+BACKUP_TYPE="${1:-daily}"
 
-echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Запуск резервного копирования ==="
+# Временные метки
+TIMESTAMP=$(date '+%Y-%m-%d_%H%M%S')
+DATE_SUFFIX=$(date '+%Y-%m-%d')
+DAY_OF_WEEK=$(date '+%u')   # 1=Пн ... 7=Вс
+DAY_OF_MONTH=$(date '+%d')  # 01..31
+
+# Имя файла бэкапа
+BACKUP_FILENAME="bot_${TIMESTAMP}.db"
 
 # ---------------------------------------------------------------------------
-# 1. Бэкап SQLite
+# Функция: отправка алерта через NTFY
 # ---------------------------------------------------------------------------
-SQLITE_SRC="${PROJECT_DIR}/data/bot.db"
-SQLITE_DST="${BACKUP_DIR}/bot_${DATE_SUFFIX}.db"
+send_alert() {
+    local title="$1"
+    local message="$2"
+    local priority="${3:-high}"
 
-if [ -f "${SQLITE_SRC}" ]; then
-    sqlite3 "${SQLITE_SRC}" ".backup '${SQLITE_DST}'"
-    echo "[OK] SQLite: ${SQLITE_DST} (${SIZE})"
-else
-    echo "[WARN] SQLite: файл ${SQLITE_SRC} не найден, пропуск"
-fi
+    if [ -n "${NTFY_URL}" ]; then
+        curl -s -H "Title: ${title}" \
+             -H "Priority: ${priority}" \
+             -H "Tags: warning,rotate" \
+             -d "${message}" \
+             "${NTFY_URL}" > /dev/null 2>&1 || true
+    fi
+}
 
 # ---------------------------------------------------------------------------
-# 2. Бэкап Redis (SAVE + копирование dump.rdb из тома)
+# Функция: верификация бэкапа
 # ---------------------------------------------------------------------------
-# Redis слушает на 127.0.0.1:6379, пароль из переменной окружения.
-# Если docker-compose использует именованный том, dump.rdb лежит
-# в /var/lib/docker/volumes/zdravlenreg_redis_data/_data/dump.rdb
-# (имя тома зависит от COMPOSE_PROJECT_NAME; по умолчанию — имя директории).
+verify_backup() {
+    local backup_file="$1"
 
-if command -v redis-cli &> /dev/null; then
-    REDIS_PASS="${REDIS_PASSWORD:-}"
-    if [ -n "${REDIS_PASS}" ]; then
-        redis-cli -a "${REDIS_PASS}" --no-auth-warning SAVE
+    # 1. Файл существует и не пуст
+    if [ ! -s "${backup_file}" ]; then
+        echo "[FAIL] Бэкап ${backup_file} пуст или отсутствует"
+        return 1
+    fi
+
+    # 2. PRAGMA integrity_check — ожидаем ровно "ok"
+    local integrity_result
+    integrity_result=$(sqlite3 "${backup_file}" "PRAGMA integrity_check" 2>&1)
+    if [ "${integrity_result}" != "ok" ]; then
+        echo "[FAIL] integrity_check для ${backup_file}: ${integrity_result}"
+        return 1
+    fi
+    echo "[VERIFY] integrity_check: ok"
+
+    # 3. Проверка количества таблиц (минимум 5)
+    local table_count
+    table_count=$(sqlite3 "${backup_file}" "SELECT COUNT(*) FROM sqlite_master WHERE type='table'" 2>&1)
+    if [ -z "${table_count}" ] || [ "${table_count}" -lt 5 ]; then
+        echo "[FAIL] Слишком мало таблиц в ${backup_file}: ${table_count:-0}"
+        return 1
+    fi
+    echo "[VERIFY] Количество таблиц: ${table_count}"
+
+    echo "[OK] Бэкап ${backup_file} прошёл верификацию"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Функция: ротация — оставить N последних файлов по маске
+# ---------------------------------------------------------------------------
+rotate_by_count() {
+    local dir="$1"
+    local pattern="$2"
+    local keep="$3"
+
+    # Собираем файлы, сортированные по времени (новые первыми)
+    local files
+    # shellcheck disable=SC2207
+    files=($(ls -1t "${dir}"/${pattern} 2>/dev/null || true))
+
+    if [ ${#files[@]} -gt "${keep}" ]; then
+        for ((i = keep; i < ${#files[@]}; i++)); do
+            rm -f "${files[$i]}"
+            echo "[ROTATE] Удалён: ${files[$i]}"
+        done
+        echo "[ROTATE] Категория ${dir}: удалено $((${#files[@]} - keep)) файлов, оставлено ${keep}"
     else
-        redis-cli SAVE
+        echo "[ROTATE] Категория ${dir}: файлов ${#files[@]}, лимит ${keep} — удалять нечего"
     fi
-    echo "[OK] Redis: SAVE выполнен"
-else
-    echo "[WARN] redis-cli не найден, пропуск Redis SAVE"
+}
+
+# ---------------------------------------------------------------------------
+# Защита от параллельного запуска
+# ---------------------------------------------------------------------------
+LOCK_FILE="/tmp/backup.lock"
+
+exec 200>"${LOCK_FILE}"
+if ! flock -n 200; then
+    echo "[SKIP] Бэкап уже выполняется (lock-файл ${LOCK_FILE} занят)"
+    exit 0
 fi
 
-# Копирование dump.rdb из Docker-тома
-# Пытаемся найти том автоматически
-REDIS_VOLUME_PATH=$(docker volume inspect zdravlenreg_redis_data --format '{{.Mountpoint}}' 2>/dev/null || true)
-if [ -n "${REDIS_VOLUME_PATH}" ] && [ -f "${REDIS_VOLUME_PATH}/dump.rdb" ]; then
-    cp "${REDIS_VOLUME_PATH}/dump.rdb" "${BACKUP_DIR}/redis_dump_${DATE_SUFFIX}.rdb"
-    echo "[OK] Redis dump.rdb: ${BACKUP_DIR}/redis_dump_${DATE_SUFFIX}.rdb"
-else
-    echo "[WARN] Redis: том или dump.rdb не найден (путь: ${REDIS_VOLUME_PATH:-<не определён>})"
+echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Запуск резервного копирования (тип: ${BACKUP_TYPE}) ==="
+
+# ---------------------------------------------------------------------------
+# Проверка исходной БД
+# ---------------------------------------------------------------------------
+if [ ! -f "${DB_PATH}" ]; then
+    echo "[FAIL] Исходная БД не найдена: ${DB_PATH}"
+    send_alert "Backup FAILED" "Исходная БД не найдена: ${DB_PATH}"
+    exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Ротация: удалить бэкапы старше KEEP_DAYS дней
+# Создание директорий
 # ---------------------------------------------------------------------------
-DELETED_COUNT=0
-for old_file in "${BACKUP_DIR}"/bot_*.db "${BACKUP_DIR}"/redis_dump_*.rdb; do
-    # Пропустить, если файл не существует (glob не раскрылся)
-    [ -f "${old_file}" ] || continue
+mkdir -p "${BACKUP_DIR}/daily"
+mkdir -p "${BACKUP_DIR}/weekly"
+mkdir -p "${BACKUP_DIR}/monthly"
 
-    # Извлечь дату из имени файла
-    FILE_DATE=$(basename "${old_file}" | grep -oP '\d{8}' || true)
-    if [ -z "${FILE_DATE}" ]; then
-        continue
-    fi
+# ---------------------------------------------------------------------------
+# 1. Создание бэкапа через sqlite3 .backup
+# ---------------------------------------------------------------------------
+DAILY_FILE="${BACKUP_DIR}/daily/${BACKUP_FILENAME}"
 
-    FILE_EPOCH=$(date -d "${FILE_DATE}" +%s 2>/dev/null || true)
-    CUTOFF_EPOCH=$(date -d "${KEEP_DAYS} days ago" +%s)
+echo "[BACKUP] Создание бэкапа: ${DAILY_FILE}"
+sqlite3 "${DB_PATH}" ".backup '${DAILY_FILE}'"
 
-    if [ -n "${FILE_EPOCH}" ] && [ "${FILE_EPOCH}" -lt "${CUTOFF_EPOCH}" ]; then
-        rm -f "${old_file}"
-        echo "[ROTATE] Удалён старый бэкап: ${old_file}"
-        DELETED_COUNT=$((DELETED_COUNT + 1))
-    fi
-done
+# Размер созданного бэкапа
+BACKUP_SIZE=$(stat -c%s "${DAILY_FILE}" 2>/dev/null || stat -f%z "${DAILY_FILE}" 2>/dev/null || echo 0)
+BACKUP_SIZE_HUMAN=$(numfmt --to=iec --suffix=B "${BACKUP_SIZE}" 2>/dev/null || echo "${BACKUP_SIZE} bytes")
+echo "[BACKUP] Размер: ${BACKUP_SIZE_HUMAN}"
 
-if [ "${DELETED_COUNT}" -eq 0 ]; then
-    echo "[ROTATE] Старых бэкапов для удаления нет"
+# ---------------------------------------------------------------------------
+# 2. Верификация бэкапа
+# ---------------------------------------------------------------------------
+if ! verify_backup "${DAILY_FILE}"; then
+    echo "[FAIL] Верификация не пройдена — удаляю битый бэкап"
+    rm -f "${DAILY_FILE}"
+    send_alert "Backup FAILED" "Бэкап ${DAILY_FILE} не прошёл верификацию и был удалён. Требуется проверка."
+    exit 1
 fi
 
-echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Резервное копирование завершено ==="
+# ---------------------------------------------------------------------------
+# 3. Копирование в weekly/monthly по расписанию
+# ---------------------------------------------------------------------------
+# Воскресенье (day of week = 7) → weekly
+if [ "${DAY_OF_WEEK}" = "7" ]; then
+    cp "${DAILY_FILE}" "${BACKUP_DIR}/weekly/${BACKUP_FILENAME}"
+    echo "[COPY] Воскресный бэкап сохранён в weekly/"
+fi
+
+# 1-е число месяца → monthly
+if [ "${DAY_OF_MONTH}" = "01" ]; then
+    cp "${DAILY_FILE}" "${BACKUP_DIR}/monthly/${BACKUP_FILENAME}"
+    echo "[COPY] Месячный бэкап (1-е число) сохранён в monthly/"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Ротация старых бэкапов
+# ---------------------------------------------------------------------------
+echo "[ROTATE] Начало ротации..."
+rotate_by_count "${BACKUP_DIR}/daily" "bot_*.db" "${RETENTION_DAYS}"
+rotate_by_count "${BACKUP_DIR}/weekly" "bot_*.db" "${RETENTION_WEEKS}"
+rotate_by_count "${BACKUP_DIR}/monthly" "bot_*.db" "${RETENTION_MONTHS}"
+
+# ---------------------------------------------------------------------------
+# 5. Ежедневная сводка (только при daily-запуске)
+# ---------------------------------------------------------------------------
+if [ "${BACKUP_TYPE}" = "daily" ]; then
+    DAILY_COUNT=$(ls -1 "${BACKUP_DIR}/daily"/bot_*.db 2>/dev/null | wc -l)
+    WEEKLY_COUNT=$(ls -1 "${BACKUP_DIR}/weekly"/bot_*.db 2>/dev/null | wc -l)
+    MONTHLY_COUNT=$(ls -1 "${BACKUP_DIR}/monthly"/bot_*.db 2>/dev/null | wc -l)
+    TOTAL_COUNT=$((DAILY_COUNT + WEEKLY_COUNT + MONTHLY_COUNT))
+
+    # Суммарный размер всех бэкапов
+    TOTAL_SIZE=$(du -sh "${BACKUP_DIR}" 2>/dev/null | cut -f1 || echo "N/A")
+
+    SUMMARY="Ежедневная сводка бэкапов:
+• Последний бэкап: ${BACKUP_FILENAME} (${BACKUP_SIZE_HUMAN})
+• Статус последнего: ok (integrity_check пройден)
+• Количество: daily=${DAILY_COUNT}, weekly=${WEEKLY_COUNT}, monthly=${MONTHLY_COUNT} (всего: ${TOTAL_COUNT})
+• Общий размер: ${TOTAL_SIZE}"
+
+    echo "[SUMMARY] ${SUMMARY}"
+    if [ -n "${NTFY_URL}" ]; then
+        curl -s -H "Title: Backup Daily Summary" \
+             -H "Priority: low" \
+             -H "Tags: floppy_disk" \
+             -d "${SUMMARY}" \
+             "${NTFY_URL}" > /dev/null 2>&1 || true
+    fi
+fi
+
+echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Резервное копирование завершено успешно ==="
+
+# Lock-файл освободится при выходе из скрипта (exec 200>)
+exit 0

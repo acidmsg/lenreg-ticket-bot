@@ -134,10 +134,11 @@ def create_app(
     app.state.templates = templates
 
     # Роутеры
-    from src.web.routers import api, pages
+    from src.web.routers import api, backup_api, pages
 
     app.include_router(pages.router)  # HTML-страницы
     app.include_router(api.router, prefix="/api")  # JSON API дашборда
+    app.include_router(backup_api.router)  # JSON API бэкапов (/api/backups/*)
 
     # Роутер Mini App API (/api/user/*)
     if config.MINI_APP_ENABLED:

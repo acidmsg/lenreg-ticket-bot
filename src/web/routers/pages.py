@@ -194,6 +194,19 @@ async def clinics_list(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/backups", response_class=HTMLResponse)
+async def backups_page(request: Request) -> HTMLResponse:
+    """Страница управления резервным копированием."""
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
+        request,
+        "backups.html",
+        {
+            "api_key": request.app.state.config.WEB_DASHBOARD_API_KEY,
+        },
+    )
+
+
 @router.get("/api-status", response_class=HTMLResponse)
 async def api_status(request: Request) -> HTMLResponse:
     """Состояние внешнего API."""

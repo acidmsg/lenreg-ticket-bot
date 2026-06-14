@@ -186,6 +186,20 @@ class Settings(BaseSettings):
     MINI_APP_URL: str = ""  # Полный URL Mini App (например, https://example.com/app/)
     MINI_APP_INITDATA_MAX_AGE: int = 86400  # 24 часа (в секундах)
 
+    # === Backup (F13) ===
+    # Корневая директория для хранения бэкапов
+    backup_dir: str = "data/backups"
+    # Количество хранимых daily-бэкапов
+    backup_daily_retention: int = 7
+    # Количество хранимых weekly-бэкапов
+    backup_weekly_retention: int = 4
+    # Количество хранимых monthly-бэкапов
+    backup_monthly_retention: int = 3
+    # NTFY-топик для алертов системы бэкапов (опционально)
+    ntfy_backup_topic: str = ""
+    # Режим восстановления: True — в контейнере (без docker compose), False — на хосте
+    restore_in_container: bool = False
+
     def model_post_init(self, __context: Any) -> None:
         """
         Пост-инициализация: если задан REDIS_PASSWORD, встраивает его в REDIS_URL.
