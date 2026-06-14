@@ -45,9 +45,9 @@ _TOKEN_TTL_MINUTES = 5
 # Таймаут для subprocess-вызовов скриптов (секунды)
 _SCRIPT_TIMEOUT = 120
 
-# Категории бэкапов (порядок для сортировки: monthly → weekly → daily)
-_CATEGORIES = ("monthly", "weekly", "daily")
-_CATEGORY_SORT_ORDER = {"monthly": 0, "weekly": 1, "daily": 2}
+# Категории бэкапов (порядок для сортировки: monthly → weekly → daily → manual)
+_CATEGORIES = ("monthly", "weekly", "daily", "manual")
+_CATEGORY_SORT_ORDER = {"monthly": 0, "weekly": 1, "daily": 2, "manual": 3}
 
 
 # ── Синхронные вспомогательные функции (безопасны для вызова из executor) ──
@@ -359,6 +359,9 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
     script_env["BACKUP_DAILY_RETENTION"] = str(settings.backup_daily_retention)
     script_env["BACKUP_WEEKLY_RETENTION"] = str(settings.backup_weekly_retention)
     script_env["BACKUP_MONTHLY_RETENTION"] = str(settings.backup_monthly_retention)
+    script_env["BACKUP_MANUAL_RETENTION"] = str(settings.backup_manual_retention)
+    # Ручной бэкап → кладём в manual/ вместо daily/
+    script_env["MANUAL_BACKUP"] = "true"
     if settings.ntfy_backup_topic:
         script_env["NTFY_BACKUP_TOPIC"] = settings.ntfy_backup_topic
 
@@ -637,6 +640,93 @@ async def restore_backup(
             "output": output,
             "stderr": result.stderr.strip(),
         }
+
+
+@router.delete("/{filename:path}", response_model=None)
+async def delete_backup(
+    request: Request,
+    filename: str,
+) -> dict[str, Any] | JSONResponse:
+    """
+    Удаляет файл бэкапа и его маркерные файлы.
+
+    Ищет файл в daily/, weekly/, monthly/, manual/.
+    При удалении также удаляет ``.integrity_ok`` и ``.integrity_fail``
+    маркеры рядом с файлом бэкапа.
+    """
+    loop = asyncio.get_running_loop()
+    backup_dir = _resolve_backup_dir()
+
+    # Ищем файл во всех категориях
+    full_path = await loop.run_in_executor(
+        None, _find_backup_file, backup_dir, filename
+    )
+    if full_path is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "error",
+                "message": f"Файл бэкапа не найден: {filename}",
+            },
+        )
+
+    # Дополнительная проверка path traversal
+    try:
+        category = full_path.parent.name
+        safe_path = _safe_backup_path(backup_dir, filename, category)
+        full_path = safe_path
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": str(e)},
+        )
+
+    category = full_path.parent.name
+    logger.warning(
+        "Удаление бэкапа: filename=%s, category=%s, path=%s",
+        filename,
+        category,
+        full_path,
+    )
+
+    # Удаляем файл бэкапа и маркеры
+    removed_files: list[str] = []
+    try:
+        if full_path.is_file():
+            full_path.unlink()
+            removed_files.append(str(full_path))
+    except OSError as e:
+        logger.error("Ошибка удаления файла %s: %s", full_path, e)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": f"Не удалось удалить файл: {e}",
+            },
+        )
+
+    # Удаляем маркеры целостности
+    for suffix in (".integrity_ok", ".integrity_fail"):
+        marker = full_path.with_name(full_path.name + suffix)
+        try:
+            if marker.is_file():
+                marker.unlink()
+                removed_files.append(str(marker))
+        except OSError:
+            logger.warning("Не удалось удалить маркер %s", marker)
+
+    logger.info(
+        "Бэкап удалён: filename=%s, category=%s, удалено файлов: %d",
+        filename,
+        category,
+        len(removed_files),
+    )
+
+    return {
+        "status": "ok",
+        "message": f"Бэкап {filename} удалён.",
+        "removed": removed_files,
+    }
 
 
 @router.get("/status", response_model=None)

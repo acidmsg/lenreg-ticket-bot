@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}Резервное копирование — ZdravLenReg
-Dashboard{% endblock %} {% block content %} {% if api_key %}
+{% extends "base.html" %} {% block title %}Резервное копирование — ZdravLenReg Dashboard{% endblock
+%} {% block content %} {% if api_key %}
 <meta name="x-api-key" content="{{ api_key }}" />
 {% endif %}
 
@@ -32,9 +32,7 @@ Dashboard{% endblock %} {% block content %} {% if api_key %}
 
   <!-- Панель действий -->
   <div class="backup-actions">
-    <button class="btn backup-btn-create" id="btn-create-backup">
-      Создать бэкап сейчас
-    </button>
+    <button class="btn backup-btn-create" id="btn-create-backup">Создать бэкап сейчас</button>
     <button class="btn-link" id="btn-refresh-backups">Обновить</button>
     <span class="backup-spinner hidden" id="backup-spinner"></span>
   </div>
@@ -45,7 +43,7 @@ Dashboard{% endblock %} {% block content %} {% if api_key %}
       <table class="data-table backup-table" id="backup-table">
         <thead>
           <tr>
-            <th>Дата / время</th>
+            <th>Файл / Дата</th>
             <th>Категория</th>
             <th>Размер</th>
             <th>Целостность</th>
@@ -67,9 +65,7 @@ Dashboard{% endblock %} {% block content %} {% if api_key %}
   <div class="backup-modal" id="restore-modal">
     <div class="backup-modal__header">
       <h3 class="backup-modal__title">Восстановление из бэкапа</h3>
-      <button class="backup-modal__close" id="restore-modal-close">
-        &times;
-      </button>
+      <button class="backup-modal__close" id="restore-modal-close">&times;</button>
     </div>
     <div class="backup-modal__body" id="restore-modal-body">
       <!-- Заполняется через JS -->

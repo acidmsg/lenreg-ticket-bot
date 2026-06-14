@@ -41,6 +41,10 @@ NTFY_URL="${NTFY_BACKUP_TOPIC:-}"
 # Аргумент командной строки: daily (по умолчанию), weekly, monthly
 BACKUP_TYPE="${1:-daily}"
 
+# Ручной бэкап: если MANUAL_BACKUP=true, файл кладётся в manual/ вместо daily/
+MANUAL_BACKUP="${MANUAL_BACKUP:-false}"
+BACKUP_MANUAL_RETENTION="${BACKUP_MANUAL_RETENTION:-10}"
+
 # Временные метки
 TIMESTAMP=$(date '+%Y-%m-%d_%H%M%S')
 DATE_SUFFIX=$(date '+%Y-%m-%d')
@@ -130,6 +134,9 @@ rotate_by_count() {
 # ---------------------------------------------------------------------------
 LOCK_FILE="/tmp/backup.lock"
 
+# Trap для вывода строки с ошибкой при падении (set -e)
+trap 'echo "[ERROR] Скрипт упал на строке ${LINENO:-?}, код выхода ${?}" >&2' ERR
+
 exec 200>"${LOCK_FILE}"
 if ! flock -n 200; then
     echo "[SKIP] Бэкап уже выполняется (lock-файл ${LOCK_FILE} занят)"
@@ -153,43 +160,62 @@ fi
 mkdir -p "${BACKUP_DIR}/daily"
 mkdir -p "${BACKUP_DIR}/weekly"
 mkdir -p "${BACKUP_DIR}/monthly"
+mkdir -p "${BACKUP_DIR}/manual"
 
 # ---------------------------------------------------------------------------
 # 1. Создание бэкапа через sqlite3 .backup
 # ---------------------------------------------------------------------------
-DAILY_FILE="${BACKUP_DIR}/daily/${BACKUP_FILENAME}"
+# Определяем целевую директорию: manual/ если MANUAL_BACKUP=true, иначе daily/
+if [ "${MANUAL_BACKUP}" = "true" ]; then
+    TARGET_DIR="${BACKUP_DIR}/manual"
+    echo "[BACKUP] Ручной бэкап → manual/"
+else
+    TARGET_DIR="${BACKUP_DIR}/daily"
+fi
 
-echo "[BACKUP] Создание бэкапа: ${DAILY_FILE}"
-sqlite3 "${DB_PATH}" ".backup '${DAILY_FILE}'"
+BACKUP_FILE="${TARGET_DIR}/${BACKUP_FILENAME}"
+
+echo "[BACKUP] Создание бэкапа: ${BACKUP_FILE}"
+sqlite3 "${DB_PATH}" ".backup '${BACKUP_FILE}'"
 
 # Размер созданного бэкапа
-BACKUP_SIZE=$(stat -c%s "${DAILY_FILE}" 2>/dev/null || stat -f%z "${DAILY_FILE}" 2>/dev/null || echo 0)
+BACKUP_SIZE=$(stat -c%s "${BACKUP_FILE}" 2>/dev/null || stat -f%z "${BACKUP_FILE}" 2>/dev/null || echo 0)
 BACKUP_SIZE_HUMAN=$(numfmt --to=iec --suffix=B "${BACKUP_SIZE}" 2>/dev/null || echo "${BACKUP_SIZE} bytes")
 echo "[BACKUP] Размер: ${BACKUP_SIZE_HUMAN}"
 
 # ---------------------------------------------------------------------------
 # 2. Верификация бэкапа
 # ---------------------------------------------------------------------------
-if ! verify_backup "${DAILY_FILE}"; then
+if ! verify_backup "${BACKUP_FILE}"; then
     echo "[FAIL] Верификация не пройдена — удаляю битый бэкап"
-    rm -f "${DAILY_FILE}"
-    send_alert "Backup FAILED" "Бэкап ${DAILY_FILE} не прошёл верификацию и был удалён. Требуется проверка."
+    # Создаём маркер .integrity_fail
+    touch "${BACKUP_FILE}.integrity_fail"
+    rm -f "${BACKUP_FILE}"
+    send_alert "Backup FAILED" "Бэкап ${BACKUP_FILE} не прошёл верификацию и был удалён. Требуется проверка."
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# 3. Копирование в weekly/monthly по расписанию
-# ---------------------------------------------------------------------------
-# Воскресенье (day of week = 7) → weekly
-if [ "${DAY_OF_WEEK}" = "7" ]; then
-    cp "${DAILY_FILE}" "${BACKUP_DIR}/weekly/${BACKUP_FILENAME}"
-    echo "[COPY] Воскресный бэкап сохранён в weekly/"
-fi
+# Создаём маркер .integrity_ok — сигнал для API, что бэкап проверен
+touch "${BACKUP_FILE}.integrity_ok"
+echo "[MARKER] Создан ${BACKUP_FILE}.integrity_ok"
 
-# 1-е число месяца → monthly
-if [ "${DAY_OF_MONTH}" = "01" ]; then
-    cp "${DAILY_FILE}" "${BACKUP_DIR}/monthly/${BACKUP_FILENAME}"
-    echo "[COPY] Месячный бэкап (1-е число) сохранён в monthly/"
+# ---------------------------------------------------------------------------
+# 3. Копирование в weekly/monthly по расписанию (только для daily-бэкапов)
+# ---------------------------------------------------------------------------
+if [ "${MANUAL_BACKUP}" != "true" ]; then
+    # Воскресенье (day of week = 7) → weekly
+    if [ "${DAY_OF_WEEK}" = "7" ]; then
+        cp "${BACKUP_FILE}" "${BACKUP_DIR}/weekly/${BACKUP_FILENAME}"
+        touch "${BACKUP_DIR}/weekly/${BACKUP_FILENAME}.integrity_ok"
+        echo "[COPY] Воскресный бэкап сохранён в weekly/"
+    fi
+
+    # 1-е число месяца → monthly
+    if [ "${DAY_OF_MONTH}" = "01" ]; then
+        cp "${BACKUP_FILE}" "${BACKUP_DIR}/monthly/${BACKUP_FILENAME}"
+        touch "${BACKUP_DIR}/monthly/${BACKUP_FILENAME}.integrity_ok"
+        echo "[COPY] Месячный бэкап (1-е число) сохранён в monthly/"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -199,15 +225,28 @@ echo "[ROTATE] Начало ротации..."
 rotate_by_count "${BACKUP_DIR}/daily" "bot_*.db" "${RETENTION_DAYS}"
 rotate_by_count "${BACKUP_DIR}/weekly" "bot_*.db" "${RETENTION_WEEKS}"
 rotate_by_count "${BACKUP_DIR}/monthly" "bot_*.db" "${RETENTION_MONTHS}"
+rotate_by_count "${BACKUP_DIR}/manual" "bot_*.db" "${BACKUP_MANUAL_RETENTION}"
+
+# Чистим осиротевшие маркерные файлы (без соответствующего .db)
+for cat_dir in "${BACKUP_DIR}/daily" "${BACKUP_DIR}/weekly" "${BACKUP_DIR}/monthly" "${BACKUP_DIR}/manual"; do
+    for marker in "${cat_dir}"/bot_*.db.integrity_*; do
+        [ -f "${marker}" ] || continue
+        db_file="${marker%.integrity_*}"
+        if [ ! -f "${db_file}" ]; then
+            rm -f "${marker}"
+        fi
+    done
+done 2>/dev/null
 
 # ---------------------------------------------------------------------------
-# 5. Ежедневная сводка (только при daily-запуске)
+# 5. Ежедневная сводка (только при daily-запуске, не для manual)
 # ---------------------------------------------------------------------------
-if [ "${BACKUP_TYPE}" = "daily" ]; then
+if [ "${BACKUP_TYPE}" = "daily" ] && [ "${MANUAL_BACKUP}" != "true" ]; then
     DAILY_COUNT=$(ls -1 "${BACKUP_DIR}/daily"/bot_*.db 2>/dev/null | wc -l)
     WEEKLY_COUNT=$(ls -1 "${BACKUP_DIR}/weekly"/bot_*.db 2>/dev/null | wc -l)
     MONTHLY_COUNT=$(ls -1 "${BACKUP_DIR}/monthly"/bot_*.db 2>/dev/null | wc -l)
-    TOTAL_COUNT=$((DAILY_COUNT + WEEKLY_COUNT + MONTHLY_COUNT))
+    MANUAL_COUNT=$(ls -1 "${BACKUP_DIR}/manual"/bot_*.db 2>/dev/null | wc -l)
+    TOTAL_COUNT=$((DAILY_COUNT + WEEKLY_COUNT + MONTHLY_COUNT + MANUAL_COUNT))
 
     # Суммарный размер всех бэкапов
     TOTAL_SIZE=$(du -sh "${BACKUP_DIR}" 2>/dev/null | cut -f1 || echo "N/A")
@@ -215,7 +254,7 @@ if [ "${BACKUP_TYPE}" = "daily" ]; then
     SUMMARY="Ежедневная сводка бэкапов:
 • Последний бэкап: ${BACKUP_FILENAME} (${BACKUP_SIZE_HUMAN})
 • Статус последнего: ok (integrity_check пройден)
-• Количество: daily=${DAILY_COUNT}, weekly=${WEEKLY_COUNT}, monthly=${MONTHLY_COUNT} (всего: ${TOTAL_COUNT})
+• Количество: daily=${DAILY_COUNT}, weekly=${WEEKLY_COUNT}, monthly=${MONTHLY_COUNT}, manual=${MANUAL_COUNT} (всего: ${TOTAL_COUNT})
 • Общий размер: ${TOTAL_SIZE}"
 
     echo "[SUMMARY] ${SUMMARY}"

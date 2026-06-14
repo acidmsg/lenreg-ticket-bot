@@ -195,6 +195,8 @@ class Settings(BaseSettings):
     backup_weekly_retention: int = 4
     # Количество хранимых monthly-бэкапов
     backup_monthly_retention: int = 3
+    # Количество хранимых manual-бэкапов (ручные, из дашборда)
+    backup_manual_retention: int = 10
     # NTFY-топик для алертов системы бэкапов (опционально)
     ntfy_backup_topic: str = ""
     # Режим восстановления: True — в контейнере (без docker compose), False — на хосте

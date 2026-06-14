@@ -116,10 +116,21 @@ fi
 # ---------------------------------------------------------------------------
 # Подсчёт бэкапов
 # ---------------------------------------------------------------------------
-DAILY_COUNT=$(ls -1 "${BACKUP_DIR}/daily"/bot_*.db 2>/dev/null | wc -l || echo 0)
-WEEKLY_COUNT=$(ls -1 "${BACKUP_DIR}/weekly"/bot_*.db 2>/dev/null | wc -l || echo 0)
-MONTHLY_COUNT=$(ls -1 "${BACKUP_DIR}/monthly"/bot_*.db 2>/dev/null | wc -l || echo 0)
-TOTAL_COUNT=$((DAILY_COUNT + WEEKLY_COUNT + MONTHLY_COUNT))
+# Используем find вместо ls — не падает при пустой директории и не требует || echo 0,
+# что при set -euo pipefail давало двойной вывод (wc + echo).
+DAILY_COUNT=$(find "${BACKUP_DIR}/daily" -maxdepth 1 -name "bot_*.db" -type f 2>/dev/null | wc -l)
+DAILY_COUNT=$(echo -n "${DAILY_COUNT}" | tr -d '[:space:]')
+DAILY_COUNT=${DAILY_COUNT:-0}
+WEEKLY_COUNT=$(find "${BACKUP_DIR}/weekly" -maxdepth 1 -name "bot_*.db" -type f 2>/dev/null | wc -l)
+WEEKLY_COUNT=$(echo -n "${WEEKLY_COUNT}" | tr -d '[:space:]')
+WEEKLY_COUNT=${WEEKLY_COUNT:-0}
+MONTHLY_COUNT=$(find "${BACKUP_DIR}/monthly" -maxdepth 1 -name "bot_*.db" -type f 2>/dev/null | wc -l)
+MONTHLY_COUNT=$(echo -n "${MONTHLY_COUNT}" | tr -d '[:space:]')
+MONTHLY_COUNT=${MONTHLY_COUNT:-0}
+MANUAL_COUNT=$(find "${BACKUP_DIR}/manual" -maxdepth 1 -name "bot_*.db" -type f 2>/dev/null | wc -l)
+MANUAL_COUNT=$(echo -n "${MANUAL_COUNT}" | tr -d '[:space:]')
+MANUAL_COUNT=${MANUAL_COUNT:-0}
+TOTAL_COUNT=$((DAILY_COUNT + WEEKLY_COUNT + MONTHLY_COUNT + MANUAL_COUNT))
 
 # ---------------------------------------------------------------------------
 # Формирование JSON
@@ -151,6 +162,7 @@ cat <<EOF
   "daily_count": ${DAILY_COUNT},
   "weekly_count": ${WEEKLY_COUNT},
   "monthly_count": ${MONTHLY_COUNT},
+  "manual_count": ${MANUAL_COUNT},
   "issues": ${ISSUES_JSON}
 }
 EOF
