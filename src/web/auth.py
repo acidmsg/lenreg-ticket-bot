@@ -21,6 +21,7 @@ _PUBLIC_PATH_PREFIXES = (
     "/app",
     "/static",
     "/api/user",
+    "/api-status",
 )
 
 
