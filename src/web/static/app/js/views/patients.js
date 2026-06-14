@@ -72,11 +72,21 @@ export function renderPatientAddForm(container) {
           >
           <span class="form__error" id="patient-bday-error"></span>
         </div>
+        <div class="mb-md">
+          <label class="form__label" for="patient-alias">Псевдоним (необязательно)</label>
+          <input
+            type="text"
+            id="patient-alias"
+            class="form__input"
+            placeholder="Например: мама, ребёнок"
+            autocomplete="off"
+          >
+        </div>
       </form>
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--color-danger); font-size: var(--font-sm);"></div>
       <div class="fab-group">
         <button class="btn btn--secondary btn--sm" id="patient-add-back">← Назад</button>
-        <button class="fab" id="patient-add-submit">Добавить</button>
+        <button class="fab" id="patient-add-submit"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить</button>
       </div>
     </div>
   `;
@@ -193,13 +203,13 @@ export function renderPatientAddForm(container) {
         // на соответствующий месяц/год и подсвечиваем выбранную дату.
         if (result.valid && !bdayInput._fromCalendar) {
           const [d, m, y] = bdayInput.value.split('.').map(Number);
-          calendar.update({
-            year: y,
-            month: m,
-            dates: [
-              `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-            ]
-          });
+          // Прямая установка selectedDates перед update: в режиме input: true
+          // метод update({ dates }) не всегда корректно подсвечивает дату.
+          // Явная установка selectedDates + update гарантирует переключение
+          // месяца/года и подсветку выбранного дня.
+          const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          calendar.selectedDates = [dateStr];
+          calendar.update({ year: y, month: m });
         }
         // Сбрасываем флаг после обработки
         if (bdayInput._fromCalendar) {
@@ -360,10 +370,13 @@ export function renderPatientAddForm(container) {
 
   // Кнопка «Добавить» (отправка формы)
   const submitBtn = container.querySelector('#patient-add-submit');
+  const aliasInput = container.querySelector('#patient-alias');
+
   if (submitBtn) {
     submitBtn.addEventListener('click', async () => {
       const full_name = fioInput?.value?.trim() || '';
       const birth_date = bdayInput?.value?.trim() || '';
+      const alias = aliasInput?.value?.trim() || '';
 
       // Валидация с подсветкой полей
       const fioResult = validateFio(full_name);
@@ -379,7 +392,9 @@ export function renderPatientAddForm(container) {
       hideFormError(errorEl);
 
       try {
-        await apiPost('/patients/add', { full_name, birth_date });
+        const body = { full_name, birth_date };
+        if (alias) body.alias = alias;
+        await apiPost('/patients/add', body);
 
         // Тактильный отклик (если доступен)
         if (isInTelegram() && window.Telegram.WebApp?.HapticFeedback) {

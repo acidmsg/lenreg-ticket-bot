@@ -75,6 +75,7 @@ class AddPatientRequest(BaseModel):
 
     full_name: str = Field(..., description="ФИО пациента (три слова через пробел)")
     birth_date: str = Field(..., description="Дата рождения в формате ДД.ММ.ГГГГ")
+    alias: str = Field(default="", description="Псевдоним пациента (необязательно)")
     policy: str = Field(default="", description="Номер полиса ОМС (необязательно)")
 
 
@@ -778,6 +779,9 @@ async def add_patient(
         "fio": fio,
         "bday": bday_str,
     }
+    alias = body.alias.strip()
+    if alias:
+        p_info["alias"] = alias
 
     try:
         await db.add_patient(uid=telegram_id, p_id=p_id, p_info=p_info)
