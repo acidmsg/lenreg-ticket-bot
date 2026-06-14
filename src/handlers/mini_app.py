@@ -13,7 +13,9 @@ from aiogram import F, Router
 from aiogram.types import Message
 from loguru import logger
 
+from src.config import settings
 from src.database.manager import DatabaseManager
+from src.utils.helpers import verify_telegram_init_data
 
 router = Router()
 
@@ -24,7 +26,14 @@ async def handle_web_app_data(message: Message, db: DatabaseManager) -> None:
     if not message.web_app_data:
         return
 
-    # --- Верификация данных ---
+    # --- HMAC-верификация initData (защита от подделки) ---
+    init_data = message.web_app_data.data
+    is_valid, error_msg, _ = verify_telegram_init_data(init_data, settings.BOT_TOKEN)
+    if not is_valid:
+        logger.warning("Mini App: верификация initData не пройдена: {}", error_msg)
+        return
+
+    # --- Разбор payload ---
     try:
         payload = json.loads(message.web_app_data.data)
     except (json.JSONDecodeError, TypeError):

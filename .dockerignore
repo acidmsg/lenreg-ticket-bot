@@ -44,8 +44,9 @@ tasks.ps1
 # Tests
 tests/
 
-# Documentation
-docs/
+# Documentation / Specifications
+specs/
+artifacts/
 README.md
 
 # Node (for markdownlint/prettier)

@@ -70,14 +70,14 @@
 
 ## Контроль соответствия схем API (API Drift Prevention)
 
-- Pydantic-модели в `src/api/models.py` являются единственной реализацией схем данных, определённых в `docs/openapi.yaml`.
+- Pydantic-модели в `src/api/models.py` являются единственной реализацией схем данных, определённых в `specs/openapi.yaml`.
 - При любом изменении структуры ответа API (добавление/удаление/переименование поля) обязательная последовательность:
-  1. Обновить спецификацию `docs/openapi.yaml` (Spec-First).
+  1. Обновить спецификацию `specs/openapi.yaml` (Spec-First).
   2. Обновить Pydantic-модель в `src/api/models.py`.
-  3. Пересгенерировать JSON-схему в `docs/schemas/` командой `python scripts/generate_api_schemas.py`.
+  3. Пересгенерировать JSON-схему в `artifacts/schemas/` командой `python scripts/generate_api_schemas.py`.
   4. Убедиться, что тесты в `tests/api/` проходят без ошибок.
-- Запрещено добавлять поля в Pydantic-модели, не зафиксированные в `docs/openapi.yaml`.
-- При обнаружении расхождения между `docs/schemas/` и `src/api/models.py` задача фиксируется в `docs/agents/TECH_DEBT.md` как `Severity: Critical`.
+- Запрещено добавлять поля в Pydantic-модели, не зафиксированные в `specs/openapi.yaml`.
+- При обнаружении расхождения между `artifacts/schemas/` и `src/api/models.py` задача фиксируется в `.roo/sessions/TECH_DEBT.md` как `Severity: Critical`.
 
 ## Отказоустойчивость Redis (Graceful Degradation)
 
@@ -189,7 +189,7 @@
 
 - Файлы должны проходить `markdownlint` и `prettier`.
 - Форматирование через `npx prettier --write` (proseWrap: preserve, printWidth: 120).
-- Проверка markdownlint: `npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"` (ожидается 0 errors).
+- Проверка markdownlint: `npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"` (ожидается 0 errors).
 
 ---
 

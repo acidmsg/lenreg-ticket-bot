@@ -4,7 +4,7 @@
 Запуск:
     python scripts/generate_api_schemas.py
 
-Создаёт директорию docs/schemas/ и сохраняет в ней .json файлы для каждой
+Создаёт директорию artifacts/schemas/ и сохраняет в ней .json файлы для каждой
 Pydantic-модели из src/api/models.py с помощью model_json_schema().
 
 Сгенерированные схемы коммитятся в Git — это эталон, с которым
@@ -53,11 +53,11 @@ MODELS: list[type[BaseModel]] = [
     DateInfo,
 ]
 
-SCHEMAS_DIR = Path("docs/schemas")
+SCHEMAS_DIR = Path("artifacts/schemas")
 
 
 def main() -> None:
-    """Генерирует эталонные JSON Schema и сохраняет в docs/schemas/."""
+    """Генерирует эталонные JSON Schema и сохраняет в artifacts/schemas/."""
     # Создаём директорию, если её нет
     SCHEMAS_DIR.mkdir(parents=True, exist_ok=True)
 

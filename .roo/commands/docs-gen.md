@@ -6,6 +6,6 @@ description: "Генерация документации: docstrings + API-до
 
 1. **Docstrings:** Пройди по всем Python-файлам в `src/` (рекурсивно, исключая `__pycache__/`). Для каждой функции, метода и класса без докстринга — добавь docstring в формате тройных двойных кавычек `"""`. Первая строка — краткое описание на русском. Для существующих докстрингов — проверь актуальность.
 
-2. **API-документация:** На основе `docs/openapi.yaml` создай/обнови человекочитаемую документацию API в `docs/knowledge/`. Один endpoint = один файл (если ещё нет). Обнови `docs/knowledge/_INDEX.md`.
+2. **API-документация:** На основе `specs/openapi.yaml` создай/обнови человекочитаемую документацию API в `specs/knowledge/`. Один endpoint = один файл (если ещё нет). Обнови `specs/knowledge/_INDEX.md`.
 
-3. **Knowledge base:** Проверь актуальность всех заметок в `docs/knowledge/` сверяясь с `docs/openapi.yaml` и `src/api/models.py`. Устаревшее — обнови.
+3. **Knowledge base:** Проверь актуальность всех заметок в `specs/knowledge/` сверяясь с `specs/openapi.yaml` и `src/api/models.py`. Устаревшее — обнови.

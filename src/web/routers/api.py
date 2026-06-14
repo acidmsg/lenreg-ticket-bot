@@ -10,8 +10,8 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
+from src.services.healthcheck import metrics_lock
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
     active_monitorings = user_stats["active_monitorings"]
     recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)
 
-    async with _metrics_lock:
+    async with metrics_lock:
         uptime_str = health_metrics.uptime_str()
         uptime_sec = health_metrics.uptime_seconds()
         api_ok = health_metrics.last_api_ok
@@ -179,7 +179,7 @@ async def api_clinics(request: Request) -> dict[str, Any]:
 @router.get("/dashboard/health")
 async def api_dashboard_health(request: Request) -> dict[str, Any]:
     """JSON-статус здоровья API."""
-    async with _metrics_lock:
+    async with metrics_lock:
         api_ok = health_metrics.last_api_ok
         last_check = health_metrics.last_api_check_time
         check_duration = health_metrics.last_check_duration

@@ -263,7 +263,7 @@ src/web/static/app/js/utils/
 - [`src/handlers/registration.py:81-112`](src/handlers/registration.py:81)
 - [`src/web/routers/user_api.py:654`](src/web/routers/user_api.py:654)
 - **Новый:** `src/services/patient_discovery.py`
-- `docs/openapi.yaml` — добавить описание нового сервиса в секцию `Фоновые сервисы`
+- `specs/openapi.yaml` — добавить описание нового сервиса в секцию `Фоновые сервисы`
 
 **Точка риска:** Разный формат даты. В `registration.py` — `datetime` объект, в `user_api.py` — `date` объект. Унифицировать через преобразование в строку ISO внутри новой функции.
 
@@ -276,7 +276,7 @@ src/web/static/app/js/utils/
 
 #### 3.2. fetch\_\* методы в ZdravClient (#4)
 
-**Примечание:** [`ARCHITECTURE.md`](docs/ARCHITECTURE.md:232) утверждает, что уже реализован "унифицированный `_request_with_retry()` (замена 5 дублирующих методов)". **Необходимо верифицировать** — если это уже сделано, данный пункт пропускается.
+**Примечание:** [`ARCHITECTURE.md`](specs/ARCHITECTURE.md:232) утверждает, что уже реализован "унифицированный `_request_with_retry()` (замена 5 дублирующих методов)". **Необходимо верифицировать** — если это уже сделано, данный пункт пропускается.
 
 Если дублирование осталось:
 
@@ -435,7 +435,7 @@ src/web/static/app/js/utils/
 1. **Python:** `python -m ruff check src > .tmp_check_results.txt 2>&1`
 2. **Python:** `python -m mypy src` (если настроено)
 3. **Python:** `python -m pytest tests/ -x` (остановка на первом падении)
-4. **Markdown:** `npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"`
+4. **Markdown:** `npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"`
 5. **Markdown:** `npx prettier --write` на изменённые `.md` файлы
 
 ### Специфические проверки по фазам
@@ -477,7 +477,7 @@ docker compose -f /root/zdrav.lenreg/docker-compose.yml logs bot --tail=50
 
 ### Spec-First (openapi.yaml)
 
-- Фаза 3.1 — новый сервис `patient_discovery.py` → добавить описание в `docs/openapi.yaml` (секция `Фоновые сервисы`)
+- Фаза 3.1 — новый сервис `patient_discovery.py` → добавить описание в `specs/openapi.yaml` (секция `Фоновые сервисы`)
 - Фаза 3.3 — перенос `_discover_doctors_on_demand` не меняет контракты API → `openapi.yaml` без изменений
 - Фаза 5 — HMAC верификация: внутренняя логика, контракты API не меняются → `openapi.yaml` без изменений
 
@@ -487,7 +487,7 @@ docker compose -f /root/zdrav.lenreg/docker-compose.yml logs bot --tail=50
 
 ### SESSION_LOG
 
-После каждой завершённой фазы в режиме orchestrator — запись в [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md).
+После каждой завершённой фазы в режиме orchestrator — запись в [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md).
 
 ### Форматирование
 

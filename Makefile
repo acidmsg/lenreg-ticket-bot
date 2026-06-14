@@ -30,11 +30,11 @@ install:
 lint:
 	python -m ruff check src
 	python -m mypy src
-	npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+	npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
 
 format:
 	python -m ruff format src
-	npx prettier --write "docs/**/*.md" ".roo/**/*.md" "*.md"
+	npx prettier --write "specs/**/*.md" ".roo/**/*.md" "*.md"
 
 test:
 	python -m pytest tests/ -v
@@ -43,9 +43,9 @@ test:
 check:
 	python -m ruff check src
 	python -m mypy src
-	npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+	npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
 	python -m ruff format --check src
-	npx prettier --check "docs/**/*.md" ".roo/**/*.md" "*.md"
+	npx prettier --check "specs/**/*.md" ".roo/**/*.md" "*.md"
 	python -m pytest tests/ -v
 
 run:

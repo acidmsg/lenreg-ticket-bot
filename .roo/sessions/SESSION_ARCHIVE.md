@@ -66,10 +66,10 @@
 ### Выполненные задачи
 
 1. **Шаг 1:** Создан [`scripts/generate_api_schemas.py`](scripts/generate_api_schemas.py) — скрипт генерации эталонных JSON Schema для 12 Pydantic-моделей из [`src/api/models.py`](src/api/models.py).
-2. **Шаг 2:** Запущен скрипт — созданы 12 `.json` файлов в [`docs/schemas/`](docs/schemas/):
+2. **Шаг 2:** Запущен скрипт — созданы 12 `.json` файлов в [`artifacts/schemas/`](artifacts/schemas/):
    - `CheckPatientResponse.json`, `CheckPatientData.json`, `SpecialityListResponse.json`, `SpecialityItem.json`, `DoctorListResponse.json`, `DoctorItem.json`, `AppointmentListResponse.json`, `AppointmentSlot.json`, `ClinicListResponse.json`, `ClinicItem.json`, `DateInfo.json`, `ApiError.json`
 3. **Шаг 3:** Создан [`src/services/schema_watcher.py`](src/services/schema_watcher.py) с компонентами:
-   - [`load_reference_schemas()`](src/services/schema_watcher.py:139) — загрузка эталонных схем из `docs/schemas/`
+   - [`load_reference_schemas()`](src/services/schema_watcher.py:139) — загрузка эталонных схем из `artifacts/schemas/`
    - [`compare_schemas()`](src/services/schema_watcher.py:89) — рекурсивный diff двух JSON Schema (type, properties, required, additionalProperties, items, anyOf)
    - [`_describe_type()`](src/services/schema_watcher.py:80) / [`_normalize_anyof()`](src/services/schema_watcher.py:86) — вспомогательные функции
    - [`validate_endpoint_schema()`](src/services/schema_watcher.py:171) — тестовый запрос + валидация + сравнение для одного эндпоинта
@@ -102,10 +102,10 @@
 | `src/config.py`                   | Изменён  |
 | `src/main.py`                     | Изменён  |
 | `.env.example`                    | Изменён  |
-| `docs/schemas/` (12 файлов)       | Созданы  |
-| `docs/agents/SESSION_LOG.md`      | Изменён  |
-| `docs/agents/SESSION_ARCHIVE.md`  | Изменён  |
-| `docs/agents/AGENT_TASKS.md`      | Изменён  |
+| `artifacts/schemas/` (12 файлов)       | Созданы  |
+| `.roo/sessions/SESSION_LOG.md`      | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`  | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`      | Изменён  |
 
 ### Результаты проверок
 
@@ -150,8 +150,8 @@
 | Файл                                                               | Действие  |
 | ------------------------------------------------------------------ | --------- |
 | [`code_review.md`](code_review.md)                                 | Создан    |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
 ---
 
@@ -255,7 +255,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ### Исправление markdownlint-нарушений в SESSION_ARCHIVE.md ✅
 
-**Задача:** Исправить 41 markdownlint violation в [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1), выявленные VSCode Problems tab.
+**Задача:** Исправить 41 markdownlint violation в [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1), выявленные VSCode Problems tab.
 
 **Исправленные ошибки:**
 
@@ -271,7 +271,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 | Файл                                                     | Действие                              |
 | -------------------------------------------------------- | ------------------------------------- |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024 |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024 |
 
 **Результаты тестов:** Не запускались
 
@@ -281,7 +281,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ### Обновление knowledge.md, restrictions.md, SESSION_ARCHIVE.md ✅
 
-**Задача:** Привести [`.roo/rules/knowledge.md`](../.roo/rules/knowledge.md:1), [`.roo/rules/restrictions.md`](../.roo/rules/restrictions.md:1) и [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) в соответствие со стандартами из [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:1).
+**Задача:** Привести [`.roo/rules/knowledge.md`](../.roo/rules/knowledge.md:1), [`.roo/rules/restrictions.md`](../.roo/rules/restrictions.md:1) и [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) в соответствие со стандартами из [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:1).
 
 **Изменённые файлы:**
 
@@ -289,7 +289,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | --------------------------------------------------------------- | ------------------------------------------------------------ |
 | [`.roo/rules/knowledge.md`](../.roo/rules/knowledge.md:1)       | Добавлен H1, ссылки на файлы с путями, inline-форматирование |
 | [`.roo/rules/restrictions.md`](../.roo/rules/restrictions.md:1) | Добавлен H1, пути в inline-коде, ссылка на ignore.md         |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1)        | H1 переименован из filename в описательный заголовок         |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1)        | H1 переименован из filename в описательный заголовок         |
 
 **Результаты тестов:** Не запускались
 
@@ -604,7 +604,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ## 2026-05-06
 
-- Добавлена база знаний API в `docs/knowledge/`: `check_patient.md`, `speciality_list.md`, `doctor_list.md`, `appointment_list.md`, `_INDEX.md`
+- Добавлена база знаний API в `specs/knowledge/`: `check_patient.md`, `speciality_list.md`, `doctor_list.md`, `appointment_list.md`, `_INDEX.md`
 - Исправлены ложные уведомления "Номерков нет" при первом включении мониторинга
 - Добавлена синхронизация кэша в `handlers/common.py` после выбора врача
 - API-клиент теперь различает ошибки API и отсутствие номерков
@@ -881,7 +881,7 @@ Docker/WSL2, потому что Docker использует случайные 
 **Файлы:**
 
 - [`services/monitor.py`](../src/services/monitor.py) — добавлена очистка `empty_counts` (строки 96-105)
-- [`docs/AGENT_TASKS.md`](AGENT_TASKS.md) — B2 отмечен выполненным
+- [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md) — B2 отмечен выполненным
 
 ### Удаление тестов `check_affiliation`
 
@@ -1179,7 +1179,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | [`keyboards/inline.py`](../src/keyboards/inline.py:240)           | bare except → конкретные типы                       |
 | [`handlers/common.py`](../src/handlers/common.py:213)             | unused variables удалены; None-safety               |
 | [`config.py`](../src/config.py:2)                                 | typing imports; mapping аннотация                   |
-| [`docs/AGENT_TASKS.md`](AGENT_TASKS.md:1)                         | Удалены B5, F4                                      |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                         | Удалены B5, F4                                      |
 
 **Результат:** 134/134 passed, 10/10 pre-commit hooks passed
 
@@ -1381,17 +1381,17 @@ Docker/WSL2, потому что Docker использует случайные 
 | ----------------------------------------------------------------------- | ------------------------------------------------- |
 | [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:1) | Создан — CRITICAL стандарты Python + Markdown     |
 | [`.roo/rules/coding.md`](../.roo/rules/coding.md:1)                     | Создан — стандарты кодирования                    |
-| [`docs/GEMINI.md`](../docs/GEMINI.md:1)                                 | Обновлён — agent-agnostic bridge                  |
-| [`docs/agents/AGENT_TASKS.md`](AGENT_TASKS.md:1)                        | Перенесён из `docs/`                              |
-| [`docs/agents/CODE_REVIEW.md`](CODE_REVIEW.md:1)                        | Перенесён из `docs/`                              |
-| [`docs/agents/formatting_experiments.md`](formatting_experiments.md:1)  | Конвертирован из `варианты оформления.txt`        |
-| [`docs/knowledge/*.md`](../docs/knowledge/_INDEX.md:1)                  | Реформатированы в единый шаблон                   |
+| [`specs/GEMINI.md`](../specs/GEMINI.md:1)                                 | Обновлён — agent-agnostic bridge                  |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                        | Перенесён из `docs/`                              |
+| [`.roo/sessions/CODE_REVIEW.md`](CODE_REVIEW.md:1)                        | Перенесён из `docs/`                              |
+| [`.roo/sessions/formatting_experiments.md`](formatting_experiments.md:1)  | Конвертирован из `варианты оформления.txt`        |
+| [`specs/knowledge/*.md`](../specs/knowledge/_INDEX.md:1)                  | Реформатированы в единый шаблон                   |
 | [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)                   | Обновлён: пути `docs/agents/`, SESSION_ARCHIVE.md |
 | [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)                     | Обновлён: актуальные пути игнорируемых файлов     |
-| [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md:1)                     | Обновлено дерево директорий                       |
+| [`specs/ARCHITECTURE.md`](../specs/ARCHITECTURE.md:1)                     | Обновлено дерево директорий                       |
 | [`README.md`](../README.md:1)                                           | Обновлён                                          |
-| [`docs/PROJECT_TREE.md`](../docs/PROJECT_TREE.md:1)                     | Удалён (устарел, заменён на ARCHITECTURE.md)      |
-| [`docs/QWEN.md`](../docs/QWEN.md:1)                                     | Удалён (пустой)                                   |
+| [`specs/PROJECT_TREE.md`](../specs/PROJECT_TREE.md:1)                     | Удалён (устарел, заменён на ARCHITECTURE.md)      |
+| [`specs/QWEN.md`](../specs/QWEN.md:1)                                     | Удалён (пустой)                                   |
 | [`docs/варианты оформления.txt`](../docs/варианты оформления.txt:1)     | Удалён (конвертирован в .md)                      |
 
 ### Разделение SESSION_LOG: активный лог + архив ✅
@@ -1402,8 +1402,8 @@ Docker/WSL2, потому что Docker использует случайные 
 
 | Файл                                                     | Действие                                             |
 | -------------------------------------------------------- | ---------------------------------------------------- |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Создан — полная хронология из git (ece319e)          |
-| [`docs/agents/SESSION_LOG.md`](SESSION_LOG.md:1)         | Очищен до шаблона последней сессии                   |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Создан — полная хронология из git (ece319e)          |
+| [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md:1)         | Очищен до шаблона последней сессии                   |
 | [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)    | Добавлен шаг переноса в SESSION_ARCHIVE.md           |
 | [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)      | `SESSION_ARCHIVE.md` добавлен в условно-игнорируемые |
 
@@ -1415,7 +1415,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ### Добавление markdownlint в пре-комплишн workflow ✅
 
-**Задача:** Добавить обязательную проверку `npx markdownlint` перед `attempt_completion` для всех `.md` файлов и исправить 41 markdownlint violation в [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1).
+**Задача:** Добавить обязательную проверку `npx markdownlint` перед `attempt_completion` для всех `.md` файлов и исправить 41 markdownlint violation в [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1).
 
 **Исправленные ошибки в SESSION_ARCHIVE.md:**
 
@@ -1431,7 +1431,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 | Файл                                                     | Действие                                                               |
 | -------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024                                  |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024                                  |
 | `.roo/rules/system_standards.md`                         | Добавлена команда `markdownlint` в секцию Валидация                    |
 | `.roo/rules/logging.md`                                  | Добавлены шаги 4 (markdownlint) и 5 (prettier) в пре-комплишн workflow |
 | `.markdownlint.json`                                     | Создан конфиг (MD013, MD041, MD060 отключены)                          |
@@ -1612,12 +1612,12 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ### Задача
 
-Создан файл [`docs/openapi.yaml`](docs/openapi.yaml) — единственный источник истины (SSOT) для архитектуры данных, бизнес-логики и внешних интеграций согласно правилу [`.roo/rules/architecture.md`](.roo/rules/architecture.md:5).
+Создан файл [`specs/openapi.yaml`](specs/openapi.yaml) — единственный источник истины (SSOT) для архитектуры данных, бизнес-логики и внешних интеграций согласно правилу [`.roo/rules/architecture.md`](.roo/rules/architecture.md:5).
 
 ### Выполненные задачи
 
 - Проведён полный аудит проекта: изучены все модули `src/`, схемы БД, API-эндпоинты, knowledge-база
-- Создан [`docs/openapi.yaml`](docs/openapi.yaml:1) — OpenAPI 3.0.0 (YAML, описания на русском)
+- Создан [`specs/openapi.yaml`](specs/openapi.yaml:1) — OpenAPI 3.0.0 (YAML, описания на русском)
 - Задокументированы:
   - **Внешний API zdrav.lenreg.ru:** 5 эндпоинтов (`check_patient`, `speciality_list`, `doctor_list`, `appointment_list`, `clinic_list`)
   - **Telegram-бот:** команды `/start`, `/status`, FSM-сценарий регистрации
@@ -1631,7 +1631,7 @@ Docker/WSL2, потому что Docker использует случайные 
 
 | Файл                                     | Действие |
 | ---------------------------------------- | -------- |
-| [`docs/openapi.yaml`](docs/openapi.yaml) | Создан   |
+| [`specs/openapi.yaml`](specs/openapi.yaml) | Создан   |
 
 ---
 
@@ -1676,7 +1676,7 @@ Docker/WSL2, потому что Docker использует случайные 
 - **Обработчики:** В [`src/handlers/common.py`](src/handlers/common.py:21) замена `spam_cache` на `await is_spam()`
 - **Rate limiting:** [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py:1) переписан с in-memory dict+TTLCache → Redis Sorted Sets (sliding window через pipeline: ZREMRANGEBYSCORE+ZADD+ZCARD+EXPIRE)
 - **FSM-хранилище:** В [`src/main.py`](src/main.py:8) `MemoryStorage()` заменён на `RedisStorage.from_url()`, добавлены `await RedisClient.get_instance()` при старте и `await RedisClient.shutdown()` при остановке
-- **Документация:** Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md:38) — дерево директорий, Mermaid-граф (нода `UTIL_REDIS`), ключевые решения (пункт 2)
+- **Документация:** Обновлён [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md:38) — дерево директорий, Mermaid-граф (нода `UTIL_REDIS`), ключевые решения (пункт 2)
 - **Тесты:** Обновлён [`tests/conftest.py`](tests/conftest.py:76) — autouse-фикстура `fake_redis` с `fakeredis.aioredis.FakeRedis`, обновлён [`tests/test_cache.py`](tests/test_cache.py:1) — 15 тестов на Redis-операции (spam, swap, delete)
 - **Правки Ruff E501:** Сокращены 3 строки-нарушителя в [`src/utils/redis.py`](src/utils/redis.py:40,71) и [`src/utils/cache.py`](src/utils/cache.py:38)
 - **Подавление Pylance:** Файловое подавление `reportGeneralTypeIssues` и `reportAttributeAccessIssue` в [`src/utils/redis.py:8`](src/utils/redis.py:8) — redis-py 7.x использует Protocol для `redis.asyncio.Redis`, Pylance не умеет разрешать `Awaitable[X] | X` при `await` и не видит атрибут `client` на модуле
@@ -1695,7 +1695,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | [`src/handlers/common.py`](src/handlers/common.py)           | Изменён   |
 | [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py) | Переписан |
 | [`src/main.py`](src/main.py)                                 | Изменён   |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)               | Изменён   |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)               | Изменён   |
 | [`tests/conftest.py`](tests/conftest.py)                     | Переписан |
 | [`tests/test_cache.py`](tests/test_cache.py)                 | Переписан |
 
@@ -1721,7 +1721,7 @@ ruff check src/ — All checks passed!
 
 ### Выполненные задачи
 
-- **ARCHITECTURE.md:** Добавлен блок-предупреждение сразу под H1 — документ описывает строго физическую структуру; SSOT для структур данных и бизнес-правил — [`docs/openapi.yaml`](docs/openapi.yaml) ([`docs/ARCHITECTURE.md:3`](docs/ARCHITECTURE.md:3))
+- **ARCHITECTURE.md:** Добавлен блок-предупреждение сразу под H1 — документ описывает строго физическую структуру; SSOT для структур данных и бизнес-правил — [`specs/openapi.yaml`](specs/openapi.yaml) ([`specs/ARCHITECTURE.md:3`](specs/ARCHITECTURE.md:3))
 - **workflow.md:** Добавлена Фаза 4 (Синхронизация топологии) в протокол Phased Update — обязательное обновление дерева директорий, Mermaid-графа и таблицы зон ответственности в `ARCHITECTURE.md` после изменений в `src/` ([`.roo/rules/workflow.md:37`](.roo/rules/workflow.md:37))
 - **Логирование:** Текущая запись перенесена в архив, новая запись создана
 
@@ -1729,10 +1729,10 @@ ruff check src/ — All checks passed!
 
 | Файл                                                               | Действие  |
 | ------------------------------------------------------------------ | --------- |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                     | Изменён   |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)                     | Изменён   |
 | [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
 ---
 
@@ -1776,8 +1776,8 @@ ruff check src/ — All checks passed!
 | [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
 | [`src/utils/redis.py`](src/utils/redis.py)                         | Изменён   |
 | [`tests/conftest.py`](tests/conftest.py)                           | Изменён   |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
 ---
 
@@ -1825,8 +1825,8 @@ ruff check src/ — All checks passed!
 | [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
 | [`src/utils/redis.py`](src/utils/redis.py)                         | Изменён   |
 | [`tests/conftest.py`](tests/conftest.py)                           | Переписан |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
 ---
 
@@ -1873,10 +1873,10 @@ ruff check src/ — All checks passed!
   - Справочники контекстов и состояний
   - Требования к файлам (800×400 px, ≤512 КБ)
   - Пример кода использования через `FSInputFile` + `send_photo()`
-- Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
+- Обновлён [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md):
   - Дерево директорий — добавлен `src/assets/` с поддиректориями
   - Таблица зон ответственности — добавлена строка `src/assets/`
-- Обновлён [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — добавлена задача F4 (отправка изображений-заголовков)
+- Обновлён [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) — добавлена задача F4 (отправка изображений-заголовков)
 
 ### Изменённые файлы
 
@@ -1885,8 +1885,8 @@ ruff check src/ — All checks passed!
 | [`src/assets/__init__.py`](src/assets/__init__.py)         | Создан   |
 | [`src/assets/README.md`](src/assets/README.md)             | Создан   |
 | [`src/assets/images/.gitkeep`](src/assets/images/.gitkeep) | Создан   |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)             | Изменён  |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён  |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)             | Изменён  |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён  |
 
 ### Результаты проверок
 
@@ -2112,7 +2112,7 @@ ruff check src/ — All checks passed!
 
 ### Задача
 
-Применить 4 низкорисковые рекомендации из анализа [`docs/code_review_optimization.md`](docs/code_review_optimization.md),
+Применить 4 низкорисковые рекомендации из анализа [`specs/code_review_optimization.md`](specs/code_review_optimization.md),
 выполненного в этой же сессии.
 
 ### Выполненные задачи
@@ -2148,7 +2148,7 @@ ruff check src/ — All checks passed!
 | [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py) | Изменён (-10 строк)         |
 | [`src/main.py`](src/main.py)                                           | Изменён (-111 строк)        |
 | [`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py)         | **Новый файл** (+130 строк) |
-| [`docs/code_review_optimization.md`](docs/code_review_optimization.md) | Изменён (актуализация)      |
+| [`specs/code_review_optimization.md`](specs/code_review_optimization.md) | Изменён (актуализация)      |
 
 ### Результаты проверок
 
@@ -2174,7 +2174,7 @@ ruff check src/ — All checks passed!
   - `src/main.py` — удалены утилиты прокси, агрегированный discovery (−111 строк)
   - `src/services/doctor_discovery.py` — `discovery_loop` с `Database` вместо `DoctorManager`
   - `src/handlers/common.py` — дедупликация `_CLINIC_NAV_TYPE_MAP` и `_decode_city_from_idx()`
-  - `docs/code_review_optimization.md` — перенесён из корня в `docs/`
+  - `specs/code_review_optimization.md` — перенесён из корня в `docs/`
   - `docs/agents/` — обновлены SESSION_LOG и SESSION_ARCHIVE
 
 ### Изменённые файлы
@@ -2185,9 +2185,9 @@ ruff check src/ — All checks passed!
 | [`src/main.py`](../../src/main.py)                                           | Изменён           |
 | [`src/services/doctor_discovery.py`](../../src/services/doctor_discovery.py) | Изменён           |
 | [`src/handlers/common.py`](../../src/handlers/common.py)                     | Изменён           |
-| [`docs/code_review_optimization.md`](../code_review_optimization.md)         | Перенесён в docs/ |
-| [`docs/agents/SESSION_LOG.md`](SESSION_LOG.md)                               | Изменён           |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                       | Изменён           |
+| [`specs/code_review_optimization.md`](../code_review_optimization.md)         | Перенесён в docs/ |
+| [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md)                               | Изменён           |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                       | Изменён           |
 
 ---
 
@@ -2195,7 +2195,7 @@ ruff check src/ — All checks passed!
 
 ### Задача
 
-Реализовать находки B, C, E из [`docs/code_review_optimization.md`](../code_review_optimization.md): вынесение дублирующегося кода в переиспользуемые хелперы.
+Реализовать находки B, C, E из [`specs/code_review_optimization.md`](../code_review_optimization.md): вынесение дублирующегося кода в переиспользуемые хелперы.
 
 ### Выполненные задачи
 
@@ -2223,7 +2223,7 @@ ruff check src/ — All checks passed!
 
 ### Задача
 
-Удалить неиспользуемый класс `DoctorManager` и связанные тесты (находка D из [`docs/code_review_optimization.md`](../code_review_optimization.md)).
+Удалить неиспользуемый класс `DoctorManager` и связанные тесты (находка D из [`specs/code_review_optimization.md`](../code_review_optimization.md)).
 
 ### Выполненные задачи
 
@@ -2259,7 +2259,7 @@ ruff check src/ — All checks passed!
 
 ### Задача
 
-Реализовать находки B, C, D, E из [`docs/code_review_optimization.md`](../code_review_optimization.md): вынесение дублирующегося кода в переиспользуемые хелперы и удаление неиспользуемого `DoctorManager`.
+Реализовать находки B, C, D, E из [`specs/code_review_optimization.md`](../code_review_optimization.md): вынесение дублирующегося кода в переиспользуемые хелперы и удаление неиспользуемого `DoctorManager`.
 
 ### Выполненные задачи
 
@@ -2366,7 +2366,7 @@ ruff check src/ — All checks passed!
 
 ### Выполненные задачи
 
-- Прочитаны и проанализированы 4 исходных файла: [`code_review.md`](code_review.md) (2026-05-14), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md) (2026-05-11), [`docs/code_review_optimization.md`](docs/code_review_optimization.md) (2026-05-15), предыдущий [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- Прочитаны и проанализированы 4 исходных файла: [`code_review.md`](code_review.md) (2026-05-14), [`.roo/sessions/CODE_REVIEW.md`](.roo/sessions/CODE_REVIEW.md) (2026-05-11), [`specs/code_review_optimization.md`](specs/code_review_optimization.md) (2026-05-15), предыдущий [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md).
 - Выполнена дедупликация: из ~75 пунктов выделены уникальные задачи с перекрёстными ссылками.
 - Создан [`AGENT_TASKS.md`](AGENT_TASKS.md) — 24 активные задачи:
   - 🔴 CRITICAL (6): T-MON-PARALLEL, T-CONFIG-ORDER, T-CONN-ENCAPSULATE, T-MONITOR-RESTART-SPAM, T-IF-DB-CHECK, T-HEALTHCHECK-COUNT
@@ -2377,18 +2377,18 @@ ruff check src/ — All checks passed!
   - 🟢 LOW / TECH DEBT (36): сгруппированы по модулям `src/` (api, database, handlers, services, middleware, utils, keyboards, tests, main.py, прочее)
   - 🔵 OPTIMIZATION (6): OPT-A, OPT-B, OPT-D, OPT-E, OPT-G, OPT-K (отклонённые/выполненные исключены)
   - ⚪ MINOR (16): мелкие правки (опечатки, форматирование, docstrings, type hints)
-- Удалены старые файлы-источники: [`code_review.md`](code_review.md), [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md), [`docs/code_review_optimization.md`](docs/code_review_optimization.md).
+- Удалены старые файлы-источники: [`code_review.md`](code_review.md), [`.roo/sessions/CODE_REVIEW.md`](.roo/sessions/CODE_REVIEW.md), [`specs/code_review_optimization.md`](specs/code_review_optimization.md).
 
 ### Изменённые файлы
 
 | Файл                                                                   | Действие                         |
 | ---------------------------------------------------------------------- | -------------------------------- |
-| [`docs/agents/AGENT_TASKS.md`](AGENT_TASKS.md)                         | Перезаписан (24 задачи)          |
-| [`docs/agents/TECH_DEBT.md`](TECH_DEBT.md)                             | Создан (58 пунктов)              |
-| [`docs/agents/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                 | Дополнен (перенос старой записи) |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md)                         | Перезаписан (24 задачи)          |
+| [`.roo/tasks/TECH_DEBT.md`](TECH_DEBT.md)                             | Создан (58 пунктов)              |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                 | Дополнен (перенос старой записи) |
 | [`code_review.md`](code_review.md)                                     | Удалён                           |
-| [`docs/agents/CODE_REVIEW.md`](docs/agents/CODE_REVIEW.md)             | Удалён                           |
-| [`docs/code_review_optimization.md`](docs/code_review_optimization.md) | Удалён                           |
+| [`.roo/sessions/CODE_REVIEW.md`](.roo/sessions/CODE_REVIEW.md)             | Удалён                           |
+| [`specs/code_review_optimization.md`](specs/code_review_optimization.md) | Удалён                           |
 
 ### Результаты проверок
 
@@ -2416,7 +2416,7 @@ ruff check src/ — All checks passed!
 
 | Файл                                       | Действие                           |
 | ------------------------------------------ | ---------------------------------- |
-| [`docs/agents/TECH_DEBT.md`](TECH_DEBT.md) | Удалены строки OPT-I, OPT-J, OPT-L |
+| [`.roo/tasks/TECH_DEBT.md`](TECH_DEBT.md) | Удалены строки OPT-I, OPT-J, OPT-L |
 
 ### Результаты проверок
 
@@ -2561,11 +2561,11 @@ ruff check src/ — All checks passed!
 | T-CONFIG-ORDER         | Исправлен порядок загрузки конфигурации в [`src/main.py`](src/main.py:133) — `load_config_from_db()` теперь вызывается до `sync_clinic_names()`                                              | ✅     |
 | T-CONN-ENCAPSULATE     | Добавлен `property conn` в [`src/database/database.py:122`](src/database/database.py:122); заменён прямой доступ `_db._conn` → `_db.conn` в 3 местах [`manager.py`](src/database/manager.py) | ✅     |
 | T-MONITOR-RESTART-SPAM | Добавлен флаг `initial_sync` в [`src/services/monitor.py`](src/services/monitor.py:111,198,244) — подавление ложных уведомлений при перезапуске                                              | ✅     |
-| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)                    | ✅     |
+| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                    | ✅     |
 
 ### Финальная валидация (текущая подзадача)
 
-- Удалена устаревшая задача T-IF-DB-CHECK из таблицы CRITICAL в [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md).
+- Удалена устаревшая задача T-IF-DB-CHECK из таблицы CRITICAL в [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md).
 - Запущен полный набор тестов: **179 passed** (23.75s).
 - Запущен ruff check для `src/`: **All checks passed!** (0 errors).
 - Запущен markdownlint для `docs/**/*.md`, `.roo/**/*.md`, `*.md`: **0 errors**.
@@ -2575,9 +2575,9 @@ ruff check src/ — All checks passed!
 
 | Файл                                                               | Действие                                         |
 | ------------------------------------------------------------------ | ------------------------------------------------ |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Новая сводка по 5 CRITICAL задачам               |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Добавлена запись T-HEALTHCHECK-COUNT             |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)         | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Новая сводка по 5 CRITICAL задачам               |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Добавлена запись T-HEALTHCHECK-COUNT             |
 
 ### Результаты проверок
 
@@ -2611,8 +2611,8 @@ ruff check src/ — All checks passed!
 | Файл                                                       | Действие                    |
 | ---------------------------------------------------------- | --------------------------- |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml)     | Перезаписан (полная версия) |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-CI-CD      |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md) | Новая запись сессии         |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-CI-CD      |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md) | Новая запись сессии         |
 
 ---
 
@@ -2664,7 +2664,7 @@ ruff check src/ — All checks passed!
 | [`src/database/database.py`](src/database/database.py:168)                | +1 logger.debug                  |
 | [`src/database/migrations.py`](src/database/migrations.py:88)             | +1 logger.debug                  |
 | [`tests/test_monitor_full.py`](tests/test_monitor_full.py:7,117)          | +1 импорт, исправлен side_effect |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)                | Удалена задача T-EXCEPT-PASS     |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                | Удалена задача T-EXCEPT-PASS     |
 
 ### Результаты проверок
 
@@ -2719,7 +2719,7 @@ ruff check src/ — All checks passed!
 | [`Dockerfile`](Dockerfile:1)                               | Создан                     |
 | [`.dockerignore`](.dockerignore:1)                         | Создан                     |
 | [`docker-compose.yml`](docker-compose.yml)                 | Перезаписан (Qdrant → Bot) |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-DOCKER    |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-DOCKER    |
 
 ### Результаты проверок
 
@@ -2797,7 +2797,7 @@ ruff check src/ — All checks passed!
 | [`.env.example`](.env.example)                               | Изменён  |
 | [`Dockerfile`](Dockerfile)                                   | Изменён  |
 | [`docker-compose.yml`](docker-compose.yml)                   | Изменён  |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)   | Изменён  |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)   | Изменён  |
 
 ### Результаты проверок
 
@@ -2868,7 +2868,7 @@ ruff check src/ — All checks passed!
 | [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | Изменён (хардкоды → settings.ORIGIN_URL, settings.DISTRICT_ID) |
 | [`src/handlers/common.py`](src/handlers/common.py)         | Изменён (хардкод → settings.SIGNUP_URL)                        |
 | [`src/services/monitor.py`](src/services/monitor.py)       | Изменён (хардкод → settings.SIGNUP_URL)                        |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён (удалена строка T-HARDCODE-IDS)                        |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён (удалена строка T-HARDCODE-IDS)                        |
 
 ### Результаты проверок
 
@@ -2963,7 +2963,7 @@ ruff check src/ — All checks passed!
 | [`src/config.py`](src/config.py)                           | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
 | [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | +`_validate_response()`, +`X-Client-Version` |
 | [`.env.example`](.env.example)                             | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Удалена задача T-API-VERSIONING              |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-API-VERSIONING              |
 
 ### Результаты проверок
 
@@ -2996,17 +2996,17 @@ ruff check src/ — All checks passed!
    - FAQ (8 вопросов)
    - Разработка (тесты, линтинг, типизация, CI/CD)
    - Лицензия
-3. Обновлён [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — удалена задача T-README.
-4. Перенесена предыдущая запись в [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md).
+3. Обновлён [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) — удалена задача T-README.
+4. Перенесена предыдущая запись в [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md).
 
 ### Изменённые файлы
 
 | Файл                                                               | Действие                                       |
 | ------------------------------------------------------------------ | ---------------------------------------------- |
 | [`README.md`](README.md)                                           | Полностью переписан (31 → ~310 строк)          |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md)         | Удалена задача T-README                        |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Новая запись о T-README                        |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Добавлена предыдущая запись (T-API-VERSIONING) |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)         | Удалена задача T-README                        |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Новая запись о T-README                        |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Добавлена предыдущая запись (T-API-VERSIONING) |
 
 ### Результаты проверок
 
@@ -3102,7 +3102,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 - **TD-DB-001** в [`src/database/database.py`](src/database/database.py): `logger.warning` → `logger.error` в `seed_specialty_aliases_from_fallback()` и `seed_config_from_defaults()`.
 
-- **Обновление [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md):**
+- **Обновление [`.roo/tasks/TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md):**
   - Удалены TD-DB-001 (исправлено), TD-DB-002 (не баг), TD-DB-003 (не баг), TD-DB-004 (не баг), TD-DB-006 (исправлено), TD-DB-007 (исправлено)
   - Обновлена TD-DB-005: строки и приоритет
 
@@ -3114,7 +3114,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 - [`src/database/migrations.py`](src/database/migrations.py) — дополнена v1 (3 колонки), удалены v2, v5, `import sqlite3`, обновлён список MIGRATIONS
 - [`src/database/database.py`](src/database/database.py) — `logger.warning` → `logger.error` в двух seed-функциях
-- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены 6 записей, обновлена TD-DB-005
+- [`.roo/tasks/TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md) — удалены 6 записей, обновлена TD-DB-005
 
 ---
 
@@ -3130,7 +3130,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 ### Изменённые файлы
 
 - [`src/database/manager.py`](src/database/manager.py:148-152) — удалены строки 151-152 (legacy-проверка `isinstance(val, int)`).
-- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md:19) — удалена запись TD-DB-005.
+- [`.roo/tasks/TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md:19) — удалена запись TD-DB-005.
 
 ---
 
@@ -3161,7 +3161,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 - [`src/api/zdrav_client.py`](src/api/zdrav_client.py:133-143) — TD-HND-005 (текст ошибки).
 - [`src/handlers/callback_parser.py`](src/handlers/callback_parser.py) — **новый файл** с `_parse_callback_arg()`.
 - [`src/handlers/common.py`](src/handlers/common.py:11,638,853-854,410-413,463-467) — импорт хелпера, применение к двум хендлерам, очистка кэша.
-- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md:19-24) — удалены записи TD-HND-001/004/005/006.
+- [`.roo/tasks/TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md:19-24) — удалены записи TD-HND-001/004/005/006.
 
 ### Проверки
 
@@ -3230,9 +3230,9 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Выполненные задачи
 
-- Перенесена предыдущая запись из [`SESSION_LOG.md`](docs/agents/SESSION_LOG.md) в [`SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md)
+- Перенесена предыдущая запись из [`SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md) в [`SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md)
 - Создана новая запись о текущей сессии
-- Проверен [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — задачи, связанные с RUF002/callback_parser, отсутствуют, удаление не требуется
+- Проверен [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) — задачи, связанные с RUF002/callback_parser, отсутствуют, удаление не требуется
 - Выполнена проверка markdownlint — 0 ошибок
 - Выполнено форматирование через prettier
 
@@ -3240,8 +3240,8 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 | Файл                                                               | Действие  |
 | ------------------------------------------------------------------ | --------- |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md)         | Переписан |
-| [`docs/agents/SESSION_ARCHIVE.md`](docs/agents/SESSION_ARCHIVE.md) | Изменён   |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
 ### Результаты проверок
 
@@ -3256,19 +3256,19 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Выполненные задачи
 
-- Проведён полный аудит проекта: прочитаны [`ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`config.py`](src/config.py:28), [`pyproject.toml`](pyproject.toml), [`openapi.yaml`](docs/openapi.yaml)
+- Проведён полный аудит проекта: прочитаны [`ARCHITECTURE.md`](specs/ARCHITECTURE.md), [`config.py`](src/config.py:28), [`pyproject.toml`](pyproject.toml), [`openapi.yaml`](specs/openapi.yaml)
 - Проанализированы все модули с пользовательскими строками
 - Составлен каталог из **98 уникальных строк** по доменам (`bot` — 88, `data` — 10)
-- Создан дизайн-документ [`docs/design/i18n_design.md`](docs/design/i18n_design.md)
-- Обновлён [`AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — F4 переведён в 🔄
+- Создан дизайн-документ [`specs/design/i18n_design.md`](specs/design/i18n_design.md)
+- Обновлён [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) — F4 переведён в 🔄
 
 ### Изменённые файлы
 
 | Файл                                                       | Действие  |
 | ---------------------------------------------------------- | --------- |
-| [`docs/design/i18n_design.md`](docs/design/i18n_design.md) | Создан    |
-| [`docs/agents/SESSION_LOG.md`](docs/agents/SESSION_LOG.md) | Переписан |
-| [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) | Изменён   |
+| [`specs/design/i18n_design.md`](specs/design/i18n_design.md) | Создан    |
+| [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md) | Переписан |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён   |
 
 ### Результаты проверок
 
@@ -3360,7 +3360,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 ### Выполненные задачи
 
 - Собран контекст проекта:
-  - [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
+  - [`ARCHITECTURE.md`](specs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
   - [`src/api/models.py`](src/api/models.py) — 12 Pydantic-моделей для валидации ответов API
   - [`src/api/zdrav_client.py`](src/api/zdrav_client.py:87) — текущий механизм `_validate_response()`
   - [`src/services/error_notifier.py`](src/services/error_notifier.py) — NTFY + Sentry (singleton)
@@ -3368,10 +3368,10 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
   - [`src/config.py`](src/config.py) — pydantic-settings с двухуровневым переопределением
   - [`src/main.py`](src/main.py) — сборка бота, запуск фоновых asyncio-задач
   - [`src/services/healthcheck.py`](src/services/healthcheck.py) — пример фонового цикла
-  - [`docs/openapi.yaml`](docs/openapi.yaml) — SSOT архитектуры данных
-  - [`docs/design/i18n_design.md`](docs/design/i18n_design.md) — образец формата дизайн-документа
+  - [`specs/openapi.yaml`](specs/openapi.yaml) — SSOT архитектуры данных
+  - [`specs/design/i18n_design.md`](specs/design/i18n_design.md) — образец формата дизайн-документа
   - [`pyproject.toml`](pyproject.toml) — зависимости проекта (без deepdiff)
-- Создан дизайн-документ [`docs/design/api_change_detector_design.md`](docs/design/api_change_detector_design.md):
+- Создан дизайн-документ [`specs/design/api_change_detector_design.md`](specs/design/api_change_detector_design.md):
   - Архитектурная схема (Mermaid): компонентная диаграмма + sequence diagram
   - Компонент 1: скрипт `scripts/generate_api_schemas.py` — генерация эталонных JSON Schema
   - Компонент 2: модуль `src/services/schema_watcher.py` — загрузка, сравнение, цикл проверки
@@ -3387,9 +3387,9 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 | Файл                                        | Действие |
 | ------------------------------------------- | -------- |
-| `docs/design/api_change_detector_design.md` | Создан   |
-| `docs/agents/SESSION_LOG.md`                | Изменён  |
-| `docs/agents/SESSION_ARCHIVE.md`            | Изменён  |
+| `specs/design/api_change_detector_design.md` | Создан   |
+| `.roo/sessions/SESSION_LOG.md`                | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`            | Изменён  |
 
 ### Результаты проверок
 
@@ -3405,7 +3405,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 ### Выполненные задачи
 
 1. **Сбор информации:** Проанализированы ключевые файлы проекта:
-   - [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
+   - [`ARCHITECTURE.md`](specs/ARCHITECTURE.md) — дерево директорий, зоны ответственности, граф зависимостей
    - [`main.py`](src/main.py) — asyncio-процесс, фоновые задачи, graceful shutdown
    - [`config.py`](src/config.py) — pydantic-settings, `load_config_from_db()`
    - [`database.py`](src/database/database.py) — SQLite-движок, CRUD, `monitoring_log`, `clinics`, `doctors`
@@ -3423,7 +3423,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
    - Порт дашборда: 8080
    - Prometheus `/metrics`: остаётся на отдельном aiohttp-сервере на порту 9090
 
-3. **Создан дизайн-документ** [`docs/design/web_dashboard_design.md`](docs/design/web_dashboard_design.md):
+3. **Создан дизайн-документ** [`specs/design/web_dashboard_design.md`](specs/design/web_dashboard_design.md):
    - **Раздел 1:** Архитектурная схема (2 Mermaid-диаграммы) — встраивание FastAPI в asyncio-процесс, поток запроса
    - **Раздел 2:** Структура пакета `src/web/` (7 модулей: `app.py`, `auth.py`, `dependencies.py`, `routers/pages.py`, `routers/api.py`, `templates/`, `static/`)
    - **Раздел 3:** Детальное описание каждого компонента с сигнатурами и примерами кода
@@ -3445,10 +3445,10 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 | Файл                                  | Действие |
 | ------------------------------------- | -------- |
-| `docs/design/web_dashboard_design.md` | Создан   |
-| `docs/agents/SESSION_LOG.md`          | Изменён  |
-| `docs/agents/SESSION_ARCHIVE.md`      | Изменён  |
-| `docs/agents/AGENT_TASKS.md`          | Изменён  |
+| `specs/design/web_dashboard_design.md` | Создан   |
+| `.roo/sessions/SESSION_LOG.md`          | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`      | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`          | Изменён  |
 
 ### Результаты проверок
 
@@ -3534,9 +3534,9 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 | `src/web/templates/api_status.html`  | Создан   |
 | `src/web/static/dashboard.css`       | Создан   |
 | `tests/test_doctor_discovery.py`     | Изменён  |
-| `docs/agents/SESSION_LOG.md`         | Изменён  |
-| `docs/agents/SESSION_ARCHIVE.md`     | Изменён  |
-| `docs/agents/AGENT_TASKS.md`         | Изменён  |
+| `.roo/sessions/SESSION_LOG.md`         | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`     | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`         | Изменён  |
 
 ---
 
@@ -3703,12 +3703,12 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Выполненные задачи
 
-#### Проблема: Git при коммите выдаёт 12 warnings вида `LF will be replaced by CRLF` для JSON-файлов в `docs/schemas/`
+#### Проблема: Git при коммите выдаёт 12 warnings вида `LF will be replaced by CRLF` для JSON-файлов в `artifacts/schemas/`
 
 **Исправления:**
 
 1. Создан [`.gitattributes`](.gitattributes:1) с правилом `*.json text eol=lf` — явное указание LF для всех JSON-файлов.
-2. Выполнен `git add --renormalize docs/schemas/*.json` — применение нового атрибута к уже отслеживаемым файлам.
+2. Выполнен `git add --renormalize artifacts/schemas/*.json` — применение нового атрибута к уже отслеживаемым файлам.
 3. Выполнен коммит `chore: add .gitattributes — LF for JSON files`.
 
 ### Изменённые файлы
@@ -3953,7 +3953,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 - `src/utils/helpers.py:9,34` — `from loguru import logger` вынесен на уровень модуля
 - `src/keyboards/inline.py:3` — добавлен `from loguru import logger`; в `_short_clinic_label()` добавлен fallback для однословных названий; в `get_clinic_selection()` добавлен `logger.exception()`
 - `src/main.py:303-309` — добавлена валидация `PROXY_URL` через `urlparse`
-- `docs/agents/TECH_DEBT.md:90-100` — удалены строки MIN-004..MIN-015 (выполнены)
+- `.roo/tasks/TECH_DEBT.md:90-100` — удалены строки MIN-004..MIN-015 (выполнены)
 
 ### Результаты проверок
 
@@ -3961,7 +3961,7 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 | ----------------------------------------------- | -------------------- |
 | `ruff check src` (изменённые файлы)             | ✅ All checks passed |
 | `npx markdownlint "docs/**/*.md"`               | ✅ 0 errors          |
-| `npx prettier --write docs/agents/TECH_DEBT.md` | ✅                   |
+| `npx prettier --write .roo/tasks/TECH_DEBT.md` | ✅                   |
 
 ---
 
@@ -4002,9 +4002,9 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 - `src/utils/helpers.py` — MIN-010: чистка кода
 - `src/keyboards/inline.py` — MIN-013, MIN-014: чистка кода, логирование
 - `src/main.py` — MIN-015: чистка кода
-- `docs/agents/TECH_DEBT.md` — обновление статусов выполненных задач
-- `docs/agents/SESSION_LOG.md` — запись сессии
-- `docs/agents/SESSION_ARCHIVE.md` — архив предыдущей записи
+- `.roo/tasks/TECH_DEBT.md` — обновление статусов выполненных задач
+- `.roo/sessions/SESSION_LOG.md` — запись сессии
+- `.roo/sessions/SESSION_ARCHIVE.md` — архив предыдущей записи
 
 ### Коммит
 
@@ -4045,7 +4045,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - [`src/services/healthcheck.py`](src/services/healthcheck.py)
 - [`src/services/cleanup.py`](src/services/cleanup.py)
 - [`src/services/error_notifier.py`](src/services/error_notifier.py)
-- [`docs/agents/TECH_DEBT.md`](docs/agents/TECH_DEBT.md) — удалены выполненные строки
+- [`.roo/tasks/TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md) — удалены выполненные строки
 
 ### Результаты проверок
 
@@ -4085,8 +4085,8 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - `src/handlers/common.py`
 - `src/web/routers/api.py`
 - `src/web/routers/pages.py`
-- `docs/agents/TECH_DEBT.md`
-- `docs/design/td-utl-004-typeddict-design.md` (новый)
+- `.roo/tasks/TECH_DEBT.md`
+- `specs/design/td-utl-004-typeddict-design.md` (новый)
 
 ### Результаты проверок
 
@@ -4141,8 +4141,8 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - `src/keyboards/inline.py`
 - `src/web/routers/api.py`
 - `src/web/routers/pages.py`
-- `docs/agents/TECH_DEBT.md`
-- `docs/design/td-utl-004-typeddict-design.md` (новый)
+- `.roo/tasks/TECH_DEBT.md`
+- `specs/design/td-utl-004-typeddict-design.md` (новый)
 - `requirements.txt` (удалён)
 
 ---
@@ -4175,14 +4175,14 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 ### Выполненные задачи
 
-- **Коммит и пуш проекта** — зафиксированы изменения в [`pages.py`](src/web/routers/pages.py) (рефакторинг `TemplateResponse` → `HTMLResponse`, явный `cast` к `Jinja2Templates`), удалён [`TECH_DEBT.md`](docs/agents/TECH_DEBT.md). Коммит [`0202d7f`](https://github.com/acidmsg/lenreg_ticket_bot.git).
+- **Коммит и пуш проекта** — зафиксированы изменения в [`pages.py`](src/web/routers/pages.py) (рефакторинг `TemplateResponse` → `HTMLResponse`, явный `cast` к `Jinja2Templates`), удалён [`TECH_DEBT.md`](.roo/tasks/TECH_DEBT.md). Коммит [`0202d7f`](https://github.com/acidmsg/lenreg_ticket_bot.git).
 
 ### Изменённые файлы
 
 | Файл                       | Действие |
 | -------------------------- | -------- |
 | `src/web/routers/pages.py` | Изменён  |
-| `docs/agents/TECH_DEBT.md` | Удалён   |
+| `.roo/tasks/TECH_DEBT.md` | Удалён   |
 
 ### Результаты
 
@@ -4258,8 +4258,8 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 #### Фаза 1: Сбор контекста (project-research)
 
-- Прочитан [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — критически устарел (45/100).
-- Прочитан [`openapi.yaml`](docs/openapi.yaml) v1.0.0 — 5 внешних API, 3 bot-эндпоинта, 4 сервиса, 30+ схем.
+- Прочитан [`ARCHITECTURE.md`](specs/ARCHITECTURE.md) — критически устарел (45/100).
+- Прочитан [`openapi.yaml`](specs/openapi.yaml) v1.0.0 — 5 внешних API, 3 bot-эндпоинта, 4 сервиса, 30+ схем.
 - Выявлены расхождения: отсутствуют модули `filters/`, `i18n/`, `web/`, 15+ файлов не отражены.
 
 #### Фаза 2: Автоматические проверки (code)
@@ -4299,7 +4299,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 ### Созданные файлы
 
-- [`docs/agents/zoo.deepseek_2026-05-20_audit_report.md`](docs/agents/zoo.deepseek_2026-05-20_audit_report.md) — полный отчёт аудита.
+- [`.roo/sessions/zoo.deepseek_2026-05-20_audit_report.md`](.roo/sessions/zoo.deepseek_2026-05-20_audit_report.md) — полный отчёт аудита.
 
 ## 2026-05-20 (Блок 9: Инструменты / Инфраструктура) — SESSION LOG
 
@@ -4360,7 +4360,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - [`README.md`](README.md) — Node 18 требование
 - [`pyproject.toml`](pyproject.toml) — консолидация pytest-конфигурации
 - [`pyrightconfig.json`](pyrightconfig.json) — typeCheckingMode standard
-- [`docs/agents/AGENT_TASKS.md`](docs/agents/AGENT_TASKS.md) — удаление блока 9
+- [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) — удаление блока 9
 - `pytest.ini` — удалён
 - `package-lock.json` — обновлён (npm install)
 
@@ -4400,9 +4400,9 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - [`src/handlers/callbacks.py`](src/handlers/callbacks.py) — новый файл, 19 CallbackData классов
 - [`src/database/manager.py`](src/database/manager.py) — get_all_user_ids, get_user
 - [`src/services/`](src/services/) — aiofiles export, error_notifier, cleanup, schema_watcher, doctor_discovery
-- [`docs/openapi.yaml`](docs/openapi.yaml) — +20 схем, +6 paths, +15 AppConfig полей
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — полная перезапись
-- [`docs/schemas/`](docs/schemas/) — +21 JSON-схема (всего 33)
+- [`specs/openapi.yaml`](specs/openapi.yaml) — +20 схем, +6 paths, +15 AppConfig полей
+- [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md) — полная перезапись
+- [`artifacts/schemas/`](artifacts/schemas/) — +21 JSON-схема (всего 33)
 - [`tests/web/`](tests/web/) — новая директория, 4 тестовых файла
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — исправлены actions, +4 шага
 - [`.pre-commit-config.yaml`](.pre-commit-config.yaml) — check-merge-conflict
@@ -4576,7 +4576,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 - **project-research**: Аудит Docker-инфраструктуры (2 сервиса: redis, bot; порты 6379, 9090, 8090; сеть zdrav_network)
 - **code**: Добавлен сервис qdrant в [`docker-compose.yml`](docker-compose.yml), зависимость `qdrant-client` в [`pyproject.toml`](pyproject.toml:51), конфигурационные поля в [`src/config.py`](src/config.py:50), переменные в [`.env.example`](.env.example:117)
-- **documentation-writer**: Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — добавлен Qdrant в граф зависимостей, таблицу сервисов и архитектурные решения
+- **documentation-writer**: Обновлён [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md) — добавлен Qdrant в граф зависимостей, таблицу сервисов и архитектурные решения
 
 ### Изменённые файлы
 
@@ -4584,7 +4584,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - [`pyproject.toml`](pyproject.toml:51) — зависимость qdrant-client
 - [`src/config.py`](src/config.py:50) — поля qdrant_url, qdrant_api_key
 - [`.env.example`](.env.example:117) — QDRANT_URL, QDRANT_API_KEY
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — документация инфраструктуры
+- [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md) — документация инфраструктуры
 
 ### Результаты проверок
 
@@ -4628,7 +4628,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - [`src/web/static/app/js/components/card.js`](../../src/web/static/app/js/components/card.js) — **новый**
 - [`src/web/static/app/js/components/stepper.js`](../../src/web/static/app/js/components/stepper.js) — **новый**
 - [`.env.example`](../../.env.example) — добавлены ключи Mini App
-- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — обновлено дерево, зоны, граф
+- [`specs/ARCHITECTURE.md`](../ARCHITECTURE.md) — обновлено дерево, зоны, граф
 
 ### Результаты тестов
 
@@ -4651,7 +4651,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
    - Обновлён [`.env.example`](../../.env.example) — плейсхолдер для `MINI_APP_URL`, комментарий о портах Cloudflare
 
 2. **Создана инструкция по деплою**
-   - Создан [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) — пошаговая инструкция (8 разделов):
+   - Создан [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) — пошаговая инструкция (8 разделов):
      - Предварительные требования
      - Настройка Cloudflare (A-запись, Proxy, SSL/TLS → Full)
      - Настройка файрвола VPS (ufw/iptables, ограничение по IP Cloudflare)
@@ -4662,7 +4662,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
      - Troubleshooting (6 типовых проблем)
 
 3. **Замена домена `bot.acidbox.top` → `lenregbot.acidbox.top`**
-   - Заменены все 10 вхождений в 3 файлах: [`.env`](../../.env), [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md), [`docs/agents/SESSION_LOG.md`](SESSION_LOG.md)
+   - Заменены все 10 вхождений в 3 файлах: [`.env`](../../.env), [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md), [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md)
 
 4. **Создан [`env.vps`](../../env.vps) — готовый .env для VPS**
    - Все реальные значения из `.env`, `PROXY_URL` пустой (на VPS в Германии прокси не нужен)
@@ -4674,7 +4674,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
    - Проверка зависимостей (Docker, Docker Compose v2, git)
    - Клонирование репозитория, интерактивный опрос параметров
    - Автогенерация `.env`, сборка и запуск Docker-контейнеров
-   - Обновлена инструкция [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) — добавлен раздел «Быстрая установка»
+   - Обновлена инструкция [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) — добавлен раздел «Быстрая установка»
 
 ### Изменённые файлы
 
@@ -4685,13 +4685,13 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | [`src/config.py`](../../src/config.py)                           | WEB_DASHBOARD_PORT=8080             |
 | [`.env`](../../.env)                                             | Порт и MINI_APP_URL                 |
 | [`.env.example`](../../.env.example)                             | Плейсхолдер и комментарий           |
-| [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Создан                              |
+| [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Создан                              |
 | [`.env`](../../.env)                                             | Домен `lenregbot.acidbox.top`       |
-| [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Домен `lenregbot.acidbox.top`       |
+| [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Домен `lenregbot.acidbox.top`       |
 | [`env.vps`](../../env.vps)                                       | Создан                              |
 | [`.gitignore`](../../.gitignore)                                 | Добавлен `env.vps`                  |
 | [`scripts/install.sh`](../../scripts/install.sh)                 | Создан                              |
-| [`docs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Добавлен раздел «Быстрая установка» |
+| [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Добавлен раздел «Быстрая установка» |
 
 ### Тесты
 
@@ -4770,14 +4770,14 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 #### Направление 1: Spec-First (1 критическая проблема → исправлена)
 
-- Добавлены поля `IsDoc` и `IsTech` в схему `SpecialityItem` в [`docs/openapi.yaml:641-646`](docs/openapi.yaml:641)
+- Добавлены поля `IsDoc` и `IsTech` в схему `SpecialityItem` в [`specs/openapi.yaml:641-646`](specs/openapi.yaml:641)
 - Перегенерированы JSON-схемы через [`scripts/generate_api_schemas.py`](scripts/generate_api_schemas.py)
-- [`docs/schemas/SpecialityItem.json`](docs/schemas/SpecialityItem.json) обновлён
+- [`artifacts/schemas/SpecialityItem.json`](artifacts/schemas/SpecialityItem.json) обновлён
 
 #### Направление 2: Архитектурная документация (8 проблем → исправлены)
 
-- Обновлён [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md):
-  - Добавлены в дерево: `src/database/integrity.py`, `src/assets/utils.py`, `src/web/static/app/js/views/patients.js`, `_design_lab/`, `docs/design/mini_app_deploy.md`
+- Обновлён [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md):
+  - Добавлены в дерево: `src/database/integrity.py`, `src/assets/utils.py`, `src/web/static/app/js/views/patients.js`, `_design_lab/`, `specs/design/mini_app_deploy.md`
   - Граф Mermaid: добавлены узлы `DB_INTEGRITY`, `ASSETS_UTILS`; рёбра `WEB_PAGES → DB_TYPES`, `WEB_PAGES → SVC_HC`; удалено ребро `WEB_PAGES → WEB_API`; Qdrant обновлён как инфраструктурная зависимость (пунктир)
   - Таблица зон ответственности: добавлены `integrity.py`, `assets/utils.py`
 
@@ -4788,9 +4788,9 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 ### Изменённые файлы
 
-- [`docs/openapi.yaml`](docs/openapi.yaml) — добавлены поля IsDoc, IsTech в SpecialityItem
-- [`docs/schemas/SpecialityItem.json`](docs/schemas/SpecialityItem.json) — перегенерирован
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — синхронизирован с кодовой базой
+- [`specs/openapi.yaml`](specs/openapi.yaml) — добавлены поля IsDoc, IsTech в SpecialityItem
+- [`artifacts/schemas/SpecialityItem.json`](artifacts/schemas/SpecialityItem.json) — перегенерирован
+- [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md) — синхронизирован с кодовой базой
 - [`.env`](.env) — добавлены 5 недостающих ключей
 
 ### Тесты
@@ -4813,21 +4813,21 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 2. **Убрано поле `free_tickets` из `ForceCheckResponse`** — оставлено только `total`
    - [`user_api.py:1066`](src/web/routers/user_api.py:1066) — удалён `"free_tickets": total`
-   - [`openapi.yaml:1499-1501`](docs/openapi.yaml:1499) — удалено поле `free_tickets` из схемы
+   - [`openapi.yaml:1499-1501`](specs/openapi.yaml:1499) — удалено поле `free_tickets` из схемы
    - [`doctors.js:189`](src/web/static/app/js/views/doctors.js:189) — `result.free_tickets` → `result.total`
 
 3. **Теги приведены к единому стилю `Сущность (Уточнение)`**
-   - [`openapi.yaml:32`](docs/openapi.yaml:32) — `Фоновые сервисы` → `Фоновые сервисы (asyncio)`
-   - [`openapi.yaml:36-37`](docs/openapi.yaml:36) — `Mini App API` → `Mini App (JSON API)` + описание
-   - [`openapi.yaml:489`](docs/openapi.yaml:489) — синхронизирован тег на пути
+   - [`openapi.yaml:32`](specs/openapi.yaml:32) — `Фоновые сервисы` → `Фоновые сервисы (asyncio)`
+   - [`openapi.yaml:36-37`](specs/openapi.yaml:36) — `Mini App API` → `Mini App (JSON API)` + описание
+   - [`openapi.yaml:489`](specs/openapi.yaml:489) — синхронизирован тег на пути
    - [`user_api.py:32`](src/web/routers/user_api.py:32) — `tags=["Mini App"]` → `tags=["Mini App (JSON API)"]`
 
 ### Изменённые файлы
 
 - [`src/web/routers/user_api.py`](src/web/routers/user_api.py) — строки 32, 940-1041, 1066
-- [`docs/openapi.yaml`](docs/openapi.yaml) — строки 32, 36-37, 489, 1499-1504
+- [`specs/openapi.yaml`](specs/openapi.yaml) — строки 32, 36-37, 489, 1499-1504
 - [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js) — строка 189
-- `docs/schemas/*.json` — 12 схем перегенерировано
+- `artifacts/schemas/*.json` — 12 схем перегенерировано
 
 ### Результаты проверок
 
@@ -4849,7 +4849,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 ## Изменённые файлы
 
-- [`docs/openapi.yaml`](docs/openapi.yaml)
+- [`specs/openapi.yaml`](specs/openapi.yaml)
 - [`src/web/routers/user_api.py`](src/web/routers/user_api.py)
 - [`src/web/static/app/js/components/card.js`](src/web/static/app/js/components/card.js)
 - [`src/web/static/app/js/views/doctors.js`](src/web/static/app/js/views/doctors.js)
@@ -4963,7 +4963,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - **2.2** `src/handlers/callbacks.py:10-18` — 7 пустых CallbackData → строковые константы `CB_*`
 - **2.3** `src/services/monitor.py` — `_send_notification` удалена
 - **2.4** `src/web/routers/user_api.py` — `_asleep` удалена
-- **2.5** `src/api/models.py` — `ApiError` удалён; `docs/openapi.yaml` обновлён; `docs/schemas/ApiError.json` удалён
+- **2.5** `src/api/models.py` — `ApiError` удалён; `specs/openapi.yaml` обновлён; `artifacts/schemas/ApiError.json` удалён
 - **2.6** `src/services/error_notifier.py` — `aiohttp` → `httpx.HTTPError`
 - **2.7** `src/services/healthcheck.py:96-109` — `_safe_set` → `safe_set`, единый лок
 - **2.8** `src/services/schema_watcher.py` — HTTP-запросы удалены
@@ -5013,7 +5013,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | `src/services/monitor.py`         | 2.3, 4.4                |
 | `src/web/routers/user_api.py`     | 2.4, 3.6, 4.4           |
 | `src/api/models.py`               | 2.5                     |
-| `docs/openapi.yaml`               | 2.5                     |
+| `specs/openapi.yaml`               | 2.5                     |
 | `src/services/error_notifier.py`  | 2.6                     |
 | `src/services/healthcheck.py`     | 2.7                     |
 | `src/services/schema_watcher.py`  | 2.8                     |
@@ -5026,7 +5026,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | `scripts/backup.sh`               | 5.2 (новый)             |
 | `scripts/generate_api_schemas.py` | 2.5                     |
 | `src/web/dependencies.py`         | 2.1 (удалён)            |
-| `docs/schemas/ApiError.json`      | 2.5 (удалён)            |
+| `artifacts/schemas/ApiError.json`      | 2.5 (удалён)            |
 
 ### Проверки
 
@@ -5072,3 +5072,35 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 - Stylelint: No errors
 - Mypy: Passed (pre-commit)
 - Деплой VPS: zdrav_bot (healthy), zdrav_redis (healthy), zdrav_qdrant (up)
+
+---
+
+## 2026-06-13 — Систематизация дизайна мини-приложения (grill-me + реализация)
+
+**Режим:** orchestrator (Zoo) → project-research → architect → code
+**Задача:** Разработка единой дизайн-системы мини-приложения
+
+### Выполнено
+
+- **Аудит:** исследовано 12 дизайн-файлов, выявлено 16 проблем, каталогизировано 29 компонентов ([project-research])
+- **Grill-me (5 раундов):** утверждены все слои дизайн-системы:
+  - Цвета: 32 токена (16 тёмная + 16 светлая), `data-theme` автоопределение
+  - Типографика: системный шрифт, 5 размеров, 4 жирности, 3 line-height, 2 letter-spacing
+  - Отступы: 9 ступеней `--space-*` (4–48px), база 4px
+  - Размеры: контролы 36/44/52, иконки 16/20/24, FAB 56, dot 8, stepper 24, chip 32
+  - Радиусы: 5 ступеней (4/8/12/16/9999), тени 3 уровня, анимации 3 скорости
+- **Дизайн-лаборатория:** `_design_lab/typography/` + `_design_lab/sizes/`
+- **Спецификация:** [`specs/design/design-system.md`](specs/design/design-system.md) — 11 разделов, полный SSOT
+- **Реализация:** [`style.css:1`](src/web/static/app/css/style.css:1) — миграция всех токенов (72 `--tg-*` → `--color-*`, 12 `--card-*`, 57 `--gap-*` → `--space-*`, 29 `--font-*`), добавлена светлая тема, [`index.html:15`](src/web/static/app/index.html:15) — JS-мост `Telegram.WebApp.colorScheme`
+
+### Изменённые файлы
+
+- `specs/design/design-system.md` — создан
+- `src/web/static/app/css/style.css` — полная переработка токенов
+- `src/web/static/app/index.html` — JS-мост темизации
+- `_design_lab/typography/index.html` + `styles.css` — созданы
+- `_design_lab/sizes/index.html` + `styles.css` — созданы
+
+### Результаты проверок
+
+- Не запускались (CSS-рефакторинг, визуальная проверка)

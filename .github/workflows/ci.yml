@@ -55,10 +55,10 @@ jobs:
           node-version: 20
 
       - name: Lint Markdown
-        run: npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+        run: npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
 
       - name: Check formatting (Prettier)
-        run: npx prettier --check "docs/**/*.md" ".roo/**/*.md" "*.md"
+        run: npx prettier --check "specs/**/*.md" ".roo/**/*.md" "*.md"
 
       - name: Build Docker image
         run: docker build -t zdrav-bot .

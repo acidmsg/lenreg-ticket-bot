@@ -69,7 +69,7 @@ src/
 | Логирование            | `loguru`                                       |
 | Мониторинг ошибок      | Sentry + NTFY push-уведомления                 |
 
-Полная архитектура и граф зависимостей: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Полная архитектура и граф зависимостей: [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md).
 
 ## Требования
 
@@ -280,6 +280,6 @@ python -m pytest && ruff check src && mypy src
 
 Дополнительная документация:
 
-- Архитектура проекта: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- Спецификация API: [`docs/openapi.yaml`](docs/openapi.yaml)
-- База знаний: [`docs/knowledge/_INDEX.md`](docs/knowledge/_INDEX.md)
+- Архитектура проекта: [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)
+- Спецификация API: [`specs/openapi.yaml`](specs/openapi.yaml)
+- База знаний: [`specs/knowledge/_INDEX.md`](specs/knowledge/_INDEX.md)

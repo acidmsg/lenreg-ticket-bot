@@ -948,7 +948,7 @@ app.include_router(backup_api.router)
 | `scripts/restore.sh`                             | Создать        | Скрипт восстановления: остановка бота, замена БД, проверка, перезапуск                                            |
 | [`docker-compose.yml`](../../docker-compose.yml) | Модифицировать | Добавить закомментированный блок ofelia как альтернативу cron                                                     |
 | [`Makefile`](../../Makefile)                     | Модифицировать | Добавить цели: `backup`, `backup-restore`, `backup-list`, `backup-healthcheck`                                    |
-| `docs/design/database_backup_design.md`          | Модифицировать | Этот документ                                                                                                     |
+| `specs/design/database_backup_design.md`         | Модифицировать | Этот документ                                                                                                     |
 
 ### 13.2 Веб-часть (контейнер)
 

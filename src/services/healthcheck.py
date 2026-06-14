@@ -95,19 +95,19 @@ class HealthMetrics:
 
 # Глобальный экземпляр метрик
 metrics = HealthMetrics()
-_metrics_lock = asyncio.Lock()
+metrics_lock = asyncio.Lock()
 
 
 async def safe_increment(attr: str, delta: int = 1) -> None:
-    """Атомарный инкремент поля metrics (под _metrics_lock)."""
-    async with _metrics_lock:
+    """Атомарный инкремент поля metrics (под metrics_lock)."""
+    async with metrics_lock:
         current = getattr(metrics, attr, 0)
         setattr(metrics, attr, current + delta)
 
 
 async def safe_set(attr: str, value) -> None:
-    """Атомарная установка поля metrics (под _metrics_lock)."""
-    async with _metrics_lock:
+    """Атомарная установка поля metrics (под metrics_lock)."""
+    async with metrics_lock:
         setattr(metrics, attr, value)
 
 
@@ -152,7 +152,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
 
             # Атомарно фиксируем снапшот
             now = time.time()
-            async with _metrics_lock:
+            async with metrics_lock:
                 metrics.last_api_check_time = now
                 metrics.last_api_ok = ok
                 metrics.last_check_duration = now - check_start
@@ -190,7 +190,7 @@ async def format_status_report(db: DatabaseManager) -> str:
     stats = db.get_user_statistics()
 
     # Читаем метрики под локом — атомарный снапшот
-    async with _metrics_lock:
+    async with metrics_lock:
         uptime = metrics.uptime_str()
         api_health = metrics.api_health_str()
         last_error = metrics.last_error_str()

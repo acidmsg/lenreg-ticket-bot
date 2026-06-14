@@ -1,7 +1,7 @@
 """
 Статические утилиты сравнения JSON Schema для API zdrav.lenreg.ru.
 
-Сравнивает эталонные JSON Schema из docs/schemas/ с текущими Pydantic-моделями.
+Сравнивает эталонные JSON Schema из artifacts/schemas/ с текущими Pydantic-моделями.
 Рантайм-проверка через HTTP-запросы отключена (Задача 2.8 ROADMAP) —
 валидация выполняется статически через scripts/generate_api_schemas.py.
 
@@ -23,7 +23,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Директория эталонных схем по умолчанию
-_DEFAULT_SCHEMAS_DIR = Path("docs/schemas")
+_DEFAULT_SCHEMAS_DIR = Path("artifacts/schemas")
 
 
 # ── Вспомогательные функции для сравнения схем ───────────────────
@@ -61,7 +61,7 @@ def compare_schemas(
 
     Args:
         current: Текущая JSON Schema (из model_json_schema()).
-        reference: Эталонная JSON Schema (из docs/schemas/).
+        reference: Эталонная JSON Schema (из artifacts/schemas/).
         path: Путь в дереве схемы для сообщений об ошибках.
 
     Returns:
@@ -145,11 +145,11 @@ def compare_schemas(
 def load_reference_schemas(
     schemas_dir: Path | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Загружает эталонные JSON Schema из директории docs/schemas/.
+    """Загружает эталонные JSON Schema из директории artifacts/schemas/.
 
     Args:
         schemas_dir: Путь к директории со схемами.
-                     По умолчанию Path("docs/schemas").
+                     По умолчанию Path("artifacts/schemas").
 
     Returns:
         Словарь {ModelName: schema_dict}.

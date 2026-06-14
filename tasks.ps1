@@ -44,7 +44,7 @@ function Invoke-Lint {
   if ($LASTEXITCODE -ne 0) { throw "Mypy failed" }
 
   Write-Host "=== Markdownlint ===" -ForegroundColor Cyan
-  & $Npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+  & $Npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
   if ($LASTEXITCODE -ne 0) { throw "Markdownlint failed" }
 
   Write-Host "Lint: all checks passed." -ForegroundColor Green
@@ -56,7 +56,7 @@ function Invoke-Format {
   if ($LASTEXITCODE -ne 0) { throw "Ruff format failed" }
 
   Write-Host "=== Prettier ===" -ForegroundColor Cyan
-  & $Npx prettier --write "docs/**/*.md" ".roo/**/*.md" "*.md"
+  & $Npx prettier --write "specs/**/*.md" ".roo/**/*.md" "*.md"
   if ($LASTEXITCODE -ne 0) { throw "Prettier failed" }
 
   Write-Host "Format: done." -ForegroundColor Green
@@ -99,7 +99,7 @@ function Invoke-Check {
   if ($LASTEXITCODE -ne 0) { throw "Mypy failed" }
 
   Write-Host "=== Markdownlint ===" -ForegroundColor Cyan
-  & $Npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md"
+  & $Npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
   if ($LASTEXITCODE -ne 0) { throw "Markdownlint failed" }
 
   Write-Host "=== Ruff format (check) ===" -ForegroundColor Cyan
@@ -107,7 +107,7 @@ function Invoke-Check {
   if ($LASTEXITCODE -ne 0) { throw "Ruff format --check failed" }
 
   Write-Host "=== Prettier (check) ===" -ForegroundColor Cyan
-  & $Npx prettier --check "docs/**/*.md" ".roo/**/*.md" "*.md"
+  & $Npx prettier --check "specs/**/*.md" ".roo/**/*.md" "*.md"
   if ($LASTEXITCODE -ne 0) { throw "Prettier --check failed" }
 
   Write-Host "=== Pytest ===" -ForegroundColor Cyan

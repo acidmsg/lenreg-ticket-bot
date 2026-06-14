@@ -13,8 +13,8 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 
 from src.database.manager import DatabaseManager
-from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
+from src.services.healthcheck import metrics_lock
 from src.utils.redis import RedisClient
 
 
@@ -102,7 +102,7 @@ class PrometheusMetrics:
 
     async def _sync_counters(self) -> None:
         """Синхронизирует Counter'ы дельта-инкрементами под блокировкой."""
-        async with _metrics_lock:
+        async with metrics_lock:
             # healthcheck_errors_total = api_errors_total
             delta_hc = health_metrics.api_errors_total - self._prev_healthcheck_errors
             if delta_hc > 0:
@@ -153,7 +153,7 @@ class PrometheusMetrics:
 
     async def _sync_gauges(self, db: DatabaseManager) -> None:
         """Синхронизирует Gauge'и с текущим состоянием."""
-        async with _metrics_lock:
+        async with metrics_lock:
             # Статус мониторинга
             self._monitor_status.set(1.0 if health_metrics.monitor_loop_alive else 0.0)
 

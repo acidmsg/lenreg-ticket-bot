@@ -12,8 +12,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
-from src.services.healthcheck import _metrics_lock
 from src.services.healthcheck import metrics as health_metrics
+from src.services.healthcheck import metrics_lock
 
 router = APIRouter()
 
@@ -32,7 +32,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)
 
         # Метрики под локом
-        async with _metrics_lock:
+        async with metrics_lock:
             uptime = health_metrics.uptime_str()
             api_health = health_metrics.api_health_str()
             monitor_alive = health_metrics.monitor_loop_alive
@@ -212,7 +212,7 @@ async def api_status(request: Request) -> HTMLResponse:
     """Состояние внешнего API."""
     pm = request.app.state.prometheus_metrics
 
-    async with _metrics_lock:
+    async with metrics_lock:
         uptime = health_metrics.uptime_str()
         api_ok = health_metrics.last_api_ok
         last_check = health_metrics.last_api_check_time

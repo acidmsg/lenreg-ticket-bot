@@ -38,7 +38,7 @@ graph TD
     subgraph "Разработка (офлайн)"
         MODELS[src/api/models.py]
         SCRIPT[scripts/generate_api_schemas.py]
-        SCHEMAS[docs/schemas/*.json]
+        SCHEMAS[artifacts/schemas/*.json]
     end
 
     subgraph "Рантайм (фоновый цикл)"
@@ -78,12 +78,12 @@ sequenceDiagram
     participant MAIN as main.py
     participant SW as schema_watcher.py
     participant CLIENT as ZdravClient
-    participant SCHEMA as docs/schemas/
+    participant SCHEMA as artifacts/schemas/
     participant ERR as ErrorNotifier
     participant MET as PrometheusMetrics
 
     MAIN->>SW: schema_check_loop(bot, api, db)
-    SW->>SW: load_reference_schemas() из docs/schemas/
+    SW->>SW: load_reference_schemas() из artifacts/schemas/
 
     loop Каждые SCHEMA_CHECK_INTERVAL сек
         SW->>CLIENT: fetch_speciality_list(clinic_id=1, ...)
@@ -110,7 +110,7 @@ sequenceDiagram
 ### 3.1 Новые файлы
 
 ```text
-docs/
+artifacts/
 └── schemas/                          # Эталонные JSON Schema (коммитятся в Git)
     ├── CheckPatientResponse.json
     ├── CheckPatientData.json
@@ -141,7 +141,7 @@ src/services/
 | [`src/services/error_notifier.py`](src/services/error_notifier.py) | +1 метод: `notify_schema_change()`                            |
 | [`src/services/metrics.py`](src/services/metrics.py)               | +1 Gauge, +1 Counter                                          |
 | [`pyproject.toml`](pyproject.toml)                                 | Без новых runtime-зависимостей                                |
-| [`docs/openapi.yaml`](docs/openapi.yaml)                           | +секция для `schema_check_loop`                               |
+| [`specs/openapi.yaml`](../openapi.yaml)                            | +секция для `schema_check_loop`                               |
 
 ---
 
@@ -149,7 +149,7 @@ src/services/
 
 ### 4.1 Скрипт `scripts/generate_api_schemas.py`
 
-**Назначение:** генерирует `.model_json_schema()` для каждой Pydantic-модели из [`src/api/models.py`](src/api/models.py) и сохраняет в `docs/schemas/`.
+**Назначение:** генерирует `.model_json_schema()` для каждой Pydantic-модели из [`src/api/models.py`](src/api/models.py) и сохраняет в `artifacts/schemas/`.
 
 **Запуск:**
 
@@ -181,14 +181,14 @@ MODELS = [
 
 for model in MODELS:
     schema = model.model_json_schema()
-    path = f"docs/schemas/{model.__name__}.json"
+    path = f"artifacts/schemas/{model.__name__}.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(schema, f, indent=2, ensure_ascii=False)
 ```
 
 ### 4.2 Формат эталонной схемы
 
-Пример `docs/schemas/CheckPatientResponse.json`:
+Пример `artifacts/schemas/CheckPatientResponse.json`:
 
 ```json
 {
@@ -251,7 +251,7 @@ for model in MODELS:
 from typing import Any
 
 async def load_reference_schemas() -> dict[str, dict[str, Any]]:
-    """Загружает эталонные JSON Schema из docs/schemas/ в словарь {ModelName: schema}.
+    """Загружает эталонные JSON Schema из artifacts/schemas/ в словарь {ModelName: schema}.
 
     Returns:
         Словарь, где ключ — имя модели (напр. 'CheckPatientResponse'),
@@ -267,7 +267,7 @@ def compare_schemas(
 
     Args:
         current: JSON Schema, полученная из model_json_schema() в рантайме.
-        reference: Эталонная JSON Schema из docs/schemas/.
+        reference: Эталонная JSON Schema из artifacts/schemas/.
         path: Путь в дереве схемы для сообщений об ошибках.
 
     Returns:
@@ -399,10 +399,10 @@ def _describe_type(prop: dict) -> str:
 import json
 import os
 
-_SCHEMAS_DIR = "docs/schemas"
+_SCHEMAS_DIR = "artifacts/schemas"
 
 async def load_reference_schemas() -> dict[str, dict[str, Any]]:
-    """Загружает эталонные схемы из docs/schemas/."""
+    """Загружает эталонные схемы из artifacts/schemas/."""
     schemas: dict[str, dict[str, Any]] = {}
     if not os.path.isdir(_SCHEMAS_DIR):
         logger.warning(f"Директория эталонных схем не найдена: {_SCHEMAS_DIR}")
@@ -780,17 +780,17 @@ SCHEMA_CHECK_ENABLED=true
 
 ### 10.1 Таблица сценариев
 
-| Сценарий                                                                  | Поведение                                                                                                |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **API недоступен** (все эндпоинты возвращают ошибки)                      | Цикл логирует warning, ждёт следующий интервал. Метрики НЕ обновляются (не false-positive drift).        |
-| **API вернул пустой список** (напр., нет врачей для специальности)        | Запрос считается успешным, схема сравнивается. Пустой список валиден для Pydantic-модели.                |
-| **Нет эталонных схем** (директория `docs/schemas/` пуста или отсутствует) | Цикл логирует ошибку однократно при старте, не запускает проверки (возвращается из `schema_check_loop`). |
-| **Схема содержит новые поля**                                             | Фиксируется как `новое поле: {path}` в diff. Алерт отправляется.                                         |
-| **Схема потеряла поля**                                                   | Фиксируется как `поле удалено: {path}` в diff. Алерт отправляется.                                       |
-| **Изменился тип поля**                                                    | Фиксируется как `type изменился с 'X' на 'Y'`. Алерт отправляется.                                       |
-| **Изменилась обязательность поля**                                        | Фиксируется как `поля стали/перестали быть обязательными`.                                               |
-| **Schema check отключён** (`SCHEMA_CHECK_ENABLED=False`)                  | Цикл логирует info и завершается без ошибок.                                                             |
-| **Ошибка в самом цикле** (unexpected exception)                           | Логируется traceback, пауза 60с, цикл продолжается.                                                      |
+| Сценарий                                                                       | Поведение                                                                                                |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| **API недоступен** (все эндпоинты возвращают ошибки)                           | Цикл логирует warning, ждёт следующий интервал. Метрики НЕ обновляются (не false-positive drift).        |
+| **API вернул пустой список** (напр., нет врачей для специальности)             | Запрос считается успешным, схема сравнивается. Пустой список валиден для Pydantic-модели.                |
+| **Нет эталонных схем** (директория `artifacts/schemas/` пуста или отсутствует) | Цикл логирует ошибку однократно при старте, не запускает проверки (возвращается из `schema_check_loop`). |
+| **Схема содержит новые поля**                                                  | Фиксируется как `новое поле: {path}` в diff. Алерт отправляется.                                         |
+| **Схема потеряла поля**                                                        | Фиксируется как `поле удалено: {path}` в diff. Алерт отправляется.                                       |
+| **Изменился тип поля**                                                         | Фиксируется как `type изменился с 'X' на 'Y'`. Алерт отправляется.                                       |
+| **Изменилась обязательность поля**                                             | Фиксируется как `поля стали/перестали быть обязательными`.                                               |
+| **Schema check отключён** (`SCHEMA_CHECK_ENABLED=False`)                       | Цикл логирует info и завершается без ошибок.                                                             |
+| **Ошибка в самом цикле** (unexpected exception)                                | Логируется traceback, пауза 60с, цикл продолжается.                                                      |
 
 ### 10.2 Защита от ложных срабатываний
 
@@ -835,7 +835,7 @@ SCHEMA_CHECK_ENABLED=true
 
 ### 11.3 Ручное тестирование
 
-1. Запустить `python scripts/generate_api_schemas.py` — проверить, что создались 12 `.json` файлов в `docs/schemas/`.
+1. Запустить `python scripts/generate_api_schemas.py` — проверить, что создались 12 `.json` файлов в `artifacts/schemas/`.
 2. Запустить бота с `SCHEMA_CHECK_ENABLED=true`, дождаться первого цикла (или уменьшить `SCHEMA_CHECK_INTERVAL` до 60с для теста).
 3. Проверить логи: `schema_check: speciality_list — схемы совпадают` для каждого эндпоинта.
 4. Симулировать изменение схемы: вручную подменить одно поле в эталонной схеме — проверить, что приходит NTFY-алерт.
@@ -880,7 +880,7 @@ graph TD
     subgraph "Новые компоненты (F8)"
         SW[src.services.schema_watcher]
         SCRIPT[scripts.generate_api_schemas.py]
-        SCHEMAS_DIR[docs/schemas/]
+        SCHEMAS_DIR[artifacts/schemas/]
     end
 
     CFG[src.config.py]
@@ -915,17 +915,17 @@ graph TD
 
 ## 14. Сводка
 
-| Параметр                   | Значение                                                                                                         |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Новый модуль               | `src/services/schema_watcher.py`                                                                                 |
-| Новый скрипт               | `scripts/generate_api_schemas.py`                                                                                |
-| Новая директория           | `docs/schemas/` (12 JSON-файлов)                                                                                 |
-| Изменяемые файлы           | `src/config.py`, `src/main.py`, `src/services/error_notifier.py`, `src/services/metrics.py`, `docs/openapi.yaml` |
-| Новых runtime-зависимостей | 0                                                                                                                |
-| Новых dev-зависимостей     | 0                                                                                                                |
-| Алгоритм сравнения         | Рекурсивный diff (чистый Python, ~100 строк)                                                                     |
-| Метод оповещения           | NTFY (priority=high, tag=api_schema_change) + Sentry                                                             |
-| Метрики                    | `zdrav_api_schema_drift` (Gauge), `zdrav_api_schema_changes_total` (Counter)                                     |
-| Конфигурация               | `SCHEMA_CHECK_INTERVAL` (default: 3600), `SCHEMA_CHECK_ENABLED` (default: true)                                  |
-| Rate limiter               | `limiter_healthcheck` (30 req/min)                                                                               |
-| Тестов                     | 20 (14 модульных + 6 интеграционных)                                                                             |
+| Параметр                   | Значение                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Новый модуль               | `src/services/schema_watcher.py`                                                                                                     |
+| Новый скрипт               | `scripts/generate_api_schemas.py`                                                                                                    |
+| Новая директория           | `artifacts/schemas/` (12 JSON-файлов)                                                                                                |
+| Изменяемые файлы           | `src/config.py`, `src/main.py`, `src/services/error_notifier.py`, `src/services/metrics.py`, [`specs/openapi.yaml`](../openapi.yaml) |
+| Новых runtime-зависимостей | 0                                                                                                                                    |
+| Новых dev-зависимостей     | 0                                                                                                                                    |
+| Алгоритм сравнения         | Рекурсивный diff (чистый Python, ~100 строк)                                                                                         |
+| Метод оповещения           | NTFY (priority=high, tag=api_schema_change) + Sentry                                                                                 |
+| Метрики                    | `zdrav_api_schema_drift` (Gauge), `zdrav_api_schema_changes_total` (Counter)                                                         |
+| Конфигурация               | `SCHEMA_CHECK_INTERVAL` (default: 3600), `SCHEMA_CHECK_ENABLED` (default: true)                                                      |
+| Rate limiter               | `limiter_healthcheck` (30 req/min)                                                                                                   |
+| Тестов                     | 20 (14 модульных + 6 интеграционных)                                                                                                 |

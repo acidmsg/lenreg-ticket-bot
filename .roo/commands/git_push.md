@@ -7,7 +7,7 @@ description: "Git push: markdownlint → авто-сообщение → git add
 1. Запусти проверку markdownlint на всех .md файлах:
 
    ```powershell
-   npx markdownlint "docs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_mdlint.txt 2>&1
+   npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md" > .tmp_mdlint.txt 2>&1
    ```
 
    Прочитай `.tmp_mdlint.txt`. Если есть ошибки — покажи их пользователю, удали `.tmp_mdlint.txt` и остановись (commit не выполняй).

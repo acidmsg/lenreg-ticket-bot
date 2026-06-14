@@ -1,7 +1,7 @@
 # ARCHITECTURE.md — lenreg_ticket_bot
 
 > **ВНИМАНИЕ:** Этот документ описывает строго физическую структуру кодовой базы (дерево директорий, зависимости модулей, зоны ответственности пакетов).
-> Единым источником истины (SSOT) для структур данных, бизнес-правил, схем БД и внешних интеграций является `docs/openapi.yaml`.
+> Единым источником истины (SSOT) для структур данных, бизнес-правил, схем БД и внешних интеграций является [`specs/openapi.yaml`](openapi.yaml).
 
 ## Дерево директорий
 
@@ -134,29 +134,28 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │   ├── backup.sh                     # Скрипт резервного копирования БД (cron)
 │   ├── generate_api_schemas.py
 │   └── run_tests.py
-├── docs/                              # Документация
-│   ├── GEMINI.md                      # Agent-agnostic bridge (инструкции для AI-агентов)
-│   ├── openapi.yaml                   # OpenAPI 3.0.0 спецификация (SSOT)
-│   ├── agents/                        # Агентские файлы
-│   │   ├── AGENT_TASKS.md             # Бэклог задач
-│   │   ├── SESSION_LOG.md             # Лог сессий (шаблон)
-│   │   ├── CODE_REVIEW.md             # Отчёт код-ревью
-│   │   └── formatting_experiments.md  # Эксперименты с оформлением сообщений
-│   ├── design/                        # Дизайн-документы
+├── specs/                              # Проектная документация и спецификации
+│   ├── openapi.yaml                    # OpenAPI 3.0.0 спецификация (SSOT)
+│   ├── ARCHITECTURE.md                 # Физическая структура кодовой базы
+│   ├── ROADMAP.md                      # Дорожная карта исправлений
+│   ├── design/                         # Дизайн-документы
 │   │   ├── api_change_detector_design.md
+│   │   ├── database_backup_design.md
+│   │   ├── design-system.md
 │   │   ├── i18n_design.md
 │   │   ├── mini_app_deploy.md
 │   │   ├── mini_app_plan.md
 │   │   ├── td-utl-004-typeddict-design.md
 │   │   └── web_dashboard_design.md
-│   ├── knowledge/                     # База знаний API
-│   │   ├── _INDEX.md
-│   │   ├── appointment_list.md
-│   │   ├── check_patient.md
-│   │   ├── clinic_list.md
-│   │   ├── doctor_list.md
-│   │   └── speciality_list.md
-│   └── schemas/                       # JSON-схемы (генерация из Pydantic)
+│   └── knowledge/                      # База знаний API
+│       ├── _INDEX.md
+│       ├── appointment_list.md
+│       ├── check_patient.md
+│       ├── clinic_list.md
+│       ├── doctor_list.md
+│       └── speciality_list.md
+├── artifacts/                          # Артефакты генерации
+│   └── schemas/                        # JSON-схемы (генерация из Pydantic)
 │       ├── ApiError.json
 │       ├── AppConfig.json
 │       ├── AppointmentListRequest.json
@@ -204,10 +203,22 @@ zdrav.lenreg/                          # Корень проекта (тольк
 │           ├── data.mo
 │           └── data.po
 ├── .roo/                              # Правила AI-агентов
-│   └── rules/
-│       ├── core.md                    # Базовые ограничения и идентичность агента
-│       ├── standards.md               # Технические стандарты: Python и Markdown
-│       └── workflow.md                # Процессы и жизненный цикл разработки
+│   ├── rules/
+│   │   ├── core.md                    # Базовые ограничения и идентичность агента
+│   │   ├── standards.md               # Технические стандарты: Python и Markdown
+│   │   └── workflow.md                # Процессы и жизненный цикл разработки
+│   ├── sessions/
+│   │   ├── SESSION_LOG.md             # Активный лог сессий
+│   │   └── SESSION_ARCHIVE.md         # Архив всех сессий
+│   ├── tasks/
+│   │   ├── AGENT_TASKS.md             # Бэклог задач
+│   │   └── TECH_DEBT.md               # Технический долг
+│   └── commands/
+│       ├── audit.md
+│       ├── docs-gen.md
+│       ├── git_push.md
+│       ├── lint.md
+│       └── session-end.md
 ├── pyproject.toml                     # Ruff, mypy, pytest конфигурация
 ├── pytest.ini                         # pytest config
 ├── pyrightconfig.json                 # pyright config
@@ -220,7 +231,7 @@ zdrav.lenreg/                          # Корень проекта (тольк
 ├── package.json                       # Node.js dev-зависимости (prettier, markdownlint)
 ├── package-lock.json
 ├── README.md
-└── ARCHITECTURE.md                    # Этот файл
+└── README.md
 ```
 
 ## Зоны ответственности
