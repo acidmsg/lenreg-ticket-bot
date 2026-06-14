@@ -1363,10 +1363,6 @@ body {
   z-index: 100;
 }
 
-[data-calendar-theme="dark"] .vanilla-calendar-day__btn {
-  background-color: var(--color-bg-secondary);
-}
-
 .vanilla-calendar-header {
   color: var(--color-text-primary);
 }
@@ -1402,6 +1398,10 @@ body {
   min-height: 38px;
 }
 
+[data-calendar-theme="dark"] .vanilla-calendar-day__btn {
+  background-color: var(--color-bg-secondary);
+}
+
 .vanilla-calendar-day__btn:hover {
   background: rgb(9 182 83 / 18%);
 }
@@ -1414,6 +1414,25 @@ body {
   background: var(--color-accent);
   color: var(--color-accent-text);
   font-weight: var(--font-weight-semibold);
+}
+
+/* Тёмная тема: переопределяем фон кнопки для выбранного дня,
+   чтобы акцентный цвет не затирался общим правилом [data-calendar-theme="dark"] .vanilla-calendar-day__btn */
+[data-calendar-theme="dark"] .vanilla-calendar-day__btn_selected {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+/* Родительская ячейка: фон на случай, если кнопка не покрывает всю ячейку */
+.vanilla-calendar-day_selected {
+  background: var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+/* Кнопка внутри выбранной ячейки — растягиваем на всю ячейку */
+.vanilla-calendar-day_selected .vanilla-calendar-day__btn {
+  width: 100%;
+  height: 100%;
 }
 
 .vanilla-calendar-day__btn_prev,

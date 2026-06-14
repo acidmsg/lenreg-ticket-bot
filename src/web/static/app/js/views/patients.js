@@ -223,19 +223,43 @@ export function renderPatientAddForm(container) {
         if (bdayInput._fromCalendar) {
           delete bdayInput._fromCalendar;
         }
-      } else if (inputLen === 5 && !bdayInput._fromCalendar) {
-        // Введён день и месяц (ДД.ММ), год ещё не введён.
-        // Переключаем календарь на введённый месяц, используя текущий год.
-        // День не подсвечиваем, т.к. год не завершён — месяц просто становится видимым.
-        const parts = bdayInput.value.split('.');
-        const m = parseInt(parts[1], 10);
-        if (m >= 1 && m <= 12) {
-          const currentYear = new Date().getFullYear();
-          calendar.selectedDates = []; // сбрасываем подсветку дня
-          calendar.selectedYear = currentYear;
-          calendar.selectedMonth = m - 1; // 0-based
+      } else if (digits.length === 4 && !bdayInput._fromCalendar) {
+        // Введён день и месяц (4 сырые цифры = ДД.ММ, 5 символов с точкой).
+        // Год ещё не введён — авто-подставляем текущий или прошлый.
+        // Если ДД.ММ.текущийГод > сегодня → используем прошлый год.
+        // День НЕ подсвечиваем (год не подтверждён пользователем).
+        const [dd, mm] = bdayInput.value.split('.').map(Number);
+        if (mm >= 1 && mm <= 12) {
+          const today = new Date();
+          let year = today.getFullYear();
+          const candidate = new Date(year, mm - 1, dd);
+          if (candidate > today) {
+            year--; // дата в будущем относительно сегодня → прошлый год
+          }
+          calendar.selectedDates = [];
+          calendar.selectedYear = year;
+          calendar.selectedMonth = mm - 1; // 0-based
           calendar.update();
         }
+      } else if (digits.length === 2 && !bdayInput._fromCalendar) {
+        // Введён только день (2 сырые цифры = ДД).
+        // Если день ДД текущего месяца ещё не наступил → переключаем на предыдущий месяц.
+        // День НЕ подсвечиваем.
+        const dd = Number(digits);
+        const today = new Date();
+        let month = today.getMonth(); // 0-based
+        let year = today.getFullYear();
+        if (dd > today.getDate()) {
+          month--;
+          if (month < 0) {
+            month = 11;
+            year--;
+          }
+        }
+        calendar.selectedDates = [];
+        calendar.selectedYear = year;
+        calendar.selectedMonth = month;
+        calendar.update();
       } else if (
         inputLen < 10 &&
         bdayInput.classList.contains('form__input--invalid')
