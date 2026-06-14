@@ -8,6 +8,8 @@
  * @module views/backups
  */
 
+import { lucideIcon } from '../components/icon.js';
+
 // ── Конфигурация ─────────────────────────────────────────────
 
 /** Базовый путь API бэкапов */
@@ -133,6 +135,13 @@ async function handleResponse(response) {
  * Главная точка входа: инициализирует страницу.
  */
 async function init() {
+  // Замена текста кнопки «Обновить» на иконку
+  const refreshBtn = document.getElementById('btn-refresh-backups');
+  if (refreshBtn) {
+    refreshBtn.innerHTML = `${lucideIcon('refresh-cw', 16)}`;
+    refreshBtn.title = 'Обновить';
+  }
+
   await Promise.all([loadStatus(), loadBackups()]);
   bindEvents();
 }
@@ -221,8 +230,8 @@ function renderBackupRow(b) {
         <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}">
           Восстановить
         </button>
-        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;font-size:1.1rem;" title="Удалить бэкап">
-          🗑️
+        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;" title="Удалить бэкап">
+          ${lucideIcon('trash-2', 18)}
         </button>
       </td>
     </tr>
