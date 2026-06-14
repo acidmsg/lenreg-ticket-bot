@@ -1799,6 +1799,52 @@ body {
   border: 1px solid rgb(210 153 34 / 30%);
 }
 
+/* ── Кнопки с иконками на странице бэкапов ──────────────────── */
+
+/*
+ * Сброс браузерных стилей <button> для .btn-link.
+ * dashboard.css задаёт только color/font-size, но не убирает
+ * дефолтный background (ButtonFace), из-за чего под SVG-иконкой
+ * виден белый/серый фон.
+ */
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  transition:
+    background var(--transition-normal),
+    color var(--transition-normal);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-link:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+/* Кнопка удаления бэкапа (иконка trash-2) */
+.backup-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+.backup-delete-btn:hover {
+  background: rgb(234 51 111 / 12%);
+}
+
 /* ── Адаптивность ───────────────────────────────────────────── */
 
 @media (width <= 768px) {
