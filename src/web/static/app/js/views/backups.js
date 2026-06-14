@@ -156,7 +156,7 @@ async function loadStatus() {
       lastBackupEl.classList.add('text-muted');
     }
 
-    lastSizeEl.textContent = data.last_backup_size || '—';
+    lastSizeEl.textContent = data.last_size_human || '—';
 
     if (data.last_integrity) {
       integrityEl.innerHTML = renderIntegrityBadge(data.last_integrity);
@@ -164,7 +164,7 @@ async function loadStatus() {
       integrityEl.textContent = '—';
     }
 
-    freeSpaceEl.textContent = data.free_space || '—';
+    freeSpaceEl.textContent = data.free_space_human || '—';
   } catch (error) {
     lastBackupEl.textContent = 'Ошибка';
     lastBackupEl.style.color = 'var(--color-danger)';
@@ -221,8 +221,8 @@ function renderBackupRow(b) {
         <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}">
           Восстановить
         </button>
-        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;">
-          Удалить
+        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;font-size:1.1rem;" title="Удалить бэкап">
+          🗑️
         </button>
       </td>
     </tr>
