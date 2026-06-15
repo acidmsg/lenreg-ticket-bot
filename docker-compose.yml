@@ -29,9 +29,11 @@ services:
           memory: 128M
 
   # ===========================================================================
-  # Qdrant — векторное хранилище для Codebase Indexing
+  # Qdrant — векторное хранилище для Codebase Indexing (только dev)
   # ===========================================================================
   qdrant:
+    profiles:
+      - dev
     image: qdrant/qdrant:v1.9.0
     container_name: lenreg_ticket_qdrant
     ports:
@@ -62,8 +64,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      qdrant:
-        condition: service_started
     env_file:
       - .env
     volumes:
