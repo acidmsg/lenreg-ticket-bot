@@ -131,7 +131,7 @@ fi
 # ---------------------------------------------------------------------------
 if [ "${RESTORE_IN_CONTAINER}" = "false" ]; then
     echo "[RESTORE] Остановка бота через docker compose..."
-    if docker compose -f /root/lenreg-ticket-bot/docker-compose.yml stop bot 2>/dev/null; then
+    if docker compose -f /srv/bots/lenreg-ticket-bot/docker-compose.yml stop bot 2>/dev/null; then
         echo "[RESTORE] Бот остановлен"
     else
         echo "[WARN] Не удалось остановить бота через docker compose (возможно, docker не запущен)"
@@ -173,11 +173,11 @@ fi
 # ---------------------------------------------------------------------------
 if [ "${RESTORE_IN_CONTAINER}" = "false" ]; then
     echo "[RESTORE] Запуск бота через docker compose..."
-    if docker compose -f /root/lenreg-ticket-bot/docker-compose.yml start bot 2>/dev/null; then
+    if docker compose -f /srv/bots/lenreg-ticket-bot/docker-compose.yml start bot 2>/dev/null; then
         echo "[RESTORE] Бот запущен"
     else
         echo "[WARN] Не удалось запустить бота через docker compose"
-        echo "[WARN] Запустите вручную: docker compose -f /root/lenreg-ticket-bot/docker-compose.yml start bot"
+        echo "[WARN] Запустите вручную: docker compose -f /srv/bots/lenreg-ticket-bot/docker-compose.yml start bot"
     fi
 else
     echo "[RESTORE] Режим in-container: бот сам переподключится через WAL, перезапуск не требуется"
