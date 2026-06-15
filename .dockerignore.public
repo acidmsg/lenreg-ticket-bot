@@ -1,0 +1,42 @@
+# Исключения для Docker-сборки (публичная версия).
+# В образ попадают только файлы, необходимые для запуска бота в рантайме.
+
+# Git
+.git/
+.gitignore
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / Editor
+.vscode/
+.history/
+.idea/
+*.swp
+*.swo
+
+# Project config (needed for Poetry install in Docker)
+!pyproject.toml
+!poetry.lock
+
+# Runtime data (created by container volume)
+data/
+logs/
+
+# Environment (real .env must NOT be in image)
+.env
+
+# Temp files
+*.tmp
+.tmp_*

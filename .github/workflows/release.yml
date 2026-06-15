@@ -33,10 +33,10 @@ jobs:
           cp README.md clean_release/
           cp pyproject.toml clean_release/
           cp poetry.lock clean_release/
-          cp Makefile clean_release/
           cp .env.example clean_release/
-          cp .dockerignore clean_release/
-          cp .gitattributes clean_release/
+          # Чистые публичные версии — без упоминаний dev-инфраструктуры
+          cp .dockerignore.public clean_release/.dockerignore
+          cp .gitattributes.public clean_release/.gitattributes
 
       - name: Push to Public Repository
         uses: cpina/github-action-push-to-another-repository@main
