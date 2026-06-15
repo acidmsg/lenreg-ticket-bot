@@ -11,6 +11,17 @@ from src.config import settings
 from src.database.database import Database
 from src.services.metrics import prometheus_metrics
 
+# ── Управление плановым сканированием ─────────────────────────────────
+
+_force_scan_event = asyncio.Event()
+"""Событие, сигнализирующее о запросе принудительного сканирования."""
+
+
+def trigger_force_scan() -> None:
+    """Устанавливает флаг принудительного сканирования (вызывается из API дашборда)."""
+    _force_scan_event.set()
+    logger.info("Принудительное сканирование врачей запрошено через API")
+
 
 async def fetch_specialties(
     api: ZdravClient,
@@ -58,6 +69,25 @@ async def discovery_loop(
     logger.info("Цикл Discovery врачей запущен (агрегированный)")
 
     while True:
+        # Проверка: включено ли плановое сканирование и/или запрошен force-скан
+        scan_enabled = await database.config.get_config("doctor_scan_enabled", "1")
+        force_requested = _force_scan_event.is_set()
+
+        if scan_enabled != "1" and not force_requested:
+            # Плановое сканирование выключено — ждём force-сигнала или интервала
+            try:
+                await asyncio.wait_for(
+                    _force_scan_event.wait(),
+                    timeout=settings.DISCOVERY_INTERVAL,
+                )
+            except TimeoutError:
+                continue
+
+        _force_scan_event.clear()
+
+        if force_requested:
+            logger.info("Принудительное сканирование врачей запущено")
+
         clinic_ids = await database.get_active_clinic_ids()
         if not clinic_ids:
             logger.warning("Нет активных клиник для discovery, ждём...")

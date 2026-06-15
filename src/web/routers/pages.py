@@ -47,6 +47,9 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         doctors_discovered = int(pm._doctors_discovered._value.get())
         doctors_last_scan = int(pm.doctors_last_scan_timestamp._value.get())
 
+        # Состояние переключателя планового сканирования врачей
+        doctor_scan_enabled = await db.config.get_config("doctor_scan_enabled", "1")
+
         templates = cast(Jinja2Templates, request.app.state.templates)
         return templates.TemplateResponse(
             request,
@@ -65,6 +68,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "recent_alerts": recent_alerts,
                 "doctors_discovered": doctors_discovered,
                 "doctors_last_scan": doctors_last_scan,
+                "doctor_scan_enabled": doctor_scan_enabled == "1",
             },
         )
     except Exception:

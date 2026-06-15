@@ -37,6 +37,28 @@ Dashboard{% endblock %} {% block content %}
         <td>{{ active_monitorings }}</td>
       </tr>
     </table>
+
+    <div class="scan-controls" style="margin-top: 16px">
+      <label class="toggle">
+        <input
+          type="checkbox"
+          id="scan-toggle"
+          {%
+          if
+          doctor_scan_enabled
+          %}checked{%
+          endif
+          %}
+          onchange="toggleDoctorScan()"
+        />
+        <span class="toggle__slider"></span>
+        Плановое сканирование врачей
+      </label>
+      <button class="btn btn--primary" onclick="forceDoctorScan()" style="margin-left: 16px">
+        🔍 Сканировать сейчас
+      </button>
+      <span id="scan-status" style="margin-left: 8px; color: var(--color-text-secondary)"></span>
+    </div>
   </div>
 
   <div class="card">
@@ -99,4 +121,24 @@ Dashboard{% endblock %} {% block content %}
   <strong>Ссылки:</strong>
   <a href="/metrics">/metrics (Prometheus)</a>
 </div>
+
+<script>
+  async function toggleDoctorScan() {
+    const checked = document.getElementById('scan-toggle').checked;
+    const resp = await fetch('/api/dashboard/doctor-scan/toggle', { method: 'POST' });
+    const data = await resp.json();
+    document.getElementById('scan-status').textContent = data.doctor_scan_enabled
+      ? 'Включено'
+      : 'Отключено';
+  }
+
+  async function forceDoctorScan() {
+    document.getElementById('scan-status').textContent = 'Запуск...';
+    await fetch('/api/dashboard/doctor-scan/force', { method: 'POST' });
+    document.getElementById('scan-status').textContent = 'Сканирование запущено';
+    setTimeout(() => {
+      document.getElementById('scan-status').textContent = '';
+    }, 5000);
+  }
+</script>
 {% endblock %}

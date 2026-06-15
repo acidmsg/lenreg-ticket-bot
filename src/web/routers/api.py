@@ -1,7 +1,7 @@
 """
 JSON API веб-дашборда.
 
-Все эндпоинты — read-only, возвращают JSON-ответы.
+Эндпоинты возвращают JSON-ответы для дашборда и Mini App.
 """
 
 import time
@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from src.services.doctor_discovery import trigger_force_scan
 from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
 
@@ -208,6 +209,23 @@ async def api_dashboard_health(request: Request) -> dict[str, Any]:
         "schema_status": {},
         "schema_drift_details": {},
     }
+
+
+@router.post("/dashboard/doctor-scan/toggle")
+async def toggle_doctor_scan(request: Request) -> dict[str, Any]:
+    """Включить/выключить плановое сканирование врачей."""
+    db = request.app.state.db
+    current = await db.config.get_config("doctor_scan_enabled", "1")
+    new_value = "0" if current == "1" else "1"
+    await db.config.set_config("doctor_scan_enabled", new_value)
+    return {"doctor_scan_enabled": new_value == "1"}
+
+
+@router.post("/dashboard/doctor-scan/force")
+async def force_doctor_scan(request: Request) -> dict[str, Any]:
+    """Принудительный запуск сканирования врачей."""
+    trigger_force_scan()
+    return {"status": "started"}
 
 
 @router.get("/health")
