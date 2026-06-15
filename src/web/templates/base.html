@@ -2,10 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{% block title %}LenReg Ticket Bot Dashboard{% endblock %}</title>
     <link rel="stylesheet" href="/static/dashboard.css" />
     <script defer src="/static/dashboard.js"></script>
@@ -13,12 +10,7 @@
 
   <body>
     <!-- Мобильный hamburger -->
-    <button
-      class="hamburger"
-      id="sidebar-toggle-mobile"
-      aria-label="Меню"
-      aria-expanded="false"
-    >
+    <button class="hamburger" id="sidebar-toggle-mobile" aria-label="Меню" aria-expanded="false">
       <span class="hamburger__bar"></span>
       <span class="hamburger__bar"></span>
       <span class="hamburger__bar"></span>
@@ -32,22 +24,8 @@
       <div class="sidebar__brand">
         <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
           <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
-          <rect
-            x="6"
-            y="4"
-            width="3"
-            height="10"
-            rx="0.5"
-            fill="currentColor"
-          />
-          <rect
-            x="11"
-            y="1"
-            width="3"
-            height="13"
-            rx="0.5"
-            fill="currentColor"
-          />
+          <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
+          <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
         </svg>
         <span class="sidebar__link-text">LenReg Ticket Bot</span>
       </div>
@@ -66,30 +44,9 @@
           %}
         >
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <rect
-              x="1"
-              y="8"
-              width="3"
-              height="6"
-              rx="0.5"
-              fill="currentColor"
-            />
-            <rect
-              x="6"
-              y="4"
-              width="3"
-              height="10"
-              rx="0.5"
-              fill="currentColor"
-            />
-            <rect
-              x="11"
-              y="1"
-              width="3"
-              height="13"
-              rx="0.5"
-              fill="currentColor"
-            />
+            <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
+            <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
+            <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
           </svg>
           <span class="sidebar__link-text">Сводка</span>
         </a>
@@ -98,20 +55,8 @@
           class="sidebar__link {% if request.url.path.startswith('/users') %}active{% endif %}"
         >
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <circle
-              cx="6"
-              cy="5"
-              r="2.5"
-              stroke="currentColor"
-              stroke-width="1.2"
-            />
-            <circle
-              cx="10"
-              cy="5"
-              r="2.5"
-              stroke="currentColor"
-              stroke-width="1.2"
-            />
+            <circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
+            <circle cx="10" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
             <path
               d="M1 14c0-2.5 2.5-4 5-4s5 1.5 5 4"
               stroke="currentColor"
@@ -127,10 +72,7 @@
           </svg>
           <span class="sidebar__link-text">Пользователи</span>
         </a>
-        <a
-          href="/logs"
-          class="sidebar__link {% if request.url.path == '/logs' %}active{% endif %}"
-        >
+        <a href="/logs" class="sidebar__link {% if request.url.path == '/logs' %}active{% endif %}">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
             <line
               x1="5"
@@ -186,14 +128,7 @@
               stroke-linecap="round"
               stroke-linejoin="round"
             />
-            <rect
-              x="7"
-              y="9"
-              width="2"
-              height="5"
-              stroke="currentColor"
-              stroke-width="1"
-            />
+            <rect x="7" y="9" width="2" height="5" stroke="currentColor" stroke-width="1" />
             <line
               x1="6.5"
               y1="3"
@@ -291,12 +226,7 @@
         aria-label="Свернуть меню"
         aria-expanded="true"
       >
-        <svg
-          class="sidebar__toggle-icon"
-          viewBox="0 0 16 16"
-          width="16"
-          height="16"
-        >
+        <svg class="sidebar__toggle-icon" viewBox="0 0 16 16" width="16" height="16">
           <path
             d="M5 2L10 8L5 14"
             stroke="currentColor"
