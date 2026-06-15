@@ -69,6 +69,7 @@
   --color-text-primary: #e0e8f8;
   --color-text-secondary: #89b;
   --color-accent: #09b653;
+  --color-accent-rgb: 9, 182, 83;
   --color-accent-text: #0a0a10;
   --color-accent-hover: #07a048;
   --color-danger: #ea336f;
@@ -93,6 +94,7 @@
   --color-text-primary: #1e293b;
   --color-text-secondary: #64748b;
   --color-accent: #3b82f6;
+  --color-accent-rgb: 59, 130, 246;
   --color-accent-text: #fff;
   --color-accent-hover: #2563eb;
   --color-danger: #ef4444;
@@ -1383,31 +1385,63 @@ body {
   background-color: var(--color-bg-secondary);
 }
 
-.vanilla-calendar-day__btn:hover {
-  background: rgb(9 182 83 / 18%);
-}
+/* ========================================
+   Переопределение стилей VanillaCalendar
+   Вариант 1h: инвертированная today + accent-рамка 1px
+   ======================================== */
 
-.vanilla-calendar-day__btn_today {
+/* Обычный день: hover с accent-оттенком */
+.vanilla-calendar-day__btn:hover {
+  background: rgb(var(--color-accent-rgb) / 10%);
   border-color: var(--color-accent);
 }
 
+/* Today: инвертированная пилюля —
+   текст = цвет фона календаря, заливка = цвет текста */
+.vanilla-calendar-day__btn_today {
+  color: var(--color-bg-primary) !important;
+  background: var(--color-text-primary) !important;
+  border: none !important;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+.vanilla-calendar-day__btn_today:hover {
+  opacity: 0.85;
+  background: var(--color-text-primary) !important;
+}
+
+/* Selected: accent-рамка 1px + полупрозрачный accent-фон */
 .vanilla-calendar-day__btn_selected {
-  background: var(--color-accent);
-  color: var(--color-accent-text);
+  border: 1px solid var(--color-accent) !important;
+  background: rgb(var(--color-accent-rgb) / 10%) !important;
+  color: var(--color-accent) !important;
   font-weight: var(--font-weight-semibold);
 }
 
-/* Тёмная тема: переопределяем фон кнопки для выбранного дня,
-   чтобы акцентный цвет не затирался общим правилом [data-calendar-theme="dark"] .vanilla-calendar-day__btn */
-[data-calendar-theme="dark"] .vanilla-calendar-day__btn_selected {
-  background: var(--color-accent);
-  color: var(--color-accent-text);
+.vanilla-calendar-day__btn_selected:hover {
+  border: 1px solid var(--color-accent) !important;
+  background: rgb(var(--color-accent-rgb) / 15%) !important;
 }
 
-/* Родительская ячейка: фон на случай, если кнопка не покрывает всю ячейку */
+/* Тёмная тема: дублируем selected-стили с повышенной специфичностью,
+   чтобы перекрыть [data-calendar-theme="dark"] .vanilla-calendar-day__btn */
+[data-calendar-theme="dark"] .vanilla-calendar-day__btn_selected {
+  border: 1px solid var(--color-accent) !important;
+  background: rgb(var(--color-accent-rgb) / 10%) !important;
+  color: var(--color-accent) !important;
+}
+
+/* Если today и selected совпадают — приоритет selected */
+.vanilla-calendar-day__btn_today.vanilla-calendar-day__btn_selected {
+  border: 1px solid var(--color-accent) !important;
+  background: rgb(var(--color-accent-rgb) / 10%) !important;
+  color: var(--color-accent) !important;
+}
+
+/* Родительская ячейка: сбрасываем сплошную заливку */
 .vanilla-calendar-day_selected {
-  background: var(--color-accent);
-  border-radius: var(--radius-md);
+  background: transparent;
 }
 
 /* Кнопка внутри выбранной ячейки — растягиваем на всю ячейку */
