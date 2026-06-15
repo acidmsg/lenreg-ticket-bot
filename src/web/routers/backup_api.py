@@ -231,8 +231,8 @@ def _is_lock_busy() -> bool:
 
     try:
         # pyright: ignore[reportAttributeAccessIssue] — flock есть только на Linux
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
-        fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[attr-defined]
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
         return False
     except (BlockingIOError, OSError):
         return True
