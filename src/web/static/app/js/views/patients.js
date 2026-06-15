@@ -12,6 +12,7 @@ import { escapeHtml } from '../utils/escape.js';
 import { renderError } from '../utils/error.js';
 import { showConfirm } from '../utils/ui.js';
 import { navigate } from '../app.js';
+import { createDatePicker } from '../components/calendar.js';
 
 // ============================================================
 // Валидация
@@ -133,14 +134,8 @@ function buildPatientFormHTML() {
           <span class="form__error" id="patient-fio-error"></span>
         </div>
         <div class="mb-md">
-          <label class="form__label" for="patient-bday">Дата рождения</label>
-          <input
-            type="text"
-            id="patient-bday"
-            class="form__input"
-            placeholder="ДД.ММ.ГГГГ"
-            autocomplete="off"
-          >
+          <label class="form__label">Дата рождения</label>
+          <div id="patient-bday-container"></div>
           <span class="form__error" id="patient-bday-error"></span>
         </div>
         <div class="mb-md">
@@ -164,202 +159,6 @@ function buildPatientFormHTML() {
 }
 
 // ============================================================
-// Календарь и маска даты
-// ============================================================
-
-/**
- * Инициализирует VanillaCalendar на поле ввода даты.
- *
- * @param {HTMLInputElement} dateInput — поле ввода даты
- * @returns {VanillaCalendar} экземпляр календаря
- */
-function initPatientCalendar(dateInput) {
-  // Сегодняшняя дата в YYYY-MM-DD — верхняя граница (нельзя родиться в будущем)
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-
-  const calendar = new VanillaCalendar(dateInput, {
-    input: true,
-    settings: {
-      lang: 'ru',
-      selection: {
-        day: 'single'
-      },
-      visibility: {
-        theme: 'dark'
-      },
-      range: {
-        min: '1900-01-01',
-        max: todayStr,
-        disablePast: false
-      }
-    },
-    actions: {
-      clickDay(event, self) {
-        // Блокируем выбор дат, отключённых библиотекой (за пределами range).
-        // Библиотека v2.9.10 не проверяет dayBtnDisabled в обработчике клика —
-        // только добавляет CSS-класс. Сбрасываем selectedDates до changeToInput.
-        const target = event.target;
-        if (target.classList.contains(self.CSSClasses.dayBtnDisabled)) {
-          self.selectedDates = [];
-        }
-      },
-      changeToInput(event, self) {
-        const date = self.selectedDates[0];
-        if (!date) return;
-        const [y, m, d] = date.split('-');
-        self.HTMLInputElement.value = `${d}.${m}.${y}`;
-        // Флаг предотвращает обратную синхронизацию (маска → календарь)
-        // при программной установке значения из календаря
-        self.HTMLInputElement._fromCalendar = true;
-        self.hide();
-      }
-    }
-  });
-  calendar.init();
-  return calendar;
-}
-
-/**
- * Навешивает умную маску ввода даты с посегментной валидацией цифр
- * и прогрессивной синхронизацией календаря.
- *
- * Блокирует недопустимые символы на уровне ввода:
- *   день: первая цифра 0-3, если 3 — вторая 0-1 (макс 31)
- *   месяц: первая цифра 0-1, если 1 — вторая 0-2 (макс 12)
- *   год: 1xxx или 20xx (год ≥ 1900, итоговая проверка ≤ текущий — в validateBday)
- *
- * @param {HTMLInputElement} inputEl — поле ввода даты
- * @param {VanillaCalendar} calendar — экземпляр календаря
- * @param {HTMLElement} bdayError — элемент для ошибки валидации даты
- */
-function setupDateMask(inputEl, calendar, bdayError) {
-  inputEl.addEventListener('input', () => {
-    const raw = inputEl.value.replace(/\D/g, '');
-    let digits = '';
-
-    for (let i = 0; i < Math.min(raw.length, 8); i++) {
-      const ch = raw[i];
-      const d = parseInt(ch, 10);
-
-      if (i === 0) {
-        // Первая цифра дня: только 0-3
-        if (d < 0 || d > 3) break;
-      } else if (i === 1) {
-        // Вторая цифра дня: если первая = 3 → только 0-1; иначе 0-9
-        const d1 = parseInt(digits[0], 10);
-        if (d1 === 3 && d > 1) break;
-      } else if (i === 2) {
-        // Первая цифра месяца: только 0-1
-        if (d < 0 || d > 1) break;
-      } else if (i === 3) {
-        // Вторая цифра месяца: если первая = 1 → только 0-2; иначе 0-9
-        const m1 = parseInt(digits[2], 10);
-        if (m1 === 1 && d > 2) break;
-      } else if (i === 4) {
-        // Первая цифра года: только 1 или 2 (год ≥ 1900)
-        if (d < 1 || d > 2) break;
-      } else if (i === 5) {
-        // Вторая цифра года: если первая=1 → только 9 (19xx); если первая=2 → только 0 (20xx)
-        const y1 = parseInt(digits[4], 10);
-        if (y1 === 1 && d !== 9) break;
-        if (y1 === 2 && d !== 0) break;
-      }
-      // Для третьей и четвёртой цифры года — любые цифры, ограничение в validateBday
-
-      digits += ch;
-    }
-
-    let formatted = '';
-    if (digits.length > 0) formatted += digits.slice(0, 2);
-    if (digits.length > 2) formatted += '.' + digits.slice(2, 4);
-    if (digits.length > 4) formatted += '.' + digits.slice(4, 8);
-
-    if (inputEl.value !== formatted) {
-      inputEl.value = formatted;
-    }
-
-    // Прогрессивная синхронизация календаря при ручном вводе даты.
-    // Программная установка inputEl.value не вызывает input-событие,
-    // поэтому валидационный обработчик может не увидеть финальное значение.
-    const inputLen = inputEl.value.trim().length;
-
-    if (inputLen === 10) {
-      // Полная дата (ДД.ММ.ГГГГ) — валидация + полная синхронизация календаря.
-      const result = validateBday(inputEl.value);
-      setFieldError(inputEl, bdayError, result.error);
-
-      // Синхронизация календаря с ручным вводом:
-      // если дата валидна и ввод не из календаря — переключаем календарь
-      // на соответствующий месяц/год и подсвечиваем выбранную дату.
-      if (result.valid && !inputEl._fromCalendar) {
-        const [d, m, y] = inputEl.value.split('.').map(Number);
-        // Параметры update() в VanillaCalendar Pro v2.9.10 — булевы флаги
-        // (true = «использовать сохранённое значение из settings.selected»),
-        // а не новые значения года/месяца. Передача числовых значений (year: 2025,
-        // month: 6) интерпретируется как truthy → месяц/год не меняются.
-        //
-        // Для переключения месяца/года нужно установить selectedYear/selectedMonth
-        // (0-based, как Date.getMonth()) до вызова update() без аргументов.
-        // Тогда be() возьмёт значения из selectedYear/selectedMonth/selectedDates.
-        const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        calendar.selectedDates = [dateStr];
-        calendar.selectedYear = y;
-        calendar.selectedMonth = m - 1; // 0-based: январь=0, ..., декабрь=11
-        calendar.update();
-      }
-      // Сбрасываем флаг после обработки
-      if (inputEl._fromCalendar) {
-        delete inputEl._fromCalendar;
-      }
-    } else if (digits.length === 4 && !inputEl._fromCalendar) {
-      // Введён день и месяц (4 сырые цифры = ДД.ММ, 5 символов с точкой).
-      // Год ещё не введён — авто-подставляем текущий или прошлый.
-      // Если ДД.ММ.текущийГод > сегодня → используем прошлый год.
-      // День НЕ подсвечиваем (год не подтверждён пользователем).
-      const [dd, mm] = inputEl.value.split('.').map(Number);
-      if (mm >= 1 && mm <= 12) {
-        const today = new Date();
-        let year = today.getFullYear();
-        const candidate = new Date(year, mm - 1, dd);
-        if (candidate > today) {
-          year--; // дата в будущем относительно сегодня → прошлый год
-        }
-        calendar.selectedDates = [];
-        calendar.selectedYear = year;
-        calendar.selectedMonth = mm - 1; // 0-based
-        calendar.update();
-      }
-    } else if (digits.length === 2 && !inputEl._fromCalendar) {
-      // Введён только день (2 сырые цифры = ДД).
-      // Если день ДД текущего месяца ещё не наступил → переключаем на предыдущий месяц.
-      // День НЕ подсвечиваем.
-      const dd = Number(digits);
-      const today = new Date();
-      let month = today.getMonth(); // 0-based
-      let year = today.getFullYear();
-      if (dd > today.getDate()) {
-        month--;
-        if (month < 0) {
-          month = 11;
-          year--;
-        }
-      }
-      calendar.selectedDates = [];
-      calendar.selectedYear = year;
-      calendar.selectedMonth = month;
-      calendar.update();
-    } else if (
-      inputLen < 10 &&
-      inputEl.classList.contains('form__input--invalid')
-    ) {
-      // Сбрасываем ошибку при стирании символов
-      setFieldError(inputEl, bdayError, null);
-    }
-  });
-}
-
-// ============================================================
 // Отправка формы
 // ============================================================
 
@@ -368,16 +167,15 @@ function setupDateMask(inputEl, calendar, bdayError) {
  *
  * @param {HTMLFormElement} form — элемент формы
  * @param {Function} onSuccess — колбэк при успешном добавлении
+ * @param {object} datePicker — экземпляр createDatePicker
  */
-function setupPatientFormSubmit(form, onSuccess) {
+function setupPatientFormSubmit(form, onSuccess, datePicker) {
   const container = form.closest('.patient-add-form');
   if (!container) return;
 
   const fioInput = container.querySelector('#patient-fio');
-  const bdayInput = container.querySelector('#patient-bday');
   const aliasInput = container.querySelector('#patient-alias');
   const fioError = container.querySelector('#patient-fio-error');
-  const bdayError = container.querySelector('#patient-bday-error');
   const errorEl = container.querySelector('#patient-form-error');
   const submitBtn = container.querySelector('#patient-add-submit');
 
@@ -385,7 +183,7 @@ function setupPatientFormSubmit(form, onSuccess) {
 
   submitBtn.addEventListener('click', async () => {
     const full_name = fioInput?.value?.trim() || '';
-    const birth_date = bdayInput?.value?.trim() || '';
+    const birth_date = datePicker?.getValue()?.trim() || '';
     const alias = aliasInput?.value?.trim() || '';
 
     // Валидация с подсветкой полей
@@ -393,7 +191,11 @@ function setupPatientFormSubmit(form, onSuccess) {
     setFieldError(fioInput, fioError, fioResult.error);
 
     const bdayResult = validateBday(birth_date);
-    setFieldError(bdayInput, bdayError, bdayResult.error);
+    if (bdayResult.error) {
+      datePicker?.setError(bdayResult.error);
+    } else {
+      datePicker?.clearError();
+    }
 
     if (!fioResult.valid || !bdayResult.valid) {
       return;
@@ -456,16 +258,20 @@ export async function renderPatientAddForm(container) {
 
   container.innerHTML = buildPatientFormHTML();
 
-  const dateInput = container.querySelector('#patient-bday');
   const fioInput = container.querySelector('#patient-fio');
   const fioError = container.querySelector('#patient-fio-error');
   const bdayError = container.querySelector('#patient-bday-error');
 
-  // Инициализация календаря и маски даты
-  if (dateInput) {
-    const calendar = initPatientCalendar(dateInput);
-    setupDateMask(dateInput, calendar, bdayError);
-  }
+  // Инициализация виджета выбора даты через createDatePicker (вместо VanillaCalendar)
+  const today = new Date();
+  const maxDateStr = today.toISOString().split('T')[0];
+
+  const datePicker = createDatePicker({
+    container: document.getElementById('patient-bday-container'),
+    min: '1900-01-01',
+    max: maxDateStr,
+    errorContainer: bdayError
+  });
 
   // Валидация ФИО в реальном времени
   if (fioInput) {
@@ -483,22 +289,16 @@ export async function renderPatientAddForm(container) {
     });
   }
 
-  // Валидация даты рождения в реальном времени (blur + input)
-  if (dateInput) {
-    dateInput.addEventListener('blur', () => {
-      const result = validateBday(dateInput.value);
-      setFieldError(dateInput, bdayError, result.error);
-    });
-    dateInput.addEventListener('input', () => {
-      const len = dateInput.value.trim().length;
-      if (len === 10) {
-        const result = validateBday(dateInput.value);
-        setFieldError(dateInput, bdayError, result.error);
-      } else if (
-        len < 10 &&
-        dateInput.classList.contains('form__input--invalid')
-      ) {
-        setFieldError(dateInput, bdayError, null);
+  // Валидация даты рождения в реальном времени (blur)
+  const bdayInputEl = datePicker.getInputElement();
+  if (bdayInputEl) {
+    bdayInputEl.addEventListener('blur', () => {
+      const value = datePicker.getValue() || '';
+      const result = validateBday(value);
+      if (result.error) {
+        datePicker.setError(result.error);
+      } else {
+        datePicker.clearError();
       }
     });
   }
@@ -514,9 +314,13 @@ export async function renderPatientAddForm(container) {
   // Отправка формы
   const form = container.querySelector('#patient-form');
   if (form) {
-    setupPatientFormSubmit(form, () => {
-      navigate('patients');
-    });
+    setupPatientFormSubmit(
+      form,
+      () => {
+        navigate('patients');
+      },
+      datePicker
+    );
   }
 }
 

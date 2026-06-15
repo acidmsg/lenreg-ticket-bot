@@ -530,6 +530,28 @@ function parsePartialDate(inputValue) {
  * @param {Date} today — сегодняшняя дата
  * @returns {{ year: number, month: number }}
  */
+
+/**
+ * Зажимает целевой месяц/год в границы max, если max задан.
+ *
+ * @param {{ year: number, month: number }} target — вычисленный целевой месяц
+ * @param {string|undefined} max — максимальная дата 'YYYY-MM-DD' или undefined
+ * @returns {{ year: number, month: number }}
+ */
+function clampTargetMonth(target, max) {
+  if (!max) return target;
+  const [maxYear, maxMonth] = max.split('-').map(Number);
+  // Если целевой год больше максимального — зажимаем на max
+  if (target.year > maxYear) {
+    return { year: maxYear, month: maxMonth };
+  }
+  // Если год равен максимальному и месяц выходит за границу
+  if (target.year === maxYear && target.month > maxMonth) {
+    return { year: maxYear, month: maxMonth };
+  }
+  return target;
+}
+
 function determineTargetMonth(partial, today) {
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth() + 1; // 1-based
@@ -872,7 +894,13 @@ export function createCalendar({ container, value, onChange, min, max }) {
  * @param {string} [options.placeholder] — плейсхолдер (по умолчанию 'ДД.ММ.ГГГГ')
  * @returns {object} управляющий объект
  */
-export function createDateInput({ container, value, onChange, placeholder }) {
+export function createDateInput({
+  container,
+  value,
+  onChange,
+  placeholder,
+  errorContainer
+}) {
   const placeholderText = placeholder || 'ДД.ММ.ГГГГ';
 
   container.innerHTML = `
@@ -890,7 +918,9 @@ export function createDateInput({ container, value, onChange, placeholder }) {
   `;
 
   const inputEl = container.querySelector('.date-input__field');
-  const errorEl = container.querySelector('.date-input__error');
+  // Если передан внешний errorContainer — используем его, иначе внутренний .date-input__error
+  const errorEl =
+    errorContainer || container.querySelector('.date-input__error');
 
   // Установка начального значения
   if (value) {
@@ -1054,23 +1084,35 @@ export function createDateInput({ container, value, onChange, placeholder }) {
  * @param {string} [options.max] — максимальная дата 'YYYY-MM-DD'
  * @returns {object} управляющий объект
  */
-export function createDatePicker({ container, value, onChange, min, max }) {
-  // Рендерим контейнеры — календарь изначально скрыт
+export function createDatePicker({
+  container,
+  value,
+  onChange,
+  min,
+  max,
+  errorContainer
+}) {
+  // Рендерим контейнеры — календарь изначально скрыт.
+  // Используем классы вместо id, чтобы виджет можно было инстанциировать
+  // многократно на одной странице.
   container.innerHTML = `
     <div class="date-picker">
-      <div class="date-picker__input" id="dp-input-container"></div>
-      <div class="date-picker__calendar" id="dp-calendar-container" style="display:none;"></div>
+      <div class="date-picker__input"></div>
+      <div class="date-picker__calendar" style="display:none;"></div>
     </div>
   `;
 
-  const inputContainer = container.querySelector('#dp-input-container');
-  const calendarContainer = container.querySelector('#dp-calendar-container');
+  const inputContainer = container.querySelector('.date-picker__input');
+  const calendarContainer = container.querySelector('.date-picker__calendar');
 
   if (!inputContainer || !calendarContainer) {
     return {
       getValue: () => null,
       setValue: () => {},
       focus: () => {},
+      getInputElement: () => null,
+      setError: () => {},
+      clearError: () => {},
       destroy: () => {
         container.innerHTML = '';
       }
@@ -1101,6 +1143,7 @@ export function createDatePicker({ container, value, onChange, min, max }) {
     container: inputContainer,
     value,
     placeholder: 'ДД.ММ.ГГГГ',
+    errorContainer,
     onChange: (dateStr) => {
       if (updating) return;
       updating = true;
@@ -1145,26 +1188,22 @@ export function createDatePicker({ container, value, onChange, min, max }) {
 
       const masked = inputField.value;
 
-      // Если дата полная и валидная — явно подсвечиваем в календаре.
-      // Защитное дублирование: даже если handleInput из createDateInput
-      // не вызвал onChange (например, из-за флага _masking), подсветка
-      // гарантированно сработает.
+      // Полная валидная дата: createDateInput.handleInput уже вызвал onChange,
+      // который дёрнул calendar.setValue() + calendar.goToMonth(). Дублировать
+      // не нужно — просто выходим.
       if (masked.length === 10) {
         const validation = validateDateString(masked);
         if (validation.valid) {
-          calendar.setValue(masked);
-          const parsed = parseDate(masked);
-          if (parsed) {
-            calendar.goToMonth(parsed.year, parsed.month);
-          }
           return;
         }
         // Полная, но невалидная (например 31.02.2026):
         // навигируем на месяц/год с частичной подсветкой дня
         const partial = parsePartialDate(masked);
         const target = determineTargetMonth(partial, today);
+        // Зажимаем целевой месяц в границы max, если заданы
+        const clamped = clampTargetMonth(target, max);
         calendar.setValue(null);
-        calendar.goToMonth(target.year, target.month);
+        calendar.goToMonth(clamped.year, clamped.month);
         // Подсвечиваем день, если он распознан
         calendar.setPartialSelection(partial.day, partial.month, partial.year);
         return;
@@ -1173,8 +1212,10 @@ export function createDatePicker({ container, value, onChange, min, max }) {
       // Частичная дата: навигируем календарь с подсветкой дня (если введён)
       const partial = parsePartialDate(masked);
       const target = determineTargetMonth(partial, today);
+      // Зажимаем целевой месяц в границы max, если заданы
+      const clamped = clampTargetMonth(target, max);
       calendar.setValue(null);
-      calendar.goToMonth(target.year, target.month);
+      calendar.goToMonth(clamped.year, clamped.month);
       // Подсвечиваем день если он есть в частичном вводе, иначе сбрасываем
       if (partial.day !== null) {
         calendar.setPartialSelection(partial.day, partial.month, partial.year);
@@ -1214,6 +1255,32 @@ export function createDatePicker({ container, value, onChange, min, max }) {
      */
     focus() {
       input.focus();
+    },
+
+    /**
+     * Получить DOM-элемент поля ввода.
+     * Нужно внешнему коду для управления классами ошибок.
+     *
+     * @returns {HTMLInputElement|null}
+     */
+    getInputElement() {
+      return inputContainer.querySelector('.date-input__field');
+    },
+
+    /**
+     * Показать ошибку валидации на поле ввода.
+     *
+     * @param {string} message
+     */
+    setError(message) {
+      input.setError(message);
+    },
+
+    /**
+     * Снять ошибку валидации с поля ввода.
+     */
+    clearError() {
+      input.clearError();
     },
 
     /**
