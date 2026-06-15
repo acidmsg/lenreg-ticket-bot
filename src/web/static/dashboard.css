@@ -408,11 +408,27 @@ h2 {
   width: 100%;
 }
 
-.dg-header,
-.dg-row {
+/* tbody — прозрачная обёртка: строки участвуют в grid-потоке родителя */
+.dg-tbody {
   display: contents;
 }
 
+/* Заголовок и строка — каждая образует subgrid на всю ширину таблицы;
+   grid-template-columns наследуется через CSS-переменную --dg-columns */
+.dg-header,
+.dg-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: var(--dg-columns);
+}
+
+/* Базовые стили ячейки (низкая специфичность — идут первыми) */
+.dg-cell {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Ячейки заголовка (высокая специфичность) */
 .dg-header > .dg-cell {
   background: var(--color-border);
   color: var(--color-text-secondary);
@@ -426,6 +442,7 @@ h2 {
   z-index: 1;
 }
 
+/* Чётные/нечётные строки и hover */
 .dg-row:nth-child(even) > .dg-cell {
   background: var(--color-bg-primary);
 }
@@ -434,38 +451,48 @@ h2 {
   background: var(--color-border);
 }
 
-.dg-cell {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* Модификаторы колонок */
+/* Модификаторы: каждая таблица задаёт CSS-переменную --dg-columns,
+   которая наследуется в .dg-header и .dg-row через каскад */
 .dg-table--clinics {
-  grid-template-columns: 60px 1fr 80px 120px 60px;
+  --dg-columns: 60px 1fr 80px 120px 60px;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--users {
-  grid-template-columns: 120px 100px 120px 100px;
+  --dg-columns: 120px 100px 120px 100px;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--logs {
-  grid-template-columns: 80px 1fr 1fr 120px 1fr 100px 100px 120px;
+  --dg-columns: 80px 1fr 1fr 120px 1fr 100px 100px 120px;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--alerts {
-  grid-template-columns: 140px 1fr 1fr 100px;
+  --dg-columns: 140px 1fr 1fr 100px;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--patients {
-  grid-template-columns: 80px 1fr 100px 1fr;
+  --dg-columns: 80px 1fr 100px 1fr;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--doctors {
-  grid-template-columns: 80px 1fr 120px 80px;
+  --dg-columns: 80px 1fr 120px 80px;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 .dg-table--schemas {
-  grid-template-columns: 1fr 1fr;
+  --dg-columns: 1fr 1fr;
+
+  grid-template-columns: var(--dg-columns);
 }
 
 /* ── Info Grid (бывшие .info-table) ──────────────────────────── */
