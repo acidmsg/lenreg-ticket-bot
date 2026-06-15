@@ -8,6 +8,7 @@ from src.api.models import SpecialityItem
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
+from src.services.metrics import prometheus_metrics
 
 
 async def fetch_specialties(
@@ -62,6 +63,10 @@ async def discovery_loop(
             await asyncio.sleep(settings.DISCOVERY_INTERVAL)
             continue
 
+        # Сбрасываем счётчик новых врачей в начале каждого полного цикла
+        prometheus_metrics._doctors_discovered.set(0)
+        new_doctors_total = 0
+
         for clinic_id in clinic_ids:
             try:
                 cid = str(clinic_id)
@@ -108,8 +113,9 @@ async def discovery_loop(
                             for doc in doctors:
                                 doc["SpesialityName"] = spec_name
                             # TD-SVC-002: частичное сохранение после каждой спец-ти
-                            await database.merge_doctors(cid, doctors)
+                            new_count = await database.merge_doctors(cid, doctors)
                             total_doctors += len(doctors)
+                            new_doctors_total += new_count
                             logger.info(
                                 "Обновлены врачи для {} / specialty {} (id={}): {} зап",
                                 cid,
@@ -134,6 +140,14 @@ async def discovery_loop(
                 logger.error(
                     f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
                 )
+
+        # Устанавливаем метрику по итогам полного цикла
+        prometheus_metrics._doctors_discovered.set(new_doctors_total)
+        if new_doctors_total > 0:
+            logger.info(
+                "Цикл discovery завершён: {} новых врачей обнаружено",
+                new_doctors_total,
+            )
 
         jitter = random.uniform(0.8, 1.2)
         await asyncio.sleep(settings.DISCOVERY_INTERVAL * jitter)

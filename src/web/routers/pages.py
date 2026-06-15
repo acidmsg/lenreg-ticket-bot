@@ -42,6 +42,10 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
             api_errors = health_metrics.api_errors_total
             notifications = health_metrics.monitoring_notifications_sent
 
+        # Метрика новых врачей за последний скан
+        pm = request.app.state.prometheus_metrics
+        doctors_discovered = int(pm._doctors_discovered._value.get())
+
         templates = cast(Jinja2Templates, request.app.state.templates)
         return templates.TemplateResponse(
             request,
@@ -58,6 +62,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "api_errors": api_errors,
                 "notifications": notifications,
                 "recent_alerts": recent_alerts,
+                "doctors_discovered": doctors_discovered,
             },
         )
     except Exception:

@@ -174,14 +174,21 @@ class Database:
         """Добавляет или обновляет запись врача."""
         return await self.doctors.upsert_doctor(clinic_id, doctor_id, name, specialty)
 
-    async def merge_doctors(self, clinic_id: str, doctors: list[dict]) -> None:
+    async def merge_doctors(self, clinic_id: str, doctors: list[dict]) -> int:
         """Сохраняет список врачей в БД для указанной клиники.
 
         Создаёт запись клиники (если нет) и upsert-ит каждого врача.
+        Возвращает количество **новых** врачей (ранее отсутствовавших в БД).
         """
         existing_name = await self.clinics.get_clinic_name(str(clinic_id))
         if existing_name is None:
             await self.clinics.upsert_clinic(str(clinic_id), "Unknown")
+
+        # Получаем существующие doctor_id для этой клиники
+        existing_doctors = await self.doctors.get_clinic_doctors(clinic_id)
+        existing_ids: set[str] = set(existing_doctors.keys())
+
+        new_count = 0
         for doc in doctors:
             raw_id = doc.get("IdDoc")
             if not raw_id:
@@ -192,6 +199,11 @@ class Database:
                 continue
             specialty = doc.get("SpesialityName", "")
             await self.doctors.upsert_doctor(clinic_id, doc_id, doc_name, specialty)
+            if doc_id not in existing_ids:
+                new_count += 1
+                existing_ids.add(doc_id)  # учитываем при повторных doc_id в пакете
+
+        return new_count
 
     async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
         """Поиск врачей по подстроке в имени (глобально)."""
