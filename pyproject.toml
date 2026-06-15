@@ -50,6 +50,8 @@ dependencies = [
     "prometheus-client>=0.20,<1.0",
     # === Vector Search (Qdrant) ===
     "qdrant-client>=1.9,<2.0",
+    # === File Locking (Cross-platform) ===
+    "portalocker>=3.0,<4.0",
 ]
 
 [tool.poetry]

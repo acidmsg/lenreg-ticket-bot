@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -215,13 +214,10 @@ def _is_lock_busy() -> bool:
     """
     Проверяет, занят ли lock-файл /tmp/backup.lock.
 
-    Использует ``fcntl.flock`` (Linux/Docker). На Windows всегда возвращает False.
+    Использует ``portalocker`` — кроссплатформенные файловые блокировки
+    (``fcntl.flock`` на Linux, ``msvcrt.locking`` на Windows).
     """
-    # Ранний возврат на Windows: fcntl недоступен
-    if sys.platform == "win32":
-        return False
-
-    import fcntl
+    import portalocker
 
     lock_path = "/tmp/backup.lock"
     try:
@@ -231,10 +227,10 @@ def _is_lock_busy() -> bool:
         return False
 
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        portalocker.lock(fd, portalocker.LOCK_EX | portalocker.LOCK_NB)
+        portalocker.unlock(fd)
         return False
-    except (BlockingIOError, OSError):
+    except (portalocker.exceptions.LockException, BlockingIOError, OSError):
         return True
     finally:
         os.close(fd)
