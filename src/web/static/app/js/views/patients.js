@@ -469,8 +469,9 @@ export async function renderPatientAddForm(container) {
   const bdayError = container.querySelector('#patient-bday-error');
 
   // Инициализация календаря и маски даты
+  let calendar = null;
   if (dateInput) {
-    const calendar = initPatientCalendar(dateInput);
+    calendar = initPatientCalendar(dateInput);
     setupDateMask(dateInput, calendar, bdayError);
   }
 
@@ -495,10 +496,20 @@ export async function renderPatientAddForm(container) {
     dateInput.addEventListener('blur', () => {
       const result = validateBday(dateInput.value);
       setFieldError(dateInput, bdayError, result.error);
-      calendar.hide();
+      // Скрыть календарь с задержкой, чтобы focus успел установиться
+      // на элементе внутри календаря (кнопки навигации, ячейки дней)
+      setTimeout(() => {
+        if (
+          calendar &&
+          calendar.HTMLElement &&
+          !calendar.HTMLElement.contains(document.activeElement)
+        ) {
+          calendar.hide();
+        }
+      }, 150);
     });
     dateInput.addEventListener('focus', () => {
-      calendar.show();
+      if (calendar) calendar.show();
     });
     dateInput.addEventListener('input', () => {
       const len = dateInput.value.trim().length;
