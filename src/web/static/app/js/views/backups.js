@@ -304,17 +304,24 @@ function renderCategoryBadge(category) {
  * @returns {string} HTML
  */
 function renderIntegrityBadge(integrity) {
-  const map = {
-    ok: { icon: '🟢', text: 'Цел', cls: 'backup-integrity--ok' },
-    fail: { icon: '🔴', text: 'Повреждён', cls: 'backup-integrity--fail' },
-    unchecked: {
-      icon: '🟡',
-      text: 'Не проверен',
-      cls: 'backup-integrity--unchecked'
-    }
+  // Инлайн-SVG иконки 16×16: зелёный круг (ok), красный круг (fail),
+  // жёлтый круг (unchecked), серый круг (fallback).
+  const svgMap = {
+    ok: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-ok)" stroke-width="1.2" fill="var(--color-ok)" fill-opacity="0.15"/><path d="M5 8l2 2.5 4-3.5" stroke="var(--color-ok)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    fail: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-err)" stroke-width="1.2" fill="var(--color-err)" fill-opacity="0.15"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--color-err)" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    unchecked:
+      '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-warn)" stroke-width="1.2" fill="var(--color-warn)" fill-opacity="0.15"/><path d="M8 2L1.5 13h13L8 2z" stroke="var(--color-warn)" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9" stroke="var(--color-warn)" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="var(--color-warn)"/></svg>'
   };
-  const info = map[integrity] || { icon: '⚪', text: integrity, cls: '' };
-  return `<span class="backup-integrity ${info.cls}">${info.icon} ${escapeHtml(info.text)}</span>`;
+  const map = {
+    ok: { text: 'Цел', cls: 'backup-integrity--ok' },
+    fail: { text: 'Повреждён', cls: 'backup-integrity--fail' },
+    unchecked: { text: 'Не проверен', cls: 'backup-integrity--unchecked' }
+  };
+  const info = map[integrity] || { text: integrity, cls: '' };
+  const svg =
+    svgMap[integrity] ||
+    '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/></svg>';
+  return `<span class="backup-integrity ${info.cls}">${svg} ${escapeHtml(info.text)}</span>`;
 }
 
 // ── Форматирование ───────────────────────────────────────────

@@ -12,7 +12,7 @@ import { apiPost } from '../api.js';
  */
 export async function checkDoctorSlots(monitoringId) {
   const data = await apiPost('/doctors/check', {
-    monitoring_id: Number(monitoringId)
+    monitoring_id: String(monitoringId)
   });
   return data;
 }

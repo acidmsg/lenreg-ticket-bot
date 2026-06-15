@@ -12,14 +12,14 @@ LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
       Статус:
       <select name="status">
         <option value="">все</option>
-        <option value="появился" {% if status_filter="" ="появился" %}selected{% endif %}>
+        <option value="появился" {% if status_filter == "появился" %}selected{% endif %}>
           появился
         </option>
-        <option value="исчез" {% if status_filter="" ="исчез" %}selected{% endif %}>исчез</option>
-        <option value="увеличилось" {% if status_filter="" ="увеличилось" %}selected{% endif %}>
+        <option value="исчез" {% if status_filter == "исчез" %}selected{% endif %}>исчез</option>
+        <option value="увеличилось" {% if status_filter == "увеличилось" %}selected{% endif %}>
           увеличилось
         </option>
-        <option value="уменьшилось" {% if status_filter="" ="уменьшилось" %}selected{% endif %}>
+        <option value="уменьшилось" {% if status_filter == "уменьшилось" %}selected{% endif %}>
           уменьшилось
         </option>
       </select>
