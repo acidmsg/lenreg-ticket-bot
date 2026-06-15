@@ -25,21 +25,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class MiniAppNoCacheMiddleware:
+class StaticNoCacheMiddleware:
     """
-    Чистый ASGI middleware для отключения кэширования статики Mini App (/app/*).
+    Чистый ASGI middleware для отключения кэширования статики (/app/* и /static/*).
 
     В отличие от BaseHTTPMiddleware (который работает через StreamingResponse
     и не совместим со StaticFiles, смонтированными через app.mount()),
     этот middleware работает напрямую с ASGI scope/receive/send
-    и гарантированно добавляет заголовки ко всем ответам /app/*.
+    и гарантированно добавляет заголовки ко всем ответам /app/* и /static/*.
 
-    Cloudflare CDN и Telegram WebView агрессивно кэшируют JS/CSS,
-    из-за чего обновления фронтенда не доходят до пользователей
-    даже после пересборки Docker-образа.
+    Cloudflare CDN и браузеры агрессивно кэшируют JS/CSS,
+    из-за чего обновления фронтенда (как дашборда, так и Mini App)
+    не доходят до пользователей даже после пересборки Docker-образа.
 
     Устанавливает:
-    - Cache-Control: no-cache (перезапрос перед использованием)
+    - Cache-Control: no-cache, no-store, must-revalidate
     - CDN-Cache-Control: no-cache (специфичный для Cloudflare)
     - Pragma: no-cache (обратная совместимость с HTTP/1.0)
     - Expires: 0 (немедленное истечение)
@@ -49,7 +49,12 @@ class MiniAppNoCacheMiddleware:
         self.app = app
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith("/app/"):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path: str = scope.get("path", "")
+        if not (path.startswith("/app/") or path.startswith("/static/")):
             await self.app(scope, receive, send)
             return
 
@@ -140,6 +145,13 @@ def create_app(
     app.include_router(api.router, prefix="/api")  # JSON API дашборда
     app.include_router(backup_api.router)  # JSON API бэкапов (/api/backups/*)
 
+    # Отключаем кэширование ВСЕХ статических файлов (/app/* и /static/*)
+    # на уровне HTTP-заголовков. Cloudflare CDN и браузеры агрессивно
+    # кэшируют JS/CSS, из-за чего обновления фронтенда (и дашборда,
+    # и Mini App) не доходят до пользователей после пересборки образа.
+    app.add_middleware(StaticNoCacheMiddleware)
+    logger.debug("StaticNoCacheMiddleware: включен для /app/* и /static/*")
+
     # Роутер Mini App API (/api/user/*)
     if config.MINI_APP_ENABLED:
         from src.web.routers import user_api
@@ -149,11 +161,6 @@ def create_app(
     # Mount статики Mini App (/app/) — после роутеров, чтобы StaticFiles
     # не перехватывал запросы к /api/user/*
     if config.MINI_APP_ENABLED:
-        # Отключаем кэширование статики Mini App на уровне HTTP-заголовков.
-        # Cloudflare CDN и Telegram WebView агрессивно кэшируют JS/CSS,
-        # из-за чего обновления фронтенда не видны без cache-busting.
-        app.add_middleware(MiniAppNoCacheMiddleware)
-        logger.debug("MiniAppNoCacheMiddleware: включен для /app/*")
         _app_static_dir = os.path.join(_static_dir, "app")
         if os.path.isdir(_app_static_dir):
             app.mount(
