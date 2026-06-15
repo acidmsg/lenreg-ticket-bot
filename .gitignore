@@ -43,6 +43,7 @@ logs/
 .env
 .env.local
 env.vps
+.roo/rules/.env
 *.env.*
 !.env.example
 

@@ -45,7 +45,7 @@
 
 - **Формат:** YAML, стандарт OpenAPI 3.0.0. Описания — на русском языке.
 - **Markdown:** Файл спецификации должен соответствовать стандартам (валидация prettier/markdownlint).
-- **Логирование:** Любое изменение архитектуры должно быть отражено в `SESSION_LOG.md` перед завершением сессии.
+- **Логирование:** SESSION_LOG.md обновляется только по явному запросу пользователя (например, «заполни лог сессии» или «обнови SESSION_LOG»). Без явного запроса — не трогать.
 
 ## Управление базой знаний
 
@@ -104,14 +104,14 @@ Remove-Item .tmp_check_results.txt
 
 - **Активный лог:** `.roo/sessions/SESSION_LOG.md` — только последняя сессия (шаблон: дата, задачи, файлы, тесты).
 - **Архив:** `.roo/sessions/SESSION_ARCHIVE.md` — полная хронология всех прошлых сессий.
-- **Только в режиме orchestrator**, после получения успешного результата `attempt_completion` (т.е. когда задача реально завершена и подтверждена пользователем) ОБЯЗАН:
+- **SESSION_LOG.md обновляется только когда пользователь явно запросит** (например, «заполни лог сессии» или «обнови SESSION_LOG»). Без явного запроса — не трогать ни SESSION_LOG.md, ни SESSION_ARCHIVE.md.
+- При явном запросе пользователя в любом режиме:
   1. Дописать запись в `.roo/sessions/SESSION_LOG.md` с:
      - Датой.
      - Списком выполненных задач (со ссылками на файлы и номера строк).
      - Списком изменённых файлов.
      - Результатами тестов (если запускались).
   2. Перенести предыдущую запись из `SESSION_LOG.md` в конец `.roo/sessions/SESSION_ARCHIVE.md` (под заголовок `---`).
-- `attempt_completion` = конец сессии. Нельзя вызывать его, пока лог не обновлён (в режиме orchestrator).
 
 ### AGENT_TASKS.md
 
@@ -123,8 +123,8 @@ Remove-Item .tmp_check_results.txt
 
 Применяется **только** в режиме `orchestrator`. Если задача выполняется в любом другом режиме (code, debug, ask, architect и др.) — эта процедура пропускается полностью.
 
-1. `apply_diff` → обновить `.roo/sessions/SESSION_LOG.md`.
-2. `apply_diff` → перенести старую запись в `.roo/sessions/SESSION_ARCHIVE.md`.
-3. `apply_diff` → обновить `.roo/tasks/AGENT_TASKS.md`.
-4. `execute_command` → `npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"` (исправить ошибки, если есть).
-5. `execute_command` → `npx prettier --write` на изменённые `.md` файлы.
+1. `apply_diff` → обновить `.roo/tasks/AGENT_TASKS.md`.
+2. `execute_command` → `npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"` (исправить ошибки, если есть).
+3. `execute_command` → `npx prettier --write` на изменённые `.md` файлы.
+
+SESSION_LOG.md и SESSION_ARCHIVE.md — только по явному запросу пользователя (см. выше).
