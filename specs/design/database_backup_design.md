@@ -333,8 +333,8 @@ ofelia:
     - /root/backups:/backups
   command: daemon --docker
   labels:
-    ofelia.job-local.backup-daily.schedule: '0 0 3 * * *'
-    ofelia.job-local.backup-daily.command: '/scripts/backup.sh daily'
+    ofelia.job-local.backup-daily.schedule: "0 0 3 * * *"
+    ofelia.job-local.backup-daily.command: "/scripts/backup.sh daily"
 ```
 
 **Решение:** оставить cron как основной вариант (он уже работает). Добавить ofelia-конфигурацию как закомментированную альтернативу в `docker-compose.yml`.

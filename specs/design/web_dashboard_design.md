@@ -745,20 +745,20 @@ dependencies = [
 
 ```yaml
 tags:
-  - name: 'Веб-дашборд (FastAPI)'
-    description: 'HTML-страницы и JSON API для мониторинга (read-only, порт 8080)'
+  - name: "Веб-дашборд (FastAPI)"
+    description: "HTML-страницы и JSON API для мониторинга (read-only, порт 8080)"
 
 paths:
   /:
     get:
-      tags: ['Веб-дашборд (FastAPI)']
-      summary: 'Главная страница дашборда — сводка'
+      tags: ["Веб-дашборд (FastAPI)"]
+      summary: "Главная страница дашборда — сводка"
       # ...
 
   /api/dashboard/summary:
     get:
-      tags: ['Веб-дашборд (FastAPI)']
-      summary: 'JSON-сводка состояния системы'
+      tags: ["Веб-дашборд (FastAPI)"]
+      summary: "JSON-сводка состояния системы"
       # ...
 ```
 
