@@ -71,7 +71,13 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
     <table class="info-table">
       <tr>
         <td>Статус</td>
-        <td>{{ api_health|safe }}</td>
+        <td>
+          {% if api_ok %}
+          <span class="badge badge-ok">{{ api_health }}</span>
+          {% else %}
+          <span class="badge badge-err">{{ api_health }}</span>
+          {% endif %}
+        </td>
       </tr>
       <tr>
         <td>Успешных проверок</td>

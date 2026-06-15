@@ -83,16 +83,16 @@ class HealthMetrics:
         return " ".join(parts)
 
     def api_health_str(self) -> str:
-        """Состояние API — бинарное: ✅ Доступен / ❌ Недоступен."""
+        """Состояние API — текстовая строка: Доступен / Недоступен."""
         if self.last_api_check_time == 0.0:
             if self.healthcheck_loop_alive:
-                return "⏳ Выполняется первый цикл проверки..."
-            return "⏳ Healthcheck ещё не запущен"
+                return "Выполняется первый цикл проверки..."
+            return "Healthcheck ещё не запущен"
         delta = int(time.time() - self.last_api_check_time)
         ago = f"{delta}с назад" if delta < 120 else f"{delta // 60}м назад"
         if self.last_api_ok:
-            return f"✅ Доступен ({ago})"
-        return f"❌ Недоступен ({ago})"
+            return f"Доступен ({ago})"
+        return f"Недоступен ({ago})"
 
     def last_error_str(self) -> str:
         if not self.last_error_message:
@@ -223,6 +223,7 @@ async def format_status_report(db: DatabaseManager) -> str:
     async with metrics_lock:
         uptime = metrics.uptime_str()
         api_health = metrics.api_health_str()
+        api_ok = metrics.last_api_ok
         redis_ok = metrics.redis_ok
         last_error = metrics.last_error_str()
         healthcheck_alive = metrics.healthcheck_loop_alive
@@ -245,7 +246,7 @@ async def format_status_report(db: DatabaseManager) -> str:
         _("status-doctors-monitored").format(n=stats["total_monitored_doctors"]),
         "",
         _("status-api-header"),
-        f"{api_health}",
+        f"✅ {api_health}" if api_ok else f"❌ {api_health}",
         "",
         f"🔄 Redis: {redis_status}",
         "",

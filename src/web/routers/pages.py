@@ -35,6 +35,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         async with metrics_lock:
             uptime = health_metrics.uptime_str()
             api_health = health_metrics.api_health_str()
+            api_ok = health_metrics.last_api_ok
             monitor_alive = health_metrics.monitor_loop_alive
             discovery_alive = health_metrics.discovery_tasks_alive
             healthcheck_alive = health_metrics.healthcheck_loop_alive
@@ -59,6 +60,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "active_monitorings": active_monitorings,
                 "uptime": uptime,
                 "api_health": api_health,
+                "api_ok": api_ok,
                 "monitor_alive": monitor_alive,
                 "discovery_alive": discovery_alive,
                 "healthcheck_alive": healthcheck_alive,
