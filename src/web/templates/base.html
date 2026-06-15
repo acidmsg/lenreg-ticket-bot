@@ -9,21 +9,177 @@
 
   <body>
     <nav class="navbar">
-      <div class="nav-brand">📊 zdrav.lenreg Monitor</div>
+      <div class="nav-brand">
+        <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
+          <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
+          <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
+        </svg>
+        zdrav.lenreg Monitor
+      </div>
       <div class="nav-links">
-        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">📊 Сводка</a>
-        <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">
-          👥 Пользователи
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
+            <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
+            <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
+          </svg>
+          Сводка
         </a>
-        <a href="/logs" class="{% if request.url.path == '/logs' %}active{% endif %}">📋 Логи</a>
+        <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
+            <circle cx="10" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
+            <path
+              d="M1 14c0-2.5 2.5-4 5-4s5 1.5 5 4"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M10 10c2.5 0 4.5 1.5 4.5 4"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+          </svg>
+          Пользователи
+        </a>
+        <a href="/logs" class="{% if request.url.path == '/logs' %}active{% endif %}">
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <line
+              x1="5"
+              y1="4"
+              x2="14"
+              y2="4"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <circle cx="2.5" cy="4" r="1" fill="currentColor" />
+            <line
+              x1="5"
+              y1="8"
+              x2="14"
+              y2="8"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <circle cx="2.5" cy="8" r="1" fill="currentColor" />
+            <line
+              x1="5"
+              y1="12"
+              x2="14"
+              y2="12"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <circle cx="2.5" cy="12" r="1" fill="currentColor" />
+          </svg>
+          Логи
+        </a>
         <a href="/clinics" class="{% if request.url.path == '/clinics' %}active{% endif %}">
-          🏥 Клиники
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect
+              x="4"
+              y="5"
+              width="8"
+              height="9"
+              rx="0.5"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <path
+              d="M3 5L8 1.5L13 5"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <rect x="7" y="9" width="2" height="5" stroke="currentColor" stroke-width="1" />
+            <line
+              x1="6.5"
+              y1="3"
+              x2="9.5"
+              y2="3"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+          </svg>
+          Клиники
         </a>
         <a href="/backups" class="{% if request.url.path == '/backups' %}active{% endif %}">
-          💾 Бэкапы
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect
+              x="2"
+              y="2"
+              width="12"
+              height="12"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <path
+              d="M5 7l2 2.5l4-3.5"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle
+              cx="8"
+              cy="10"
+              r="3"
+              stroke="currentColor"
+              stroke-width="1"
+              stroke-dasharray="1.5 1"
+            />
+          </svg>
+          Бэкапы
         </a>
         <a href="/api-status" class="{% if request.url.path == '/api-status' %}active{% endif %}">
-          🔌 API
+          <svg class="nav__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect
+              x="2"
+              y="2"
+              width="12"
+              height="12"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <line
+              x1="4"
+              y1="6"
+              x2="12"
+              y2="6"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <line
+              x1="4"
+              y1="9"
+              x2="10"
+              y2="9"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <line
+              x1="4"
+              y1="12"
+              x2="11"
+              y2="12"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+          </svg>
+          API
         </a>
       </div>
     </nav>
