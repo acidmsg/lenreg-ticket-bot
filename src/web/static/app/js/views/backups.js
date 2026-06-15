@@ -307,10 +307,10 @@ function renderIntegrityBadge(integrity) {
   // Инлайн-SVG иконки 16×16: зелёный круг (ok), красный круг (fail),
   // жёлтый круг (unchecked), серый круг (fallback).
   const svgMap = {
-    ok: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-ok)" stroke-width="1.2" fill="var(--color-ok)" fill-opacity="0.15"/><path d="M5 8l2 2.5 4-3.5" stroke="var(--color-ok)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    fail: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-err)" stroke-width="1.2" fill="var(--color-err)" fill-opacity="0.15"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="var(--color-err)" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    ok: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#09b653" stroke-width="1.2" fill="#09b653" fill-opacity="0.15"/><path d="M5 8l2 2.5 4-3.5" stroke="#09b653" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    fail: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#f85149" stroke-width="1.2" fill="#f85149" fill-opacity="0.15"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#f85149" stroke-width="1.2" stroke-linecap="round"/></svg>',
     unchecked:
-      '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--color-warn)" stroke-width="1.2" fill="var(--color-warn)" fill-opacity="0.15"/><path d="M8 2L1.5 13h13L8 2z" stroke="var(--color-warn)" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9" stroke="var(--color-warn)" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="var(--color-warn)"/></svg>'
+      '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#d29922" stroke-width="1.2" fill="#d29922" fill-opacity="0.15"/><path d="M8 2L1.5 13h13L8 2z" stroke="#d29922" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9" stroke="#d29922" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="#d29922"/></svg>'
   };
   const map = {
     ok: { text: 'Цел', cls: 'backup-integrity--ok' },
