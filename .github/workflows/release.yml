@@ -1,0 +1,74 @@
+name: Production Release Automation
+
+on:
+  release:
+    types: [published] # Запуск только при публикации нового релиза
+
+jobs:
+  # Задача 1: Синхронизация чистого кода в публичный репозиторий
+  sync_to_public:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+
+      - name: Validate project structure
+        run: |
+          if [ ! -d "src" ]; then
+            echo "Критическая ошибка: Директория src/ не найдена."
+            exit 1
+          fi
+
+      - name: Prepare clean release directory
+        run: |
+          mkdir -p clean_release
+          # Копируем только разрешённые для публикации компоненты
+          cp -r src/ clean_release/
+          cp -r locales/ clean_release/
+          cp Dockerfile clean_release/
+          cp docker-compose.yml clean_release/
+          cp README.md clean_release/
+          cp pyproject.toml clean_release/
+          cp poetry.lock clean_release/
+          cp Makefile clean_release/
+          cp .env.example clean_release/
+          cp .dockerignore clean_release/
+          cp .gitattributes clean_release/
+
+      - name: Push to Public Repository
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        with:
+          source-directory: "clean_release"
+          destination-github-username: "acidmsg"
+          destination-repository-name: "lenreg-ticket-bot"
+          user-email: "acidmsg@users.noreply.github.com"
+          target-branch: "main"
+          commit-message: "Release ${{ github.event.release.tag_name }}"
+
+  # Задача 2: Сборка и публикация Docker-образа
+  build_and_push_docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/lenreg-ticket-bot:${{ github.event.release.tag_name }}
+            ghcr.io/${{ github.repository_owner }}/lenreg-ticket-bot:latest

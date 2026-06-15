@@ -1,3 +1,11 @@
+# Двухрепозиторная архитектура (приватный → публичный):
+# Приватный репозиторий (lenreg-ticket-bot--core) содержит весь код, включая
+# тесты, документацию, CI/CD-пайплайны и AI-инструментарий. Публичный репозиторий
+# (lenreg-ticket-bot) получает только чистый код через GitHub Actions release pipeline.
+# Настоящий .gitignore защищает приватный репозиторий от утечки чувствительных и
+# служебных данных. Список исключаемых из публичного репозитория файлов синхронизирован
+# с .github/workflows/release.yml (секция export-ignore).
+
 # Python bytecode and cache files
 *.pyc
 *.pyo
@@ -18,8 +26,8 @@ artifacts/
 
 # Data files and databases
 # data/ — раскомментировать, если нужно игнорировать всю директорию
-# data/bot.db-shm
-# data/bot.db-wal
+data/bot.db-shm
+data/bot.db-wal
 
 # Virtual environments and dependencies
 .venv/
