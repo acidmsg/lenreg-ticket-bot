@@ -1,0 +1,187 @@
+/*
+ * Общие стили для вариантов подсветки календаря
+ * Переменные — копия из продакшен-стилей (тёмная тема)
+ * Базовая сетка 7×6, дни недели, заголовок с навигацией
+ */
+
+/* === Дизайн-токены (тёмная тема «Неоновая плазма») === */
+:root {
+  /* Типографика */
+  --font-family:
+    -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue",
+    arial, sans-serif;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 22px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Отступы */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+
+  /* Радиусы */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Анимации */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+
+  /* Цвета — тёмная тема */
+  --color-bg-primary: #0a0a10;
+  --color-bg-secondary: #12121c;
+  --color-text-primary: #e0e8f8;
+  --color-text-secondary: #89b;
+  --color-accent: #09b653;
+  --color-accent-hover: #07a048;
+  --color-border: rgb(255 255 255 / 8%);
+  --color-border-strong: rgb(255 255 255 / 14%);
+  --color-danger: #ea336f;
+}
+
+/* === Сброс === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* === Контейнер календаря === */
+.calendar {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+  width: 320px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+}
+
+/* === Заголовок месяца === */
+.calendar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xl);
+}
+
+.calendar__title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.calendar__nav {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+
+.calendar__nav:hover {
+  background: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+/* === Дни недели === */
+.calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.calendar__weekday {
+  text-align: center;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  padding: var(--space-xs) 0;
+}
+
+/* === Сетка дней (7 колонок × 6 рядов) === */
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+}
+
+/* === Базовая ячейка дня === */
+.calendar__day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: transparent;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+/* === Дни других месяцев — приглушённые === */
+.calendar__day--other-month {
+  color: #4a5568;
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* === Подсказка под календарём === */
+.calendar__legend {
+  display: flex;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.calendar__legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.calendar__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+}
