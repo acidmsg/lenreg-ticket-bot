@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}API Status — ZdravLenReg Dashboard{% endblock %} {% block
-content %}
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title %}API Status —
+ZdravLenReg Dashboard{% endblock %} {% block content %}
 <h1>Состояние API zdrav.lenreg.ru</h1>
 
 <div class="grid-2col">
@@ -14,9 +14,9 @@ content %}
         <td>Статус</td>
         <td>
           {% if api_ok %}
-          <span class="badge badge-ok">✅ Доступен</span>
+          <span class="badge badge-ok">{{ macros.icon('check')|safe }} Доступен</span>
           {% else %}
-          <span class="badge badge-err">❌ Недоступен</span>
+          <span class="badge badge-err">{{ macros.icon('cross')|safe }} Недоступен</span>
           {% endif %}
         </td>
       </tr>
@@ -74,9 +74,9 @@ content %}
           <td><code>{{ endpoint }}</code></td>
           <td>
             {% if has_drift %}
-            <span class="badge badge-err">⚠️ Расхождение</span>
+            <span class="badge badge-err">{{ macros.icon('warn')|safe }} Расхождение</span>
             {% else %}
-            <span class="badge badge-ok">✅ Совпадает</span>
+            <span class="badge badge-ok">{{ macros.icon('check')|safe }} Совпадает</span>
             {% endif %}
           </td>
         </tr>

@@ -163,6 +163,9 @@ code {
 }
 
 .nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   white-space: nowrap;
@@ -174,6 +177,9 @@ code {
 }
 
 .nav-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--color-text-secondary);
   padding: 0.25rem 0.5rem;
   border-radius: var(--radius-sm);
@@ -181,6 +187,29 @@ code {
   transition:
     background var(--transition-fast),
     color var(--transition-fast);
+}
+
+.nav__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ── Выравнивание SVG-иконок с текстом ─────────────────────────── */
+td svg,
+th svg,
+button svg,
+a svg,
+h1 svg,
+h2 svg,
+h3 svg,
+[class*="--icon"] svg,
+svg.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  flex-shrink: 0;
 }
 
 .nav-links a:hover {

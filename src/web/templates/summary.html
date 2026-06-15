@@ -55,7 +55,7 @@ Dashboard{% endblock %} {% block content %}
         Плановое сканирование врачей
       </label>
       <button class="btn btn--primary" onclick="forceDoctorScan()" style="margin-left: 16px">
-        🔍 Сканировать сейчас
+        {{ macros.icon('search')|safe }} Сканировать сейчас
       </button>
       <span id="scan-status" style="margin-left: 8px; color: var(--color-text-secondary)"></span>
     </div>

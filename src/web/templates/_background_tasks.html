@@ -5,9 +5,9 @@
     <td>monitor_loop</td>
     <td>
       {% if monitor_alive %}
-      <span class="badge badge-ok">✅ alive</span>
+      <span class="badge badge-ok">{{ macros.icon('check')|safe }} alive</span>
       {% else %}
-      <span class="badge badge-err">❌ dead</span>
+      <span class="badge badge-err">{{ macros.icon('cross')|safe }} dead</span>
       {% endif %}
     </td>
   </tr>
@@ -15,9 +15,9 @@
     <td>discovery_tasks</td>
     <td>
       {% if discovery_alive > 0 %}
-      <span class="badge badge-ok">✅ {{ discovery_alive }}</span>
+      <span class="badge badge-ok">{{ macros.icon('check')|safe }} {{ discovery_alive }}</span>
       {% else %}
-      <span class="badge badge-err">❌ 0</span>
+      <span class="badge badge-err">{{ macros.icon('cross')|safe }} 0</span>
       {% endif %}
     </td>
   </tr>
@@ -25,9 +25,9 @@
     <td>healthcheck_loop</td>
     <td>
       {% if healthcheck_alive %}
-      <span class="badge badge-ok">✅ alive</span>
+      <span class="badge badge-ok">{{ macros.icon('check')|safe }} alive</span>
       {% else %}
-      <span class="badge badge-err">❌ dead</span>
+      <span class="badge badge-err">{{ macros.icon('cross')|safe }} dead</span>
       {% endif %}
     </td>
   </tr>

@@ -1,6 +1,368 @@
 <!-- htmlhint-disable doctype-first -->
-{# Общие макросы для шаблонов дашборда. #} {% macro status_badge(status) -%} {% if status ==
-'появился' or status == 'увеличилось' %}
+{# Общие макросы для шаблонов дашборда. #} {# Макрос icon(name) — возвращает inline SVG-иконку
+16×16. Все иконки используют fill="none" + stroke="currentColor" (либо fill="currentColor" для
+монохромных заливок). Класс "icon" позволяет глобально выровнять иконки через CSS. В шаблонах
+использовать: {{ macros.icon('check')|safe }} #} {% macro icon(name) -%} {% if name == 'check' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M5 8l2 2.5 4-3.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'cross' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'warn' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path d="M8 2L1.5 13h13L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+  <line
+    x1="8"
+    y1="6"
+    x2="8"
+    y2="9"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="8" cy="11.5" r="0.6" fill="currentColor" />
+</svg>
+{% elif name == 'search' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.2" />
+  <line
+    x1="10"
+    y1="10"
+    x2="14"
+    y2="14"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'arrow-right' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <line
+    x1="2"
+    y1="8"
+    x2="13"
+    y2="8"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <polyline
+    points="10,5 14,8 10,11"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'arrow-left' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <line
+    x1="14"
+    y1="8"
+    x2="3"
+    y2="8"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <polyline
+    points="6,5 2,8 6,11"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'chart' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
+  <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
+  <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
+</svg>
+{% elif name == 'users' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M1 14c0-2.5 2.5-4 5-4s5 1.5 5 4"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="10" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2" />
+</svg>
+{% elif name == 'log' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <line
+    x1="5"
+    y1="4"
+    x2="14"
+    y2="4"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="2.5" cy="4" r="1" fill="currentColor" />
+  <line
+    x1="5"
+    y1="8"
+    x2="14"
+    y2="8"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="2.5" cy="8" r="1" fill="currentColor" />
+  <line
+    x1="5"
+    y1="12"
+    x2="14"
+    y2="12"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="2.5" cy="12" r="1" fill="currentColor" />
+</svg>
+{% elif name == 'clinic' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="4" y="5" width="8" height="9" rx="0.5" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M3 5L8 1.5L13 5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect x="7" y="9" width="2" height="5" stroke="currentColor" stroke-width="1" />
+  <line
+    x1="6.5"
+    y1="3"
+    x2="9.5"
+    y2="3"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'backup' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.2" />
+  <polyline
+    points="8,5 8,8 10,9.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'api' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <line
+    x1="4"
+    y1="6"
+    x2="12"
+    y2="6"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <line
+    x1="4"
+    y1="9"
+    x2="10"
+    y2="9"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <line
+    x1="4"
+    y1="12"
+    x2="11"
+    y2="12"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'refresh' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path
+    d="M14 8a6 6 0 0 0-10-4.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <polyline
+    points="6,1.5 4,3.5 6,5.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path d="M2 8a6 6 0 0 0 10 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+  <polyline
+    points="10,14.5 12,12.5 10,10.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'filter' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path
+    d="M1 2l5 5.5v5l4-2v-3L15 2H1z"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'calendar' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width="1.2" />
+  <line
+    x1="5"
+    y1="1"
+    x2="5"
+    y2="5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <line
+    x1="11"
+    y1="1"
+    x2="11"
+    y2="5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'clock' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+  <polyline
+    points="8,4 8,8 11,10"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% elif name == 'info' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
+  <line
+    x1="8"
+    y1="5"
+    x2="8"
+    y2="5.01"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <line
+    x1="8"
+    y1="7"
+    x2="8"
+    y2="11"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'settings' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'doctor' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path
+    d="M3 3v5a4 4 0 0 0 8 0V3"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <circle cx="11" cy="9" r="3" stroke="currentColor" stroke-width="1.2" />
+  <path d="M11 6v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+</svg>
+{% elif name == 'patient' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <circle cx="8" cy="4.5" r="3" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M2 14c0-3 2.5-5 6-5s6 2 6 5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'slot' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <line
+    x1="8"
+    y1="3"
+    x2="8"
+    y2="13"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-dasharray="1.5 1"
+  />
+</svg>
+{% elif name == 'link' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <path
+    d="M6 10a3 3 0 0 1 0-4.24L8.12 3.64a3 3 0 0 1 4.24 4.24L10.24 10"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M10 6a3 3 0 0 1 0 4.24L7.88 12.36a3 3 0 0 1-4.24-4.24L5.76 6"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
+{% elif name == 'external' %}
+<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="2" y="4" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.2" />
+  <path
+    d="M11 2h3v3M14 2l-6 6"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
+{% endif %} {%- endmacro %} {% macro status_badge(status) -%} {% if status == 'появился' or status
+== 'увеличилось' %}
 <span class="badge badge-ok">{{ status }}</span>
 {% elif status == 'исчез' or status == 'уменьшилось' %}
 <span class="badge badge-warn">{{ status }}</span>
@@ -9,6 +371,9 @@
 {% endif %} {%- endmacro %} {% macro background_task_row(name, alive) -%}
 <tr>
   <td>{{ name }}</td>
-  <td>{% if alive %}✅ alive{% else %}❌ dead{% endif %}</td>
+  <td>
+    {% if alive %} {{ icon('check')|safe }} alive {% else %} {{ icon('cross')|safe }} dead {% endif
+    %}
+  </td>
 </tr>
 {%- endmacro %}
