@@ -1109,11 +1109,18 @@ export function createDatePicker({ container, value, onChange, min, max }) {
 
       const masked = inputField.value;
 
-      // Если дата полная и валидная — onChange уже всё сделал,
-      // дополнительно ничего не делаем
+      // Если дата полная и валидная — явно подсвечиваем в календаре.
+      // Защитное дублирование: даже если handleInput из createDateInput
+      // не вызвал onChange (например, из-за флага _masking), подсветка
+      // гарантированно сработает.
       if (masked.length === 10) {
         const validation = validateDateString(masked);
         if (validation.valid) {
+          calendar.setValue(masked);
+          const parsed = parseDate(masked);
+          if (parsed) {
+            calendar.goToMonth(parsed.year, parsed.month);
+          }
           return;
         }
         // Полная, но невалидная (например 31.02.2026):

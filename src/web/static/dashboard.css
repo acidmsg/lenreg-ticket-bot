@@ -230,15 +230,27 @@ h2 {
 }
 
 .btn-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
   color: #58a6ff;
   font-size: 0.85rem;
   background: transparent;
   border: none;
+  padding: 4px;
+  border-radius: 4px;
   cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-link:hover {
-  text-decoration: underline;
+  background: #21262d;
+  color: #f0f6fc;
+  text-decoration: none;
 }
 
 /* ── Пагинация ───────────────────────────────────────────────── */

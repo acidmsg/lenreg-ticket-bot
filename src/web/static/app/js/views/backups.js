@@ -42,7 +42,13 @@ function getApiKey() {
 }
 
 /**
- * Выполняет fetch-запрос к API бэкапов.
+ * Таймаут для fetch-запросов (мс). Предотвращает бесконечное зависание
+ * спиннера при потере соединения или зависании сервера.
+ */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/**
+ * Выполняет fetch-запрос к API бэкапов с таймаутом.
  *
  * @param {string} path — путь относительно /api/backups (например, '', '/run')
  * @param {object} [options={}] — параметры fetch
@@ -60,12 +66,19 @@ async function apiFetch(path, options = {}) {
     headers['X-API-Key'] = apiKey;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  return response;
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**
