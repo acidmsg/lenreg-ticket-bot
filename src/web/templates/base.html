@@ -34,14 +34,7 @@
         <a
           href="/"
           class="sidebar__link {% if request.url.path == '/' %}active{% endif %}"
-          {%
-          if
-          request.url.path=""
-          ="/"
-          %}aria-current="page"
-          {%
-          endif
-          %}
+          {% if request.url.path == '/' %}aria-current="page"{% endif %}
         >
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
             <rect x="1" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
