@@ -54,6 +54,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install npm dependencies
+        run: npm ci
+
       - name: Lint Markdown
         run: npx markdownlint "specs/**/*.md" ".roo/**/*.md" "*.md"
 
@@ -139,3 +142,4 @@ jobs:
         run: pytest
         env:
           CI: true
+          BOT_TOKEN: 1234567890:test_bot_token_for_ci
