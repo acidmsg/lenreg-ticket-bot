@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -216,13 +217,13 @@ def _is_lock_busy() -> bool:
 
     Использует ``fcntl.flock`` (Linux/Docker). На Windows всегда возвращает False.
     """
-    lock_path = "/tmp/backup.lock"
-    try:
-        import fcntl  # pyright: ignore[reportUnreachable]
-    except ImportError:
-        # fcntl недоступен (Windows) — пропускаем проверку
+    # Ранний возврат на Windows: fcntl недоступен
+    if sys.platform == "win32":
         return False
 
+    import fcntl
+
+    lock_path = "/tmp/backup.lock"
     try:
         fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
     except OSError:
@@ -230,7 +231,6 @@ def _is_lock_busy() -> bool:
         return False
 
     try:
-        # pyright: ignore[reportAttributeAccessIssue] — flock есть только на Linux
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         fcntl.flock(fd, fcntl.LOCK_UN)
         return False

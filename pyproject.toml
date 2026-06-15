@@ -107,10 +107,6 @@ disable_error_code = ["union-attr", "attr-defined"]
 module = "tests.test_handlers_common"
 disable_error_code = ["union-attr", "attr-defined"]
 
-[[tool.mypy.overrides]]
-module = "src.web.routers.backup_api"
-disable_error_code = ["attr-defined"]
-
 
 [tool.pytest.ini_options]
 minversion = "8.0"
