@@ -315,6 +315,9 @@ async def bootstrap_database() -> tuple[Database, DatabaseManager, ZdravClient]:
     await database.seed_specialty_aliases_from_fallback()
     await database.seed_config_from_defaults()
 
+    # Сидирование клиник и врачей из JSON (если таблица clinics пуста)
+    await database.seed_clinics_and_doctors_from_file()
+
     # Загрузка конфигов из БД (переопределяет значения из settings)
     try:
         from src.config import load_config_from_db

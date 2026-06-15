@@ -12,7 +12,7 @@
 
 param(
   [Parameter(Mandatory = $true, Position = 0)]
-  [ValidateSet("install", "lint", "format", "test", "check", "run", "clean", "lock", "verify-pyproject")]
+  [ValidateSet("install", "lint", "format", "test", "check", "run", "clean", "lock", "verify-pyproject", "seed-db")]
   [string]$Command
 )
 
@@ -144,6 +144,13 @@ function Invoke-VerifyPyproject {
   Write-Host "verify-pyproject: pyproject.toml is valid." -ForegroundColor Green
 }
 
+function Invoke-SeedDb {
+  Write-Host "=== Seed DB ===" -ForegroundColor Cyan
+  docker compose exec bot python scripts/seed_data.py data/bot.db data/seed/clinics_doctors.json --force
+  if ($LASTEXITCODE -ne 0) { throw "Seed DB failed" }
+  Write-Host "Seed DB: done." -ForegroundColor Green
+}
+
 # -----------------------------------------------------------------------------
 # Dispatch
 # -----------------------------------------------------------------------------
@@ -157,4 +164,5 @@ switch ($Command) {
   "clean" { Invoke-Clean }
   "lock" { Invoke-Lock }
   "verify-pyproject" { Invoke-VerifyPyproject }
+  "seed-db" { Invoke-SeedDb }
 }

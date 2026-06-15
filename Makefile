@@ -20,7 +20,7 @@
 
 POETRY := python -m poetry
 
-.PHONY: install lint format test check run clean lock verify-pyproject apply-heuristics apply-heuristic-types
+.PHONY: install lint format test check run clean lock verify-pyproject apply-heuristics apply-heuristic-types seed-db
 
 install:
 	$(POETRY) install
@@ -84,3 +84,6 @@ apply-heuristics:
 
 apply-heuristic-types:
 	python scripts/apply_heuristic_types.py
+
+seed-db:
+	docker compose exec bot python scripts/seed_data.py data/bot.db data/seed/clinics_doctors.json --force

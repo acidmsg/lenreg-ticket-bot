@@ -398,3 +398,28 @@ class Database:
                 e,
                 exc_info=True,
             )
+
+    async def seed_clinics_and_doctors_from_file(
+        self, json_path: str = "data/seed/clinics_doctors.json", force: bool = False
+    ) -> tuple[int, int]:
+        """
+        Загружает клиники и врачей из JSON-файла, если таблица clinics пуста.
+
+        При ``force=True`` выполняет INSERT OR IGNORE даже при непустой таблице.
+        Возвращает (clinics_added, doctors_added).
+        """
+        c = self._conn.conn
+        if c is None:
+            return (0, 0)
+        try:
+            from src.database.seed import seed_clinics_and_doctors_from_json
+
+            return await seed_clinics_and_doctors_from_json(c, json_path, force=force)
+        except Exception as e:
+            logger.error(
+                "Не удалось загрузить seed-данные из {}: {}",
+                json_path,
+                e,
+                exc_info=True,
+            )
+            return (0, 0)
