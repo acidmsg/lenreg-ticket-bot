@@ -45,11 +45,7 @@ class DatabaseConnection:
 
             c.row_factory = aiosqlite.Row
 
-            await self._create_tables()
-            await self._run_migrations()
-            await self._enable_wal()
-
-            # Проверка целостности БД после подключения
+            # Проверка целостности БД до создания таблиц (защита от readonly WAL)
             from src.database.integrity import check_and_recover
 
             try:
@@ -67,6 +63,10 @@ class DatabaseConnection:
                 logger.info(
                     "Переподключение к БД после ошибки integrity check выполнено"
                 )
+
+            await self._create_tables()
+            await self._run_migrations()
+            await self._enable_wal()
 
         except aiosqlite.Error as e:
             logger.error("Ошибка подключения aiosqlite для '{}': {}", self.db_path, e)
