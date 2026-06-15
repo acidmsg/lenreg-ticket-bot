@@ -4,6 +4,9 @@ on:
   release:
     types: [published] # Запуск только при публикации нового релиза
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # Задача 1: Синхронизация чистого кода в публичный репозиторий
   sync_to_public:
