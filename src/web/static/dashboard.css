@@ -1,3 +1,106 @@
+/*
+ * Дашборд — дизайн-система «Здрав.ЛенРег»
+ * Использует те же CSS-переменные, что и мини-приложение (style.css).
+ */
+
+/* === Дизайн-токены (синхронизированы с app/css/style.css) === */
+:root {
+  /* Типографика */
+  --font-family:
+    -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue",
+    arial, sans-serif;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 22px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.6;
+
+  /* Отступы */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  /* Радиусы */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Анимации */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+}
+
+/* === Тёмная тема «Неоновая плазма» (по умолчанию) === */
+:root,
+[data-theme="dark"] {
+  --color-bg-primary: #0a0a10;
+  --color-bg-secondary: #12121c;
+  --color-text-primary: #e0e8f8;
+  --color-text-secondary: #89b;
+  --color-accent: #09b653;
+  --color-accent-text: #0a0a10;
+  --color-accent-hover: #07a048;
+  --color-danger: #ea336f;
+  --color-danger-text: #fff;
+  --color-warning: #f0a030;
+  --color-warning-bg: #3d2e00;
+  --color-info: #79c0ff;
+  --color-info-bg: #0c2d6b;
+  --color-border: rgb(255 255 255 / 8%);
+  --color-border-strong: rgb(255 255 255 / 14%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-md: 0 2px 8px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 4px 16px rgb(0 0 0 / 40%);
+  --status-available: #09b653;
+  --status-noslots: #ea336f;
+  --status-ok-bg: rgb(9 182 83 / 15%);
+  --status-warn-bg: rgb(240 160 48 / 15%);
+  --status-err-bg: rgb(234 51 111 / 15%);
+  --status-info-bg: rgb(121 192 255 / 12%);
+}
+
+/* === Светлая тема «Медицинская чистота» === */
+[data-theme="light"] {
+  --color-bg-primary: #f4f6f9;
+  --color-bg-secondary: #fff;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-accent: #3b82f6;
+  --color-accent-text: #fff;
+  --color-accent-hover: #2563eb;
+  --color-danger: #ef4444;
+  --color-danger-text: #fff;
+  --color-warning: #d97706;
+  --color-warning-bg: #fef3c7;
+  --color-info: #3b82f6;
+  --color-info-bg: #dbeafe;
+  --color-border: rgb(0 0 0 / 8%);
+  --color-border-strong: rgb(0 0 0 / 14%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-md: 0 1px 3px rgb(0 0 0 / 6%);
+  --shadow-lg: 0 4px 12px rgb(0 0 0 / 10%);
+  --status-available: #22c55e;
+  --status-noslots: #ef4444;
+  --status-ok-bg: rgb(34 197 94 / 12%);
+  --status-warn-bg: rgb(217 119 6 / 12%);
+  --status-err-bg: rgb(239 68 68 / 12%);
+  --status-info-bg: rgb(59 130 246 / 12%);
+}
+
 /* ── Сброс и база ─────────────────────────────────────────────── */
 *,
 *::before,
@@ -7,23 +110,31 @@
   padding: 0;
 }
 
+/* Глобальный сброс для ВСЕХ кнопок — фон прозрачный, appearance убран */
+button {
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  line-height: inherit;
+}
+
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  background: #0d1117;
-  color: #c9d1d9;
-  line-height: 1.5;
+  font-family: var(--font-family);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 a {
-  color: #58a6ff;
+  color: var(--color-accent);
   text-decoration: none;
 }
 
@@ -33,16 +144,16 @@ a:hover {
 
 code {
   font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
-  background: #161b22;
+  background: var(--color-bg-secondary);
   padding: 0.1em 0.3em;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 0.9em;
 }
 
 /* ── Навигация ───────────────────────────────────────────────── */
 .navbar {
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-strong);
   padding: 0 1rem;
   display: flex;
   align-items: center;
@@ -52,8 +163,8 @@ code {
 }
 
 .nav-brand {
-  font-weight: 600;
-  color: #f0f6fc;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
@@ -63,24 +174,24 @@ code {
 }
 
 .nav-links a {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.9rem;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .nav-links a:hover {
-  color: #f0f6fc;
-  background: #21262d;
+  color: var(--color-text-primary);
+  background: var(--color-border);
   text-decoration: none;
 }
 
 .nav-links a.active {
-  color: #f0f6fc;
-  background: #1f6feb;
+  color: var(--color-accent-text);
+  background: var(--color-accent);
 }
 
 /* ── Контейнер ────────────────────────────────────────────────── */
@@ -94,25 +205,25 @@ code {
 /* ── Заголовки ───────────────────────────────────────────────── */
 h1 {
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 1rem;
-  color: #f0f6fc;
+  color: var(--color-text-primary);
 }
 
 h2 {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 0.75rem;
-  color: #c9d1d9;
-  border-bottom: 1px solid #30363d;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-strong);
   padding-bottom: 0.5rem;
 }
 
 /* ── Карточки ────────────────────────────────────────────────── */
 .card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 6px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-bottom: 1rem;
 }
@@ -140,13 +251,13 @@ h2 {
 .data-table td {
   padding: 0.5rem 0.75rem;
   text-align: left;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .data-table th {
-  background: #21262d;
-  color: #8b949e;
-  font-weight: 600;
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
@@ -155,11 +266,11 @@ h2 {
 }
 
 .data-table tbody tr:nth-child(even) {
-  background: #0d1117;
+  background: var(--color-bg-primary);
 }
 
 .data-table tbody tr:hover {
-  background: #1c2333;
+  background: var(--color-border);
 }
 
 .info-table {
@@ -169,16 +280,16 @@ h2 {
 
 .info-table td {
   padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .info-table td:first-child {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   width: 40%;
 }
 
 .info-table td:last-child {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 /* ── Бейджи статусов ─────────────────────────────────────────── */
@@ -186,47 +297,47 @@ h2 {
   display: inline-block;
   padding: 0.15em 0.4em;
   font-size: 0.8em;
-  font-weight: 500;
-  border-radius: 3px;
-  background: #21262d;
-  color: #8b949e;
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
+  background: var(--color-border);
+  color: var(--color-text-secondary);
 }
 
 .badge-ok {
-  background: #1b3a2d;
-  color: #7ee787;
+  background: var(--status-ok-bg);
+  color: var(--status-available);
 }
 
 .badge-warn {
-  background: #3d2e00;
-  color: #d29922;
+  background: var(--status-warn-bg);
+  color: var(--color-warning);
 }
 
 .badge-err {
-  background: #3d1114;
-  color: #ff7b72;
+  background: var(--status-err-bg);
+  color: var(--color-danger);
 }
 
 .badge-info {
-  background: #0c2d6b;
-  color: #79c0ff;
+  background: var(--status-info-bg);
+  color: var(--color-info);
 }
 
 /* ── Кнопки и ссылки ─────────────────────────────────────────── */
 .btn {
   display: inline-block;
   padding: 0.4rem 0.8rem;
-  background: #238636;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.85rem;
   font-family: inherit;
 }
 
 .btn:hover {
-  background: #2ea043;
+  background: var(--color-accent-hover);
 }
 
 .btn-link {
@@ -234,22 +345,22 @@ h2 {
   align-items: center;
   justify-content: center;
   appearance: none;
-  color: #58a6ff;
+  color: var(--color-accent);
   font-size: 0.85rem;
   background: transparent;
   border: none;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--transition-fast),
+    color var(--transition-fast);
   -webkit-tap-highlight-color: transparent;
 }
 
 .btn-link:hover {
-  background: #21262d;
-  color: #f0f6fc;
+  background: var(--color-border);
+  color: var(--color-text-primary);
   text-decoration: none;
 }
 
@@ -264,7 +375,7 @@ h2 {
 }
 
 .page-info {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -281,16 +392,16 @@ h2 {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.85rem;
-  color: #8b949e;
+  color: var(--color-text-secondary);
 }
 
 .filter-form input,
 .filter-form select {
-  background: #0d1117;
-  border: 1px solid #30363d;
-  color: #c9d1d9;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary);
   padding: 0.3rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-family: inherit;
 }
@@ -298,12 +409,12 @@ h2 {
 .filter-form input:focus,
 .filter-form select:focus {
   outline: none;
-  border-color: #58a6ff;
+  border-color: var(--color-accent);
 }
 
 /* ── Утилиты ──────────────────────────────────────────────────── */
 .text-muted {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   font-style: italic;
 }
 
@@ -320,15 +431,15 @@ h2 {
 
 /* ── Футер ────────────────────────────────────────────────────── */
 .footer {
-  background: #161b22;
-  border-top: 1px solid #30363d;
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border-strong);
   padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   font-size: 0.8rem;
-  color: #8b949e;
+  color: var(--color-text-secondary);
   flex-shrink: 0;
 }
 
@@ -338,8 +449,8 @@ h2 {
   display: inline-block;
   width: 20px;
   height: 20px;
-  border: 3px solid var(--border-color, #30363d);
-  border-top-color: var(--color-accent, #58a6ff);
+  border: 3px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: backup-spin 0.8s linear infinite;
 }
@@ -355,14 +466,14 @@ h2 {
 }
 
 .backups-page .btn--primary {
-  background-color: var(--color-accent, #58a6ff);
-  color: #fff;
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
   border: none;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 14px;
-  transition: opacity 0.2s;
+  transition: opacity var(--transition-normal);
 }
 
 .backups-page .btn--primary:hover {
@@ -379,15 +490,15 @@ h2 {
   bottom: 20px;
   right: 20px;
   padding: 12px 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: #fff;
   font-size: 14px;
   z-index: 9999;
   opacity: 0;
   transform: translateY(20px);
   transition:
-    opacity 0.3s,
-    transform 0.3s;
+    opacity var(--transition-slow),
+    transform var(--transition-slow);
 }
 
 .backups-page .toast--visible {
@@ -396,13 +507,33 @@ h2 {
 }
 
 .backups-page .toast--success {
-  background-color: #238636;
+  background-color: var(--status-available);
 }
 
 .backups-page .toast--error {
-  background-color: #da3633;
+  background-color: var(--color-danger);
 }
 
 .backups-page .toast--info {
-  background-color: #58a6ff;
+  background-color: var(--color-accent);
+}
+
+/* ── Модальное окно восстановления ────────────────────────────── */
+.backup-modal__close {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.backup-modal__close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-border);
 }

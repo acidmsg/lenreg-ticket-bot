@@ -272,13 +272,29 @@ function renderMonthPicker(container, currentYear, currentMonth, onSelect) {
  * @param {string} [max] — максимальная дата 'YYYY-MM-DD'
  * @returns {string}
  */
-function buildCalendarGridHTML(days, todayISO, selectedISO, min, max) {
+function buildCalendarGridHTML(
+  days,
+  todayISO,
+  selectedISO,
+  min,
+  max,
+  partialDay = null
+) {
   return days
     .map((d) => {
       let cssClass = 'calendar__day';
       if (!d.isCurrentMonth) cssClass += ' calendar__day--other-month';
       if (d.iso === todayISO) cssClass += ' calendar__day--today';
       if (d.iso === selectedISO) cssClass += ' calendar__day--selected';
+      // Подсветка частично выбранного дня: день введён, но год (или месяц) ещё нет
+      if (
+        selectedISO === null &&
+        partialDay !== null &&
+        d.isCurrentMonth &&
+        d.day === partialDay
+      ) {
+        cssClass += ' calendar__day--selected';
+      }
       if (!isDateInRange(d.iso, min, max))
         cssClass += ' calendar__day--disabled';
 
@@ -575,6 +591,9 @@ function determineTargetMonth(partial, today) {
 export function createCalendar({ container, value, onChange, min, max }) {
   // Внутреннее состояние
   let selectedISO = value ? displayToISO(value) : null;
+  // Частично выбранная дата: { day, month, year } — каждое может быть null.
+  // Используется для подсветки дня в календаре, когда полная дата ещё не введена.
+  let partialSelection = { day: null, month: null, year: null };
   const todayISO = getTodayISO();
 
   // Начальный месяц/год: из value или сегодня
@@ -623,7 +642,8 @@ export function createCalendar({ container, value, onChange, min, max }) {
       todayISO,
       selectedISO,
       min,
-      max
+      max,
+      partialSelection.day
     );
     updateNavButtons();
   }
@@ -779,17 +799,33 @@ export function createCalendar({ container, value, onChange, min, max }) {
       if (!dateString) {
         // Очистка выбранной даты: снимаем подсветку
         selectedISO = null;
+        // Не сбрасываем partialSelection — он управляется отдельно через setPartialSelection
         renderGrid();
         return;
       }
       const iso = displayToISO(dateString);
       if (iso) {
         selectedISO = iso;
+        // Полная дата установлена — сбрасываем частичную подсветку
+        partialSelection = { day: null, month: null, year: null };
         const parts = iso.split('-');
         viewYear = parseInt(parts[0], 10);
         viewMonth = parseInt(parts[1], 10);
         renderGrid();
       }
+    },
+
+    /**
+     * Установить частично выбранную дату для подсветки дня в сетке.
+     * Используется когда день введён, но год (или месяц) ещё нет.
+     *
+     * @param {number|null} day
+     * @param {number|null} month
+     * @param {number|null} year
+     */
+    setPartialSelection(day, month, year) {
+      partialSelection = { day, month, year };
+      renderGrid();
     },
 
     /**
@@ -1124,19 +1160,27 @@ export function createDatePicker({ container, value, onChange, min, max }) {
           return;
         }
         // Полная, но невалидная (например 31.02.2026):
-        // навигируем на месяц/год, но снимаем подсветку
+        // навигируем на месяц/год с частичной подсветкой дня
         const partial = parsePartialDate(masked);
         const target = determineTargetMonth(partial, today);
         calendar.setValue(null);
         calendar.goToMonth(target.year, target.month);
+        // Подсвечиваем день, если он распознан
+        calendar.setPartialSelection(partial.day, partial.month, partial.year);
         return;
       }
 
-      // Частичная дата: навигируем календарь, подсветку снимаем
+      // Частичная дата: навигируем календарь с подсветкой дня (если введён)
       const partial = parsePartialDate(masked);
       const target = determineTargetMonth(partial, today);
       calendar.setValue(null);
       calendar.goToMonth(target.year, target.month);
+      // Подсвечиваем день если он есть в частичном вводе, иначе сбрасываем
+      if (partial.day !== null) {
+        calendar.setPartialSelection(partial.day, partial.month, partial.year);
+      } else {
+        calendar.setPartialSelection(null, null, null);
+      }
     });
   }
 
