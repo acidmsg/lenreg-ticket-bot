@@ -495,6 +495,10 @@ export async function renderPatientAddForm(container) {
     dateInput.addEventListener('blur', () => {
       const result = validateBday(dateInput.value);
       setFieldError(dateInput, bdayError, result.error);
+      calendar.hide();
+    });
+    dateInput.addEventListener('focus', () => {
+      calendar.show();
     });
     dateInput.addEventListener('input', () => {
       const len = dateInput.value.trim().length;
