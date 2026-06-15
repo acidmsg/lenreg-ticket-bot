@@ -58,6 +58,10 @@ class PrometheusMetrics:
             "lenreg_ticket_doctors_discovered",
             "Количество новых врачей, обнаруженных при последнем сканировании API",
         )
+        self.doctors_last_scan_timestamp = Gauge(
+            "lenreg_ticket_doctors_last_scan_timestamp",
+            "Unix-время последнего завершённого сканирования врачей",
+        )
         self._redis_connected: Any = Gauge(
             "lenreg_ticket_redis_connected",
             "Статус соединения с Redis (1 = подключен, 0 = отключен)",

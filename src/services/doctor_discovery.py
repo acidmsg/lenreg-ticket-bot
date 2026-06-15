@@ -1,5 +1,6 @@
 import asyncio
 import random
+import time
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
@@ -141,8 +142,9 @@ async def discovery_loop(
                     f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
                 )
 
-        # Устанавливаем метрику по итогам полного цикла
+        # Устанавливаем метрики по итогам полного цикла
         prometheus_metrics._doctors_discovered.set(new_doctors_total)
+        prometheus_metrics.doctors_last_scan_timestamp.set(int(time.time()))
         if new_doctors_total > 0:
             logger.info(
                 "Цикл discovery завершён: {} новых врачей обнаружено",

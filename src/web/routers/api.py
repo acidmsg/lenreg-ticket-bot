@@ -59,9 +59,10 @@ async def api_summary(request: Request) -> dict[str, Any]:
             }
         )
 
-    # Метрика новых врачей за последний скан
+    # Метрики doctor_discovery
     pm = request.app.state.prometheus_metrics
     doctors_discovered = int(pm._doctors_discovered._value.get())
+    doctors_last_scan = int(pm.doctors_last_scan_timestamp._value.get())
 
     return {
         "uptime": uptime_str,
@@ -70,6 +71,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
         "total_patients": stats["total_patients"],
         "total_monitored_doctors": stats["total_monitored_doctors"],
         "doctors_discovered": doctors_discovered,
+        "doctors_last_scan": doctors_last_scan,
         "active_monitorings": active_monitorings,
         "api_status": {
             "accessible": api_ok,

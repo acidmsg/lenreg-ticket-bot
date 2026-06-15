@@ -27,6 +27,12 @@ Dashboard{% endblock %} {% block content %}
         <td>{{ doctors_discovered }}</td>
       </tr>
       <tr>
+        <td>Последний скан</td>
+        <td>
+          {% if doctors_last_scan > 0 %}{{ doctors_last_scan|strftime }}{% else %}не было{% endif %}
+        </td>
+      </tr>
+      <tr>
         <td>Активных мониторингов</td>
         <td>{{ active_monitorings }}</td>
       </tr>
