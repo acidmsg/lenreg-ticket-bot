@@ -1,31 +1,37 @@
-{% extends "base.html" %} {% block title %}Пользователи — LenReg Ticket Bot Dashboard{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Пользователи — LenReg Ticket Bot
+Dashboard{% endblock %} {% block content %}
 <h1>
   Пользователи
   <span class="text-muted">Всего: {{ total }}</span>
 </h1>
 
 {% if users %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>User ID</th>
-      <th>Пациентов</th>
-      <th>Мониторингов</th>
-      <th>Детали</th>
-    </tr>
-  </thead>
-  <tbody>
+<div class="dg-table dg-table--users" role="table" aria-label="Пользователи">
+  <div class="dg-header" role="rowgroup">
+    <div class="dg-cell" role="columnheader">User ID</div>
+    <div class="dg-cell" role="columnheader">Пациентов</div>
+    <div class="dg-cell" role="columnheader">Мониторингов</div>
+    <div class="dg-cell" role="columnheader">Детали</div>
+  </div>
+  <div class="dg-tbody" role="rowgroup">
     {% for u in users %}
-    <tr>
-      <td><code>{{ u.uid }}</code></td>
-      <td>{{ u.patient_count }}</td>
-      <td>{{ u.monitoring_count }}</td>
-      <td><a href="/users/{{ u.uid }}" class="btn-link">Показать</a></td>
-    </tr>
+    <div class="dg-row" role="row">
+      <div class="dg-cell" role="cell" data-label="User ID">
+        <code>{{ u.uid }}</code>
+      </div>
+      <div class="dg-cell" role="cell" data-label="Пациентов">
+        {{ u.patient_count }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Мониторингов">
+        {{ u.monitoring_count }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Детали">
+        <a href="/users/{{ u.uid }}" class="btn-link">Показать</a>
+      </div>
+    </div>
     {% endfor %}
-  </tbody>
-</table>
+  </div>
+</div>
 {% else %}
 <p class="text-muted">Нет зарегистрированных пользователей</p>
 {% endif %} {% endblock %}

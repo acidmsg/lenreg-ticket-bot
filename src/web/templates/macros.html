@@ -1,8 +1,10 @@
 <!-- htmlhint-disable doctype-first -->
-{# Общие макросы для шаблонов дашборда. #} {# Макрос icon(name) — возвращает inline SVG-иконку
-16×16. Все иконки используют fill="none" + stroke="currentColor" (либо fill="currentColor" для
-монохромных заливок). Класс "icon" позволяет глобально выровнять иконки через CSS. В шаблонах
-использовать: {{ macros.icon('check')|safe }} #} {% macro icon(name) -%} {% if name == 'check' %}
+{# Общие макросы для шаблонов дашборда. #} {# Макрос icon(name) — возвращает
+inline SVG-иконку 16×16. Все иконки используют fill="none" +
+stroke="currentColor" (либо fill="currentColor" для монохромных заливок). Класс
+"icon" позволяет глобально выровнять иконки через CSS. В шаблонах использовать:
+{{ macros.icon('check')|safe }} #} {% macro icon(name) -%} {% if name == 'check'
+%}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
   <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" />
   <path
@@ -25,7 +27,12 @@
 </svg>
 {% elif name == 'warn' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <path d="M8 2L1.5 13h13L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+  <path
+    d="M8 2L1.5 13h13L8 2z"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linejoin="round"
+  />
   <line
     x1="8"
     y1="6"
@@ -140,7 +147,15 @@
 </svg>
 {% elif name == 'clinic' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="4" y="5" width="8" height="9" rx="0.5" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="4"
+    y="5"
+    width="8"
+    height="9"
+    rx="0.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <path
     d="M3 5L8 1.5L13 5"
     stroke="currentColor"
@@ -148,7 +163,14 @@
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <rect x="7" y="9" width="2" height="5" stroke="currentColor" stroke-width="1" />
+  <rect
+    x="7"
+    y="9"
+    width="2"
+    height="5"
+    stroke="currentColor"
+    stroke-width="1"
+  />
   <line
     x1="6.5"
     y1="3"
@@ -161,7 +183,15 @@
 </svg>
 {% elif name == 'backup' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="2"
+    y="2"
+    width="12"
+    height="12"
+    rx="1.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.2" />
   <polyline
     points="8,5 8,8 10,9.5"
@@ -173,7 +203,15 @@
 </svg>
 {% elif name == 'api' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="2"
+    y="2"
+    width="12"
+    height="12"
+    rx="1.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <line
     x1="4"
     y1="6"
@@ -217,7 +255,12 @@
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <path d="M2 8a6 6 0 0 0 10 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+  <path
+    d="M2 8a6 6 0 0 0 10 4.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
   <polyline
     points="10,14.5 12,12.5 10,10.5"
     stroke="currentColor"
@@ -237,7 +280,15 @@
 </svg>
 {% elif name == 'calendar' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="2"
+    y="3"
+    width="12"
+    height="11"
+    rx="1.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width="1.2" />
   <line
     x1="5"
@@ -310,7 +361,12 @@
     stroke-linecap="round"
   />
   <circle cx="11" cy="9" r="3" stroke="currentColor" stroke-width="1.2" />
-  <path d="M11 6v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+  <path
+    d="M11 6v2"
+    stroke="currentColor"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
 </svg>
 {% elif name == 'patient' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -324,7 +380,15 @@
 </svg>
 {% elif name == 'slot' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="2"
+    y="3"
+    width="12"
+    height="10"
+    rx="1.5"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <line
     x1="8"
     y1="3"
@@ -352,7 +416,15 @@
 </svg>
 {% elif name == 'external' %}
 <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <rect x="2" y="4" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.2" />
+  <rect
+    x="2"
+    y="4"
+    width="9"
+    height="9"
+    rx="1"
+    stroke="currentColor"
+    stroke-width="1.2"
+  />
   <path
     d="M11 2h3v3M14 2l-6 6"
     stroke="currentColor"
@@ -361,19 +433,20 @@
     stroke-linejoin="round"
   />
 </svg>
-{% endif %} {%- endmacro %} {% macro status_badge(status) -%} {% if status == 'появился' or status
-== 'увеличилось' %}
+{% endif %} {%- endmacro %} {% macro status_badge(status) -%} {% if status ==
+'появился' or status == 'увеличилось' %}
 <span class="badge badge-ok">{{ status }}</span>
 {% elif status == 'исчез' or status == 'уменьшилось' %}
 <span class="badge badge-warn">{{ status }}</span>
 {% else %}
 <span class="badge">{{ status }}</span>
-{% endif %} {%- endmacro %} {% macro background_task_row(name, alive) -%}
-<tr>
-  <td>{{ name }}</td>
-  <td>
-    {% if alive %} {{ icon('check')|safe }} alive {% else %} {{ icon('cross')|safe }} dead {% endif
-    %}
-  </td>
-</tr>
+{% endif %} {%- endmacro %} {% macro background_task_item(name, alive) -%}
+<div class="info-label">{{ name }}</div>
+<div class="info-value">
+  {% if alive %}
+  <span class="badge badge-ok">{{ icon('check')|safe }} alive</span>
+  {% else %}
+  <span class="badge badge-err">{{ icon('cross')|safe }} dead</span>
+  {% endif %}
+</div>
 {%- endmacro %}

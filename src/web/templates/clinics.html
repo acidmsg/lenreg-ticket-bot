@@ -1,27 +1,29 @@
-{% extends "base.html" %} {% block title %}Клиники — LenReg Ticket Bot Dashboard{% endblock %} {%
-block content %}
+{% extends "base.html" %} {% block title %}Клиники — LenReg Ticket Bot
+Dashboard{% endblock %} {% block content %}
 <h1>
   Клиники
   <span class="text-muted">Всего: {{ total }}</span>
 </h1>
 
 {% if clinics %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Название</th>
-      <th>Тип</th>
-      <th>Город</th>
-      <th>Врачей</th>
-    </tr>
-  </thead>
-  <tbody>
+<div class="dg-table dg-table--clinics" role="table" aria-label="Клиники">
+  <div class="dg-header" role="rowgroup">
+    <div class="dg-cell" role="columnheader">ID</div>
+    <div class="dg-cell" role="columnheader">Название</div>
+    <div class="dg-cell" role="columnheader">Тип</div>
+    <div class="dg-cell" role="columnheader">Город</div>
+    <div class="dg-cell" role="columnheader">Врачей</div>
+  </div>
+  <div class="dg-tbody" role="rowgroup">
     {% for clinic in clinics %}
-    <tr>
-      <td><code>{{ clinic.clinic_id }}</code></td>
-      <td>{{ clinic.name }}</td>
-      <td>
+    <div class="dg-row" role="row">
+      <div class="dg-cell" role="cell" data-label="ID">
+        <code>{{ clinic.clinic_id }}</code>
+      </div>
+      <div class="dg-cell" role="cell" data-label="Название">
+        {{ clinic.name }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Тип">
         {% if clinic.type == 'adult' %}
         <span class="badge badge-info">adult</span>
         {% elif clinic.type == 'child' %}
@@ -31,13 +33,17 @@ block content %}
         {% else %}
         <span class="badge">{{ clinic.type }}</span>
         {% endif %}
-      </td>
-      <td>{{ clinic.city }}</td>
-      <td>{{ clinic.doctor_count }}</td>
-    </tr>
+      </div>
+      <div class="dg-cell" role="cell" data-label="Город">
+        {{ clinic.city }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Врачей">
+        {{ clinic.doctor_count }}
+      </div>
+    </div>
     {% endfor %}
-  </tbody>
-</table>
+  </div>
+</div>
 {% else %}
 <p class="text-muted">Нет активных клиник</p>
 {% endif %} {% endblock %}

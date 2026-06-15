@@ -42,6 +42,26 @@
   --transition-fast: 0.1s ease;
   --transition-normal: 0.2s ease;
   --transition-slow: 0.3s ease;
+
+  /* === Боковая панель === */
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 64px;
+  --sidebar-bg: var(--color-bg-secondary);
+  --sidebar-border: var(--color-border-strong);
+  --sidebar-transition: 0.25s ease;
+
+  /* === Точки перелома (как переменные для документации) === */
+  --bp-tablet: 1024px;
+  --bp-mobile: 768px;
+
+  /* === Оверлей === */
+  --overlay-bg: rgb(0 0 0 / 50%);
+  --overlay-z: 90;
+
+  /* === Z-индексы === */
+  --z-sidebar: 100;
+  --z-hamburger: 110;
+  --z-overlay: 90;
 }
 
 /* === Тёмная тема «Неоновая плазма» (по умолчанию) === */
@@ -132,8 +152,10 @@ body {
   color: var(--color-text-primary);
   line-height: var(--line-height-normal);
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr auto;
+  transition: grid-template-columns var(--sidebar-transition);
 }
 
 a {
@@ -153,55 +175,7 @@ code {
   font-size: 0.9em;
 }
 
-/* ── Навигация ───────────────────────────────────────────────── */
-.navbar {
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border-strong);
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  height: 48px;
-  flex-shrink: 0;
-}
-
-.nav-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-}
-
-.nav-links {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nav-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--color-text-secondary);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
-}
-
-.nav__icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-
 /* ── Выравнивание SVG-иконок с текстом ─────────────────────────── */
-td svg,
-th svg,
 button svg,
 a svg,
 h1 svg,
@@ -215,23 +189,178 @@ svg.icon {
   flex-shrink: 0;
 }
 
-.nav-links a:hover {
+/* ── Sidebar (боковая панель) ────────────────────────────────── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden auto;
+  transition: width var(--sidebar-transition);
+  z-index: var(--z-sidebar);
+  grid-row: 1 / -1;
+}
+
+.sidebar--collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+
+.sidebar__brand svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem;
+  flex: 1;
+}
+
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.sidebar__link svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar__link:hover {
   color: var(--color-text-primary);
   background: var(--color-border);
   text-decoration: none;
 }
 
-.nav-links a.active {
+.sidebar__link.active,
+.sidebar__link[aria-current="page"] {
   color: var(--color-accent-text);
   background: var(--color-accent);
 }
 
-/* ── Контейнер ────────────────────────────────────────────────── */
+.sidebar__link-text {
+  opacity: 1;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    opacity var(--sidebar-transition),
+    max-width var(--sidebar-transition);
+}
+
+.sidebar--collapsed .sidebar__link-text {
+  opacity: 0;
+  max-width: 0;
+}
+
+/* ── Sidebar Toggle (кнопка сворачивания) ────────────────────── */
+.sidebar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--sidebar-border);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.sidebar__toggle:hover {
+  color: var(--color-text-primary);
+  background: var(--color-border);
+}
+
+.sidebar__toggle-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--sidebar-transition);
+}
+
+.sidebar--collapsed .sidebar__toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* ── Hamburger (мобильная кнопка меню) ───────────────────────── */
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: var(--z-hamburger);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.hamburger__bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--color-text-primary);
+  border-radius: 1px;
+  transition:
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+/* ── Sidebar Overlay (мобильный backdrop) ─────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: var(--z-overlay);
+}
+
+.sidebar-open .sidebar-overlay {
+  display: block;
+}
+
+/* ── Main Content ─────────────────────────────────────────────── */
 .container {
   max-width: 1280px;
   margin: 0 auto;
   padding: 1.5rem;
-  flex: 1;
 }
 
 /* ── Заголовки ───────────────────────────────────────────────── */
@@ -272,56 +401,89 @@ h2 {
   }
 }
 
-/* ── Таблицы ─────────────────────────────────────────────────── */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
+/* ── Grid-таблицы (бывшие .data-table) ───────────────────────── */
+.dg-table {
+  display: grid;
   font-size: 0.85rem;
+  width: 100%;
 }
 
-.data-table th,
-.data-table td {
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border);
+.dg-header,
+.dg-row {
+  display: contents;
 }
 
-.data-table th {
+.dg-header > .dg-cell {
   background: var(--color-border);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
+  padding: 0.5rem 0.75rem;
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
-.data-table tbody tr:nth-child(even) {
+.dg-row:nth-child(even) > .dg-cell {
   background: var(--color-bg-primary);
 }
 
-.data-table tbody tr:hover {
+.dg-row:hover > .dg-cell {
   background: var(--color-border);
 }
 
-.info-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.info-table td {
-  padding: 0.35rem 0.5rem;
+.dg-cell {
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
 }
 
-.info-table td:first-child {
-  color: var(--color-text-secondary);
-  width: 40%;
+/* Модификаторы колонок */
+.dg-table--clinics {
+  grid-template-columns: 60px 1fr 80px 120px 60px;
 }
 
-.info-table td:last-child {
+.dg-table--users {
+  grid-template-columns: 120px 100px 120px 100px;
+}
+
+.dg-table--logs {
+  grid-template-columns: 80px 1fr 1fr 120px 1fr 100px 100px 120px;
+}
+
+.dg-table--alerts {
+  grid-template-columns: 140px 1fr 1fr 100px;
+}
+
+.dg-table--patients {
+  grid-template-columns: 80px 1fr 100px 1fr;
+}
+
+.dg-table--doctors {
+  grid-template-columns: 80px 1fr 120px 80px;
+}
+
+.dg-table--schemas {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Info Grid (бывшие .info-table) ──────────────────────────── */
+.info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-lg);
+  align-items: baseline;
+}
+
+.info-label {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.info-value {
   font-weight: var(--font-weight-medium);
+  font-size: 0.85rem;
 }
 
 /* ── Бейджи статусов ─────────────────────────────────────────── */
@@ -489,6 +651,7 @@ h2 {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   flex-shrink: 0;
+  grid-column: 2;
 }
 
 /* ── Стили страницы бэкапов (вынесены из Mini App style.css) ──── */
@@ -649,4 +812,130 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Адаптивные медиа-запросы
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Планшет (769px — 1024px): collapsed sidebar по умолчанию ── */
+@media (width <= 1024px) {
+  body {
+    grid-template-columns: var(--sidebar-width-collapsed) 1fr;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+}
+
+/* ── Мобильный (≤768px): overlay sidebar + карточный режим ───── */
+@media (width <= 768px) {
+  body {
+    grid-template-columns: 1fr;
+  }
+
+  /* Sidebar скрыт, выезжает по классу sidebar-open */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    z-index: var(--z-sidebar);
+    transform: translateX(-100%);
+    transition: transform var(--sidebar-transition);
+  }
+
+  .sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar--collapsed {
+    width: var(--sidebar-width);
+  }
+
+  /* На мобильном toggle скрыт */
+  .sidebar__toggle {
+    display: none;
+  }
+
+  /* Hamburger видим */
+  .hamburger {
+    display: flex;
+  }
+
+  /* Футер на полную ширину */
+  .footer {
+    grid-column: 1;
+  }
+
+  .container {
+    padding: 3.5rem 0.75rem 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  h2 {
+    font-size: 1rem;
+  }
+
+  /* Карточный режим для dg-table */
+  .dg-table {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .dg-header {
+    display: none;
+  }
+
+  .dg-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-xs) var(--space-md);
+    padding: var(--space-md);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+  }
+
+  .dg-cell {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  /* Псевдо-лейблы из data-label */
+  .dg-cell::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-xs);
+  }
+
+  /* Стек для info-grid */
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+  }
+
+  .info-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .info-label + .info-value {
+    margin-bottom: var(--space-md);
+  }
+
+  .filter-form {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

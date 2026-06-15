@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}Пользователь {{ uid }} — LenReg Ticket Bot Dashboard{%
-endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}Пользователь {{ uid }} — LenReg
+Ticket Bot Dashboard{% endblock %} {% block content %}
 <h1>
   Пользователь
   <code>{{ uid }}</code>
@@ -16,26 +16,28 @@ endblock %} {% block content %}
 <div class="card">
   <h2>Пациенты ({{ patients|length }})</h2>
   {% if patients %}
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>p_id</th>
-        <th>ФИО</th>
-        <th>ДР</th>
-        <th>Клиники</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div class="dg-table dg-table--patients" role="table" aria-label="Пациенты">
+    <div class="dg-header" role="rowgroup">
+      <div class="dg-cell" role="columnheader">p_id</div>
+      <div class="dg-cell" role="columnheader">ФИО</div>
+      <div class="dg-cell" role="columnheader">ДР</div>
+      <div class="dg-cell" role="columnheader">Клиники</div>
+    </div>
+    <div class="dg-tbody" role="rowgroup">
       {% for p_id, p_info in patients.items() %}
-      <tr>
-        <td><code>{{ p_id }}</code></td>
-        <td>{{ p_info.fio }}</td>
-        <td>{{ p_info.bday }}</td>
-        <td>{{ p_info.confirmed_clinics|join(', ') }}</td>
-      </tr>
+      <div class="dg-row" role="row">
+        <div class="dg-cell" role="cell" data-label="p_id">
+          <code>{{ p_id }}</code>
+        </div>
+        <div class="dg-cell" role="cell" data-label="ФИО">{{ p_info.fio }}</div>
+        <div class="dg-cell" role="cell" data-label="ДР">{{ p_info.bday }}</div>
+        <div class="dg-cell" role="cell" data-label="Клиники">
+          {{ p_info.confirmed_clinics|join(', ') }}
+        </div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
+  </div>
   {% else %}
   <p class="text-muted">Нет пациентов</p>
   {% endif %}
@@ -44,26 +46,37 @@ endblock %} {% block content %}
 <div class="card">
   <h2>Отслеживаемые врачи</h2>
   {% if monitoring %}
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>p_id</th>
-        <th>Врач</th>
-        <th>Специальность</th>
-        <th>Клиника</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p_id, doctors in monitoring.items() %} {% for d_id, d_info in doctors.items() %}
-      <tr>
-        <td><code>{{ p_id }}</code></td>
-        <td>{{ d_info.name }}</td>
-        <td>{{ d_info.specialty }}</td>
-        <td>{{ d_info.clinic_id }}</td>
-      </tr>
+  <div
+    class="dg-table dg-table--doctors"
+    role="table"
+    aria-label="Отслеживаемые врачи"
+  >
+    <div class="dg-header" role="rowgroup">
+      <div class="dg-cell" role="columnheader">p_id</div>
+      <div class="dg-cell" role="columnheader">Врач</div>
+      <div class="dg-cell" role="columnheader">Специальность</div>
+      <div class="dg-cell" role="columnheader">Клиника</div>
+    </div>
+    <div class="dg-tbody" role="rowgroup">
+      {% for p_id, doctors in monitoring.items() %} {% for d_id, d_info in
+      doctors.items() %}
+      <div class="dg-row" role="row">
+        <div class="dg-cell" role="cell" data-label="p_id">
+          <code>{{ p_id }}</code>
+        </div>
+        <div class="dg-cell" role="cell" data-label="Врач">
+          {{ d_info.name }}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Специальность">
+          {{ d_info.specialty }}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Клиника">
+          {{ d_info.clinic_id }}
+        </div>
+      </div>
       {% endfor %} {% endfor %}
-    </tbody>
-  </table>
+    </div>
+  </div>
   {% else %}
   <p class="text-muted">Нет отслеживаемых врачей</p>
   {% endif %}

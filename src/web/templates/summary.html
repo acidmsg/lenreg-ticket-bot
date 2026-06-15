@@ -1,42 +1,29 @@
-{% extends "base.html" %} {% import "macros.html" as macros %} {% block title %}Сводка — LenReg
-Ticket Bot Dashboard{% endblock %} {% block content %}
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}Сводка — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
 <h1>Сводка</h1>
 
 <div class="grid-2col">
   <div class="card">
     <h2>Статус бота</h2>
-    <table class="info-table">
-      <tr>
-        <td>Uptime</td>
-        <td>{{ uptime }}</td>
-      </tr>
-      <tr>
-        <td>Пользователей</td>
-        <td>{{ stats.total_users }}</td>
-      </tr>
-      <tr>
-        <td>Пациентов</td>
-        <td>{{ stats.total_patients }}</td>
-      </tr>
-      <tr>
-        <td>Отслеж. врачей</td>
-        <td>{{ stats.total_monitored_doctors }}</td>
-      </tr>
-      <tr>
-        <td>Новых за скан</td>
-        <td>{{ doctors_discovered }}</td>
-      </tr>
-      <tr>
-        <td>Последний скан</td>
-        <td>
-          {% if doctors_last_scan > 0 %}{{ doctors_last_scan|strftime }}{% else %}не было{% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>Активных мониторингов</td>
-        <td>{{ active_monitorings }}</td>
-      </tr>
-    </table>
+    <div class="info-grid">
+      <div class="info-label">Uptime</div>
+      <div class="info-value">{{ uptime }}</div>
+      <div class="info-label">Пользователей</div>
+      <div class="info-value">{{ stats.total_users }}</div>
+      <div class="info-label">Пациентов</div>
+      <div class="info-value">{{ stats.total_patients }}</div>
+      <div class="info-label">Отслеж. врачей</div>
+      <div class="info-value">{{ stats.total_monitored_doctors }}</div>
+      <div class="info-label">Новых за скан</div>
+      <div class="info-value">{{ doctors_discovered }}</div>
+      <div class="info-label">Последний скан</div>
+      <div class="info-value">
+        {% if doctors_last_scan > 0 %}{{ doctors_last_scan|strftime }}{% else
+        %}не было{% endif %}
+      </div>
+      <div class="info-label">Активных мониторингов</div>
+      <div class="info-value">{{ active_monitorings }}</div>
+    </div>
 
     <div class="scan-controls" style="margin-top: 16px">
       <label class="toggle">
@@ -54,10 +41,17 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
         <span class="toggle__slider"></span>
         Плановое сканирование врачей
       </label>
-      <button class="btn btn--primary" onclick="forceDoctorScan()" style="margin-left: 16px">
+      <button
+        class="btn btn--primary"
+        onclick="forceDoctorScan()"
+        style="margin-left: 16px"
+      >
         {{ macros.icon('search')|safe }} Сканировать сейчас
       </button>
-      <span id="scan-status" style="margin-left: 8px; color: var(--color-text-secondary)"></span>
+      <span
+        id="scan-status"
+        style="margin-left: 8px; color: var(--color-text-secondary)"
+      ></span>
     </div>
   </div>
 
@@ -68,55 +62,57 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
 
   <div class="card">
     <h2>API zdrav.lenreg.ru</h2>
-    <table class="info-table">
-      <tr>
-        <td>Статус</td>
-        <td>
-          {% if api_ok %}
-          <span class="badge badge-ok">{{ api_health }}</span>
-          {% else %}
-          <span class="badge badge-err">{{ api_health }}</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>Успешных проверок</td>
-        <td>{{ api_checks }}</td>
-      </tr>
-      <tr>
-        <td>Ошибок</td>
-        <td>{{ api_errors }}</td>
-      </tr>
-      <tr>
-        <td>Уведомлений отправлено</td>
-        <td>{{ notifications }}</td>
-      </tr>
-    </table>
+    <div class="info-grid">
+      <div class="info-label">Статус</div>
+      <div class="info-value">
+        {% if api_ok %}
+        <span class="badge badge-ok">{{ api_health }}</span>
+        {% else %}
+        <span class="badge badge-err">{{ api_health }}</span>
+        {% endif %}
+      </div>
+      <div class="info-label">Успешных проверок</div>
+      <div class="info-value">{{ api_checks }}</div>
+      <div class="info-label">Ошибок</div>
+      <div class="info-value">{{ api_errors }}</div>
+      <div class="info-label">Уведомлений отправлено</div>
+      <div class="info-value">{{ notifications }}</div>
+    </div>
   </div>
 
   <div class="card">
     <h2>Последние алерты (10)</h2>
     {% if recent_alerts %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Время</th>
-          <th>Пациент</th>
-          <th>Врач</th>
-          <th>Статус</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div
+      class="dg-table dg-table--alerts"
+      role="table"
+      aria-label="Последние алерты"
+    >
+      <div class="dg-header" role="rowgroup">
+        <div class="dg-cell" role="columnheader">Время</div>
+        <div class="dg-cell" role="columnheader">Пациент</div>
+        <div class="dg-cell" role="columnheader">Врач</div>
+        <div class="dg-cell" role="columnheader">Статус</div>
+      </div>
+      <div class="dg-tbody" role="rowgroup">
         {% for log in recent_alerts %}
-        <tr>
-          <td class="cell-nowrap">{{ log.ts|int|strftime }}</td>
-          <td>{{ log.patient_name }}</td>
-          <td>{{ log.doctor_name }}</td>
-          <td>{{ macros.status_badge(log.status) }}</td>
-        </tr>
+        <div class="dg-row" role="row">
+          <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
+            {{ log.ts|int|strftime }}
+          </div>
+          <div class="dg-cell" role="cell" data-label="Пациент">
+            {{ log.patient_name }}
+          </div>
+          <div class="dg-cell" role="cell" data-label="Врач">
+            {{ log.doctor_name }}
+          </div>
+          <div class="dg-cell" role="cell" data-label="Статус">
+            {{ macros.status_badge(log.status) }}
+          </div>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
     {% else %}
     <p class="text-muted">Нет записей в логе</p>
     {% endif %}
@@ -130,20 +126,22 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
 
 <script>
   async function toggleDoctorScan() {
-    const checked = document.getElementById('scan-toggle').checked;
-    const resp = await fetch('/api/dashboard/doctor-scan/toggle', { method: 'POST' });
+    const checked = document.getElementById("scan-toggle").checked;
+    const resp = await fetch("/api/dashboard/doctor-scan/toggle", {
+      method: "POST",
+    });
     const data = await resp.json();
-    document.getElementById('scan-status').textContent = data.doctor_scan_enabled
-      ? 'Включено'
-      : 'Отключено';
+    document.getElementById("scan-status").textContent =
+      data.doctor_scan_enabled ? "Включено" : "Отключено";
   }
 
   async function forceDoctorScan() {
-    document.getElementById('scan-status').textContent = 'Запуск...';
-    await fetch('/api/dashboard/doctor-scan/force', { method: 'POST' });
-    document.getElementById('scan-status').textContent = 'Сканирование запущено';
+    document.getElementById("scan-status").textContent = "Запуск...";
+    await fetch("/api/dashboard/doctor-scan/force", { method: "POST" });
+    document.getElementById("scan-status").textContent =
+      "Сканирование запущено";
     setTimeout(() => {
-      document.getElementById('scan-status').textContent = '';
+      document.getElementById("scan-status").textContent = "";
     }, 5000);
   }
 </script>

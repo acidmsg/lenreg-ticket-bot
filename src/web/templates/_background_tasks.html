@@ -1,34 +1,7 @@
 <!-- htmlhint-disable doctype-first -->
 {# Секция фоновых задач — переиспользуется в summary.html и api_status.html #}
-<table class="info-table">
-  <tr>
-    <td>monitor_loop</td>
-    <td>
-      {% if monitor_alive %}
-      <span class="badge badge-ok">{{ macros.icon('check')|safe }} alive</span>
-      {% else %}
-      <span class="badge badge-err">{{ macros.icon('cross')|safe }} dead</span>
-      {% endif %}
-    </td>
-  </tr>
-  <tr>
-    <td>discovery_tasks</td>
-    <td>
-      {% if discovery_alive > 0 %}
-      <span class="badge badge-ok">{{ macros.icon('check')|safe }} {{ discovery_alive }}</span>
-      {% else %}
-      <span class="badge badge-err">{{ macros.icon('cross')|safe }} 0</span>
-      {% endif %}
-    </td>
-  </tr>
-  <tr>
-    <td>healthcheck_loop</td>
-    <td>
-      {% if healthcheck_alive %}
-      <span class="badge badge-ok">{{ macros.icon('check')|safe }} alive</span>
-      {% else %}
-      <span class="badge badge-err">{{ macros.icon('cross')|safe }} dead</span>
-      {% endif %}
-    </td>
-  </tr>
-</table>
+<div class="info-grid">
+  {{ macros.background_task_item('monitor_loop', monitor_alive) }} {{
+  macros.background_task_item('discovery_tasks', discovery_alive > 0) }} {{
+  macros.background_task_item('healthcheck_loop', healthcheck_alive) }}
+</div>

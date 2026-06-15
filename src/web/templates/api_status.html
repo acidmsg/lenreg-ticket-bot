@@ -1,56 +1,44 @@
-{% extends "base.html" %} {% import "macros.html" as macros %} {% block title %}API Status — LenReg
-Ticket Bot Dashboard{% endblock %} {% block content %}
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}API Status — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
 <h1>Состояние API zdrav.lenreg.ru</h1>
 
 <div class="grid-2col">
   <div class="card">
     <h2>Статус</h2>
-    <table class="info-table">
-      <tr>
-        <td>Последняя проверка</td>
-        <td>{{ seconds_ago }}с назад</td>
-      </tr>
-      <tr>
-        <td>Статус</td>
-        <td>
-          {% if api_ok %}
-          <span class="badge badge-ok">{{ macros.icon('check')|safe }} Доступен</span>
-          {% else %}
-          <span class="badge badge-err">{{ macros.icon('cross')|safe }} Недоступен</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>Длительность</td>
-        <td>{{ "%.2f"|format(check_duration) }}с</td>
-      </tr>
-    </table>
+    <div class="info-grid">
+      <div class="info-label">Последняя проверка</div>
+      <div class="info-value">{{ seconds_ago }}с назад</div>
+      <div class="info-label">Статус</div>
+      <div class="info-value">
+        {% if api_ok %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} Доступен</span
+        >
+        {% else %}
+        <span class="badge badge-err"
+          >{{ macros.icon('cross')|safe }} Недоступен</span
+        >
+        {% endif %}
+      </div>
+      <div class="info-label">Длительность</div>
+      <div class="info-value">{{ "%.2f"|format(check_duration) }}с</div>
+    </div>
   </div>
 
   <div class="card">
     <h2>Статистика</h2>
-    <table class="info-table">
-      <tr>
-        <td>Всего проверок</td>
-        <td>{{ checks_total }}</td>
-      </tr>
-      <tr>
-        <td>Успешных</td>
-        <td>{{ checks_total - errors_total }}</td>
-      </tr>
-      <tr>
-        <td>Ошибок</td>
-        <td>{{ errors_total }}</td>
-      </tr>
-      <tr>
-        <td>Доступность</td>
-        <td>{{ "%.2f"|format(availability) }}%</td>
-      </tr>
-      <tr>
-        <td>Последняя ошибка</td>
-        <td>{{ last_error or '—' }}</td>
-      </tr>
-    </table>
+    <div class="info-grid">
+      <div class="info-label">Всего проверок</div>
+      <div class="info-value">{{ checks_total }}</div>
+      <div class="info-label">Успешных</div>
+      <div class="info-value">{{ checks_total - errors_total }}</div>
+      <div class="info-label">Ошибок</div>
+      <div class="info-value">{{ errors_total }}</div>
+      <div class="info-label">Доступность</div>
+      <div class="info-value">{{ "%.2f"|format(availability) }}%</div>
+      <div class="info-label">Последняя ошибка</div>
+      <div class="info-value">{{ last_error or '—' }}</div>
+    </div>
   </div>
 
   <div class="card">
@@ -61,31 +49,36 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
   <div class="card">
     <h2>Схемы API (schema_watcher)</h2>
     {% if schema_status %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Endpoint</th>
-          <th>Статус</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="dg-table dg-table--schemas" role="table" aria-label="Схемы API">
+      <div class="dg-header" role="rowgroup">
+        <div class="dg-cell" role="columnheader">Endpoint</div>
+        <div class="dg-cell" role="columnheader">Статус</div>
+      </div>
+      <div class="dg-tbody" role="rowgroup">
         {% for endpoint, has_drift in schema_status.items() %}
-        <tr>
-          <td><code>{{ endpoint }}</code></td>
-          <td>
+        <div class="dg-row" role="row">
+          <div class="dg-cell" role="cell" data-label="Endpoint">
+            <code>{{ endpoint }}</code>
+          </div>
+          <div class="dg-cell" role="cell" data-label="Статус">
             {% if has_drift %}
-            <span class="badge badge-err">{{ macros.icon('warn')|safe }} Расхождение</span>
+            <span class="badge badge-err"
+              >{{ macros.icon('warn')|safe }} Расхождение</span
+            >
             {% else %}
-            <span class="badge badge-ok">{{ macros.icon('check')|safe }} Совпадает</span>
+            <span class="badge badge-ok"
+              >{{ macros.icon('check')|safe }} Совпадает</span
+            >
             {% endif %}
-          </td>
-        </tr>
+          </div>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
     {% else %}
     <p class="text-muted">
-      Проверка схем API ещё не выполнялась (ожидание первого цикла schema_watcher)
+      Проверка схем API ещё не выполнялась (ожидание первого цикла
+      schema_watcher)
     </p>
     {% endif %}
   </div>
