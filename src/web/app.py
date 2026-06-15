@@ -87,7 +87,7 @@ def create_app(
 ) -> FastAPI:
     """Фабрика FastAPI-приложения веб-дашборда и Mini App."""
     app = FastAPI(
-        title="ZdravLenReg Dashboard",
+        title="LenReg Ticket Bot Dashboard",
         description="Веб-дашборд мониторинга zdrav.lenreg.ru",
         version="1.0.0",
         lifespan=lifespan,

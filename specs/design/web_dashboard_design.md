@@ -248,7 +248,7 @@ def get_redis(request: Request) -> RedisClient:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│  [zdrav.lenreg Monitor]                    Uptime: 2д 5ч 31м │
+│  [lenreg-ticket-bot Monitor]               Uptime: 2д 5ч 31м │
 ├──────────────────────────────────────────────────────────────┤
 │  [Сводка] [Пользователи] [Логи] [Клиники] [API Status]       │
 ├──────────────────────────────────────────────────────────────┤
@@ -256,7 +256,7 @@ def get_redis(request: Request) -> RedisClient:
 │  {% block content %}{% endblock %}                           │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
-│  zdrav.lenreg Monitor v1.0.0 | Prometheus: :9090 | Bot: alive│
+│  lenreg-ticket-bot Monitor v1.0.0 | Prometheus: :9090 | Bot: alive│
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -745,20 +745,20 @@ dependencies = [
 
 ```yaml
 tags:
-  - name: "Веб-дашборд (FastAPI)"
-    description: "HTML-страницы и JSON API для мониторинга (read-only, порт 8080)"
+  - name: 'Веб-дашборд (FastAPI)'
+    description: 'HTML-страницы и JSON API для мониторинга (read-only, порт 8080)'
 
 paths:
   /:
     get:
-      tags: ["Веб-дашборд (FastAPI)"]
-      summary: "Главная страница дашборда — сводка"
+      tags: ['Веб-дашборд (FastAPI)']
+      summary: 'Главная страница дашборда — сводка'
       # ...
 
   /api/dashboard/summary:
     get:
-      tags: ["Веб-дашборд (FastAPI)"]
-      summary: "JSON-сводка состояния системы"
+      tags: ['Веб-дашборд (FastAPI)']
+      summary: 'JSON-сводка состояния системы'
       # ...
 ```
 

@@ -1,4 +1,4 @@
-# zdrav.lenreg — Telegram-бот мониторинга слотов записи к врачу
+# lenreg-ticket-bot — Telegram-бот мониторинга слотов записи к врачу
 
 Telegram-бот для отслеживания появления свободных талонов (слотов) на портале [zdrav.lenreg.ru](https://zdrav.lenreg.ru). Позволяет выбрать врача, настроить фоновый мониторинг и получать уведомления при появлении или исчезновении слотов.
 
@@ -85,7 +85,7 @@ src/
 
 ```bash
 git clone https://github.com/acidmsg/lenreg_ticket_bot.git
-cd zdrav.lenreg
+cd lenreg-ticket-bot
 ```
 
 ### 2. Настройка окружения
@@ -132,7 +132,7 @@ redis-server
 **Через Docker:**
 
 ```bash
-docker run -d --name zdrav_redis -p 6379:6379 redis:7-alpine
+docker run -d --name lenreg_ticket_redis -p 6379:6379 redis:7-alpine
 ```
 
 ### 5. Запуск бота

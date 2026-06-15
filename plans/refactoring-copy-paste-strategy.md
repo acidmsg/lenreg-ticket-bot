@@ -454,8 +454,8 @@ src/web/static/app/js/utils/
 
 ```bash
 ssh -i C:/Users/acidgrip/.ssh/vps_zdrav_nopass -p 2244 root@195.58.39.52
-cd /root/zdrav.lenreg && git pull origin mini_app_beta && docker compose up -d --build bot
-docker compose -f /root/zdrav.lenreg/docker-compose.yml logs bot --tail=50
+cd /root/lenreg-ticket-bot && git pull origin mini_app_beta && docker compose up -d --build bot
+docker compose -f /root/lenreg-ticket-bot/docker-compose.yml logs bot --tail=50
 ```
 
 ---

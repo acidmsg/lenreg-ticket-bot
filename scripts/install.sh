@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ===========================================================================
-# Интерактивный установочный скрипт zdrav.lenreg
+# Интерактивный установочный скрипт lenreg-ticket-bot
 #
 # Поддерживает два режима запуска:
 #   1. Из клонированного репозитория:  bash scripts/install.sh
@@ -57,7 +57,7 @@ ask() {
 # Баннер
 echo ""
 echo -e "${GREEN}============================================================${NC}"
-echo -e "${GREEN}   Установка zdrav.lenreg — Telegram бот + Mini App          ${NC}"
+echo -e "${GREEN}   Установка lenreg-ticket-bot — Telegram бот + Mini App     ${NC}"
 echo -e "${GREEN}============================================================${NC}"
 echo ""
 
@@ -118,7 +118,7 @@ else
     REPO_URL="git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
     info "Используется SSH для клонирования"
 fi
-INSTALL_DIR="${HOME}/zdrav.lenreg"
+INSTALL_DIR="${HOME}/lenreg-ticket-bot"
 
 # Определяем, запущен ли скрипт изнутри репозитория
 # Признак: наличие docker-compose.yml и .env.example в текущей директории
@@ -443,7 +443,7 @@ info "Сборка Docker-образа..."
 docker compose build --no-cache
 
 # Принудительная остановка и удаление старых контейнеров (могли быть созданы вне compose)
-docker rm -f zdrav_redis zdrav_qdrant zdrav_bot 2>/dev/null || true
+docker rm -f lenreg_ticket_redis lenreg_ticket_qdrant lenreg_ticket_bot 2>/dev/null || true
 # Остановка через compose (для контейнеров, созданных через compose)
 docker compose down --remove-orphans 2>/dev/null || true
 

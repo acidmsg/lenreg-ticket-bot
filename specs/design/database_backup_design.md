@@ -13,7 +13,7 @@
 Проект уже содержит рабочий скрипт резервного копирования [`scripts/backup.sh`](../../scripts/backup.sh), который:
 
 - **SQLite:** использует `sqlite3 .backup` — это **правильный** метод для WAL-режима (блокирует БД на время копирования, но гарантирует консистентность)
-- **Redis:** выполняет `SAVE` и копирует `dump.rdb` из Docker-тома `zdravlenreg_redis_data`
+- **Redis:** выполняет `SAVE` и копирует `dump.rdb` из Docker-тома `lenreg_ticket_redis_data`
 - **Ротация:** хранит последние 7 ежедневных бэкапов в `/root/backups/`
 - **Запуск:** рассчитан на cron с хоста (ежедневно в 03:00 МСК)
 
@@ -39,7 +39,7 @@
 
 ### 1.4 Контекст развёртывания
 
-- **VPS:** 195.58.39.52, root, проект в `/root/zdrav.lenreg`
+- **VPS:** 195.58.39.52, root, проект в `/root/lenreg-ticket-bot`
 - **Docker Compose:** bot (aiogram + aiohttp), redis (7.2-alpine), qdrant (v1.9.0)
 - **БД:** SQLite WAL, путь `data/bot.db`, монтируется как bind mount `./data:/app/data`
 - **Контейнер:** `python:3.11-slim`, пользователь `appuser` (UID/GID не-root)
@@ -186,7 +186,7 @@ flowchart TD
 ### 5.2 Метод `.backup`
 
 ```bash
-sqlite3 /root/zdrav.lenreg/data/bot.db ".backup '/root/backups/daily/bot_20260614.db'"
+sqlite3 /root/lenreg-ticket-bot/data/bot.db ".backup '/root/backups/daily/bot_20260614.db'"
 ```
 
 Что происходит:
@@ -300,20 +300,20 @@ rclone copy /root/backups/monthly/ remote:zdrav-backups/
 Текущая cron-запись (из [`backup.sh:16`](../../scripts/backup.sh:16)):
 
 ```text
-0 3 * * * /root/zdrav.lenreg/scripts/backup.sh >> /root/backups/backup.log 2>&1
+0 3 * * * /root/lenreg-ticket-bot/scripts/backup.sh >> /root/backups/backup.log 2>&1
 ```
 
 Модифицированная версия с алертами:
 
 ```text
 # Ежедневный бэкап (03:00 МСК = 00:00 UTC)
-0 0 * * * /root/zdrav.lenreg/scripts/backup.sh daily >> /root/backups/backup.log 2>&1
+0 0 * * * /root/lenreg-ticket-bot/scripts/backup.sh daily >> /root/backups/backup.log 2>&1
 
 # Недельный бэкап (воскресенье)
-0 0 * * 0 /root/zdrav.lenreg/scripts/backup.sh weekly >> /root/backups/backup.log 2>&1
+0 0 * * 0 /root/lenreg-ticket-bot/scripts/backup.sh weekly >> /root/backups/backup.log 2>&1
 
 # Месячный бэкап (1-е число)
-0 0 1 * * /root/zdrav.lenreg/scripts/backup.sh monthly >> /root/backups/backup.log 2>&1
+0 0 1 * * /root/lenreg-ticket-bot/scripts/backup.sh monthly >> /root/backups/backup.log 2>&1
 ```
 
 ### 8.2 Альтернатива: ofelia (Docker-native)
@@ -324,7 +324,7 @@ rclone copy /root/backups/monthly/ remote:zdrav-backups/
 # docker-compose.yml (фрагмент)
 ofelia:
   image: mcuadros/ofelia:latest
-  container_name: zdrav_ofelia
+  container_name: lenreg_ticket_ofelia
   depends_on:
     - bot
   volumes:
@@ -427,37 +427,37 @@ fi
 
 ```bash
 # 1. Остановить бота (чтобы не писал в БД во время восстановления)
-docker compose -f /root/zdrav.lenreg/docker-compose.yml stop bot
+docker compose -f /root/lenreg-ticket-bot/docker-compose.yml stop bot
 
 # 2. Сделать резервную копию текущей (возможно, повреждённой) БД
-cp /root/zdrav.lenreg/data/bot.db /root/zdrav.lenreg/data/bot.db.broken
-cp /root/zdrav.lenreg/data/bot.db-wal /root/zdrav.lenreg/data/bot.db-wal.broken 2>/dev/null || true
-cp /root/zdrav.lenreg/data/bot.db-shm /root/zdrav.lenreg/data/bot.db-shm.broken 2>/dev/null || true
+cp /root/lenreg-ticket-bot/data/bot.db /root/lenreg-ticket-bot/data/bot.db.broken
+cp /root/lenreg-ticket-bot/data/bot.db-wal /root/lenreg-ticket-bot/data/bot.db-wal.broken 2>/dev/null || true
+cp /root/lenreg-ticket-bot/data/bot.db-shm /root/lenreg-ticket-bot/data/bot.db-shm.broken 2>/dev/null || true
 
 # 3. Удалить WAL/SHM (будут созданы заново)
-rm -f /root/zdrav.lenreg/data/bot.db-wal /root/zdrav.lenreg/data/bot.db-shm
+rm -f /root/lenreg-ticket-bot/data/bot.db-wal /root/lenreg-ticket-bot/data/bot.db-shm
 
 # 4. Скопировать бэкап на место
-cp /root/backups/daily/bot_20260613.db /root/zdrav.lenreg/data/bot.db
+cp /root/backups/daily/bot_20260613.db /root/lenreg-ticket-bot/data/bot.db
 
 # 5. Проверить целостность восстановленной БД
-sqlite3 /root/zdrav.lenreg/data/bot.db "PRAGMA integrity_check"
+sqlite3 /root/lenreg-ticket-bot/data/bot.db "PRAGMA integrity_check"
 # Должно вывести: ok
 
 # 6. Права доступа (важно: контейнер работает под appuser)
-chown -R 1000:1000 /root/zdrav.lenreg/data/
+chown -R 1000:1000 /root/lenreg-ticket-bot/data/
 
 # 7. Запустить бота
-docker compose -f /root/zdrav.lenreg/docker-compose.yml start bot
+docker compose -f /root/lenreg-ticket-bot/docker-compose.yml start bot
 ```
 
 ### 10.2 Восстановление Redis (опционально)
 
 ```bash
-docker compose -f /root/zdrav.lenreg/docker-compose.yml stop redis
+docker compose -f /root/lenreg-ticket-bot/docker-compose.yml stop redis
 cp /root/backups/redis/dump_20260613.rdb \
-   /var/lib/docker/volumes/zdravlenreg_redis_data/_data/dump.rdb
-docker compose -f /root/zdrav.lenreg/docker-compose.yml start redis
+   /var/lib/docker/volumes/lenreg_ticket_redis_data/_data/dump.rdb
+docker compose -f /root/lenreg-ticket-bot/docker-compose.yml start redis
 ```
 
 ### 10.3 Частичное восстановление (отдельные таблицы)
@@ -468,7 +468,7 @@ sqlite3 /root/backups/daily/bot_20260613.db \
   ".dump user_patients" > /tmp/restore_user_patients.sql
 
 # Применить к рабочей БД
-sqlite3 /root/zdrav.lenreg/data/bot.db < /tmp/restore_user_patients.sql
+sqlite3 /root/lenreg-ticket-bot/data/bot.db < /tmp/restore_user_patients.sql
 ```
 
 ---
@@ -914,13 +914,13 @@ src/web/
 Скрипты должны поддерживать параметризацию путей через переменные окружения,
 чтобы работать как на хосте, так и в контейнере:
 
-| Переменная       | Хост (cron)                | Контейнер (веб)           |
-| ---------------- | -------------------------- | ------------------------- |
-| `PROJECT_DIR`    | `/root/zdrav.lenreg`       | `/app`                    |
-| `BACKUP_DIR`     | `/root/backups`            | `/app/backups`            |
-| `DATA_DIR`       | `/root/zdrav.lenreg/data`  | `/app/data`               |
-| `DOCKER_COMPOSE` | `docker compose`           | `echo` (no-op)            |
-| `LOG_FILE`       | `/root/backups/backup.log` | `/app/backups/backup.log` |
+| Переменная       | Хост (cron)                    | Контейнер (веб)           |
+| ---------------- | ------------------------------ | ------------------------- |
+| `PROJECT_DIR`    | `/root/lenreg-ticket-bot`      | `/app`                    |
+| `BACKUP_DIR`     | `/root/backups`                | `/app/backups`            |
+| `DATA_DIR`       | `/root/lenreg-ticket-bot/data` | `/app/data`               |
+| `DOCKER_COMPOSE` | `docker compose`               | `echo` (no-op)            |
+| `LOG_FILE`       | `/root/backups/backup.log`     | `/app/backups/backup.log` |
 
 Скрипт читает эти переменные с дефолтными значениями (хостовые пути), веб-API
 устанавливает контейнерные пути перед вызовом `subprocess.run(..., env={...})`.

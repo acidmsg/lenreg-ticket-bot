@@ -61,7 +61,7 @@ jobs:
         run: npx prettier --check "specs/**/*.md" ".roo/**/*.md" "*.md"
 
       - name: Build Docker image
-        run: docker build -t zdrav-bot .
+        run: docker build -t lenreg-ticket-bot .
 
   typecheck:
     runs-on: ubuntu-latest

@@ -19,7 +19,7 @@
 
 ```mermaid
 gantt
-    title Дорожная карта исправлений zdrav.lenreg
+    title Дорожная карта исправлений lenreg-ticket-bot
     dateFormat  YYYY-MM-DD
     axisFormat  %d.%m
 

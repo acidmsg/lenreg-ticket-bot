@@ -1,5 +1,5 @@
 """
-Точка входа в Telegram-бота zdrav.lenreg.
+Точка входа в Telegram-бота lenreg-ticket-bot.
 
 Запускает aiogram-поллинг, фоновые задачи (мониторинг, discovery,
 healthcheck, очистка), Prometheus-метрики и веб-дашборд.

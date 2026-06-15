@@ -1,5 +1,5 @@
 # =============================================================================
-# tasks.ps1 - PowerShell task runner for zdrav.lenreg
+# tasks.ps1 - PowerShell task runner for lenreg-ticket-bot
 # =============================================================================
 # Usage: .\tasks.ps1 <command>
 # Commands: install, lint, format, test, check, run, clean, lock, verify-pyproject

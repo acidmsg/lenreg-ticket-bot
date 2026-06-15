@@ -1,4 +1,4 @@
-# Дизайн интернационализации (i18n) для zdrav.lenreg
+# Дизайн интернационализации (i18n) для lenreg-ticket-bot
 
 > **Задача:** F4 — Интернационализация
 > **Статус:** Проектирование
@@ -503,7 +503,7 @@ settlements_data = load_json_data("settlements.json")
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: zdrav.lenreg 1.0.0\n"
+"Project-Id-Version: lenreg-ticket-bot 1.0.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-19 12:00+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"

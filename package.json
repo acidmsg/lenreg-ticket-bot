@@ -1,5 +1,5 @@
 {
-  "name": "zdrav.lenreg",
+  "name": "lenreg-ticket-bot",
   "version": "1.0.0",
   "description": "Telegram-бот для мониторинга доступных талонов (слотов) на портале zdrav.lenreg.ru.",
   "main": "index.js",

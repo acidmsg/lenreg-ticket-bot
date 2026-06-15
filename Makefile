@@ -1,5 +1,5 @@
 # =============================================================================
-# Makefile - unified task interface for zdrav.lenreg
+# Makefile - unified task interface for lenreg-ticket-bot
 # =============================================================================
 # This Makefile delegates to PowerShell on Windows; on Linux/macOS it runs
 # the commands directly via Poetry.

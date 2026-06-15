@@ -215,9 +215,9 @@ ENVIRONMENT=production
 
 ```yaml
 ports:
-  - "127.0.0.1:9090:9090"
+  - '127.0.0.1:9090:9090'
   # Mini App / веб-дашборд — открыт для Cloudflare Proxy (порт 8080)
-  - "0.0.0.0:8080:8080"
+  - '0.0.0.0:8080:8080'
 ```
 
 Никаких изменений в `docker-compose.yml` не требуется.
@@ -268,7 +268,7 @@ cat ~/.ssh/id_ed25519.pub
 ```bash
 # Клонировать репозиторий
 git clone git@github.com:acidmsg/lenreg_ticket_bot.git
-cd zdrav.lenreg
+cd lenreg-ticket-bot
 
 # Переключиться на ветку mini_app_beta
 git checkout mini_app_beta
@@ -284,7 +284,7 @@ git checkout mini_app_beta
 
 ```bash
 # С локальной машины (Windows PowerShell):
-scp env.vps user@VPS_IP:/path/to/zdrav.lenreg/.env
+scp env.vps user@VPS_IP:/path/to/lenreg-ticket-bot/.env
 ```
 
 Замените `user`, `VPS_IP` и `/path/to/zdrav.lenreg` на актуальные значения.
@@ -335,9 +335,9 @@ docker compose ps
 
 ```text
 NAME                STATUS
-zdrav_redis         Up (healthy)
-zdrav_qdrant        Up
-zdrav_bot           Up
+lenreg_ticket_redis         Up (healthy)
+lenreg_ticket_qdrant        Up
+lenreg_ticket_bot           Up
 ```
 
 ### 7.2. Проверка логов
@@ -372,7 +372,7 @@ docker compose down && docker compose up -d --build
 ssh user@VPS_IP
 
 # Перейти в директорию проекта
-cd /path/to/zdrav.lenreg
+cd /path/to/lenreg-ticket-bot
 
 # Получить последние изменения
 git pull origin mini_app_beta
@@ -385,7 +385,7 @@ docker compose up -d --build
 docker compose logs -f --tail=50 bot
 ```
 
-Замените `user`, `VPS_IP` и `/path/to/zdrav.lenreg` на актуальные значения.
+Замените `user`, `VPS_IP` и `/path/to/lenreg-ticket-bot` на актуальные значения.
 
 ## 9. Регистрация Mini App в BotFather
 
@@ -448,7 +448,7 @@ HTTP/2 401
 
 ```bash
 # Зайти в контейнер
-docker exec -it zdrav_bot bash
+docker exec -it lenreg_ticket_bot bash
 
 # Проверить, что FastAPI слушает порт
 curl -s http://localhost:8080/app/ | head -20
@@ -461,7 +461,7 @@ curl -s http://localhost:8080/api/health
 
 ### 11.1. ERR_CONNECTION_REFUSED (браузер)
 
-**Причина:** Порт 8080 закрыт в файрволе VPS, или контейнер `zdrav_bot` не запущен.
+**Причина:** Порт 8080 закрыт в файрволе VPS, или контейнер `lenreg_ticket_bot` не запущен.
 
 **Решение:**
 
@@ -470,7 +470,7 @@ curl -s http://localhost:8080/api/health
 docker compose ps
 
 # Проверить, слушает ли порт 8080 внутри контейнера
-docker exec zdrav_bot ss -tlnp | grep 8080
+docker exec lenreg_ticket_bot ss -tlnp | grep 8080
 
 # Проверить файрвол
 sudo ufw status
@@ -516,7 +516,7 @@ sudo iptables -L -n | grep 8080
 3. Проверьте, что `ENVIRONMENT=production` (при `development` middleware принимает заголовок `bypass`, что допустимо только для локальной отладки).
 4. Проверьте логи контейнера: `docker compose logs bot | grep -i "initdata\|403\|hash"`.
 
-### 11.6. Контейнер zdrav_bot перезапускается (restart loop)
+### 11.6. Контейнер lenreg_ticket_bot перезапускается (restart loop)
 
 **Решение:**
 

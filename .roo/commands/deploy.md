@@ -1,5 +1,5 @@
 ---
-description: "Безопасный деплой: линтинг + тесты → деплой на VPS → проверка"
+description: 'Безопасный деплой: линтинг + тесты → деплой на VPS → проверка'
 ---
 
 Ты должен выполнить безопасный деплой проекта на VPS в три этапа.
@@ -13,11 +13,11 @@ description: "Безопасный деплой: линтинг + тесты →
 
 - Только если Этап 1 прошёл успешно.
 - Подключись по SSH: `ssh -i C:/Users/acidgrip/.ssh/vps_zdrav_nopass -p 2244 root@195.58.39.52`
-- Выполни: `cd /root/zdrav.lenreg && git pull origin mini_app_beta && docker compose up -d --build bot`
+- Выполни: `cd /root/lenreg-ticket-bot && git pull origin mini_app_beta && docker compose up -d --build bot`
 
 **Этап 3 — Проверка:**
 
-- Выполни: `docker compose -f /root/zdrav.lenreg/docker-compose.yml logs bot --tail=30`
+- Выполни: `docker compose -f /root/lenreg-ticket-bot/docker-compose.yml logs bot --tail=30`
 - Убедись что бот запустился без ошибок.
 - Сообщи результат пользователю.
 

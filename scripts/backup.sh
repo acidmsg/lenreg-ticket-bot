@@ -23,7 +23,7 @@
 #   NTFY_BACKUP_TOPIC        — URL NTFY-топика для алертов (default: пусто)
 #
 # Cron (ежедневно в 03:00 МСК = 00:00 UTC):
-#   0 0 * * * /root/zdrav.lenreg/scripts/backup.sh daily >> /root/backups/backup.log 2>&1
+#   0 0 * * * /root/lenreg-ticket-bot/scripts/backup.sh daily >> /root/backups/backup.log 2>&1
 # ==============================================================================
 
 set -euo pipefail
