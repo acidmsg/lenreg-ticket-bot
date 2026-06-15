@@ -1,7 +1,9 @@
-{% extends "base.html" %}
-{% block title %}Клиники — ZdravLenReg Dashboard{% endblock %}
-{% block content %}
-<h1>Клиники <span class="text-muted">Всего: {{ total }}</span></h1>
+{% extends "base.html" %} {% block title %}Клиники — LenReg Ticket Bot Dashboard{% endblock %} {%
+block content %}
+<h1>
+  Клиники
+  <span class="text-muted">Всего: {{ total }}</span>
+</h1>
 
 {% if clinics %}
 <table class="data-table">
@@ -38,5 +40,4 @@
 </table>
 {% else %}
 <p class="text-muted">Нет активных клиник</p>
-{% endif %}
-{% endblock %}
+{% endif %} {% endblock %}

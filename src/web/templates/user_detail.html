@@ -1,10 +1,16 @@
-{% extends "base.html" %}
-{% block title %}Пользователь {{ uid }} — ZdravLenReg Dashboard{% endblock %}
-{% block content %}
-<h1>Пользователь <code>{{ uid }}</code></h1>
+{% extends "base.html" %} {% block title %}Пользователь {{ uid }} — LenReg Ticket Bot Dashboard{%
+endblock %} {% block content %}
+<h1>
+  Пользователь
+  <code>{{ uid }}</code>
+</h1>
 
 {% if not_found %}
-<p class="text-muted">Пользователь <code>{{ uid }}</code> не найден в БД</p>
+<p class="text-muted">
+  Пользователь
+  <code>{{ uid }}</code>
+  не найден в БД
+</p>
 {% else %}
 
 <div class="card">
@@ -48,16 +54,14 @@
       </tr>
     </thead>
     <tbody>
-      {% for p_id, doctors in monitoring.items() %}
-      {% for d_id, d_info in doctors.items() %}
+      {% for p_id, doctors in monitoring.items() %} {% for d_id, d_info in doctors.items() %}
       <tr>
         <td><code>{{ p_id }}</code></td>
         <td>{{ d_info.name }}</td>
         <td>{{ d_info.specialty }}</td>
         <td>{{ d_info.clinic_id }}</td>
       </tr>
-      {% endfor %}
-      {% endfor %}
+      {% endfor %} {% endfor %}
     </tbody>
   </table>
   {% else %}
@@ -65,5 +69,4 @@
   {% endif %}
 </div>
 
-{% endif %}
-{% endblock %}
+{% endif %} {% endblock %}

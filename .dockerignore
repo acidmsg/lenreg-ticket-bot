@@ -46,8 +46,21 @@ tests/
 
 # Documentation / Specifications
 specs/
+plans/
 artifacts/
 README.md
+
+# Design Lab
+_design_lab/
+
+# CI/CD
+.github/
+
+# Agent configs
+.agents/
+
+# Linting config (not needed in runtime)
+stylelint.config.mjs
 
 # Node (for markdownlint/prettier)
 node_modules/

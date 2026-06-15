@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}ZdravLenReg Dashboard{% endblock %}</title>
+    <title>{% block title %}LenReg Ticket Bot Dashboard{% endblock %}</title>
     <link rel="stylesheet" href="/static/dashboard.css" />
   </head>
 
@@ -15,7 +15,7 @@
           <rect x="6" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
           <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
         </svg>
-        zdrav.lenreg Monitor
+        LenReg Ticket Bot
       </div>
       <div class="nav-links">
         <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">
@@ -187,7 +187,7 @@
     <main class="container">{% block content %}{% endblock %}</main>
 
     <footer class="footer">
-      <span>zdrav.lenreg Monitor v1.0.0</span>
+      <span>LenReg Ticket Bot v1.0.0</span>
       <span>|</span>
       <span>
         Prometheus:
