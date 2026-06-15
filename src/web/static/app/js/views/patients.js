@@ -316,7 +316,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
       // Введён день и месяц (4 сырые цифры = ДД.ММ, 5 символов с точкой).
       // Год ещё не введён — авто-подставляем текущий или прошлый.
       // Если ДД.ММ.текущийГод > сегодня → используем прошлый год.
-      // День НЕ подсвечиваем (год не подтверждён пользователем).
+      // День подсвечиваем синтетической ISO-датой с вычисленным годом.
       const [dd, mm] = inputEl.value.split('.').map(Number);
       if (mm >= 1 && mm <= 12) {
         const today = new Date();
@@ -325,7 +325,10 @@ function setupDateMask(inputEl, calendar, bdayError) {
         if (candidate > today) {
           year--; // дата в будущем относительно сегодня → прошлый год
         }
-        calendar.selectedDates = [];
+        // Подсвечиваем день в календаре при частичном вводе (ДД.ММ без года).
+        // Синтетическая ISO-дата с вычисленным годом для визуальной подсветки.
+        const partialISO = `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        calendar.selectedDates = [partialISO];
         calendar.selectedYear = year;
         calendar.selectedMonth = mm - 1; // 0-based
         calendar.update();
@@ -333,7 +336,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
     } else if (digits.length === 2 && !inputEl._fromCalendar) {
       // Введён только день (2 сырые цифры = ДД).
       // Если день ДД текущего месяца ещё не наступил → переключаем на предыдущий месяц.
-      // День НЕ подсвечиваем.
+      // День подсвечиваем синтетической ISO-датой с вычисленным месяцем/годом.
       const dd = Number(digits);
       const today = new Date();
       let month = today.getMonth(); // 0-based
@@ -345,7 +348,11 @@ function setupDateMask(inputEl, calendar, bdayError) {
           year--;
         }
       }
-      calendar.selectedDates = [];
+      // Подсвечиваем день в календаре при частичном вводе (только ДД).
+      // Синтетическая ISO-дата с вычисленным месяцем/годом для визуальной подсветки.
+      const displayMonth = month + 1; // 1-based для ISO-строки
+      const partialISO = `${year}-${String(displayMonth).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      calendar.selectedDates = [partialISO];
       calendar.selectedYear = year;
       calendar.selectedMonth = month;
       calendar.update();
