@@ -284,6 +284,13 @@ function setupDateMask(inputEl, calendar, bdayError) {
     // поэтому валидационный обработчик может не увидеть финальное значение.
     const inputLen = inputEl.value.trim().length;
 
+    // Сбрасываем _fromCalendar при любом изменении неполной даты.
+    // Гарантирует, что флаг не блокирует обратную синхронизацию
+    // при стирании символов после выбора даты в календаре.
+    if (inputLen !== 10 && inputEl._fromCalendar) {
+      delete inputEl._fromCalendar;
+    }
+
     if (inputLen === 10) {
       // Полная дата (ДД.ММ.ГГГГ) — валидация + полная синхронизация календаря.
       const result = validateBday(inputEl.value);
@@ -355,6 +362,15 @@ function setupDateMask(inputEl, calendar, bdayError) {
       calendar.selectedDates = [partialISO];
       calendar.selectedYear = year;
       calendar.selectedMonth = month;
+      calendar.update();
+    } else if (digits.length <= 1 && !inputEl._fromCalendar) {
+      // Пустое поле или одна цифра — сброс подсветки и ошибки.
+      // Возвращаем календарь к текущему месяцу/году без выделенного дня.
+      setFieldError(inputEl, bdayError, null);
+      const today = new Date();
+      calendar.selectedDates = [];
+      calendar.selectedYear = today.getFullYear();
+      calendar.selectedMonth = today.getMonth(); // 0-based
       calendar.update();
     } else if (
       inputLen < 10 &&
