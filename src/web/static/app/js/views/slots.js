@@ -8,6 +8,10 @@
 import { apiGet, apiPost, apiDelete } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createSlotCard } from '../components/card.js';
+import { escapeHtml } from '../utils/escape.js';
+import { renderError } from '../utils/error.js';
+import { refreshDoctorSlots } from '../utils/monitoring.js';
+import { showConfirm } from '../utils/ui.js';
 import { lucideIcon } from '../components/icon.js';
 
 /**
@@ -21,7 +25,7 @@ export async function renderSlots(container, params) {
 
   const monitoringId = params?.monitoringId;
   if (!monitoringId) {
-    container.innerHTML = renderError('Не указан ID отслеживания.');
+    renderError(container, 'Не указан ID отслеживания.', 'Повторить', null);
     return;
   }
 
@@ -54,8 +58,9 @@ export async function renderSlots(container, params) {
     // Привязываем обработчики (удаление пациентов + кнопка обновления)
     bindSlotEvents(container, patients || [], params);
   } catch (error) {
-    container.innerHTML = renderError(error.message);
-    bindErrorEvents(container, params);
+    renderError(container, error.message, 'Повторить', () =>
+      renderSlots(container, params)
+    );
   }
 }
 
@@ -188,160 +193,157 @@ function renderPatientsBlock(patients) {
 }
 
 /**
- * Привязывает обработчики событий на экране слотов.
+ * Асинхронный обработчик нажатия на кнопку принудительной проверки слотов.
+ *
+ * @param {HTMLElement} btn — кнопка refresh
+ */
+async function handleSlotRefresh(btn) {
+  const monitoringId = btn.getAttribute('data-monitoring-id');
+  if (!monitoringId) return;
+
+  // Показываем анимацию загрузки
+  btn.classList.add('btn--refresh--loading');
+
+  try {
+    const result = await refreshDoctorSlots(monitoringId);
+
+    const total = result.total || 0;
+
+    // Только toast-уведомление, без перерисовки слотов
+    if (window.showToast) {
+      if (total > 0) {
+        window.showToast('Талоны найдены: ' + total);
+      } else {
+        window.showToast('Талоны не найдены');
+      }
+    } else if (isInTelegram()) {
+      // Fallback: toast-модуль ещё не загружен — используем Telegram alert
+      window.Telegram.WebApp.showPopup({
+        title: 'Проверка номерков',
+        message: total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
+        buttons: [{ type: 'ok' }]
+      });
+    }
+
+    // Тактильный отклик
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    }
+  } catch (error) {
+    if (isInTelegram()) {
+      window.Telegram.WebApp.showAlert(`Ошибка проверки: ${error.message}`);
+    } else {
+      alert(`Ошибка проверки: ${error.message}`);
+    }
+  } finally {
+    btn.classList.remove('btn--refresh--loading');
+  }
+}
+
+/**
+ * Асинхронный обработчик нажатия на кнопку удаления пациента на экране слотов.
+ *
+ * @param {HTMLElement} btn — кнопка удаления
+ * @param {HTMLElement} container — контейнер
+ * @param {Array} patients — список пациентов (мутабельный)
+ * @param {object} params — параметры маршрута
+ */
+async function handleSlotDeletePatient(btn, container, patients, params) {
+  btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
+  const entryId = btn.getAttribute('data-entry-id');
+  const patientName = btn.getAttribute('data-patient-name') || 'этого пациента';
+
+  // Тактильный отклик перед показом диалога
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+  }
+
+  const confirmed = await showConfirm(
+    `Удалить мониторинг для пациента «${patientName}»?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await apiDelete(`/doctors/${encodeURIComponent(entryId)}`);
+
+    if (isInTelegram()) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    }
+
+    // Удаляем пациента из списка и перерендериваем секцию
+    const updatedPatients = patients.filter((p) => p.entryId !== entryId);
+    const patientsBlock = container.querySelector('.slots-patients');
+    if (patientsBlock) {
+      if (updatedPatients.length === 0) {
+        patientsBlock.remove();
+      } else {
+        patientsBlock.outerHTML = renderPatientsBlock(updatedPatients);
+        // Обновляем массив patients в замыкании через перепривязку
+        patients.length = 0;
+        updatedPatients.forEach((p) => patients.push(p));
+        bindSlotEvents(container, patients, params);
+      }
+    }
+  } catch (error) {
+    if (isInTelegram()) {
+      window.Telegram.WebApp.showAlert(`Ошибка при удалении: ${error.message}`);
+    } else {
+      alert(`Ошибка при удалении: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Привязывает обработчик кнопки принудительной проверки слотов.
+ *
+ * @param {HTMLElement} container — контейнер
+ */
+function bindSlotRefreshButtons(container) {
+  const refreshBtn = container.querySelector('#slots-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleSlotRefresh(refreshBtn);
+    });
+  }
+}
+
+/**
+ * Привязывает обработчики кнопок удаления пациентов на экране слотов.
  *
  * @param {HTMLElement} container — контейнер
  * @param {Array} patients — список пациентов
+ * @param {object} params — параметры маршрута
  */
-function bindSlotEvents(container, patients, params) {
-  // Кнопка принудительной проверки слотов (обновление)
-  const refreshBtn = container.querySelector('#slots-refresh-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const monId = refreshBtn.getAttribute('data-monitoring-id');
-      if (!monId) return;
-
-      // Показываем анимацию загрузки
-      refreshBtn.classList.add('btn--refresh--loading');
-
-      try {
-        const result = await apiPost('/doctors/check', {
-          monitoring_id: monId
-        });
-
-        const total = result.total || 0;
-
-        // Только toast-уведомление, без перерисовки слотов
-        if (window.showToast) {
-          if (total > 0) {
-            window.showToast('Талоны найдены: ' + total);
-          } else {
-            window.showToast('Талоны не найдены');
-          }
-        } else if (isInTelegram()) {
-          // Fallback: toast-модуль ещё не загружен — используем Telegram alert
-          window.Telegram.WebApp.showPopup({
-            title: 'Проверка номерков',
-            message:
-              total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
-            buttons: [{ type: 'ok' }]
-          });
-        }
-
-        // Тактильный отклик
-        if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        }
-      } catch (error) {
-        if (isInTelegram()) {
-          window.Telegram.WebApp.showAlert(`Ошибка проверки: ${error.message}`);
-        } else {
-          alert(`Ошибка проверки: ${error.message}`);
-        }
-      } finally {
-        refreshBtn.classList.remove('btn--refresh--loading');
-      }
-    });
-  }
-
-  // Кнопки удаления пациентов
+function bindSlotDeletePatientButtons(container, patients, params) {
   container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
-      const entryId = btn.getAttribute('data-entry-id');
-      const patientName =
-        btn.getAttribute('data-patient-name') || 'этого пациента';
-
-      // Тактильный отклик перед показом диалога
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-      }
-
-      let confirmed = false;
-      if (isInTelegram()) {
-        confirmed = await new Promise((resolve) => {
-          window.Telegram.WebApp.showConfirm(
-            `Удалить мониторинг для пациента «${patientName}»?`,
-            (result) => resolve(result)
-          );
-        });
-      } else {
-        confirmed = confirm(
-          `Удалить мониторинг для пациента «${patientName}»?`
-        );
-      }
-
-      if (!confirmed) return;
-
-      try {
-        await apiDelete(`/doctors/${encodeURIComponent(entryId)}`);
-
-        if (isInTelegram()) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        }
-
-        // Удаляем пациента из списка и перерендериваем секцию
-        const updatedPatients = patients.filter((p) => p.entryId !== entryId);
-        const patientsBlock = container.querySelector('.slots-patients');
-        if (patientsBlock) {
-          if (updatedPatients.length === 0) {
-            patientsBlock.remove();
-          } else {
-            patientsBlock.outerHTML = renderPatientsBlock(updatedPatients);
-            // Обновляем массив patients в замыкании через перепривязку
-            patients.length = 0;
-            updatedPatients.forEach((p) => patients.push(p));
-            bindSlotEvents(container, patients, params);
-          }
-        }
-      } catch (error) {
-        if (isInTelegram()) {
-          window.Telegram.WebApp.showAlert(
-            `Ошибка при удалении: ${error.message}`
-          );
-        } else {
-          alert(`Ошибка при удалении: ${error.message}`);
-        }
-      }
+      handleSlotDeletePatient(btn, container, patients, params);
     });
   });
 }
 
 /**
- * Рендерит сообщение об ошибке.
- *
- * @param {string} message — текст ошибки
- * @returns {string} HTML ошибки
- */
-function renderError(message) {
-  return `
-    <div class="error-state">
-      <div class="empty-state__icon">${lucideIcon('triangle-alert', 48)}</div>
-      <p class="error-state__text">${escapeHtml(message)}</p>
-      <button class="btn btn--primary" id="slots-retry-btn"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
-    </div>
-  `;
-}
-
-/**
- * Привязывает обработчик кнопки «Повторить».
+ * Привязывает обработчики событий на экране слотов.
  *
  * @param {HTMLElement} container — контейнер
- * @param {object|null} params — параметры маршрута
+ * @param {Array} patients — список пациентов
+ * @param {object} params — параметры маршрута
  */
-function bindErrorEvents(container, params) {
-  const retryBtn = container.querySelector('#slots-retry-btn');
-  if (retryBtn) {
-    retryBtn.addEventListener('click', () => {
-      renderSlots(container, params);
-    });
-  }
+function bindSlotEvents(container, patients, params) {
+  bindSlotRefreshButtons(container);
+  bindSlotDeletePatientButtons(container, patients, params);
 }
 
 /**
  * Извлекает строковое имя врача из поля name, которое может быть объектом.
+ *
+ * NOTE: Локальная версия отличается от utils/doctor.js (Фаза 2, Шаг 4).
+ * utils/doctor.js принимает name напрямую + fallback-параметр.
+ * Здесь принимается doctor-объект, извлекается doctor.name,
+ * fallback — doctor.doctor_name. Унификация требует изменения сигнатур вызовов.
  *
  * @param {object} doctor — объект врача из API
  * @returns {string} строковое представление имени врача
@@ -366,16 +368,4 @@ function extractDoctorName(doctor) {
   }
 
   return String(name);
-}
-
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
 }

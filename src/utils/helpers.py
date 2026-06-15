@@ -78,8 +78,8 @@ def is_child(bday_str: str) -> bool:
     from dateutil.relativedelta import relativedelta
 
     try:
-        bday = datetime.strptime(bday_str, "%Y-%m-%d")
-        age = int(relativedelta(datetime.now(), bday).years)
+        birthday = datetime.strptime(bday_str, "%Y-%m-%d")
+        age = int(relativedelta(datetime.now(), birthday).years)
         return age < 18
     except (ValueError, TypeError):
         return False
@@ -375,7 +375,7 @@ def format_slots(
 
 
 def format_notification_text(
-    p_label: str,
+    patient_label: str,
     d_name_display: str,
     spec_text: str,
     header_or_status: str,
@@ -389,7 +389,7 @@ def format_notification_text(
     """
     return (
         f"{spec_text}🧑‍⚕️ {d_name_display}\n"
-        f"👤 {p_label}\n{header_or_status}\n\n{slots_display}{link}"
+        f"👤 {patient_label}\n{header_or_status}\n\n{slots_display}{link}"
     )
 
 

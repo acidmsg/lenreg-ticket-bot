@@ -128,7 +128,7 @@ class DatabaseManager:
                 uid=uid,
                 p_id=p_id,
                 fio=p_info.get("fio", ""),
-                bday=p_info.get("bday", ""),
+                birthday=p_info.get("bday", ""),
                 alias=p_info.get("alias"),
                 confirmed_clinics=p_info.get("confirmed_clinics", []),
             )
@@ -232,7 +232,7 @@ class DatabaseManager:
                 uid=uid,
                 p_id=p_id,
                 fio=p_info.get("fio", ""),
-                bday=p_info.get("bday", ""),
+                birthday=p_info.get("bday", ""),
                 alias=p_info.get("alias"),
                 confirmed_clinics=p_info.get("confirmed_clinics", []),
             )
@@ -263,7 +263,7 @@ class DatabaseManager:
         d_id: str,
         d_name: str,
         clinic_id: str,
-        d_spec: str,
+        doctor_specialty: str,
         date: str = "",
     ) -> None:
         uid = str(uid)
@@ -279,7 +279,7 @@ class DatabaseManager:
                 mon_entry: MonitoringEntry = {
                     "name": d_name,
                     "clinic_id": clinic_id,
-                    "specialty": d_spec,
+                    "specialty": doctor_specialty,
                     "date": date,
                 }
                 user_data["monitoring"][p_id][d_id] = mon_entry
@@ -289,7 +289,7 @@ class DatabaseManager:
                     d_id=d_id,
                     name=d_name,
                     clinic_id=clinic_id,
-                    specialty=d_spec,
+                    specialty=doctor_specialty,
                     date=date,
                 )
             updated = await self._db.get_user(uid)

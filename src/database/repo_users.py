@@ -129,7 +129,7 @@ class UserRepository(BaseRepository):
         uid: str,
         p_id: str,
         fio: str,
-        bday: str,
+        birthday: str,
         alias: str | None,
         confirmed_clinics: list | None = None,
     ) -> None:
@@ -144,7 +144,7 @@ class UserRepository(BaseRepository):
                 uid,
                 p_id,
                 fio,
-                bday,
+                birthday,
                 alias,
                 json.dumps(confirmed_clinics, ensure_ascii=False),
             ),

@@ -94,13 +94,13 @@ class Database:
         uid: str,
         p_id: str,
         fio: str,
-        bday: str,
+        birthday: str,
         alias: str | None,
         confirmed_clinics: list | None = None,
     ) -> None:
         """Добавляет или обновляет запись пациента."""
         return await self.users.add_patient(
-            uid, p_id, fio, bday, alias, confirmed_clinics
+            uid, p_id, fio, birthday, alias, confirmed_clinics
         )
 
     async def update_patient_confirmed_clinics(

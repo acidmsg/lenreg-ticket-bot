@@ -6,6 +6,7 @@
  */
 
 import { isInTelegram, getUserInfo, getInitDataError } from './auth.js';
+import { escapeHtml } from './utils/escape.js';
 import { renderDoctors } from './views/doctors.js';
 import { renderAddDoctor } from './views/add.js';
 import { renderSlots } from './views/slots.js';
@@ -91,30 +92,33 @@ function goBack() {
 // ============================================================
 
 /**
- * Рендерит текущий экран на основе состояния маршрута.
+ * Управляет видимостью кнопки «Назад» Telegram в зависимости от маршрута.
+ *
+ * @param {string} route — текущий маршрут
  */
-function render() {
-  const app = document.getElementById('app');
-  if (!app) return;
-
-  // Управление кнопкой «Назад»
-  if (isInTelegram()) {
-    const backButton = window.Telegram.WebApp.BackButton;
-    if (state.history.length > 0) {
-      backButton.show();
-    } else {
-      backButton.hide();
-    }
+function setupBackButton(route) {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
+  if (route !== 'doctors') {
+    tg.BackButton.show();
+  } else {
+    tg.BackButton.hide();
   }
+}
 
+/**
+ * Формирует HTML-разметку для текущего маршрута.
+ *
+ * @param {string} route — текущий маршрут
+ * @returns {string} HTML-разметка
+ */
+function buildRouteHTML(route) {
   const userInfo = getUserInfo();
   const userName = userInfo ? userInfo.first_name || 'Пользователь' : '';
 
-  let content = '';
-
-  switch (state.route) {
+  switch (route) {
     case 'doctors':
-      content = `
+      return `
         ${renderHeader('Мониторинг врачей', state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
         <div class="fab-group">
@@ -122,77 +126,97 @@ function render() {
           <button class="fab" id="fab-add"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Новый мониторинг</button>
         </div>
       `;
-      break;
-
     case 'add':
-      content = `
+      return `
         ${renderHeader('Новый мониторинг', true, userName)}
         <div class="app-view" id="add-content"></div>
       `;
-      break;
-
     case 'slots':
-      content = `
+      return `
         ${renderHeader('Свободные номерки', true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
-      break;
-
     case 'patients':
-      content = `
+      return `
         ${renderHeader('Пациенты', true, userName)}
         <div class="app-content" id="patients-content"></div>
       `;
-      break;
-
     case 'patient-add':
-      content = `
+      return `
         ${renderHeader('Новый пациент', true, userName)}
         <div class="app-view" id="patient-add-content"></div>
       `;
-      break;
-
     default:
-      navigate('doctors');
-      return;
+      return '<p>Страница не найдена</p>';
   }
+}
 
-  app.innerHTML = content;
-
-  // Привязываем обработчик к стрелочной кнопке «← Назад» в шапке
-  const headerBackBtn = document.getElementById('header-back');
+/**
+ * Привязывает обработчик к кнопке «← Назад» в кастомной шапке.
+ *
+ * @param {HTMLElement} app — корневой элемент приложения
+ */
+function bindGoBackHandler(app) {
+  const headerBackBtn = app.querySelector('#header-back');
   if (headerBackBtn) {
     headerBackBtn.addEventListener('click', goBack);
   }
+}
 
-  // Рендерим содержимое конкретного экрана
-  switch (state.route) {
+/**
+ * Рендерит содержимое для конкретного маршрута в соответствующий контейнер.
+ *
+ * @param {string} route — текущий маршрут
+ */
+async function renderRouteContent(route) {
+  let container;
+
+  switch (route) {
     case 'doctors':
-      renderDoctors(document.getElementById('doctors-content'));
-      bindDoctorsEvents();
+      container = document.getElementById('doctors-content');
+      if (container) {
+        await renderDoctors(container);
+        bindDoctorsEvents();
+      }
       break;
-
     case 'add':
-      renderAddDoctor(document.getElementById('add-content'));
+      container = document.getElementById('add-content');
+      if (container) await renderAddDoctor(container);
       break;
-
     case 'slots':
-      renderSlots(document.getElementById('slots-content'), state.routeParams);
+      container = document.getElementById('slots-content');
+      if (container) await renderSlots(container, state.routeParams);
       break;
-
     case 'patients':
-      renderPatients(document.getElementById('patients-content'));
+      container = document.getElementById('patients-content');
+      if (container) await renderPatients(container);
       break;
-
     case 'patient-add':
-      renderPatientAddForm(document.getElementById('patient-add-content'));
+      container = document.getElementById('patient-add-content');
+      if (container) await renderPatientAddForm(container);
       break;
   }
+}
+
+/**
+ * Рендерит текущий экран на основе состояния маршрута.
+ */
+async function render() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const route = state.route;
+
+  setupBackButton(route);
+  app.innerHTML = buildRouteHTML(route);
+  bindGoBackHandler(app);
 
   // Скрываем MainButton — больше не используется ни на одном экране
   if (isInTelegram() && window.Telegram?.WebApp?.MainButton) {
     window.Telegram.WebApp.MainButton.hide();
   }
+
+  await renderRouteContent(route);
 }
 
 /**
@@ -282,18 +306,6 @@ function init() {
 
   // Начальный рендер
   render();
-}
-
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
 }
 
 // Запуск при загрузке DOM

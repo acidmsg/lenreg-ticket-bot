@@ -217,6 +217,9 @@ class ZdravClient:
                     if i < max_retries - 1:
                         await asyncio.sleep(2)
 
+                except asyncio.CancelledError:
+                    raise
+
                 except Exception as e:
                     exc_repr = repr(e) if not str(e) else str(e)
                     logger.error(
@@ -272,6 +275,8 @@ class ZdravClient:
                 payload,
                 limiter=limiter,
             )
+        except asyncio.CancelledError:
+            raise
         except (httpx.TimeoutException, httpx.NetworkError):
             return None, _("api-timeout")
         except Exception as e:
@@ -331,7 +336,16 @@ class ZdravClient:
                 payload,
                 limiter=limiter,
             )
-        except (httpx.TimeoutException, httpx.NetworkError, Exception):
+        except asyncio.CancelledError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return []
+        except Exception as e:
+            logger.error(
+                "Критическая ошибка в fetch_speciality_list: %r",
+                e,
+                exc_info=True,
+            )
             return []
 
         if res.status_code == 200:
@@ -396,7 +410,16 @@ class ZdravClient:
                 payload,
                 limiter=limiter,
             )
-        except (httpx.TimeoutException, httpx.NetworkError, Exception):
+        except asyncio.CancelledError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return None
+        except Exception as e:
+            logger.error(
+                "Критическая ошибка в check_slots: %r",
+                e,
+                exc_info=True,
+            )
             return None
 
         if res.status_code == 200:
@@ -459,7 +482,16 @@ class ZdravClient:
                 payload,
                 limiter=limiter,
             )
-        except (httpx.TimeoutException, httpx.NetworkError, Exception):
+        except asyncio.CancelledError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return []
+        except Exception as e:
+            logger.error(
+                "Критическая ошибка в fetch_all_doctors: %r",
+                e,
+                exc_info=True,
+            )
             return []
 
         if res.status_code == 200:
@@ -620,7 +652,16 @@ class ZdravClient:
                 payload,
                 limiter=limiter,
             )
-        except (httpx.TimeoutException, httpx.NetworkError, Exception):
+        except asyncio.CancelledError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return []
+        except Exception as e:
+            logger.error(
+                "Критическая ошибка в fetch_clinic_list: %r",
+                e,
+                exc_info=True,
+            )
             return []
 
         if res.status_code == 200:

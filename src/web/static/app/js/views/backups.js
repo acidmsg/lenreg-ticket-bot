@@ -9,6 +9,7 @@
  */
 
 import { lucideIcon } from '../components/icon.js';
+import { escapeHtml } from '../utils/escape.js';
 
 // ── Конфигурация ─────────────────────────────────────────────
 
@@ -22,6 +23,13 @@ let restoreToken = null;
 let restoreFilename = null;
 
 // ── HTTP-клиент ──────────────────────────────────────────────
+
+/**
+ * API-клиент дашборда (страница /backups).
+ *
+ * Аутентификация: через заголовок X-API-Key.
+ * Отдельная реализация от api.js (Mini App), т.к. механизм аутентификации разный.
+ */
 
 /**
  * Читает API-ключ из meta-тега, установленного сервером.
@@ -233,26 +241,26 @@ async function loadBackups() {
 /**
  * Рендерит строку таблицы для одного бэкапа.
  *
- * @param {object} b — объект бэкапа
- * @param {string} b.filename
- * @param {string} b.category
- * @param {string} b.size
- * @param {string} b.mtime
- * @param {string} b.integrity
+ * @param {object} backup — объект бэкапа
+ * @param {string} backup.filename
+ * @param {string} backup.category
+ * @param {string} backup.size
+ * @param {string} backup.mtime
+ * @param {string} backup.integrity
  * @returns {string} HTML строки
  */
-function renderBackupRow(b) {
+function renderBackupRow(backup) {
   return `
     <tr>
-      <td class="cell-nowrap">${escapeHtml(b.filename)}<br><small class="text-muted">${formatDateTime(b.mtime)}</small></td>
-      <td>${renderCategoryBadge(b.category)}</td>
-      <td class="cell-nowrap">${escapeHtml(b.size)}</td>
-      <td>${renderIntegrityBadge(b.integrity)}</td>
+      <td class="cell-nowrap">${escapeHtml(backup.filename)}<br><small class="text-muted">${formatDateTime(backup.mtime)}</small></td>
+      <td>${renderCategoryBadge(backup.category)}</td>
+      <td class="cell-nowrap">${escapeHtml(backup.size)}</td>
+      <td>${renderIntegrityBadge(backup.integrity)}</td>
       <td>
-        <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}">
+        <button class="btn-link backup-restore-btn" data-filename="${escapeHtml(backup.filename)}" data-category="${escapeHtml(backup.category)}">
           Восстановить
         </button>
-        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(b.filename)}" data-category="${escapeHtml(b.category)}" style="color:var(--color-danger);margin-left:8px;" title="Удалить бэкап">
+        <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(backup.filename)}" data-category="${escapeHtml(backup.category)}" style="color:var(--color-danger);margin-left:8px;" title="Удалить бэкап">
           ${lucideIcon('trash-2', 18)}
         </button>
       </td>
@@ -400,19 +408,19 @@ async function onCreateBackup() {
     const data = await apiPost('/run');
 
     if (data.status === 'ok') {
-      showNotification('Бэкап успешно создан', 'success');
+      showToast('Бэкап успешно создан', 'success');
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
-      showNotification(data.message || 'Ошибка создания бэкапа', 'error');
+      showToast(data.message || 'Ошибка создания бэкапа', 'error');
     }
   } catch (error) {
     if (
       error.message.includes('409') ||
       error.message.includes('уже выполняется')
     ) {
-      showNotification('Бэкап уже выполняется. Попробуйте позже.', 'warning');
+      showToast('Бэкап уже выполняется. Попробуйте позже.', 'warning');
     } else {
-      showNotification(`Ошибка: ${error.message}`, 'error');
+      showToast(`Ошибка: ${error.message}`, 'error');
     }
   } finally {
     btn.disabled = false;
@@ -450,13 +458,13 @@ async function onDeleteBackup(filename, category) {
     const data = await apiDelete(`/${encodeURIComponent(filename)}`);
 
     if (data.status === 'ok') {
-      showNotification(`Бэкап ${filename} удалён`, 'success');
+      showToast(`Бэкап ${filename} удалён`, 'success');
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
-      showNotification(data.message || 'Ошибка удаления бэкапа', 'error');
+      showToast(data.message || 'Ошибка удаления бэкапа', 'error');
     }
   } catch (error) {
-    showNotification(`Ошибка: ${error.message}`, 'error');
+    showToast(`Ошибка: ${error.message}`, 'error');
   }
 }
 
@@ -604,7 +612,7 @@ async function onRestoreFinalConfirm() {
     if (data.status === 'ok') {
       body.innerHTML =
         '<p style="color:var(--status-available)">Восстановление успешно завершено.</p>';
-      showNotification('База данных восстановлена из бэкапа', 'success');
+      showToast('База данных восстановлена из бэкапа', 'success');
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
       body.innerHTML = `<p style="color:var(--color-danger)">Ошибка восстановления: ${escapeHtml(data.message || 'Неизвестная ошибка')}</p>`;
@@ -644,49 +652,7 @@ function closeRestoreModal() {
   restoreFilename = null;
 }
 
-// ── Уведомления ──────────────────────────────────────────────
-
-/**
- * Показывает временное уведомление.
- *
- * @param {string} message — текст уведомления
- * @param {'success'|'error'|'warning'} type — тип
- */
-function showNotification(message, type = 'success') {
-  // Удаляем предыдущее уведомление, если есть
-  const existing = document.querySelector('.backup-notification');
-  if (existing) existing.remove();
-
-  const notification = document.createElement('div');
-  notification.className = `backup-notification backup-notification--${type}`;
-  notification.textContent = message;
-  document.body.appendChild(notification);
-
-  // Анимация появления
-  requestAnimationFrame(() => {
-    notification.classList.add('backup-notification--visible');
-  });
-
-  // Автоскрытие через 4 секунды
-  setTimeout(() => {
-    notification.classList.remove('backup-notification--visible');
-    setTimeout(() => notification.remove(), 300);
-  }, 4000);
-}
-
 // ── Утилиты ──────────────────────────────────────────────────
-
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
-}
 
 // ── Запуск ───────────────────────────────────────────────────
 

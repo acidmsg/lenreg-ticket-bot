@@ -366,7 +366,7 @@ async def add_doctor(
             d_id=body.doctor_id,
             d_name=doctor_name,
             clinic_id=body.clinic_id,
-            d_spec=specialty_name,
+            doctor_specialty=specialty_name,
             date=body.date,
         )
 
@@ -452,7 +452,7 @@ async def remove_doctor(
         d_id=d_id,
         d_name=doctor_name,
         clinic_id=clinic_id,
-        d_spec=specialty,
+        doctor_specialty=specialty,
     )
 
     return {

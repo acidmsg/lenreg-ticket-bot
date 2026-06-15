@@ -6,6 +6,7 @@
  */
 
 import { lucideIcon } from './icon.js';
+import { escapeHtml } from '../utils/escape.js';
 
 /**
  * Создаёт HTML карточки врача со списком отслеживающих пациентов.
@@ -167,16 +168,4 @@ function formatDate(dateStr) {
   const monthIndex = parseInt(month, 10) - 1;
   const monthName = months[monthIndex] || month;
   return `${parseInt(day, 10)} ${monthName} ${year}`;
-}
-
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
 }

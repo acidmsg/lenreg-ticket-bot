@@ -93,19 +93,19 @@
 
 ### Изменённые файлы
 
-| Файл                              | Действие |
-| --------------------------------- | -------- |
-| `scripts/generate_api_schemas.py` | Создан   |
-| `src/services/schema_watcher.py`  | Создан   |
-| `src/services/error_notifier.py`  | Изменён  |
-| `src/services/metrics.py`         | Изменён  |
-| `src/config.py`                   | Изменён  |
-| `src/main.py`                     | Изменён  |
-| `.env.example`                    | Изменён  |
-| `artifacts/schemas/` (12 файлов)       | Созданы  |
-| `.roo/sessions/SESSION_LOG.md`      | Изменён  |
-| `.roo/sessions/SESSION_ARCHIVE.md`  | Изменён  |
-| `.roo/tasks/AGENT_TASKS.md`      | Изменён  |
+| Файл                               | Действие |
+| ---------------------------------- | -------- |
+| `scripts/generate_api_schemas.py`  | Создан   |
+| `src/services/schema_watcher.py`   | Создан   |
+| `src/services/error_notifier.py`   | Изменён  |
+| `src/services/metrics.py`          | Изменён  |
+| `src/config.py`                    | Изменён  |
+| `src/main.py`                      | Изменён  |
+| `.env.example`                     | Изменён  |
+| `artifacts/schemas/` (12 файлов)   | Созданы  |
+| `.roo/sessions/SESSION_LOG.md`     | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md` | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`        | Изменён  |
 
 ### Результаты проверок
 
@@ -147,9 +147,9 @@
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие  |
-| ------------------------------------------------------------------ | --------- |
-| [`code_review.md`](code_review.md)                                 | Создан    |
+| Файл                                                                   | Действие  |
+| ---------------------------------------------------------------------- | --------- |
+| [`code_review.md`](code_review.md)                                     | Создан    |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
@@ -269,8 +269,8 @@ Docker/WSL2, потому что Docker использует случайные 
 
 **Изменённые файлы:**
 
-| Файл                                                     | Действие                              |
-| -------------------------------------------------------- | ------------------------------------- |
+| Файл                                                       | Действие                              |
+| ---------------------------------------------------------- | ------------------------------------- |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024 |
 
 **Результаты тестов:** Не запускались
@@ -289,7 +289,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | --------------------------------------------------------------- | ------------------------------------------------------------ |
 | [`.roo/rules/knowledge.md`](../.roo/rules/knowledge.md:1)       | Добавлен H1, ссылки на файлы с путями, inline-форматирование |
 | [`.roo/rules/restrictions.md`](../.roo/rules/restrictions.md:1) | Добавлен H1, пути в inline-коде, ссылка на ignore.md         |
-| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1)        | H1 переименован из filename в описательный заголовок         |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1)      | H1 переименован из filename в описательный заголовок         |
 
 **Результаты тестов:** Не запускались
 
@@ -1179,7 +1179,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | [`keyboards/inline.py`](../src/keyboards/inline.py:240)           | bare except → конкретные типы                       |
 | [`handlers/common.py`](../src/handlers/common.py:213)             | unused variables удалены; None-safety               |
 | [`config.py`](../src/config.py:2)                                 | typing imports; mapping аннотация                   |
-| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                         | Удалены B5, F4                                      |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                   | Удалены B5, F4                                      |
 
 **Результат:** 134/134 passed, 10/10 pre-commit hooks passed
 
@@ -1377,22 +1377,22 @@ Docker/WSL2, потому что Docker использует случайные 
 
 **Изменённые файлы:**
 
-| Файл                                                                    | Действие                                          |
-| ----------------------------------------------------------------------- | ------------------------------------------------- |
-| [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:1) | Создан — CRITICAL стандарты Python + Markdown     |
-| [`.roo/rules/coding.md`](../.roo/rules/coding.md:1)                     | Создан — стандарты кодирования                    |
-| [`specs/GEMINI.md`](../specs/GEMINI.md:1)                                 | Обновлён — agent-agnostic bridge                  |
-| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                        | Перенесён из `docs/`                              |
-| [`.roo/sessions/CODE_REVIEW.md`](CODE_REVIEW.md:1)                        | Перенесён из `docs/`                              |
-| [`.roo/sessions/formatting_experiments.md`](formatting_experiments.md:1)  | Конвертирован из `варианты оформления.txt`        |
-| [`specs/knowledge/*.md`](../specs/knowledge/_INDEX.md:1)                  | Реформатированы в единый шаблон                   |
-| [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)                   | Обновлён: пути `docs/agents/`, SESSION_ARCHIVE.md |
-| [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)                     | Обновлён: актуальные пути игнорируемых файлов     |
-| [`specs/ARCHITECTURE.md`](../specs/ARCHITECTURE.md:1)                     | Обновлено дерево директорий                       |
-| [`README.md`](../README.md:1)                                           | Обновлён                                          |
-| [`specs/PROJECT_TREE.md`](../specs/PROJECT_TREE.md:1)                     | Удалён (устарел, заменён на ARCHITECTURE.md)      |
-| [`specs/QWEN.md`](../specs/QWEN.md:1)                                     | Удалён (пустой)                                   |
-| [`docs/варианты оформления.txt`](../docs/варианты оформления.txt:1)     | Удалён (конвертирован в .md)                      |
+| Файл                                                                     | Действие                                          |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| [`.roo/rules/system_standards.md`](../.roo/rules/system_standards.md:1)  | Создан — CRITICAL стандарты Python + Markdown     |
+| [`.roo/rules/coding.md`](../.roo/rules/coding.md:1)                      | Создан — стандарты кодирования                    |
+| [`specs/GEMINI.md`](../specs/GEMINI.md:1)                                | Обновлён — agent-agnostic bridge                  |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md:1)                          | Перенесён из `docs/`                              |
+| [`.roo/sessions/CODE_REVIEW.md`](CODE_REVIEW.md:1)                       | Перенесён из `docs/`                              |
+| [`.roo/sessions/formatting_experiments.md`](formatting_experiments.md:1) | Конвертирован из `варианты оформления.txt`        |
+| [`specs/knowledge/*.md`](../specs/knowledge/_INDEX.md:1)                 | Реформатированы в единый шаблон                   |
+| [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)                    | Обновлён: пути `docs/agents/`, SESSION_ARCHIVE.md |
+| [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)                      | Обновлён: актуальные пути игнорируемых файлов     |
+| [`specs/ARCHITECTURE.md`](../specs/ARCHITECTURE.md:1)                    | Обновлено дерево директорий                       |
+| [`README.md`](../README.md:1)                                            | Обновлён                                          |
+| [`specs/PROJECT_TREE.md`](../specs/PROJECT_TREE.md:1)                    | Удалён (устарел, заменён на ARCHITECTURE.md)      |
+| [`specs/QWEN.md`](../specs/QWEN.md:1)                                    | Удалён (пустой)                                   |
+| [`docs/варианты оформления.txt`](../docs/варианты оформления.txt:1)      | Удалён (конвертирован в .md)                      |
 
 ### Разделение SESSION_LOG: активный лог + архив ✅
 
@@ -1400,12 +1400,12 @@ Docker/WSL2, потому что Docker использует случайные 
 
 **Изменённые файлы:**
 
-| Файл                                                     | Действие                                             |
-| -------------------------------------------------------- | ---------------------------------------------------- |
+| Файл                                                       | Действие                                             |
+| ---------------------------------------------------------- | ---------------------------------------------------- |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Создан — полная хронология из git (ece319e)          |
 | [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md:1)         | Очищен до шаблона последней сессии                   |
-| [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)    | Добавлен шаг переноса в SESSION_ARCHIVE.md           |
-| [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)      | `SESSION_ARCHIVE.md` добавлен в условно-игнорируемые |
+| [`.roo/rules/logging.md`](../.roo/rules/logging.md:1)      | Добавлен шаг переноса в SESSION_ARCHIVE.md           |
+| [`.roo/rules/ignore.md`](../.roo/rules/ignore.md:1)        | `SESSION_ARCHIVE.md` добавлен в условно-игнорируемые |
 
 **Результаты тестов:** Не запускались
 
@@ -1429,14 +1429,14 @@ Docker/WSL2, потому что Docker использует случайные 
 
 **Изменённые файлы:**
 
-| Файл                                                     | Действие                                                               |
-| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Файл                                                       | Действие                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------- |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md:1) | Исправлены MD038, MD058, MD060, MD024                                  |
-| `.roo/rules/system_standards.md`                         | Добавлена команда `markdownlint` в секцию Валидация                    |
-| `.roo/rules/logging.md`                                  | Добавлены шаги 4 (markdownlint) и 5 (prettier) в пре-комплишн workflow |
-| `.markdownlint.json`                                     | Создан конфиг (MD013, MD041, MD060 отключены)                          |
-| `.gitignore`                                             | Добавлены `node_modules/`, `package-lock.json`, `.vscode/`             |
-| `package.json`                                           | Инициализирован npm, установлен `markdownlint-cli`                     |
+| `.roo/rules/system_standards.md`                           | Добавлена команда `markdownlint` в секцию Валидация                    |
+| `.roo/rules/logging.md`                                    | Добавлены шаги 4 (markdownlint) и 5 (prettier) в пре-комплишн workflow |
+| `.markdownlint.json`                                       | Создан конфиг (MD013, MD041, MD060 отключены)                          |
+| `.gitignore`                                               | Добавлены `node_modules/`, `package-lock.json`, `.vscode/`             |
+| `package.json`                                             | Инициализирован npm, установлен `markdownlint-cli`                     |
 
 ### Git commit + push ✅
 
@@ -1629,8 +1629,8 @@ Docker/WSL2, потому что Docker использует случайные 
 
 ### Изменённые файлы
 
-| Файл                                     | Действие |
-| ---------------------------------------- | -------- |
+| Файл                                       | Действие |
+| ------------------------------------------ | -------- |
 | [`specs/openapi.yaml`](specs/openapi.yaml) | Создан   |
 
 ---
@@ -1695,7 +1695,7 @@ Docker/WSL2, потому что Docker использует случайные 
 | [`src/handlers/common.py`](src/handlers/common.py)           | Изменён   |
 | [`src/middleware/ratelimit.py`](src/middleware/ratelimit.py) | Переписан |
 | [`src/main.py`](src/main.py)                                 | Изменён   |
-| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)               | Изменён   |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)             | Изменён   |
 | [`tests/conftest.py`](tests/conftest.py)                     | Переписан |
 | [`tests/test_cache.py`](tests/test_cache.py)                 | Переписан |
 
@@ -1727,10 +1727,10 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие  |
-| ------------------------------------------------------------------ | --------- |
-| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)                     | Изменён   |
-| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
+| Файл                                                                   | Действие  |
+| ---------------------------------------------------------------------- | --------- |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)                       | Изменён   |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                     | Изменён   |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
@@ -1767,15 +1767,15 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие  |
-| ------------------------------------------------------------------ | --------- |
-| [`Makefile`](Makefile)                                             | Переписан |
-| [`tasks.ps1`](tasks.ps1)                                           | Изменён   |
-| [`.gitignore`](.gitignore)                                         | Изменён   |
-| [`.roo/rules/core.md`](.roo/rules/core.md)                         | Изменён   |
-| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
-| [`src/utils/redis.py`](src/utils/redis.py)                         | Изменён   |
-| [`tests/conftest.py`](tests/conftest.py)                           | Изменён   |
+| Файл                                                                   | Действие  |
+| ---------------------------------------------------------------------- | --------- |
+| [`Makefile`](Makefile)                                                 | Переписан |
+| [`tasks.ps1`](tasks.ps1)                                               | Изменён   |
+| [`.gitignore`](.gitignore)                                             | Изменён   |
+| [`.roo/rules/core.md`](.roo/rules/core.md)                             | Изменён   |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                     | Изменён   |
+| [`src/utils/redis.py`](src/utils/redis.py)                             | Изменён   |
+| [`tests/conftest.py`](tests/conftest.py)                               | Изменён   |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
@@ -1816,15 +1816,15 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие  |
-| ------------------------------------------------------------------ | --------- |
-| [`Makefile`](Makefile)                                             | Переписан |
-| [`tasks.ps1`](tasks.ps1)                                           | Изменён   |
-| [`.gitignore`](.gitignore)                                         | Изменён   |
-| [`.roo/rules/core.md`](.roo/rules/core.md)                         | Изменён   |
-| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                 | Изменён   |
-| [`src/utils/redis.py`](src/utils/redis.py)                         | Изменён   |
-| [`tests/conftest.py`](tests/conftest.py)                           | Переписан |
+| Файл                                                                   | Действие  |
+| ---------------------------------------------------------------------- | --------- |
+| [`Makefile`](Makefile)                                                 | Переписан |
+| [`tasks.ps1`](tasks.ps1)                                               | Изменён   |
+| [`.gitignore`](.gitignore)                                             | Изменён   |
+| [`.roo/rules/core.md`](.roo/rules/core.md)                             | Изменён   |
+| [`.roo/rules/workflow.md`](.roo/rules/workflow.md)                     | Изменён   |
+| [`src/utils/redis.py`](src/utils/redis.py)                             | Изменён   |
+| [`tests/conftest.py`](tests/conftest.py)                               | Переписан |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
@@ -1885,8 +1885,8 @@ ruff check src/ — All checks passed!
 | [`src/assets/__init__.py`](src/assets/__init__.py)         | Создан   |
 | [`src/assets/README.md`](src/assets/README.md)             | Создан   |
 | [`src/assets/images/.gitkeep`](src/assets/images/.gitkeep) | Создан   |
-| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)             | Изменён  |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён  |
+| [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)           | Изменён  |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)   | Изменён  |
 
 ### Результаты проверок
 
@@ -2142,12 +2142,12 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                                   | Действие                    |
-| ---------------------------------------------------------------------- | --------------------------- |
-| [`src/handlers/common.py`](src/handlers/common.py)                     | Изменён (+17/-39 строк)     |
-| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py) | Изменён (-10 строк)         |
-| [`src/main.py`](src/main.py)                                           | Изменён (-111 строк)        |
-| [`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py)         | **Новый файл** (+130 строк) |
+| Файл                                                                     | Действие                    |
+| ------------------------------------------------------------------------ | --------------------------- |
+| [`src/handlers/common.py`](src/handlers/common.py)                       | Изменён (+17/-39 строк)     |
+| [`src/services/doctor_discovery.py`](src/services/doctor_discovery.py)   | Изменён (-10 строк)         |
+| [`src/main.py`](src/main.py)                                             | Изменён (-111 строк)        |
+| [`src/utils/proxy_discovery.py`](src/utils/proxy_discovery.py)           | **Новый файл** (+130 строк) |
 | [`specs/code_review_optimization.md`](specs/code_review_optimization.md) | Изменён (актуализация)      |
 
 ### Результаты проверок
@@ -2185,9 +2185,9 @@ ruff check src/ — All checks passed!
 | [`src/main.py`](../../src/main.py)                                           | Изменён           |
 | [`src/services/doctor_discovery.py`](../../src/services/doctor_discovery.py) | Изменён           |
 | [`src/handlers/common.py`](../../src/handlers/common.py)                     | Изменён           |
-| [`specs/code_review_optimization.md`](../code_review_optimization.md)         | Перенесён в docs/ |
-| [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md)                               | Изменён           |
-| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                       | Изменён           |
+| [`specs/code_review_optimization.md`](../code_review_optimization.md)        | Перенесён в docs/ |
+| [`.roo/sessions/SESSION_LOG.md`](SESSION_LOG.md)                             | Изменён           |
+| [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                     | Изменён           |
 
 ---
 
@@ -2381,13 +2381,13 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                                   | Действие                         |
-| ---------------------------------------------------------------------- | -------------------------------- |
-| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md)                         | Перезаписан (24 задачи)          |
-| [`.roo/tasks/TECH_DEBT.md`](TECH_DEBT.md)                             | Создан (58 пунктов)              |
+| Файл                                                                     | Действие                         |
+| ------------------------------------------------------------------------ | -------------------------------- |
+| [`.roo/tasks/AGENT_TASKS.md`](AGENT_TASKS.md)                            | Перезаписан (24 задачи)          |
+| [`.roo/tasks/TECH_DEBT.md`](TECH_DEBT.md)                                | Создан (58 пунктов)              |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)                 | Дополнен (перенос старой записи) |
-| [`code_review.md`](code_review.md)                                     | Удалён                           |
-| [`.roo/sessions/CODE_REVIEW.md`](.roo/sessions/CODE_REVIEW.md)             | Удалён                           |
+| [`code_review.md`](code_review.md)                                       | Удалён                           |
+| [`.roo/sessions/CODE_REVIEW.md`](.roo/sessions/CODE_REVIEW.md)           | Удалён                           |
 | [`specs/code_review_optimization.md`](specs/code_review_optimization.md) | Удалён                           |
 
 ### Результаты проверок
@@ -2414,8 +2414,8 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                       | Действие                           |
-| ------------------------------------------ | ---------------------------------- |
+| Файл                                      | Действие                           |
+| ----------------------------------------- | ---------------------------------- |
 | [`.roo/tasks/TECH_DEBT.md`](TECH_DEBT.md) | Удалены строки OPT-I, OPT-J, OPT-L |
 
 ### Результаты проверок
@@ -2561,7 +2561,7 @@ ruff check src/ — All checks passed!
 | T-CONFIG-ORDER         | Исправлен порядок загрузки конфигурации в [`src/main.py`](src/main.py:133) — `load_config_from_db()` теперь вызывается до `sync_clinic_names()`                                              | ✅     |
 | T-CONN-ENCAPSULATE     | Добавлен `property conn` в [`src/database/database.py:122`](src/database/database.py:122); заменён прямой доступ `_db._conn` → `_db.conn` в 3 местах [`manager.py`](src/database/manager.py) | ✅     |
 | T-MONITOR-RESTART-SPAM | Добавлен флаг `initial_sync` в [`src/services/monitor.py`](src/services/monitor.py:111,198,244) — подавление ложных уведомлений при перезапуске                                              | ✅     |
-| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                    | ✅     |
+| T-IF-DB-CHECK          | Проверка устаревшей задачи (`cid = str(clinic_id)` уже присутствует на строке 69). Задача признана устаревшей и удалена из [`AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                     | ✅     |
 
 ### Финальная валидация (текущая подзадача)
 
@@ -2573,9 +2573,9 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие                                         |
-| ------------------------------------------------------------------ | ------------------------------------------------ |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)         | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
+| Файл                                                                   | Действие                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------ |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)               | Удалена задача T-IF-DB-CHECK из таблицы CRITICAL |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Новая сводка по 5 CRITICAL задачам               |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Добавлена запись T-HEALTHCHECK-COUNT             |
 
@@ -2608,10 +2608,10 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                       | Действие                    |
-| ---------------------------------------------------------- | --------------------------- |
-| [`.github/workflows/ci.yml`](.github/workflows/ci.yml)     | Перезаписан (полная версия) |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-CI-CD      |
+| Файл                                                           | Действие                    |
+| -------------------------------------------------------------- | --------------------------- |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml)         | Перезаписан (полная версия) |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)       | Удалена задача T-CI-CD      |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md) | Новая запись сессии         |
 
 ---
@@ -2664,7 +2664,7 @@ ruff check src/ — All checks passed!
 | [`src/database/database.py`](src/database/database.py:168)                | +1 logger.debug                  |
 | [`src/database/migrations.py`](src/database/migrations.py:88)             | +1 logger.debug                  |
 | [`tests/test_monitor_full.py`](tests/test_monitor_full.py:7,117)          | +1 импорт, исправлен side_effect |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                | Удалена задача T-EXCEPT-PASS     |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)                  | Удалена задача T-EXCEPT-PASS     |
 
 ### Результаты проверок
 
@@ -2714,11 +2714,11 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                       | Действие                   |
-| ---------------------------------------------------------- | -------------------------- |
-| [`Dockerfile`](Dockerfile:1)                               | Создан                     |
-| [`.dockerignore`](.dockerignore:1)                         | Создан                     |
-| [`docker-compose.yml`](docker-compose.yml)                 | Перезаписан (Qdrant → Bot) |
+| Файл                                                     | Действие                   |
+| -------------------------------------------------------- | -------------------------- |
+| [`Dockerfile`](Dockerfile:1)                             | Создан                     |
+| [`.dockerignore`](.dockerignore:1)                       | Создан                     |
+| [`docker-compose.yml`](docker-compose.yml)               | Перезаписан (Qdrant → Bot) |
 | [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-DOCKER    |
 
 ### Результаты проверок
@@ -2797,7 +2797,7 @@ ruff check src/ — All checks passed!
 | [`.env.example`](.env.example)                               | Изменён  |
 | [`Dockerfile`](Dockerfile)                                   | Изменён  |
 | [`docker-compose.yml`](docker-compose.yml)                   | Изменён  |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)   | Изменён  |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)     | Изменён  |
 
 ### Результаты проверок
 
@@ -2859,15 +2859,15 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                       | Действие                                                       |
-| ---------------------------------------------------------- | -------------------------------------------------------------- |
-| [`src/config.py`](src/config.py)                           | Изменён (+4 поля, +4 CONFIG_KEY, +4 записи в mapping)          |
-| [`.env`](.env)                                             | Изменён (+9 ключей)                                            |
-| [`.env.example`](.env.example)                             | Изменён (+9 ключей)                                            |
-| [`src/keyboards/inline.py`](src/keyboards/inline.py)       | Изменён (хардкод → settings.DENTAL_CLINIC_ID)                  |
-| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | Изменён (хардкоды → settings.ORIGIN_URL, settings.DISTRICT_ID) |
-| [`src/handlers/common.py`](src/handlers/common.py)         | Изменён (хардкод → settings.SIGNUP_URL)                        |
-| [`src/services/monitor.py`](src/services/monitor.py)       | Изменён (хардкод → settings.SIGNUP_URL)                        |
+| Файл                                                     | Действие                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| [`src/config.py`](src/config.py)                         | Изменён (+4 поля, +4 CONFIG_KEY, +4 записи в mapping)          |
+| [`.env`](.env)                                           | Изменён (+9 ключей)                                            |
+| [`.env.example`](.env.example)                           | Изменён (+9 ключей)                                            |
+| [`src/keyboards/inline.py`](src/keyboards/inline.py)     | Изменён (хардкод → settings.DENTAL_CLINIC_ID)                  |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)     | Изменён (хардкоды → settings.ORIGIN_URL, settings.DISTRICT_ID) |
+| [`src/handlers/common.py`](src/handlers/common.py)       | Изменён (хардкод → settings.SIGNUP_URL)                        |
+| [`src/services/monitor.py`](src/services/monitor.py)     | Изменён (хардкод → settings.SIGNUP_URL)                        |
 | [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён (удалена строка T-HARDCODE-IDS)                        |
 
 ### Результаты проверок
@@ -2958,11 +2958,11 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                       | Действие                                     |
-| ---------------------------------------------------------- | -------------------------------------------- |
-| [`src/config.py`](src/config.py)                           | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
-| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)       | +`_validate_response()`, +`X-Client-Version` |
-| [`.env.example`](.env.example)                             | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
+| Файл                                                     | Действие                                     |
+| -------------------------------------------------------- | -------------------------------------------- |
+| [`src/config.py`](src/config.py)                         | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
+| [`src/api/zdrav_client.py`](src/api/zdrav_client.py)     | +`_validate_response()`, +`X-Client-Version` |
+| [`.env.example`](.env.example)                           | +`API_VERSION`, `API_VALIDATE_RESPONSES`     |
 | [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Удалена задача T-API-VERSIONING              |
 
 ### Результаты проверок
@@ -3001,10 +3001,10 @@ ruff check src/ — All checks passed!
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие                                       |
-| ------------------------------------------------------------------ | ---------------------------------------------- |
-| [`README.md`](README.md)                                           | Полностью переписан (31 → ~310 строк)          |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)         | Удалена задача T-README                        |
+| Файл                                                                   | Действие                                       |
+| ---------------------------------------------------------------------- | ---------------------------------------------- |
+| [`README.md`](README.md)                                               | Полностью переписан (31 → ~310 строк)          |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)               | Удалена задача T-README                        |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Новая запись о T-README                        |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Добавлена предыдущая запись (T-API-VERSIONING) |
 
@@ -3238,8 +3238,8 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Изменённые файлы
 
-| Файл                                                               | Действие  |
-| ------------------------------------------------------------------ | --------- |
+| Файл                                                                   | Действие  |
+| ---------------------------------------------------------------------- | --------- |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md)         | Переписан |
 | [`.roo/sessions/SESSION_ARCHIVE.md`](.roo/sessions/SESSION_ARCHIVE.md) | Изменён   |
 
@@ -3264,11 +3264,11 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Изменённые файлы
 
-| Файл                                                       | Действие  |
-| ---------------------------------------------------------- | --------- |
-| [`specs/design/i18n_design.md`](specs/design/i18n_design.md) | Создан    |
+| Файл                                                           | Действие  |
+| -------------------------------------------------------------- | --------- |
+| [`specs/design/i18n_design.md`](specs/design/i18n_design.md)   | Создан    |
 | [`.roo/sessions/SESSION_LOG.md`](.roo/sessions/SESSION_LOG.md) | Переписан |
-| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md) | Изменён   |
+| [`.roo/tasks/AGENT_TASKS.md`](.roo/tasks/AGENT_TASKS.md)       | Изменён   |
 
 ### Результаты проверок
 
@@ -3385,11 +3385,11 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Изменённые файлы
 
-| Файл                                        | Действие |
-| ------------------------------------------- | -------- |
+| Файл                                         | Действие |
+| -------------------------------------------- | -------- |
 | `specs/design/api_change_detector_design.md` | Создан   |
-| `.roo/sessions/SESSION_LOG.md`                | Изменён  |
-| `.roo/sessions/SESSION_ARCHIVE.md`            | Изменён  |
+| `.roo/sessions/SESSION_LOG.md`               | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`           | Изменён  |
 
 ### Результаты проверок
 
@@ -3443,12 +3443,12 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Изменённые файлы
 
-| Файл                                  | Действие |
-| ------------------------------------- | -------- |
+| Файл                                   | Действие |
+| -------------------------------------- | -------- |
 | `specs/design/web_dashboard_design.md` | Создан   |
-| `.roo/sessions/SESSION_LOG.md`          | Изменён  |
-| `.roo/sessions/SESSION_ARCHIVE.md`      | Изменён  |
-| `.roo/tasks/AGENT_TASKS.md`          | Изменён  |
+| `.roo/sessions/SESSION_LOG.md`         | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`     | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`            | Изменён  |
 
 ### Результаты проверок
 
@@ -3534,9 +3534,9 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 | `src/web/templates/api_status.html`  | Создан   |
 | `src/web/static/dashboard.css`       | Создан   |
 | `tests/test_doctor_discovery.py`     | Изменён  |
-| `.roo/sessions/SESSION_LOG.md`         | Изменён  |
-| `.roo/sessions/SESSION_ARCHIVE.md`     | Изменён  |
-| `.roo/tasks/AGENT_TASKS.md`         | Изменён  |
+| `.roo/sessions/SESSION_LOG.md`       | Изменён  |
+| `.roo/sessions/SESSION_ARCHIVE.md`   | Изменён  |
+| `.roo/tasks/AGENT_TASKS.md`          | Изменён  |
 
 ---
 
@@ -3957,10 +3957,10 @@ v1 не содержала колонки `city`, `discovery_patient_adult`, `di
 
 ### Результаты проверок
 
-| Инструмент                                      | Результат            |
-| ----------------------------------------------- | -------------------- |
-| `ruff check src` (изменённые файлы)             | ✅ All checks passed |
-| `npx markdownlint "docs/**/*.md"`               | ✅ 0 errors          |
+| Инструмент                                     | Результат            |
+| ---------------------------------------------- | -------------------- |
+| `ruff check src` (изменённые файлы)            | ✅ All checks passed |
+| `npx markdownlint "docs/**/*.md"`              | ✅ 0 errors          |
 | `npx prettier --write .roo/tasks/TECH_DEBT.md` | ✅                   |
 
 ---
@@ -4182,7 +4182,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | Файл                       | Действие |
 | -------------------------- | -------- |
 | `src/web/routers/pages.py` | Изменён  |
-| `.roo/tasks/TECH_DEBT.md` | Удалён   |
+| `.roo/tasks/TECH_DEBT.md`  | Удалён   |
 
 ### Результаты
 
@@ -4678,19 +4678,19 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 
 ### Изменённые файлы
 
-| Файл                                                             | Тип изменения                       |
-| ---------------------------------------------------------------- | ----------------------------------- |
-| [`docker-compose.yml`](../../docker-compose.yml)                 | Изменён порт на 8080                |
-| [`Dockerfile`](../../Dockerfile)                                 | Добавлен EXPOSE 8080                |
-| [`src/config.py`](../../src/config.py)                           | WEB_DASHBOARD_PORT=8080             |
-| [`.env`](../../.env)                                             | Порт и MINI_APP_URL                 |
-| [`.env.example`](../../.env.example)                             | Плейсхолдер и комментарий           |
+| Файл                                                              | Тип изменения                       |
+| ----------------------------------------------------------------- | ----------------------------------- |
+| [`docker-compose.yml`](../../docker-compose.yml)                  | Изменён порт на 8080                |
+| [`Dockerfile`](../../Dockerfile)                                  | Добавлен EXPOSE 8080                |
+| [`src/config.py`](../../src/config.py)                            | WEB_DASHBOARD_PORT=8080             |
+| [`.env`](../../.env)                                              | Порт и MINI_APP_URL                 |
+| [`.env.example`](../../.env.example)                              | Плейсхолдер и комментарий           |
 | [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Создан                              |
-| [`.env`](../../.env)                                             | Домен `lenregbot.acidbox.top`       |
+| [`.env`](../../.env)                                              | Домен `lenregbot.acidbox.top`       |
 | [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Домен `lenregbot.acidbox.top`       |
-| [`env.vps`](../../env.vps)                                       | Создан                              |
-| [`.gitignore`](../../.gitignore)                                 | Добавлен `env.vps`                  |
-| [`scripts/install.sh`](../../scripts/install.sh)                 | Создан                              |
+| [`env.vps`](../../env.vps)                                        | Создан                              |
+| [`.gitignore`](../../.gitignore)                                  | Добавлен `env.vps`                  |
+| [`scripts/install.sh`](../../scripts/install.sh)                  | Создан                              |
 | [`specs/design/mini_app_deploy.md`](../design/mini_app_deploy.md) | Добавлен раздел «Быстрая установка» |
 
 ### Тесты
@@ -5013,7 +5013,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | `src/services/monitor.py`         | 2.3, 4.4                |
 | `src/web/routers/user_api.py`     | 2.4, 3.6, 4.4           |
 | `src/api/models.py`               | 2.5                     |
-| `specs/openapi.yaml`               | 2.5                     |
+| `specs/openapi.yaml`              | 2.5                     |
 | `src/services/error_notifier.py`  | 2.6                     |
 | `src/services/healthcheck.py`     | 2.7                     |
 | `src/services/schema_watcher.py`  | 2.8                     |
@@ -5026,7 +5026,7 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 | `scripts/backup.sh`               | 5.2 (новый)             |
 | `scripts/generate_api_schemas.py` | 2.5                     |
 | `src/web/dependencies.py`         | 2.1 (удалён)            |
-| `artifacts/schemas/ApiError.json`      | 2.5 (удалён)            |
+| `artifacts/schemas/ApiError.json` | 2.5 (удалён)            |
 
 ### Проверки
 
@@ -5104,3 +5104,172 @@ c729fb6 fix: техдолг MIN-004..MIN-015 — чистка кода, типи
 ### Результаты проверок
 
 - Не запускались (CSS-рефакторинг, визуальная проверка)
+
+---
+
+## 2026-06-14 — Проектирование и реализация механизма резервного копирования БД
+
+**Режим:** architect (фаза 0 — проектирование), code (фазы 1-4 — реализация, линтинг, финализация)
+**Задача:** Спроектировать и реализовать трёхуровневый механизм автоматического резервного копирования базы данных с удалённым хранением, верификацией, REST API и веб-интерфейсом управления.
+
+### Фаза 0 — Проектирование (architect)
+
+- Спроектирован трёхуровневый ротационный механизм бэкапа: daily (7 копий), weekly (4 копии), monthly (12 копий)
+- Определён инструментарий: `sqlite3 .backup` для атомарного копирования БД без блокировок
+- Спроектирована удалённая репликация через SCP на защищённый хост (`backup.lenreg.ru`)
+- Разработана cron-автоматизация: ежедневный запуск в 03:00 MSK с ротацией
+- Спроектирована верификация целостности: `PRAGMA integrity_check` после каждого бэкапа
+- Спроектирована система алертов: NTFY (критические сбои) + Sentry (ошибки верификации)
+- Определены требования к ssh-ключам и конфигурации удалённого хоста
+- Зафиксированы критерии приёмки (10 пунктов)
+- Дополнение дизайна: гибридное управление бэкапами (shell + веб-дашборд) — 4 REST API эндпоинта, двухфакторное подтверждение restore, UI-компоненты
+
+**Изменённые файлы (фаза 0):**
+
+- [`specs/design/database_backup_design.md`](../../specs/design/database_backup_design.md) — создан, затем дополнен разделом «12. Гибридное управление (Shell + Веб-дашборд)»
+
+### Фаза 1 — Shell-скрипты и конфигурация (code)
+
+- Переписан [`scripts/backup.sh`](scripts/backup.sh): трёхуровневая ротация, SCP-репликация, integrity check, NTFY/Sentry алерты
+- Создан [`scripts/restore.sh`](scripts/restore.sh): интерактивное восстановление с выбором бэкапа, .broken-сохранение, integrity check
+- Создан [`scripts/backup_healthcheck.sh`](scripts/backup_healthcheck.sh): проверка доступности директорий, ssh-хоста, дискового пространства, целостности бэкапов
+- Добавлены 6 backup-полей в [`src/config.py`](src/config.py): `BACKUP_DIR`, `BACKUP_RETENTION_DAILY`, `BACKUP_RETENTION_WEEKLY`, `BACKUP_RETENTION_MONTHLY`, `BACKUP_REMOTE_HOST`, `BACKUP_REMOTE_PATH`
+- Добавлены ключи в `.env` и `.env.example`: `BACKUP_DIR`, `BACKUP_RETENTION_*`, `BACKUP_REMOTE_HOST`, `BACKUP_REMOTE_PATH`
+
+**Изменённые файлы (фаза 1):**
+
+- [`scripts/backup.sh`](scripts/backup.sh) — переписан
+- [`scripts/restore.sh`](scripts/restore.sh) — создан
+- [`scripts/backup_healthcheck.sh`](scripts/backup_healthcheck.sh) — создан
+- [`src/config.py`](src/config.py) — добавлены 6 полей в класс `Settings`
+- `.env` — добавлены backup-ключи
+- `.env.example` — добавлены backup-ключи
+
+### Фаза 2 — Python REST API (code)
+
+- Создан [`src/web/routers/backup_api.py`](src/web/routers/backup_api.py): 4 эндпоинта:
+  - `GET /api/backups` — список бэкапов с пагинацией
+  - `GET /api/backups/status` — статус (последний бэкап, свободное место, количество)
+  - `POST /api/backups/create` — запуск ручного бэкапа
+  - `POST /api/backups/restore` — восстановление из бэкапа с двухфакторным подтверждением
+- Зарегистрирован роутер `backup_api` в [`src/web/app.py`](src/web/app.py)
+- Добавлен route `/backups` в [`src/web/routers/pages.py`](src/web/routers/pages.py)
+
+**Изменённые файлы (фаза 2):**
+
+- [`src/web/routers/backup_api.py`](src/web/routers/backup_api.py) — создан
+- [`src/web/app.py`](src/web/app.py) — регистрация роутера `backup_api`
+- [`src/web/routers/pages.py`](src/web/routers/pages.py) — добавлен route `/backups`
+
+### Фаза 3 — Фронтенд и Docker (code)
+
+- Создан шаблон [`src/web/templates/backups.html`](src/web/templates/backups.html): таблица бэкапов, модальные окна восстановления, панель статуса, пагинация
+- Создан JS-модуль [`src/web/static/app/js/views/backups.js`](src/web/static/app/js/views/backups.js): загрузка списка, статуса, обработка кнопок «Создать бэкап» / «Восстановить», двухфакторное подтверждение
+- Дополнен CSS [`src/web/static/app/css/style.css`](src/web/static/app/css/style.css): стили для `.backup-status-panel`, `.backup-table`, `.backup-modal`, `.confirm-code-input`
+- Обновлён [`docker-compose.yml`](docker-compose.yml): добавлен `user: 1000:1000` для контейнера, bind-mount `./scripts:/app/scripts:ro`
+
+**Изменённые файлы (фаза 3):**
+
+- [`src/web/templates/backups.html`](src/web/templates/backups.html) — создан
+- [`src/web/static/app/js/views/backups.js`](src/web/static/app/js/views/backups.js) — создан
+- [`src/web/static/app/css/style.css`](src/web/static/app/css/style.css) — дополнен стилями бэкапов
+- [`docker-compose.yml`](docker-compose.yml) — добавлен `user` и bind-mount `scripts`
+
+### Фаза 4 — Линтинг, тесты, финализация (code)
+
+- **Ruff:** `src/web/routers/backup_api.py`, `src/web/app.py`, `src/web/routers/pages.py`, `src/config.py` — 0 errors
+- **Bash syntax check:** `scripts/backup.sh`, `scripts/restore.sh`, `scripts/backup_healthcheck.sh` — 0 errors
+- **Prettier:** `backups.html`, `backups.js`, `style.css`, `docker-compose.yml` — отформатированы
+- **Markdownlint:** [`specs/design/database_backup_design.md`](../../specs/design/database_backup_design.md) — 0 errors (исправлено 2 ошибки MD040: добавлен `text` язык для ASCII-диаграмм)
+
+### Результаты проверок
+
+| Инструмент   | Файлы                                                           | Результат |
+| ------------ | --------------------------------------------------------------- | --------- |
+| Ruff         | `backup_api.py`, `app.py`, `pages.py`, `config.py`              | 0 errors  |
+| Bash -n      | `backup.sh`, `restore.sh`, `backup_healthcheck.sh`              | 0 errors  |
+| Prettier     | `backups.html`, `backups.js`, `style.css`, `docker-compose.yml` | OK        |
+| Markdownlint | `database_backup_design.md`                                     | 0 errors  |
+
+---
+
+## Сессия: 2026-06-14 — Аудит и исправление нарушений standards.md
+
+## Задача
+
+Проверить соответствие проекта принципам из `.roo/rules/standards.md` и исправить найденные нарушения.
+
+## Этапы
+
+### 1. Статический анализ
+
+- ruff check: 0 ошибок ✅
+- ruff format: 1 файл не соответствовал (`src/utils/logging.py`) → исправлен
+- mypy: 0 ошибок ✅
+
+### 2. Markdown и конфигурация
+
+- markdownlint: 1 файл с дублирующимися заголовками (`plans/calendar-component-spec.md`) → исправлен
+- `.env.example`: добавлены 5 отсутствующих полей (API_TIMEOUT, SLOT_THRESHOLD_ABSOLUTE, SLOT_THRESHOLD_PERCENTAGE, MESSAGE_TTL_SECONDS, MINI_APP_AUTH_ENABLED)
+
+### 3. Структурный аудит (ручной анализ кода)
+
+- Философия: выявлены длинные функции (monitor.py:198 строк, common.py:162 строки), сокращения имён
+- Импорты: без нарушений ✅
+- Взаимодействие с API: без нарушений ✅
+- Конфигурация и хранение: без нарушений ✅
+
+### 4. Исправление критических нарушений
+
+- **Redis try/except:** [`src/utils/redis.py`](src/utils/redis.py) — 12 методов обёрнуты в try/except с перехватом ConnectionError, TimeoutError, RedisError
+- **Healthcheck +Redis:** [`src/services/healthcheck.py`](src/services/healthcheck.py) — добавлена проверка доступности Redis в healthcheck_loop() и format_status_report()
+- **Rate Limiter Telegram:** [`src/services/monitor.py`](src/services/monitor.py) — добавлен `_telegram_limiter = AsyncLimiter(25/сек)`
+- **Обработка 429:** [`src/services/monitor.py`](src/services/monitor.py) — добавлена `_send_telegram_safe()` с retry при 429
+
+### 5. Исправление значительных нарушений
+
+- **except Exception → конкретные типы:** [`src/api/zdrav_client.py`](src/api/zdrav_client.py) — добавлен `except asyncio.CancelledError: raise` перед голыми except
+- **asyncio.gather + return_exceptions:** [`src/services/monitor.py`](src/services/monitor.py:478) — добавлен `return_exceptions=True` с логированием ошибок
+
+### 6. Исправление умеренных нарушений
+
+- **Разбивка handler-функций:** [`src/handlers/mini_app.py`](src/handlers/mini_app.py) — `_handle_doctor_added()` и `_handle_doctor_removed()` разбиты на подфункции ≤30 строк
+- **Переименование сокращений:** `d_spec` → `doctor_specialty` (26 замен), `p_label` → `patient_label` (10 замен), `bday` → `birthday` (7 замен), `cb_filter` → `callback_filter` (12 замен)
+
+### 7. Финальная проверка
+
+- ruff check: 0 ошибок ✅
+- ruff format: 81 файл отформатирован ✅
+- mypy: 0 ошибок ✅
+
+## Изменённые файлы
+
+- `src/utils/logging.py` — ruff format
+- `src/utils/redis.py` — try/except для 12 методов Redis
+- `src/services/healthcheck.py` — проверка Redis в healthcheck
+- `src/services/monitor.py` — rate limiter Telegram, обработка 429, gather return_exceptions
+- `src/api/zdrav_client.py` — CancelledError перед голыми except
+- `src/handlers/mini_app.py` — разбивка handler-функций
+- `src/handlers/common.py` — переименование сокращений
+- `src/handlers/callback_parser.py` — переименование cb_filter
+- `src/database/manager.py` — переименование bday
+- `src/database/database.py` — переименование bday
+- `src/database/repo_users.py` — переименование bday
+- `src/services/export.py` — переименование d_spec
+- `src/web/routers/user_api.py` — переименование d_spec
+- `src/utils/helpers.py` — переименование bday, p_label
+- `plans/calendar-component-spec.md` — исправление дублирующихся заголовков
+- `.env.example` — добавлены 5 полей
+
+## Не исправлено (высокорискованный рефакторинг, зафиксирован в TECH_DEBT.md)
+
+- `_check_single_doctor()` — 198 строк (требует глубокого рефакторинга)
+- `toggle_doctor()` — 162 строки
+- `monitor_loop()` — 100 строк
+
+## Результат проверок
+
+- ruff check: 0 errors ✅
+- ruff format: 0 files would be reformatted ✅
+- mypy: 0 errors ✅
+- markdownlint: 0 errors ✅

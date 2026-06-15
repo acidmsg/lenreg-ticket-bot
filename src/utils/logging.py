@@ -61,6 +61,7 @@ def _mask_sensitive_query_params(message: str) -> str:
 
         ?token=abc123&foo=bar  →  ?token=***&foo=bar
     """
+
     def _replace_param(m: re.Match) -> str:
         name = m.group(1)
         return f"{name}=***"
@@ -164,7 +165,6 @@ def setup_logging(
 
     # Remove any default Loguru sink
     logger.remove()
-
 
     # --- Console sink (colorful, human-readable) ---
     logger.add(

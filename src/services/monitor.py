@@ -1,8 +1,11 @@
 import asyncio
 import random
 import time
+from pathlib import Path
 
+import aiolimiter
 from aiogram import Bot
+from aiogram import exceptions as tg_exceptions
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
@@ -20,6 +23,78 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
+
+# Rate limiter для отправки уведомлений в Telegram: ≤ 25 сообщений/сек
+_telegram_limiter = aiolimiter.AsyncLimiter(max_rate=25, time_period=1.0)
+
+
+async def _send_telegram_safe(
+    bot: Bot,
+    chat_id: int,
+    db: DatabaseManager,
+    p_id: str,
+    d_id: str,
+    text: str,
+    *,
+    photo_path: Path | None = None,
+) -> bool:
+    """Отправка уведомления в Telegram с rate limiting и обработкой 429.
+
+    Обёртка над :func:`_send_or_update_message`, которая:
+    - Применяет глобальный лимитер ``_telegram_limiter`` (≤25 сообщений/сек).
+    - Перехватывает ``TelegramRetryAfter`` (429), ждёт ``retry_after``
+      и повторяет отправку один раз.
+    - Логирует все ошибки отправки.
+
+    Returns:
+        True если отправка успешна, False при ошибке.
+    """
+    async with _telegram_limiter:
+        try:
+            await _send_or_update_message(
+                bot,
+                chat_id,
+                db,
+                p_id,
+                d_id,
+                text,
+                photo_path=photo_path,
+            )
+            return True
+        except tg_exceptions.TelegramRetryAfter as e:
+            logger.warning(
+                "Telegram 429: retry after %.1fs for chat %d",
+                e.retry_after,
+                chat_id,
+            )
+            await asyncio.sleep(e.retry_after)
+            try:
+                await _send_or_update_message(
+                    bot,
+                    chat_id,
+                    db,
+                    p_id,
+                    d_id,
+                    text,
+                    photo_path=photo_path,
+                )
+                return True
+            except Exception as e2:
+                logger.error(
+                    "Telegram retry failed for chat %d: %s",
+                    chat_id,
+                    e2,
+                    exc_info=True,
+                )
+                return False
+        except Exception as e:
+            logger.error(
+                "Telegram send failed for chat %d: %s",
+                chat_id,
+                e,
+                exc_info=True,
+            )
+            return False
 
 
 def _handle_disappeared(
@@ -152,14 +227,14 @@ async def _check_single_doctor(
     # Извлекаем данные врача
     if isinstance(d_info, dict):
         d_name = d_info.get("name", _("doctor-fallback-name"))
-        d_spec = d_info.get("specialty", "")
+        doctor_specialty = d_info.get("specialty", "")
         clinic_id = d_info.get(
             "clinic_id",
             p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID),
         )
     else:
         d_name = d_info
-        d_spec = ""
+        doctor_specialty = ""
         clinic_id = p_info.get("clinic_id", settings.DEFAULT_CLINIC_ID)
 
     logger.info(
@@ -223,13 +298,17 @@ async def _check_single_doctor(
         if slots:
             slot_date = slots[0].split(",")[0].strip() if "," in slots[0] else slots[0]
 
-        p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
+        patient_label = p_info.get("alias") or p_info.get(
+            "fio", _("patient-fallback-name")
+        )
         d_name = (
             d_info.get("name", _("doctor-fallback-name"))
             if isinstance(d_info, dict)
             else str(d_info)
         )
-        d_spec = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
+        doctor_specialty = (
+            d_info.get("specialty", "") if isinstance(d_info, dict) else ""
+        )
         clinic_id = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
 
         # Получаем название клиники
@@ -252,8 +331,8 @@ async def _check_single_doctor(
                 p_id=p_id,
                 d_id=d_id,
                 doctor_name=d_name,
-                patient_name=p_label,
-                specialty=d_spec,
+                patient_name=patient_label,
+                specialty=doctor_specialty,
                 clinic_name=clinic_name,
                 slot_date=slot_date,
                 status=log_status,
@@ -273,9 +352,9 @@ async def _check_single_doctor(
         )
         return
 
-    p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
+    patient_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
     d_name_display = shorten_fio(d_name)
-    d_spec_display = shorten_specialty(d_spec)
+    d_spec_display = shorten_specialty(doctor_specialty)
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
     has_slots = bool(slots)
     link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
@@ -283,7 +362,7 @@ async def _check_single_doctor(
     if display_slots is None:
         # Номерки исчезли
         msg = format_notification_text(
-            p_label,
+            patient_label,
             d_name_display,
             spec_text,
             header,
@@ -296,7 +375,7 @@ async def _check_single_doctor(
             compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
         )
         msg = format_notification_text(
-            p_label,
+            patient_label,
             d_name_display,
             spec_text,
             header,
@@ -307,18 +386,15 @@ async def _check_single_doctor(
     # Отправка уведомления только если передан bot (из REST API bot=None)
     if bot is not None:
         photo_path = get_notify_image_path(notify_type)
-        try:
-            await _send_or_update_message(
-                bot,
-                int(uid),
-                db,
-                p_id,
-                d_id,
-                msg,
-                photo_path=photo_path,
-            )
-        except Exception as e:
-            logger.error(f"Ошибка отправки уведомления: {e}")
+        await _send_telegram_safe(
+            bot,
+            int(uid),
+            db,
+            p_id,
+            d_id,
+            msg,
+            photo_path=photo_path,
+        )
 
 
 async def monitor_loop(
@@ -401,7 +477,17 @@ async def monitor_loop(
                         doctor_tasks.append(task)
 
                     # Параллельный запуск проверки всех врачей пациента
-                    await asyncio.gather(*doctor_tasks)
+                    results = await asyncio.gather(
+                        *doctor_tasks, return_exceptions=True
+                    )
+                    for i, result in enumerate(results):
+                        if isinstance(result, BaseException):
+                            logger.error(
+                                "Doctor task %d failed: %s",
+                                i,
+                                result,
+                                exc_info=True,
+                            )
 
             # Первый полный цикл завершён — снимаем флаг начальной синхронизации
             if _initial_sync:

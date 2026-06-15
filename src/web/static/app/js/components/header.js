@@ -6,6 +6,7 @@
  */
 
 import { lucideIcon } from './icon.js';
+import { escapeHtml } from '../utils/escape.js';
 
 /**
  * Рендерит HTML шапки.
@@ -31,16 +32,4 @@ export function renderHeader(title, showBack = false, userName = '') {
       ${userNameHtml}
     </header>
   `;
-}
-
-/**
- * Экранирует HTML-символы для безопасного рендеринга.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

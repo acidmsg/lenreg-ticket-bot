@@ -13,11 +13,15 @@ from dataclasses import dataclass, field
 
 from aiogram import Bot
 from loguru import logger
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.i18n import _
+from src.utils.redis import get_redis
 
 
 @dataclass
@@ -50,6 +54,10 @@ class HealthMetrics:
     discovery_tasks_alive: int = 0
     monitor_loop_alive: bool = False
     healthcheck_loop_alive: bool = False
+
+    # Состояние Redis
+    last_redis_check_time: float = 0.0
+    redis_ok: bool = False
 
     # Ошибки
     last_error_time: float | None = None
@@ -150,22 +158,44 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 await safe_set("last_api_error_message", str(e)[:200])
                 logger.error(f"Healthcheck: ошибка API: {e}")
 
+            # Проверка доступности Redis (активная, через ping)
+            redis_ok = False
+            try:
+                redis_client = await get_redis()
+                redis_ok = await redis_client.health_check()
+            except (RedisConnectionError, RedisTimeoutError, RedisError) as e:
+                logger.warning(
+                    "Healthcheck: Redis недоступен | Причина: %s | "
+                    "Действие: продолжаем без кэша и rate limiting",
+                    e,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Healthcheck: ошибка проверки Redis | Причина: %s | "
+                    "Действие: считаем Redis недоступным",
+                    e,
+                )
+
             # Атомарно фиксируем снапшот
             now = time.time()
             async with metrics_lock:
                 metrics.last_api_check_time = now
                 metrics.last_api_ok = ok
                 metrics.last_check_duration = now - check_start
+                metrics.last_redis_check_time = now
+                metrics.redis_ok = redis_ok
                 uptime = metrics.uptime_str()
                 api_health = metrics.api_health_str()
 
             stats = db.get_user_statistics()
 
             # Логируем состояние
+            redis_status = "✅" if redis_ok else "❌"
             logger.info(
                 f"Healthcheck | "
                 f"Uptime: {uptime} | "
                 f"API: {api_health} | "
+                f"Redis: {redis_status} | "
                 f"Users: {stats['total_users']} | "
                 f"Patients: {stats['total_patients']} | "
                 f"Monitored: {stats['total_monitored_doctors']}"
@@ -193,6 +223,7 @@ async def format_status_report(db: DatabaseManager) -> str:
     async with metrics_lock:
         uptime = metrics.uptime_str()
         api_health = metrics.api_health_str()
+        redis_ok = metrics.redis_ok
         last_error = metrics.last_error_str()
         healthcheck_alive = metrics.healthcheck_loop_alive
         monitor_alive = metrics.monitor_loop_alive
@@ -200,6 +231,8 @@ async def format_status_report(db: DatabaseManager) -> str:
 
     healthcheck_status = "✅" if healthcheck_alive else "❌"
     monitor_status = "✅" if monitor_alive else "❌"
+
+    redis_status = "✅ Доступен" if redis_ok else "❌ Недоступен"
 
     lines = [
         _("status-report-title"),
@@ -213,6 +246,8 @@ async def format_status_report(db: DatabaseManager) -> str:
         "",
         _("status-api-header"),
         f"{api_health}",
+        "",
+        f"🔄 Redis: {redis_status}",
         "",
         _("status-tasks-header"),
         _("status-task-healthcheck").format(status=healthcheck_status),

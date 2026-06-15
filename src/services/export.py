@@ -113,11 +113,11 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
             for _d_id, d_info in doctors.items():
                 if isinstance(d_info, dict):
                     d_name = d_info.get("name", "")
-                    d_spec = d_info.get("specialty", "")
+                    doctor_specialty = d_info.get("specialty", "")
                     clinic_id = d_info.get("clinic_id", "")
                 else:
                     d_name = str(d_info)
-                    d_spec = ""
+                    doctor_specialty = ""
                     clinic_id = ""
 
                 clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
@@ -125,7 +125,7 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
                 writer.writerow(
                     [
                         p_name,
-                        d_spec,
+                        doctor_specialty,
                         d_name,
                         clinic_name,
                         "",
@@ -210,11 +210,11 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
         for d_id, d_info in doctors.items():
             if isinstance(d_info, dict):
                 d_name = d_info.get("name", "")
-                d_spec = d_info.get("specialty", "")
+                doctor_specialty = d_info.get("specialty", "")
                 clinic_id = d_info.get("clinic_id", "")
             else:
                 d_name = str(d_info)
-                d_spec = ""
+                doctor_specialty = ""
                 clinic_id = ""
 
             clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
@@ -222,7 +222,7 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
             doctor_entry: dict[str, Any] = {
                 "doctor_id": d_id,
                 "doctor_name": d_name,
-                "specialty": d_spec,
+                "specialty": doctor_specialty,
                 "clinic_name": clinic_name,
                 "status": _("export-status-active"),
                 "history": log_by_patient.get(p_id, {}).get(d_id, []),

@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Сводка — ZdravLenReg Dashboard{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title %}Сводка — ZdravLenReg
+Dashboard{% endblock %} {% block content %}
 <h1>Сводка</h1>
 
 <div class="grid-2col">
@@ -32,38 +31,7 @@
 
   <div class="card">
     <h2>Фоновые задачи</h2>
-    <table class="info-table">
-      <tr>
-        <td>monitor_loop</td>
-        <td>
-          {% if monitor_alive %}
-          <span class="badge badge-ok">✅ alive</span>
-          {% else %}
-          <span class="badge badge-err">❌ dead</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>discovery_tasks</td>
-        <td>
-          {% if discovery_alive > 0 %}
-          <span class="badge badge-ok">✅ {{ discovery_alive }}</span>
-          {% else %}
-          <span class="badge badge-err">❌ 0</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>healthcheck_loop</td>
-        <td>
-          {% if healthcheck_alive %}
-          <span class="badge badge-ok">✅ alive</span>
-          {% else %}
-          <span class="badge badge-err">❌ dead</span>
-          {% endif %}
-        </td>
-      </tr>
-    </table>
+    {% include "_background_tasks.html" %}
   </div>
 
   <div class="card">
@@ -106,15 +74,7 @@
           <td class="cell-nowrap">{{ log.ts|int|strftime }}</td>
           <td>{{ log.patient_name }}</td>
           <td>{{ log.doctor_name }}</td>
-          <td>
-            {% if log.status == 'появился' or log.status == 'увеличилось' %}
-            <span class="badge badge-ok">{{ log.status }}</span>
-            {% elif log.status == 'исчез' or log.status == 'уменьшилось' %}
-            <span class="badge badge-warn">{{ log.status }}</span>
-            {% else %}
-            <span class="badge">{{ log.status }}</span>
-            {% endif %}
-          </td>
+          <td>{{ macros.status_badge(log.status) }}</td>
         </tr>
         {% endfor %}
       </tbody>

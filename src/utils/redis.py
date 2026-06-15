@@ -12,6 +12,9 @@ from collections.abc import Awaitable
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from loguru import logger
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from src.config import settings
 
@@ -133,31 +136,106 @@ class RedisClient:
         """Получает значение по ключу. Возвращает None при недоступности Redis."""
         if not self._available:
             return None
-        return await self.client.get(key)  # type: ignore[no-any-return]
+        try:
+            return await self.client.get(key)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis get({key}): connection error — {e}. Fallback: return None."
+            )
+            return None
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis get({key}): timeout — {e}. Fallback: return None.")
+            return None
+        except RedisError as e:
+            logger.error(
+                f"Redis get({key}): Redis error — {e}. Fallback: return None.",
+                exc_info=True,
+            )
+            return None
 
     async def set(self, key: str, value: str, ex: int | None = None) -> bool:
         """Устанавливает значение. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.set(key, value, ex=ex)  # type: ignore[no-any-return]
+        try:
+            return await self.client.set(key, value, ex=ex)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis set({key}): connection error — {e}. Fallback: return False."
+            )
+            return False
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis set({key}): timeout — {e}. Fallback: return False.")
+            return False
+        except RedisError as e:
+            logger.error(
+                f"Redis set({key}): Redis error — {e}. Fallback: return False.",
+                exc_info=True,
+            )
+            return False
 
     async def delete(self, *keys: str) -> int:
         """Удаляет ключи. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.delete(*keys)  # type: ignore[no-any-return]
+        try:
+            return await self.client.delete(*keys)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis delete({keys}): connection error — {e}. Fallback: return 0."
+            )
+            return 0
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis delete({keys}): timeout — {e}. Fallback: return 0.")
+            return 0
+        except RedisError as e:
+            logger.error(
+                f"Redis delete({keys}): Redis error — {e}. Fallback: return 0.",
+                exc_info=True,
+            )
+            return 0
 
     async def exists(self, *keys: str) -> int:
         """Проверяет существование ключей. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.exists(*keys)  # type: ignore[no-any-return]
+        try:
+            return await self.client.exists(*keys)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis exists({keys}): connection error — {e}. Fallback: return 0."
+            )
+            return 0
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis exists({keys}): timeout — {e}. Fallback: return 0.")
+            return 0
+        except RedisError as e:
+            logger.error(
+                f"Redis exists({keys}): Redis error — {e}. Fallback: return 0.",
+                exc_info=True,
+            )
+            return 0
 
     async def expire(self, key: str, seconds: int) -> bool:
         """Устанавливает TTL. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return await self.client.expire(key, seconds)  # type: ignore[no-any-return]
+        try:
+            return await self.client.expire(key, seconds)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis expire({key}, {seconds}s): connection error — {e}. → False"
+            )
+            return False
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis expire({key}, {seconds}s): timeout — {e}. → False")
+            return False
+        except RedisError as e:
+            logger.error(
+                f"Redis expire({key}, {seconds}s): Redis error — {e}. → False",
+                exc_info=True,
+            )
+            return False
 
     async def ttl(self, key: str) -> int:
         """Возвращает оставшееся время жизни ключа.
@@ -165,43 +243,150 @@ class RedisClient:
         """
         if not self._available:
             return -2
-        return await self.client.ttl(key)  # type: ignore[no-any-return]
+        try:
+            return await self.client.ttl(key)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis ttl({key}): connection error — {e}. Fallback: return -2."
+            )
+            return -2
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis ttl({key}): timeout — {e}. Fallback: return -2.")
+            return -2
+        except RedisError as e:
+            logger.error(
+                f"Redis ttl({key}): Redis error — {e}. Fallback: return -2.",
+                exc_info=True,
+            )
+            return -2
 
     async def keys(self, pattern: str) -> list[str]:
         """Возвращает список ключей. Возвращает [] при недоступности Redis."""
         if not self._available:
             return []
-        return await self.client.keys(pattern)  # type: ignore[no-any-return]
+        try:
+            return await self.client.keys(pattern)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis keys({pattern}): connection error — {e}. Fallback: return []."
+            )
+            return []
+        except RedisTimeoutError as e:
+            logger.warning(
+                f"Redis keys({pattern}): timeout — {e}. Fallback: return []."
+            )
+            return []
+        except RedisError as e:
+            logger.error(
+                f"Redis keys({pattern}): Redis error — {e}. Fallback: return [].",
+                exc_info=True,
+            )
+            return []
 
     async def incr(self, key: str) -> int:
         """Атомарно инкрементирует значение. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await self.client.incr(key)  # type: ignore[no-any-return]
+        try:
+            return await self.client.incr(key)  # type: ignore[no-any-return]
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis incr({key}): connection error — {e}. Fallback: return 0."
+            )
+            return 0
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis incr({key}): timeout — {e}. Fallback: return 0.")
+            return 0
+        except RedisError as e:
+            logger.error(
+                f"Redis incr({key}): Redis error — {e}. Fallback: return 0.",
+                exc_info=True,
+            )
+            return 0
 
     async def rpush(self, key: str, *values: str) -> int:
         """Добавляет значения в список. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await cast(Awaitable[int], self.client.rpush(key, *values))
+        try:
+            return await cast(Awaitable[int], self.client.rpush(key, *values))
+        except RedisConnectionError as e:
+            logger.warning(f"Redis rpush({key}, {values}): connection error — {e}. → 0")
+            return 0
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis rpush({key}, {values}): timeout — {e}. → 0")
+            return 0
+        except RedisError as e:
+            logger.error(
+                f"Redis rpush({key}, {values}): Redis error — {e}. → 0",
+                exc_info=True,
+            )
+            return 0
 
     async def lrange(self, key: str, start: int, end: int) -> list[str]:
         """Возвращает срез списка. Возвращает [] при недоступности Redis."""
         if not self._available:
             return []
-        return await cast(Awaitable[list[str]], self.client.lrange(key, start, end))
+        try:
+            return await cast(Awaitable[list[str]], self.client.lrange(key, start, end))
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis lrange({key}, {start}, {end}): connection error — {e}. → []"
+            )
+            return []
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis lrange({key}, {start}, {end}): timeout — {e}. → []")
+            return []
+        except RedisError as e:
+            logger.error(
+                f"Redis lrange({key}, {start}, {end}): Redis error — {e}. → []",
+                exc_info=True,
+            )
+            return []
 
     async def ltrim(self, key: str, start: int, end: int) -> bool:
         """Обрезает список. Возвращает False при недоступности Redis."""
         if not self._available:
             return False
-        return bool(await cast(Awaitable[str], self.client.ltrim(key, start, end)))
+        try:
+            return bool(await cast(Awaitable[str], self.client.ltrim(key, start, end)))
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis ltrim({key}, {start}, {end}): connection error — {e}. → False"
+            )
+            return False
+        except RedisTimeoutError as e:
+            logger.warning(
+                f"Redis ltrim({key}, {start}, {end}): timeout — {e}. → False"
+            )
+            return False
+        except RedisError as e:
+            logger.error(
+                f"Redis ltrim({key}, {start}, {end}): Redis error — {e}. → False",
+                exc_info=True,
+            )
+            return False
 
     async def llen(self, key: str) -> int:
         """Возвращает длину списка. Возвращает 0 при недоступности Redis."""
         if not self._available:
             return 0
-        return await cast(Awaitable[int], self.client.llen(key))
+        try:
+            return await cast(Awaitable[int], self.client.llen(key))
+        except RedisConnectionError as e:
+            logger.warning(
+                f"Redis llen({key}): connection error — {e}. Fallback: return 0."
+            )
+            return 0
+        except RedisTimeoutError as e:
+            logger.warning(f"Redis llen({key}): timeout — {e}. Fallback: return 0.")
+            return 0
+        except RedisError as e:
+            logger.error(
+                f"Redis llen({key}): Redis error — {e}. Fallback: return 0.",
+                exc_info=True,
+            )
+            return 0
 
     async def pipeline(self) -> Any:
         """Создаёт pipeline для атомарного выполнения команд.

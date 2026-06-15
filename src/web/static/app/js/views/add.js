@@ -11,6 +11,7 @@
 import { apiGet, apiPost } from '../api.js';
 import { isInTelegram } from '../auth.js';
 import { createStepper } from '../components/stepper.js';
+import { escapeHtml } from '../utils/escape.js';
 import { lucideIcon } from '../components/icon.js';
 import { navigate } from '../app.js';
 
@@ -264,29 +265,6 @@ async function loadClinics() {
   saveToCache('clinics_cache', items);
 
   return items;
-}
-
-/**
- * Загружает список специальностей для выбранной поликлиники.
- *
- * @param {Array<{value: object, label: string}>} [selections=[]] — выбранные значения предыдущих шагов
- * @returns {Promise<Array<{value: object, label: string}>>}
- */
-async function loadSpecialties(selections = []) {
-  const params = {};
-  if (selections.length > 1 && selections[1]?.value) {
-    const clinic = selections[1].value;
-    params.clinic_id = clinic.clinic_id || clinic.id;
-  }
-  const data = await apiGet('/specialties', params);
-  const specialties = data.specialties || [];
-
-  return specialties
-    .filter((s) => !s.is_tech && s.is_doc) // Только врачебные специальности
-    .map((s) => ({
-      value: s,
-      label: s.name || `Специальность #${s.specialty_id}`
-    }));
 }
 
 /**
@@ -586,6 +564,11 @@ function getFromCache(key) {
 /**
  * Извлекает строковое имя врача из поля name, которое может быть объектом.
  *
+ * NOTE: Локальная версия отличается от utils/doctor.js (Фаза 2, Шаг 4).
+ * utils/doctor.js принимает name напрямую + fallback-параметр.
+ * Здесь принимается doctor-объект, извлекается doctor.name,
+ * fallback — '' (без doctor.doctor_name). Унификация требует изменения сигнатур.
+ *
  * @param {object} doctor — объект врача из API
  * @returns {string} строковое представление имени врача
  */
@@ -609,16 +592,4 @@ function extractDoctorName(doctor) {
   }
 
   return String(name);
-}
-
-/**
- * Экранирует HTML-символы.
- *
- * @param {string} text — исходный текст
- * @returns {string} экранированный текст
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
 }

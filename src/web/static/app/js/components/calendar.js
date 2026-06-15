@@ -35,9 +35,9 @@ function formatDate(date) {
  * @param {string} str
  * @returns {{ day: number, month: number, year: number } | null}
  */
-function parseDate(str) {
-  if (!str || typeof str !== 'string') return null;
-  const parts = str.split('.');
+function parseDate(dateString) {
+  if (!dateString || typeof dateString !== 'string') return null;
+  const parts = dateString.split('.');
   if (parts.length !== 3) return null;
   const day = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10);
@@ -126,13 +126,10 @@ function isValidDate(dateISO) {
  * @returns {Array<{ day: number, month: number, year: number, isCurrentMonth: boolean, iso: string }>}
  */
 function getCalendarDays(year, month) {
-  // Первый день месяца (0 = воскресенье, 1 = понедельник, ..., 6 = суббота)
   const firstDay = new Date(year, month - 1, 1);
-  // День недели первого дня (пн = 0, ..., вс = 6)
   let startDow = firstDay.getDay() - 1;
   if (startDow < 0) startDow = 6;
 
-  // Начинаем с понедельника предыдущей недели
   const startDate = new Date(year, month - 1, 1 - startDow);
 
   const days = [];
@@ -237,7 +234,6 @@ function renderMonthPicker(container, currentYear, currentMonth, onSelect) {
       </div>
     `;
 
-    // Обработчики навигации по годам
     container
       .querySelectorAll('.calendar__month-picker__year-nav')
       .forEach((btn) => {
@@ -248,7 +244,6 @@ function renderMonthPicker(container, currentYear, currentMonth, onSelect) {
         });
       });
 
-    // Обработчики выбора месяца
     container
       .querySelectorAll('.calendar__month-picker__month')
       .forEach((btn) => {
@@ -261,6 +256,206 @@ function renderMonthPicker(container, currentYear, currentMonth, onSelect) {
 
   render();
   container.hidden = false;
+}
+
+// ============================================================
+// Хелперы для createCalendar
+// ============================================================
+
+/**
+ * Строит HTML-строку сетки дней календаря.
+ *
+ * @param {Array} days — массив дней из getCalendarDays()
+ * @param {string} todayISO — ISO-строка сегодняшней даты
+ * @param {string|null} selectedISO — ISO-строка выбранной даты
+ * @param {string} [min] — минимальная дата 'YYYY-MM-DD'
+ * @param {string} [max] — максимальная дата 'YYYY-MM-DD'
+ * @returns {string}
+ */
+function buildCalendarGridHTML(days, todayISO, selectedISO, min, max) {
+  return days
+    .map((d) => {
+      let cssClass = 'calendar__day';
+      if (!d.isCurrentMonth) cssClass += ' calendar__day--other-month';
+      if (d.iso === todayISO) cssClass += ' calendar__day--today';
+      if (d.iso === selectedISO) cssClass += ' calendar__day--selected';
+      if (!isDateInRange(d.iso, min, max))
+        cssClass += ' calendar__day--disabled';
+
+      const disabled = !isDateInRange(d.iso, min, max);
+      return `<button class="${cssClass}" type="button" data-iso="${d.iso}"${disabled ? ' disabled' : ''} aria-label="${d.day} ${getMonthName(d.month)} ${d.year}">${d.day}</button>`;
+    })
+    .join('');
+}
+
+/**
+ * Проверяет, можно ли перейти к указанному месяцу с учётом [min, max].
+ *
+ * @param {number} year
+ * @param {number} month — 1-based
+ * @param {string} [min] — минимальная дата 'YYYY-MM-DD'
+ * @param {string} [max] — максимальная дата 'YYYY-MM-DD'
+ * @returns {boolean}
+ */
+function canNavigateToMonth(year, month, min, max) {
+  const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDayDate = new Date(year, month, 0);
+  const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+
+  if (max && firstDay > max) return false;
+  if (min && lastDay < min) return false;
+  return true;
+}
+
+/**
+ * Вычисляет новый {year, month} после навигации.
+ *
+ * @param {'prev'|'next'} direction — направление
+ * @param {number} currentYear
+ * @param {number} currentMonth — 1-based
+ * @returns {{ year: number, month: number }}
+ */
+function navigateMonth(direction, currentYear, currentMonth) {
+  let year = currentYear;
+  let month = currentMonth;
+
+  if (direction === 'prev') {
+    if (month === 1) {
+      month = 12;
+      year--;
+    } else {
+      month--;
+    }
+  } else {
+    if (month === 12) {
+      month = 1;
+      year++;
+    } else {
+      month++;
+    }
+  }
+
+  return { year, month };
+}
+
+/**
+ * Добавляет указанное количество дней к дате в формате ISO.
+ *
+ * @param {string} iso — 'YYYY-MM-DD'
+ * @param {number} days — количество дней (может быть отрицательным)
+ * @returns {string} новая дата в формате 'YYYY-MM-DD'
+ */
+function addDaysToISO(iso, days) {
+  const parts = iso.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  const ny = date.getFullYear();
+  const nm = String(date.getMonth() + 1).padStart(2, '0');
+  const nd = String(date.getDate()).padStart(2, '0');
+  return `${ny}-${nm}-${nd}`;
+}
+
+// ============================================================
+// Хелперы для createDateInput
+// ============================================================
+
+/**
+ * Применяет маску ДД.ММ.ГГГГ к строке (чистая функция, без DOM).
+ *
+ * @param {string} value — исходное значение (может содержать нецифровые символы)
+ * @returns {string} значение с маской
+ */
+function applyDateMask(value) {
+  let cleaned = value.replace(/[^\d]/g, '');
+  if (cleaned.length > 8) {
+    cleaned = cleaned.substring(0, 8);
+  }
+
+  let result = '';
+  if (cleaned.length > 0) {
+    result += cleaned.substring(0, 2);
+  }
+  if (cleaned.length >= 2) {
+    result += '.';
+  }
+  if (cleaned.length > 2) {
+    result += cleaned.substring(2, 4);
+  }
+  if (cleaned.length >= 5) {
+    result += '.';
+  }
+  if (cleaned.length > 4) {
+    result += cleaned.substring(4, 8);
+  }
+
+  return result;
+}
+
+/**
+ * Вычисляет позицию курсора после применения маски.
+ *
+ * @param {string} maskedValue — значение после applyDateMask()
+ * @param {number} digitsBeforeCursor — количество цифр до курсора в исходном значении
+ * @returns {number} новая позиция курсора
+ */
+function computeCursorPosition(maskedValue, digitsBeforeCursor) {
+  let newCursorPos = 0;
+  let digitCount = 0;
+  for (let i = 0; i < maskedValue.length; i++) {
+    if (/\d/.test(maskedValue[i])) {
+      if (digitCount >= digitsBeforeCursor) break;
+      digitCount++;
+    }
+    newCursorPos = i + 1;
+  }
+
+  // Если сразу за позицией курсора — точка, перепрыгиваем её
+  if (newCursorPos < maskedValue.length && maskedValue[newCursorPos] === '.') {
+    newCursorPos++;
+  }
+
+  return newCursorPos;
+}
+
+/**
+ * Валидирует строку даты 'ДД.ММ.ГГГГ'.
+ *
+ * @param {string} dateString
+ * @returns {{ valid: boolean, message: string }}
+ */
+function validateDateString(dateString) {
+  if (!dateString || dateString.length < 10) {
+    return { valid: false, message: '' };
+  }
+
+  const parsed = parseDate(dateString);
+  if (!parsed) {
+    return { valid: false, message: 'Некорректный формат даты' };
+  }
+
+  const { day, month, year } = parsed;
+
+  if (month < 1 || month > 12) {
+    return { valid: false, message: 'Месяц должен быть от 01 до 12' };
+  }
+
+  if (year < 1900 || year > 2099) {
+    return { valid: false, message: 'Год должен быть от 1900 до 2099' };
+  }
+
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return { valid: false, message: 'Такой даты не существует' };
+  }
+
+  return { valid: true, message: '' };
 }
 
 // ============================================================
@@ -324,39 +519,14 @@ export function createCalendar({ container, value, onChange, min, max }) {
   function renderGrid() {
     const days = getCalendarDays(viewYear, viewMonth);
     monthLabel.textContent = `${getMonthName(viewMonth)} ${viewYear}`;
-
-    gridEl.innerHTML = days
-      .map((d) => {
-        let cls = 'calendar__day';
-        if (!d.isCurrentMonth) cls += ' calendar__day--other-month';
-        if (d.iso === todayISO) cls += ' calendar__day--today';
-        if (d.iso === selectedISO) cls += ' calendar__day--selected';
-        if (!isDateInRange(d.iso, min, max)) cls += ' calendar__day--disabled';
-
-        const disabled = !isDateInRange(d.iso, min, max);
-        return `<button class="${cls}" type="button" data-iso="${d.iso}"${disabled ? ' disabled' : ''} aria-label="${d.day} ${getMonthName(d.month)} ${d.year}">${d.day}</button>`;
-      })
-      .join('');
-
-    // Обновляем состояние кнопок навигации
+    gridEl.innerHTML = buildCalendarGridHTML(
+      days,
+      todayISO,
+      selectedISO,
+      min,
+      max
+    );
     updateNavButtons();
-  }
-
-  /**
-   * Проверяет, можно ли перейти к указанному месяцу с учётом [min, max].
-   */
-  function canNavigateTo(year, month) {
-    // Строим ISO первого дня месяца
-    const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
-    // Строим ISO последнего дня месяца
-    const lastDayDate = new Date(year, month, 0);
-    const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
-
-    // Если есть max — первый день месяца не должен быть позже max
-    if (max && firstDay > max) return false;
-    // Если есть min — последний день месяца не должен быть раньше min
-    if (min && lastDay < min) return false;
-    return true;
   }
 
   /**
@@ -364,21 +534,19 @@ export function createCalendar({ container, value, onChange, min, max }) {
    */
   function updateNavButtons() {
     if (prevBtn) {
-      prevBtn.disabled = !canNavigateTo(
-        viewMonth === 1 ? viewYear - 1 : viewYear,
-        viewMonth === 1 ? 12 : viewMonth - 1
-      );
+      const prev = navigateMonth('prev', viewYear, viewMonth);
+      prevBtn.disabled = !canNavigateToMonth(prev.year, prev.month, min, max);
     }
     if (nextBtn) {
-      nextBtn.disabled = !canNavigateTo(
-        viewMonth === 12 ? viewYear + 1 : viewYear,
-        viewMonth === 12 ? 1 : viewMonth + 1
-      );
+      const next = navigateMonth('next', viewYear, viewMonth);
+      nextBtn.disabled = !canNavigateToMonth(next.year, next.month, min, max);
     }
   }
 
   /**
    * Выбирает день и уведомляет через onChange.
+   *
+   * @param {string} iso
    */
   function selectDay(iso) {
     if (!isDateInRange(iso, min, max)) return;
@@ -415,49 +583,20 @@ export function createCalendar({ container, value, onChange, min, max }) {
     if (!currentISO) return;
 
     let newISO = null;
-    const parts = currentISO.split('-');
-    const cy = parseInt(parts[0], 10);
-    const cm = parseInt(parts[1], 10);
-    const cd = parseInt(parts[2], 10);
-    const currentDate = new Date(cy, cm - 1, cd);
 
     switch (e.key) {
-      case 'ArrowLeft': {
-        const prev = new Date(currentDate);
-        prev.setDate(prev.getDate() - 1);
-        const py = prev.getFullYear();
-        const pm = String(prev.getMonth() + 1).padStart(2, '0');
-        const pd = String(prev.getDate()).padStart(2, '0');
-        newISO = `${py}-${pm}-${pd}`;
+      case 'ArrowLeft':
+        newISO = addDaysToISO(currentISO, -1);
         break;
-      }
-      case 'ArrowRight': {
-        const next = new Date(currentDate);
-        next.setDate(next.getDate() + 1);
-        const ny = next.getFullYear();
-        const nm = String(next.getMonth() + 1).padStart(2, '0');
-        const nd = String(next.getDate()).padStart(2, '0');
-        newISO = `${ny}-${nm}-${nd}`;
+      case 'ArrowRight':
+        newISO = addDaysToISO(currentISO, 1);
         break;
-      }
-      case 'ArrowUp': {
-        const up = new Date(currentDate);
-        up.setDate(up.getDate() - 7);
-        const uy = up.getFullYear();
-        const um = String(up.getMonth() + 1).padStart(2, '0');
-        const ud = String(up.getDate()).padStart(2, '0');
-        newISO = `${uy}-${um}-${ud}`;
+      case 'ArrowUp':
+        newISO = addDaysToISO(currentISO, -7);
         break;
-      }
-      case 'ArrowDown': {
-        const down = new Date(currentDate);
-        down.setDate(down.getDate() + 7);
-        const dy = down.getFullYear();
-        const dm = String(down.getMonth() + 1).padStart(2, '0');
-        const dd = String(down.getDate()).padStart(2, '0');
-        newISO = `${dy}-${dm}-${dd}`;
+      case 'ArrowDown':
+        newISO = addDaysToISO(currentISO, 7);
         break;
-      }
       case 'Enter':
       case ' ': {
         e.preventDefault();
@@ -487,22 +626,16 @@ export function createCalendar({ container, value, onChange, min, max }) {
 
   // Навигация по месяцам
   prevBtn.addEventListener('click', () => {
-    if (viewMonth === 1) {
-      viewMonth = 12;
-      viewYear--;
-    } else {
-      viewMonth--;
-    }
+    const next = navigateMonth('prev', viewYear, viewMonth);
+    viewYear = next.year;
+    viewMonth = next.month;
     renderGrid();
   });
 
   nextBtn.addEventListener('click', () => {
-    if (viewMonth === 12) {
-      viewMonth = 1;
-      viewYear++;
-    } else {
-      viewMonth++;
-    }
+    const next = navigateMonth('next', viewYear, viewMonth);
+    viewYear = next.year;
+    viewMonth = next.month;
     renderGrid();
   });
 
@@ -511,7 +644,6 @@ export function createCalendar({ container, value, onChange, min, max }) {
     const pickerEl = container.querySelector('.calendar__month-picker');
     if (!pickerEl) return;
 
-    // Если попап уже открыт — закрыть
     if (!pickerEl.hidden) {
       pickerEl.hidden = true;
       return;
@@ -625,78 +757,6 @@ export function createDateInput({ container, value, onChange, placeholder }) {
   }
 
   /**
-   * Валидирует строку даты 'ДД.ММ.ГГГГ'.
-   *
-   * @param {string} str
-   * @returns {{ valid: boolean, message: string }}
-   */
-  function validateDate(str) {
-    if (!str || str.length < 10) {
-      return { valid: false, message: '' };
-    }
-
-    const parsed = parseDate(str);
-    if (!parsed) {
-      return { valid: false, message: 'Некорректный формат даты' };
-    }
-
-    const { day, month, year } = parsed;
-
-    if (month < 1 || month > 12) {
-      return { valid: false, message: 'Месяц должен быть от 01 до 12' };
-    }
-
-    if (year < 1900 || year > 2099) {
-      return { valid: false, message: 'Год должен быть от 1900 до 2099' };
-    }
-
-    // Проверка реальности даты
-    const date = new Date(year, month - 1, day);
-    if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month - 1 ||
-      date.getDate() !== day
-    ) {
-      return { valid: false, message: 'Такой даты не существует' };
-    }
-
-    return { valid: true, message: '' };
-  }
-
-  /**
-   * Применяет маску к значению поля.
-   * Обеспечивает формат ДД.ММ.ГГГГ.
-   */
-  function applyMask() {
-    let val = inputEl.value.replace(/[^\d]/g, ''); // Только цифры
-
-    // Ограничиваем длину до построения результата (максимум 8 цифр)
-    if (val.length > 8) {
-      val = val.substring(0, 8);
-    }
-
-    let result = '';
-
-    if (val.length > 0) {
-      result += val.substring(0, 2);
-    }
-    if (val.length >= 2) {
-      result += '.';
-    }
-    if (val.length > 2) {
-      result += val.substring(2, 4);
-    }
-    if (val.length >= 5) {
-      result += '.';
-    }
-    if (val.length > 4) {
-      result += val.substring(4, 8);
-    }
-
-    return result;
-  }
-
-  /**
    * Обработчик события input.
    */
   function handleInput() {
@@ -711,25 +771,11 @@ export function createDateInput({ container, value, onChange, placeholder }) {
       .substring(0, cursorPos)
       .replace(/[^\d]/g, '').length;
 
-    const masked = applyMask();
+    const masked = applyDateMask(oldValue);
     inputEl.value = masked;
 
-    // Находим новую позицию курсора: пропускаем digitsBeforeCursor цифр
-    let newCursorPos = 0;
-    let digitCount = 0;
-    for (let i = 0; i < masked.length; i++) {
-      if (/\d/.test(masked[i])) {
-        if (digitCount >= digitsBeforeCursor) break;
-        digitCount++;
-      }
-      newCursorPos = i + 1;
-    }
-
-    // Если сразу за позицией курсора — точка, перепрыгиваем её
-    if (newCursorPos < masked.length && masked[newCursorPos] === '.') {
-      newCursorPos++;
-    }
-
+    // Вычисляем новую позицию курсора
+    const newCursorPos = computeCursorPosition(masked, digitsBeforeCursor);
     inputEl.setSelectionRange(newCursorPos, newCursorPos);
     inputEl._masking = false;
 
@@ -737,7 +783,7 @@ export function createDateInput({ container, value, onChange, placeholder }) {
     clearError();
 
     if (masked.length === 10) {
-      const validation = validateDate(masked);
+      const validation = validateDateString(masked);
       if (!validation.valid) {
         setError(validation.message);
       } else if (onChange) {
@@ -748,10 +794,11 @@ export function createDateInput({ container, value, onChange, placeholder }) {
 
   /**
    * Обработчик keydown для Backspace/Delete.
+   *
+   * @param {KeyboardEvent} e
    */
   function handleKeyDown(e) {
     if (e.key === 'Backspace' || e.key === 'Delete') {
-      // При удалении точки — удаляем и предыдущую цифру
       const pos = inputEl.selectionStart;
       if (
         e.key === 'Backspace' &&

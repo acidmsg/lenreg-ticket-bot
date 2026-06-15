@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block title %}API Status — ZdravLenReg Dashboard{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% block title %}API Status — ZdravLenReg Dashboard{% endblock %} {% block
+content %}
 <h1>Состояние API zdrav.lenreg.ru</h1>
 
 <div class="grid-2col">
@@ -56,38 +55,7 @@
 
   <div class="card">
     <h2>Фоновые задачи</h2>
-    <table class="info-table">
-      <tr>
-        <td>healthcheck_loop</td>
-        <td>
-          {% if healthcheck_alive %}
-          <span class="badge badge-ok">✅ alive</span>
-          {% else %}
-          <span class="badge badge-err">❌ dead</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>monitor_loop</td>
-        <td>
-          {% if monitor_alive %}
-          <span class="badge badge-ok">✅ alive</span>
-          {% else %}
-          <span class="badge badge-err">❌ dead</span>
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <td>discovery_tasks</td>
-        <td>
-          {% if discovery_alive > 0 %}
-          <span class="badge badge-ok">✅ {{ discovery_alive }}</span>
-          {% else %}
-          <span class="badge badge-err">❌ 0</span>
-          {% endif %}
-        </td>
-      </tr>
-    </table>
+    {% include "_background_tasks.html" %}
   </div>
 
   <div class="card">

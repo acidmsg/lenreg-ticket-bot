@@ -175,7 +175,7 @@ export function createCalendar({ container, value, onChange, min, max }) { ... }
 
 Файл: [`src/web/static/app/js/components/calendar.js`](src/web/static/app/js/components/calendar.js)
 
-#### Сигнатура
+#### Сигнатура (поле ввода)
 
 ```js
 /**
@@ -191,7 +191,7 @@ export function createCalendar({ container, value, onChange, min, max }) { ... }
 export function createDateInput({ container, value, onChange, placeholder }) { ... }
 ```
 
-#### Возвращаемое значение
+#### Возвращаемое значение (поле ввода)
 
 ```js
 {
@@ -215,7 +215,7 @@ export function createDateInput({ container, value, onChange, placeholder }) { .
 }
 ```
 
-#### Структура HTML
+#### Структура HTML (поле ввода)
 
 ```html
 <div class="date-input">
@@ -257,7 +257,7 @@ export function createDateInput({ container, value, onChange, placeholder }) { .
 
 Файл: [`src/web/static/app/js/components/calendar.js`](src/web/static/app/js/components/calendar.js)
 
-#### Сигнатура
+#### Сигнатура (date picker)
 
 ```js
 /**
@@ -274,7 +274,7 @@ export function createDateInput({ container, value, onChange, placeholder }) { .
 export function createDatePicker({ container, value, onChange, min, max }) { ... }
 ```
 
-#### Возвращаемое значение
+#### Возвращаемое значение (date picker)
 
 ```js
 {

@@ -16,7 +16,7 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo, UserData
 from src.filters.admin import IsAdmin
-from src.handlers.callback_parser import cb_filter
+from src.handlers.callback_parser import callback_filter
 from src.handlers.callbacks import (
     CB_BACK_TO_MAIN,
     CB_EXPORT_CSV,
@@ -87,7 +87,7 @@ def _decode_city_from_idx(idx_or_all: str, cities: list[str]) -> tuple[str | Non
 
 def _build_clinic_selection_kb(
     p_id: str,
-    bday: str,
+    birthday: str,
     selected_city: str | None,
     monitoring: dict | None,
     clinic_names: dict,
@@ -97,7 +97,7 @@ def _build_clinic_selection_kb(
     """Хелпер: собирает клавиатуру выбора клиники через get_clinic_selection."""
     return get_clinic_selection(
         p_id,
-        bday,
+        birthday,
         selected_city=selected_city,
         monitoring=monitoring,
         clinic_names=clinic_names,
@@ -402,11 +402,11 @@ def build_monitoring_summary(
             prefix = "  ┗" if is_last else "  ┣"
             if isinstance(d_info, dict):
                 d_name = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
-                d_spec = shorten_specialty(d_info.get("specialty", ""))
+                doctor_specialty = shorten_specialty(d_info.get("specialty", ""))
             else:
                 d_name = str(d_info)
-                d_spec = ""
-            spec_part = f" ({d_spec})" if d_spec else ""
+                doctor_specialty = ""
+            spec_part = f" ({doctor_specialty})" if doctor_specialty else ""
             lines.append(f"{prefix} 🧑‍⚕️ {d_name}{spec_part}")
 
     return "\n".join(lines)
@@ -593,7 +593,7 @@ async def _show_clinic_selection(
     )
 
 
-@router.callback_query(cb_filter(PatientSelect))
+@router.callback_query(callback_filter(PatientSelect))
 async def select_patient(
     call: CallbackQuery, db: DatabaseManager, callback_data: PatientSelect
 ) -> None:
@@ -607,7 +607,7 @@ async def select_patient(
     await _show_city_selection(call, db, p_id, user_data)
 
 
-@router.callback_query(cb_filter(CitySelect))
+@router.callback_query(callback_filter(CitySelect))
 async def select_city(
     call: CallbackQuery, db: DatabaseManager, callback_data: CitySelect
 ) -> None:
@@ -621,7 +621,7 @@ async def select_city(
     )
 
 
-@router.callback_query(cb_filter(BackToCities))
+@router.callback_query(callback_filter(BackToCities))
 async def back_to_cities(
     call: CallbackQuery, db: DatabaseManager, callback_data: BackToCities
 ) -> None:
@@ -634,7 +634,7 @@ async def back_to_cities(
     await _show_city_selection(call, db, p_id, user_data)
 
 
-@router.callback_query(cb_filter(BackToClinics))
+@router.callback_query(callback_filter(BackToClinics))
 async def back_to_clinics(
     call: CallbackQuery, db: DatabaseManager, callback_data: BackToClinics
 ) -> None:
@@ -651,7 +651,7 @@ async def back_to_clinics(
     )
 
 
-@router.callback_query(cb_filter(ClinicSelect))
+@router.callback_query(callback_filter(ClinicSelect))
 async def select_clinic(
     call: CallbackQuery,
     db: DatabaseManager,
@@ -712,7 +712,7 @@ async def select_clinic(
         )
 
 
-@router.callback_query(cb_filter(ToggleDoctor))
+@router.callback_query(callback_filter(ToggleDoctor))
 async def toggle_doctor(
     call: CallbackQuery,
     db: DatabaseManager,
@@ -739,15 +739,17 @@ async def toggle_doctor(
         return
     doc_info: DoctorEntry = raw_doc
     d_name = doc_info.get("name", _("doctor-fallback-name"))
-    d_spec = doc_info.get("specialty", "")
+    doctor_specialty = doc_info.get("specialty", "")
 
     # Применяем псевдонимы для отображения
     d_name_display = shorten_fio(d_name)
-    d_spec_display = shorten_specialty(d_spec)
+    d_spec_display = shorten_specialty(doctor_specialty)
 
     already_monitored = d_id in user_data["monitoring"].get(p_id, {})
 
-    await db.toggle_monitoring(uid, p_id, d_id, d_name, clinic_id, d_spec, date="")
+    await db.toggle_monitoring(
+        uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
+    )
 
     raw_p = user_data.get("patients", {}).get(p_id)
     if raw_p is None:
@@ -792,12 +794,12 @@ async def toggle_doctor(
         return
 
     # Сразу отправляем "загрузочное" сообщение — пользователь видит, что бот работает
-    p_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
+    patient_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
     d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
     loading_msg = await call.message.answer(
-        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {p_label}\n{_('checking-slots')}"
+        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {patient_label}\n{_('checking-slots')}"
     )
 
     await call.answer()
@@ -827,7 +829,7 @@ async def toggle_doctor(
     link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
 
     text = format_notification_text(
-        p_label, d_name_display, spec_text, status_text, slots_display, link
+        patient_label, d_name_display, spec_text, status_text, slots_display, link
     )
 
     # Удаляем загрузочное сообщение
@@ -876,7 +878,7 @@ async def toggle_doctor(
     await call.answer(_("done-toast"))
 
 
-@router.callback_query(cb_filter(StopPatientMonitoring))
+@router.callback_query(callback_filter(StopPatientMonitoring))
 async def stop_patient_monitoring(
     call: CallbackQuery,
     db: DatabaseManager,
@@ -960,7 +962,7 @@ async def stop_patient_monitoring(
             )
 
 
-@router.callback_query(cb_filter(StopClinicMonitoring))
+@router.callback_query(callback_filter(StopClinicMonitoring))
 async def stop_clinic_monitoring(
     call: CallbackQuery,
     db: DatabaseManager,
@@ -1069,7 +1071,7 @@ async def handle_noop(call: CallbackQuery) -> None:
     await call.answer()
 
 
-@router.callback_query(cb_filter(DeletePatientAsk))
+@router.callback_query(callback_filter(DeletePatientAsk))
 async def handle_delete_patient_ask(
     call: CallbackQuery, db: DatabaseManager, callback_data: DeletePatientAsk
 ) -> None:
@@ -1086,7 +1088,7 @@ async def handle_delete_patient_ask(
         )
 
 
-@router.callback_query(cb_filter(DeletePatientConfirm))
+@router.callback_query(callback_filter(DeletePatientConfirm))
 async def handle_delete_patient_confirm(
     call: CallbackQuery, db: DatabaseManager, callback_data: DeletePatientConfirm
 ) -> None:

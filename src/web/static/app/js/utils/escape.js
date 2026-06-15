@@ -1,20 +1,22 @@
 /**
- * Утилиты приложения.
- * Используется через window.AppUtils.*
+ * Утилита экранирования HTML.
+ * Экспортируется как ES6-модуль. Для обратной совместимости
+ * также доступна через window.AppUtils.escapeHtml.
  */
-(function () {
-  'use strict';
 
+/**
+ * Экранирует HTML-сущности в строке.
+ * @param {*} text - Исходный текст (приводится к строке).
+ * @returns {string} Экранированная строка.
+ */
+export function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
+// Обратная совместимость: глобальный доступ для кода, не использующего ES6-модули
+if (typeof window !== 'undefined') {
   window.AppUtils = window.AppUtils || {};
-
-  /**
-   * Экранирует HTML-сущности в строке.
-   * @param {*} text - Исходный текст (приводится к строке).
-   * @returns {string} Экранированная строка.
-   */
-  window.AppUtils.escapeHtml = function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-  };
-})();
+  window.AppUtils.escapeHtml = escapeHtml;
+}

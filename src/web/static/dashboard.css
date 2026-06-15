@@ -316,3 +316,78 @@ h2 {
   color: #8b949e;
   flex-shrink: 0;
 }
+
+/* ── Стили страницы бэкапов (вынесены из Mini App style.css) ──── */
+
+.backups-page .hidden {
+  display: none;
+}
+
+.backups-page .spinner__icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--border-color, #30363d);
+  border-top-color: var(--color-accent, #58a6ff);
+  border-radius: 50%;
+  animation: backup-spin 0.8s linear infinite;
+}
+
+@keyframes backup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.backups-page .btn--primary {
+  background-color: var(--color-accent, #58a6ff);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+
+.backups-page .btn--primary:hover {
+  opacity: 0.85;
+}
+
+.backups-page .btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.backups-page .toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+.backups-page .toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.backups-page .toast--success {
+  background-color: #238636;
+}
+
+.backups-page .toast--error {
+  background-color: #da3633;
+}
+
+.backups-page .toast--info {
+  background-color: #58a6ff;
+}
