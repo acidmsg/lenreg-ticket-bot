@@ -232,6 +232,9 @@ h2 {
 .btn-link {
   color: #58a6ff;
   font-size: 0.85rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .btn-link:hover {
@@ -319,10 +322,6 @@ h2 {
 
 /* ── Стили страницы бэкапов (вынесены из Mini App style.css) ──── */
 
-.backups-page .hidden {
-  display: none;
-}
-
 .backups-page .spinner__icon {
   display: inline-block;
   width: 20px;
@@ -337,6 +336,10 @@ h2 {
   to {
     transform: rotate(360deg);
   }
+}
+
+.backups-page .hidden {
+  display: none !important;
 }
 
 .backups-page .btn--primary {

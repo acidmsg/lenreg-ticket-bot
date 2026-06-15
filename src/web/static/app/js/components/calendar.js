@@ -458,6 +458,105 @@ function validateDateString(dateString) {
   return { valid: true, message: '' };
 }
 
+/**
+ * Парсит частичную дату из поля ввода.
+ * Возвращает day, month, year — каждое может быть null, если ещё не введено.
+ *
+ * @param {string} inputValue — значение поля ввода (может быть неполным)
+ * @returns {{ day: number|null, month: number|null, year: number|null, isComplete: boolean }}
+ */
+function parsePartialDate(inputValue) {
+  if (!inputValue || typeof inputValue !== 'string') {
+    return { day: null, month: null, year: null, isComplete: false };
+  }
+
+  // Оставляем только цифры
+  const cleaned = inputValue.replace(/[^\d]/g, '');
+  if (cleaned.length === 0) {
+    return { day: null, month: null, year: null, isComplete: false };
+  }
+
+  let day = null;
+  let month = null;
+  let year = null;
+
+  if (cleaned.length >= 1) {
+    day = parseInt(cleaned.substring(0, 2), 10);
+    if (isNaN(day)) day = null;
+  }
+  if (cleaned.length >= 3) {
+    month = parseInt(cleaned.substring(2, 4), 10);
+    if (isNaN(month)) month = null;
+  }
+  if (cleaned.length >= 5) {
+    year = parseInt(cleaned.substring(4, 8), 10);
+    if (isNaN(year)) year = null;
+  }
+
+  const isComplete =
+    day !== null && month !== null && year !== null && cleaned.length >= 8;
+
+  return { day, month, year, isComplete };
+}
+
+/**
+ * Определяет, в какой месяц/год должен перейти календарь
+ * на основе частичного ввода даты.
+ *
+ * Правила (для даты рождения — будущие даты невалидны):
+ * - Ничего не введено: текущий месяц.
+ * - Только день: текущий месяц, но если день > сегодня → прошлый месяц.
+ * - День + месяц: указанный месяц текущего года;
+ *   если (месяц, день) в будущем → прошлый год.
+ * - Полная дата: указанный месяц/год (без анализа «будущести»).
+ *
+ * @param {{ day: number|null, month: number|null, year: number|null }} partial
+ * @param {Date} today — сегодняшняя дата
+ * @returns {{ year: number, month: number }}
+ */
+function determineTargetMonth(partial, today) {
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth() + 1; // 1-based
+  const todayDay = today.getDate();
+
+  // Ничего не введено — показываем текущий месяц
+  if (partial.day === null) {
+    return { year: todayYear, month: todayMonth };
+  }
+
+  // Введён только день
+  if (partial.month === null && partial.year === null) {
+    let targetYear = todayYear;
+    let targetMonth = todayMonth;
+    if (partial.day > todayDay) {
+      // Будущий день в этом месяце → прошлый месяц
+      targetMonth--;
+      if (targetMonth === 0) {
+        targetMonth = 12;
+        targetYear--;
+      }
+    }
+    return { year: targetYear, month: targetMonth };
+  }
+
+  // Введён день + месяц (без года)
+  if (partial.year === null) {
+    let targetYear = todayYear;
+    const targetMonth = partial.month;
+    // Если (месяц, день) в будущем относительно сегодня → прошлый год
+    if (
+      targetMonth > todayMonth ||
+      (targetMonth === todayMonth && partial.day > todayDay)
+    ) {
+      targetYear--;
+    }
+    return { year: targetYear, month: targetMonth };
+  }
+
+  // Полная дата — показываем что введено
+  return { year: partial.year, month: partial.month };
+}
+
 // ============================================================
 // createCalendar()
 // ============================================================
@@ -674,9 +773,15 @@ export function createCalendar({ container, value, onChange, min, max }) {
     /**
      * Установить выбранную дату (строка 'ДД.ММ.ГГГГ').
      *
-     * @param {string} dateString
+     * @param {string|null} dateString — 'ДД.ММ.ГГГГ' или null/'' для сброса
      */
     setValue(dateString) {
+      if (!dateString) {
+        // Очистка выбранной даты: снимаем подсветку
+        selectedISO = null;
+        renderGrid();
+        return;
+      }
       const iso = displayToISO(dateString);
       if (iso) {
         selectedISO = iso;
@@ -914,11 +1019,11 @@ export function createDateInput({ container, value, onChange, placeholder }) {
  * @returns {object} управляющий объект
  */
 export function createDatePicker({ container, value, onChange, min, max }) {
-  // Рендерим контейнеры
+  // Рендерим контейнеры — календарь изначально скрыт
   container.innerHTML = `
     <div class="date-picker">
       <div class="date-picker__input" id="dp-input-container"></div>
-      <div class="date-picker__calendar" id="dp-calendar-container"></div>
+      <div class="date-picker__calendar" id="dp-calendar-container" style="display:none;"></div>
     </div>
   `;
 
@@ -938,6 +1043,9 @@ export function createDatePicker({ container, value, onChange, min, max }) {
 
   // Флаг для предотвращения циклических вызовов
   let updating = false;
+
+  // Флаг: был ли клик/тап внутри календаря (чтобы не скрывать при blur)
+  let calendarClicked = false;
 
   const calendar = createCalendar({
     container: calendarContainer,
@@ -969,6 +1077,65 @@ export function createDatePicker({ container, value, onChange, min, max }) {
       updating = false;
       if (onChange) onChange(dateStr);
     }
+  });
+
+  // ── Управление видимостью календаря (фокус / blur) ──
+
+  const inputField = inputContainer.querySelector('.date-input__field');
+  const today = new Date();
+
+  if (inputField) {
+    // Показываем календарь при фокусе на поле ввода
+    inputField.addEventListener('focus', () => {
+      calendarContainer.style.display = '';
+    });
+
+    // Скрываем календарь при потере фокуса,
+    // если только не был клик по самому календарю
+    inputField.addEventListener('blur', () => {
+      // Небольшая задержка, чтобы mousedown на календаре успел сработать
+      setTimeout(() => {
+        if (!calendarClicked) {
+          calendarContainer.style.display = 'none';
+        }
+        calendarClicked = false;
+      }, 150);
+    });
+
+    // ── Синхронная навигация календаря при вводе (частичная дата) ──
+
+    inputField.addEventListener('input', () => {
+      if (updating) return;
+
+      const masked = inputField.value;
+
+      // Если дата полная и валидная — onChange уже всё сделал,
+      // дополнительно ничего не делаем
+      if (masked.length === 10) {
+        const validation = validateDateString(masked);
+        if (validation.valid) {
+          return;
+        }
+        // Полная, но невалидная (например 31.02.2026):
+        // навигируем на месяц/год, но снимаем подсветку
+        const partial = parsePartialDate(masked);
+        const target = determineTargetMonth(partial, today);
+        calendar.setValue(null);
+        calendar.goToMonth(target.year, target.month);
+        return;
+      }
+
+      // Частичная дата: навигируем календарь, подсветку снимаем
+      const partial = parsePartialDate(masked);
+      const target = determineTargetMonth(partial, today);
+      calendar.setValue(null);
+      calendar.goToMonth(target.year, target.month);
+    });
+  }
+
+  // Отслеживаем клики внутри календаря (чтобы не скрывать при blur)
+  calendarContainer.addEventListener('mousedown', () => {
+    calendarClicked = true;
   });
 
   return {
