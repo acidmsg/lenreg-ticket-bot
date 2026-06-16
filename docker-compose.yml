@@ -69,7 +69,11 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./scripts:/app/scripts:ro
+      # Скрипты (backup.sh, restore.sh, backup_healthcheck.sh) запечены в образ
+      # через Dockerfile (COPY scripts/ scripts/). Bind-mount не используется,
+      # чтобы пустая host-директория не затеняла baked-in скрипты.
+      # Для dev-итерации можно временно раскомментировать:
+      # - ./scripts:/app/scripts:ro
     healthcheck:
       test:
         [
@@ -82,8 +86,8 @@ services:
       retries: 3
     ports:
       - '127.0.0.1:9090:9090'
-      # Веб-дашборд: доступен снаружи через Cloudflare (Origin Rule: 8080).
-      - '8080:8080'
+      # Веб-дашборд: только на loopback, наружу через Caddy reverse-proxy.
+      - '127.0.0.1:8080:8080'
     networks:
       - lenreg_ticket_network
     deploy:
@@ -95,10 +99,45 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # ===========================================================================
+  # Caddy — reverse-proxy с HTTPS и basic auth для веб-дашборда
+  # ===========================================================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: lenreg_ticket_caddy
+    restart: unless-stopped
+    depends_on:
+      - bot
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      - CADDY_BASICAUTH_USER=${CADDY_BASICAUTH_USER:-admin}
+      - CADDY_BASICAUTH_HASH=${CADDY_BASICAUTH_HASH}
+      - DASHBOARD_DOMAIN=${DASHBOARD_DOMAIN:-}
+    env_file:
+      - .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - lenreg_ticket_network
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
 volumes:
   redis_data:
     driver: local
   qdrant_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 networks:

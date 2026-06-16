@@ -478,7 +478,7 @@ async def _show_city_selection(
 ) -> None:
     """Показывает список городов с изображением clinic_select.
 
-    Используется из select_patient и back_to_cities.
+    Используется из фабрики ``_create_selection_handler("city")``.
     """
     if not isinstance(call.message, Message):
         return
@@ -509,7 +509,7 @@ async def _show_clinic_selection(
 ) -> None:
     """Показывает список клиник для выбранного города с изображением clinic_select.
 
-    Используется из select_city и back_to_clinics.
+    Используется из фабрики ``_create_selection_handler("clinic")``.
     """
     if not isinstance(call.message, Message):
         return
@@ -542,62 +542,63 @@ async def _show_clinic_selection(
     )
 
 
-@router.callback_query(callback_filter(PatientSelect))
-async def select_patient(
-    call: CallbackQuery, db: DatabaseManager, callback_data: PatientSelect
-) -> None:
-    """Выбор пациента → список городов с изображением clinic_select."""
-    if not call.message or not call.from_user:
-        return
-    p_id = callback_data.p_id
-    uid = str(call.from_user.id)
-    user_data = await db.get_user_data(uid)
-    user_data["patients"].get(p_id, {})
-    await _show_city_selection(call, db, p_id, user_data)
+# ── Фабрика хендлеров выбора городов/клиник ─────────────────
 
 
-@router.callback_query(callback_filter(CitySelect))
-async def select_city(
-    call: CallbackQuery, db: DatabaseManager, callback_data: CitySelect
-) -> None:
-    """Выбор города → список клиник с изображением clinic_select."""
-    if not call.message or not call.from_user:
-        return
-    uid = str(call.from_user.id)
-    user_data = await db.get_user_data(uid)
-    await _show_clinic_selection(
-        call, db, callback_data.p_id, callback_data.idx, user_data
-    )
+def _create_selection_handler(view_type: str):
+    """Фабрика хендлеров выбора города или клиники.
 
+    Унифицирует 4 ранее отдельных хендлера (select_patient, back_to_cities,
+    select_city, back_to_clinics), которые различались только типом
+    отображаемого списка и атрибутом callback_data для city_idx.
 
-@router.callback_query(callback_filter(BackToCities))
-async def back_to_cities(
-    call: CallbackQuery, db: DatabaseManager, callback_data: BackToCities
-) -> None:
-    """Возвращает к выбору города с изображением clinic_select."""
-    if not call.message or not call.from_user:
-        return
-    p_id = callback_data.p_id
-    uid = str(call.from_user.id)
-    user_data = await db.get_user_data(uid)
-    await _show_city_selection(call, db, p_id, user_data)
+    Args:
+        view_type: ``"city"`` — список городов, ``"clinic"`` — список клиник.
 
-
-@router.callback_query(callback_filter(BackToClinics))
-async def back_to_clinics(
-    call: CallbackQuery, db: DatabaseManager, callback_data: BackToClinics
-) -> None:
-    """Возвращает к списку клиник (того же города или всех).
-
-    Используется изображение-заголовок clinic_select.
+    Returns:
+        Асинхронный обработчик callback_query.
     """
-    if not call.message or not call.from_user:
-        return
-    uid = str(call.from_user.id)
-    user_data = await db.get_user_data(uid)
-    await _show_clinic_selection(
-        call, db, callback_data.p_id, callback_data.city_idx, user_data
-    )
+
+    async def handler(call: CallbackQuery, db: DatabaseManager, callback_data) -> None:
+        if not call.message or not call.from_user:
+            return
+
+        p_id: str = callback_data.p_id
+        uid = str(call.from_user.id)
+        user_data = await db.get_user_data(uid)
+
+        if view_type == "city":
+            await _show_city_selection(call, db, p_id, user_data)
+        else:
+            # CitySelect использует .idx, BackToClinics использует .city_idx
+            city_idx: str
+            city_idx_raw = getattr(callback_data, "city_idx", None)
+            if city_idx_raw is not None:
+                city_idx = city_idx_raw
+            else:
+                city_idx = getattr(callback_data, "idx", "all")
+            await _show_clinic_selection(call, db, p_id, city_idx, user_data)
+
+    return handler
+
+
+# Регистрация хендлеров выбора городов/клиник через фабрику
+router.callback_query.register(
+    _create_selection_handler("city"),
+    callback_filter(PatientSelect),
+)
+router.callback_query.register(
+    _create_selection_handler("clinic"),
+    callback_filter(CitySelect),
+)
+router.callback_query.register(
+    _create_selection_handler("city"),
+    callback_filter(BackToCities),
+)
+router.callback_query.register(
+    _create_selection_handler("clinic"),
+    callback_filter(BackToClinics),
+)
 
 
 @router.callback_query(callback_filter(ClinicSelect))

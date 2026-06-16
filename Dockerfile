@@ -80,6 +80,13 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 WORKDIR /app
 COPY src/ src/
 COPY locales/ locales/
+COPY scripts/ scripts/
+
+# ---------------------------------------------------------------------------
+# Entrypoint — кроссплатформенное исправление прав на bind-mount директориях
+# Выполняется перед основным процессом, см. scripts/docker-entrypoint.sh
+# ---------------------------------------------------------------------------
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 # ---------------------------------------------------------------------------
 # Директория для runtime-данных (SQLite, кэш)
@@ -104,5 +111,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 # ---------------------------------------------------------------------------
 # Точка входа
+# ENTRYPOINT — entrypoint-скрипт (исправление прав, затем exec "$@")
+# CMD — основной процесс (передаётся как аргумент в entrypoint)
 # ---------------------------------------------------------------------------
-ENTRYPOINT ["python", "-m", "src.main"]
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
+CMD ["python", "-m", "src.main"]

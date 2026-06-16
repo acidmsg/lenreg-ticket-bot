@@ -8,7 +8,6 @@ from aiogram.types import CallbackQuery, Message
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
-from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import PatientInfo
 from src.handlers.callbacks import CB_ADD_PATIENT, CB_CANCEL_REGISTRATION, CB_SKIP_ALIAS
@@ -77,41 +76,13 @@ async def process_bday(
     data = await state.get_data()
     fio = data["fio"]
 
-    # Двухэтапный поиск пациента по всем доступным clinic_id
-    clinic_ids_to_try: list[str] = []
+    from src.services.patient_discovery import find_patient_across_clinics
 
-    # Этап 1: клиника по умолчанию
-    clinic_ids_to_try.append(settings.DEFAULT_CLINIC_ID)
+    date_iso = date.strftime("%Y-%m-%d")
+    status, detail = await find_patient_across_clinics(fio, date_iso, api, db)
 
-    # Этап 2: пустая строка (глобальный поиск, если API поддерживает)
-    clinic_ids_to_try.append("")
-
-    # Этап 3: все активные clinic_id из БД
-    try:
-        active_ids = await db._db.get_active_clinic_ids()
-        for cid in active_ids:
-            if cid not in clinic_ids_to_try:
-                clinic_ids_to_try.append(cid)
-    except Exception:
-        logger.warning("Не удалось получить список активных clinic_id")
-
-    p_id: str | None = None
-    last_err: str | None = None
-
-    for clinic_id in clinic_ids_to_try:
-        p_id, err = await api.fetch_patient_id(fio, date, clinic_id)
-        if p_id is not None:
-            logger.info(
-                "Пациент {} найден в clinic_id={} (попытка {}/{})",
-                fio,
-                clinic_id,
-                clinic_ids_to_try.index(clinic_id) + 1,
-                len(clinic_ids_to_try),
-            )
-            break
-        last_err = err
-
-    if p_id:
+    if status == "found":
+        p_id = detail  # detail содержит patient_id при status="found"
         await state.update_data(p_id=p_id, bday=str(date.date()))
         await state.set_state(Registration.wait_alias)
         await message.answer(
@@ -120,7 +91,7 @@ async def process_bday(
         )
     else:
         await message.answer(
-            f"❌ {last_err or 'Пациент не найден.'}",
+            f"❌ {detail or 'Пациент не найден.'}",
             reply_markup=get_registration_keyboard(step="fio"),
         )
         await state.clear()

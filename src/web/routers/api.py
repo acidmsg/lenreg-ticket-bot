@@ -4,15 +4,13 @@ JSON API веб-дашборда.
 Эндпоинты возвращают JSON-ответы для дашборда и Mini App.
 """
 
-import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.services.doctor_discovery import trigger_force_scan
-from src.services.healthcheck import metrics as health_metrics
-from src.services.healthcheck import metrics_lock
+from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
 
 router = APIRouter()
 
@@ -21,27 +19,11 @@ router = APIRouter()
 async def api_summary(request: Request) -> dict[str, Any]:
     """JSON-сводка состояния системы."""
     db = request.app.state.db
+    pm = request.app.state.prometheus_metrics
 
-    stats = await db.get_total_stats()
-    user_stats = db.get_user_statistics()
-    active_monitorings = user_stats["active_monitorings"]
-    recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)
-
-    async with metrics_lock:
-        uptime_str = health_metrics.uptime_str()
-        uptime_sec = health_metrics.uptime_seconds()
-        api_ok = health_metrics.last_api_ok
-        last_check = health_metrics.last_api_check_time
-        checks_total = health_metrics.api_checks_total
-        errors_total = health_metrics.api_errors_total
-        monitor_loop_alive = health_metrics.monitor_loop_alive
-        discovery_tasks_alive = health_metrics.discovery_tasks_alive
-        healthcheck_loop_alive = health_metrics.healthcheck_loop_alive
-
-    seconds_ago = int(time.time() - last_check) if last_check else 0
-    availability = 0.0
-    if checks_total > 0:
-        availability = round((checks_total - errors_total) / checks_total * 100, 2)
+    data = await get_summary_data(db, pm)
+    stats = data["stats"]
+    recent_alerts = data["recent_alerts"]
 
     # Форматируем алерты
     alerts = []
@@ -60,31 +42,26 @@ async def api_summary(request: Request) -> dict[str, Any]:
             }
         )
 
-    # Метрики doctor_discovery
-    pm = request.app.state.prometheus_metrics
-    doctors_discovered = int(pm._doctors_discovered._value.get())
-    doctors_last_scan = int(pm.doctors_last_scan_timestamp._value.get())
-
     return {
-        "uptime": uptime_str,
-        "uptime_seconds": uptime_sec,
+        "uptime": data["uptime_str"],
+        "uptime_seconds": data["uptime_sec"],
         "total_users": stats["total_users"],
         "total_patients": stats["total_patients"],
         "total_monitored_doctors": stats["total_monitored_doctors"],
-        "doctors_discovered": doctors_discovered,
-        "doctors_last_scan": doctors_last_scan,
-        "active_monitorings": active_monitorings,
+        "doctors_discovered": data["doctors_discovered"],
+        "doctors_last_scan": data["doctors_last_scan"],
+        "active_monitorings": data["active_monitorings"],
         "api_status": {
-            "accessible": api_ok,
-            "last_check_seconds_ago": seconds_ago,
-            "total_checks": checks_total,
-            "total_errors": errors_total,
-            "availability_pct": availability,
+            "accessible": data["api_ok"],
+            "last_check_seconds_ago": data["seconds_ago"],
+            "total_checks": data["checks_total"],
+            "total_errors": data["errors_total"],
+            "availability_pct": data["availability"],
         },
         "background_tasks": {
-            "monitor_loop": "alive" if monitor_loop_alive else "dead",
-            "discovery_tasks": discovery_tasks_alive,
-            "healthcheck_loop": ("alive" if healthcheck_loop_alive else "dead"),
+            "monitor_loop": "alive" if data["monitor_loop_alive"] else "dead",
+            "discovery_tasks": data["discovery_tasks_alive"],
+            "healthcheck_loop": ("alive" if data["healthcheck_loop_alive"] else "dead"),
             "cleanup_loop": "alive",  # нет отдельного флага, подразумевается
             "schema_check_loop": "alive",
         },
@@ -96,30 +73,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
 async def api_users(request: Request) -> dict[str, Any]:
     """JSON-список пользователей."""
     db = request.app.state.db
-    db_data = db.data
-
-    users = []
-    for uid, u_info in db_data.items():
-        patient_count = len(u_info.get("patients", {}))
-        monitoring_count = sum(
-            len(doctors) for doctors in u_info.get("monitoring", {}).values()
-        )
-        # Последняя активность из last_messages
-        last_ts = 0.0
-        for lm in u_info.get("last_messages", {}).values():
-            if lm.get("ts", 0) > last_ts:
-                last_ts = lm["ts"]
-
-        users.append(
-            {
-                "uid": uid,
-                "patient_count": patient_count,
-                "monitoring_count": monitoring_count,
-                "last_activity_ts": last_ts,
-            }
-        )
-
-    users.sort(key=lambda u: u["uid"])
+    users = get_users_data(db)
     return {"users": users, "total": len(users)}
 
 
@@ -165,28 +119,18 @@ async def api_logs(
 async def api_clinics(request: Request) -> dict[str, Any]:
     """JSON-список клиник."""
     db = request.app.state.db
-    clinics = await db._db.get_active_clinics()
-
-    result = []
-    for clinic in clinics:
-        doctor_count = await db.get_clinic_doctor_count(clinic["clinic_id"])
-        result.append(
-            {
-                "clinic_id": clinic["clinic_id"],
-                "name": clinic["name"],
-                "type": clinic["type"],
-                "city": clinic["city"],
-                "is_active": clinic["is_active"],
-                "doctor_count": doctor_count,
-            }
-        )
-
-    return {"clinics": result, "total": len(result)}
+    clinics = await get_clinics_data(db)
+    return {"clinics": clinics, "total": len(clinics)}
 
 
 @router.get("/dashboard/health")
 async def api_dashboard_health(request: Request) -> dict[str, Any]:
     """JSON-статус здоровья API."""
+    import time
+
+    from src.services.healthcheck import metrics as health_metrics
+    from src.services.healthcheck import metrics_lock
+
     async with metrics_lock:
         api_ok = health_metrics.last_api_ok
         last_check = health_metrics.last_api_check_time

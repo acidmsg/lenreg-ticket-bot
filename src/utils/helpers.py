@@ -400,6 +400,31 @@ def format_notification_text(
 _WEB_APP_DATA_KEY = b"WebAppData"
 
 
+def _compute_init_data_hash(data_check_string: str, bot_token: str) -> str:
+    """Вычисляет HMAC-SHA256 хеш строки проверки initData.
+
+    Единственная точка вычисления HMAC-подписи для Telegram Mini App.
+    Используется ``verify_telegram_init_data()`` и middleware-верификацией.
+
+    Args:
+        data_check_string: Отсортированная строка полей (key=value, разделённые \\n).
+        bot_token: Токен бота Telegram.
+
+    Returns:
+        HEX-строка HMAC-SHA256 хеша.
+    """
+    secret_key = hmac.new(
+        _WEB_APP_DATA_KEY,
+        bot_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def verify_telegram_init_data(
     init_data_raw: str,
     bot_token: str,
@@ -412,10 +437,9 @@ def verify_telegram_init_data(
     2. Извлечь поле hash (контрольная сумма).
     3. Отсортировать все поля, кроме hash, по алфавиту.
     4. Сформировать data_check_string: key1=value1\\nkey2=value2\\n...
-    5. Вычислить secret_key = HMAC-SHA256("WebAppData", BOT_TOKEN).
-    6. Вычислить computed_hash = HMAC-SHA256(data_check_string, secret_key).
-    7. Сравнить computed_hash (hex) с hash через ``hmac.compare_digest``.
-    8. Проверить auth_date (не старше max_age и не из будущего).
+    5. Вычислить computed_hash = _compute_init_data_hash(data_check_string, bot_token).
+    6. Сравнить computed_hash с hash через ``hmac.compare_digest``.
+    7. Проверить auth_date (не старше max_age и не из будущего).
 
     Args:
         init_data_raw: Сырая строка initData (application/x-www-form-urlencoded).
@@ -451,23 +475,14 @@ def verify_telegram_init_data(
     sorted_fields = sorted(fields.items(), key=lambda item: item[0])
     data_check_string = "\n".join(f"{key}={value}" for key, value in sorted_fields)
 
-    # Шаг 5-6: вычисление HMAC-SHA256 подписи
-    secret_key = hmac.new(
-        _WEB_APP_DATA_KEY,
-        bot_token.encode("utf-8"),
-        hashlib.sha256,
-    ).digest()
-    computed_hash = hmac.new(
-        secret_key,
-        data_check_string.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+    # Шаг 5: вычисление HMAC-SHA256 подписи
+    computed_hash = _compute_init_data_hash(data_check_string, bot_token)
 
-    # Шаг 7: сравнение хешей
+    # Шаг 6: сравнение хешей
     if not hmac.compare_digest(computed_hash, received_hash):
         return False, "Неверная подпись initData", None
 
-    # Шаг 8: проверка auth_date
+    # Шаг 7: проверка auth_date
     auth_date_str = fields.get("auth_date", "0")
     try:
         auth_date = int(auth_date_str)
