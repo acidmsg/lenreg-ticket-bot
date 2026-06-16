@@ -20,49 +20,25 @@
         <option value="">все</option>
         <option
           value="появился"
-          {%
-          if
-          status_filter=""
-          ="появился"
-          %}selected{%
-          endif
-          %}
+          {% if status_filter == "появился" %}selected{% endif %}
         >
           появился
         </option>
         <option
           value="исчез"
-          {%
-          if
-          status_filter=""
-          ="исчез"
-          %}selected{%
-          endif
-          %}
+          {% if status_filter == "исчез" %}selected{% endif %}
         >
           исчез
         </option>
         <option
           value="увеличилось"
-          {%
-          if
-          status_filter=""
-          ="увеличилось"
-          %}selected{%
-          endif
-          %}
+          {% if status_filter == "увеличилось" %}selected{% endif %}
         >
           увеличилось
         </option>
         <option
           value="уменьшилось"
-          {%
-          if
-          status_filter=""
-          ="уменьшилось"
-          %}selected{%
-          endif
-          %}
+          {% if status_filter == "уменьшилось" %}selected{% endif %}
         >
           уменьшилось
         </option>

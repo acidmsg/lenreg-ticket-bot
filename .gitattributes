@@ -16,25 +16,3 @@
 *.ttf binary
 *.eot binary
 *.otf binary
-
-# Директивы export-ignore для двухрепозиторной архитектуры
-# При создании GitHub Release (скачивание .zip/.tar.gz) эти файлы исключаются:
-.roo/           export-ignore
-.agents/        export-ignore
-.github/        export-ignore
-specs/          export-ignore
-plans/          export-ignore
-_design_lab/    export-ignore
-tests/          export-ignore
-scripts/        export-ignore
-data/           export-ignore
-logs/           export-ignore
-artifacts/      export-ignore
-.markdownlint.json          export-ignore
-.pre-commit-config.yaml     export-ignore
-pyrightconfig.json          export-ignore
-stylelint.config.mjs        export-ignore
-package.json                export-ignore
-package-lock.json           export-ignore
-tasks.ps1                   export-ignore
-node_modules/               export-ignore

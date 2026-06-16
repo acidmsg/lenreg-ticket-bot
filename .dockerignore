@@ -1,13 +1,9 @@
-# Исключения для Docker-сборки.
+# Исключения для Docker-сборки (публичная версия).
 # В образ попадают только файлы, необходимые для запуска бота в рантайме.
-# Служебные, сборочные и CI/CD-файлы исключены для минимального размера образа.
-# Секция !pyproject.toml / !poetry.lock вручную включает их обратно —
-# они нужны Poetry для установки зависимостей.
 
 # Git
 .git/
 .gitignore
-.gitattributes
 
 # Virtual environment
 .venv/
@@ -30,48 +26,9 @@ __pycache__/
 *.swp
 *.swo
 
-# Project config (not needed in runtime image)
-.roo/
-.clinerules
-.markdownlint.json
-.pre-commit-config.yaml
-pyrightconfig.json
-pytest.ini
-poetry.lock
-pyproject.toml
-
-# === Необходимы для Docker-сборки (установка зависимостей через Poetry) ===
+# Project config (needed for Poetry install in Docker)
 !pyproject.toml
 !poetry.lock
-Makefile
-package.json
-tasks.ps1
-
-# Tests
-tests/
-
-# Documentation / Specifications
-specs/
-plans/
-artifacts/
-README.md
-
-# Design Lab
-_design_lab/
-
-# CI/CD
-.github/
-
-# Agent configs
-.agents/
-
-# Linting config (not needed in runtime)
-stylelint.config.mjs
-
-# Node (for markdownlint/prettier)
-node_modules/
-dist/
-package-lock.json
 
 # Runtime data (created by container volume)
 data/
@@ -83,6 +40,3 @@ logs/
 # Temp files
 *.tmp
 .tmp_*
-
-# Scripts
-scripts/

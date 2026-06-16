@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-from pathlib import Path
 
 import aiofiles.os
 from aiogram import Bot, F, Router
@@ -54,6 +53,7 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
+from src.utils.telegram_utils import send_or_update_message
 
 router = Router()
 # Хранит city_idx последнего выбора клиники для каждого пользователя
@@ -221,57 +221,6 @@ async def _delete_cleanup_msg_entries(
     return changed
 
 
-async def _send_or_update_message(
-    bot: Bot,
-    chat_id: int,
-    db: DatabaseManager,
-    cache_key1: str,
-    cache_key2: str,
-    text: str,
-    photo_path: Path | None = None,
-    reply_markup=None,
-    old_message: Message | None = None,
-) -> Message | None:
-    """Низкоуровневый хелпер: удалить старое → отправить новое → сохранить msg_id.
-
-    Общий паттерн для _send_nav_photo и _send_notification:
-    1. Получить last_msg_id из БД и удалить предыдущее сообщение.
-    2. Опционально удалить old_message (call.message).
-    3. Отправить новое сообщение (с фото или без).
-    4. Сохранить message_id в БД.
-    """
-    uid = str(chat_id)
-
-    last_msg_id = await db.get_last_message_id(uid, cache_key1, cache_key2)
-    if last_msg_id:
-        with contextlib.suppress(TelegramAPIError):
-            await bot.delete_message(chat_id, last_msg_id)
-
-    if old_message is not None:
-        with contextlib.suppress(Exception):
-            await old_message.delete()
-
-    if photo_path is not None:
-        photo = FSInputFile(photo_path)
-        new_msg = await bot.send_photo(
-            chat_id,
-            photo,
-            caption=text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup,
-        )
-    else:
-        new_msg = await bot.send_message(
-            chat_id,
-            text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup,
-        )
-
-    await db.set_last_message_id(uid, cache_key1, cache_key2, new_msg.message_id)
-    return new_msg
-
-
 # ── Хелпер для отправки навигационных сообщений с изображением-заголовком ──
 
 
@@ -297,7 +246,7 @@ async def _send_nav_photo(
         if db is not None:
             # Основной путь: используют хелпер для удаления/отправки/сохранения
             try:
-                return await _send_or_update_message(
+                return await send_or_update_message(
                     bot,
                     msg.chat.id,
                     db,
@@ -712,20 +661,25 @@ async def select_clinic(
         )
 
 
-@router.callback_query(callback_filter(ToggleDoctor))
-async def toggle_doctor(
+async def _guard_toggle_doctor(
     call: CallbackQuery,
     db: DatabaseManager,
-    api: ZdravClient,
-    bot: Bot,
     callback_data: ToggleDoctor,
-) -> None:
-    if not call.message or not call.from_user:
-        return
+) -> tuple[str, str, str, str, UserData, dict[str, DoctorEntry], DoctorEntry] | None:
+    """Проверяет контекст и права для toggle_doctor.
 
-    # Защита от спама -- тихо игнорируем повторные нажатия
+    Проверяет: наличие message/from_user, spam-защиту, наличие данных
+    пользователя, существование врача в списке клиники.
+
+    Returns:
+        Кортеж (uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info)
+        или None если проверка не пройдена.
+    """
+    if not call.message or not call.from_user:
+        return None
+
     if await is_spam(str(call.from_user.id)):
-        return
+        return None
 
     p_id = callback_data.p_id
     clinic_id = callback_data.clinic_id
@@ -736,76 +690,95 @@ async def toggle_doctor(
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     raw_doc = doctors_list.get(d_id)
     if raw_doc is None:
-        return
+        return None
+
     doc_info: DoctorEntry = raw_doc
-    d_name = doc_info.get("name", _("doctor-fallback-name"))
-    doctor_specialty = doc_info.get("specialty", "")
+    return uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info
 
-    # Применяем псевдонимы для отображения
-    d_name_display = shorten_fio(d_name)
-    d_spec_display = shorten_specialty(doctor_specialty)
 
-    already_monitored = d_id in user_data["monitoring"].get(p_id, {})
+async def _handle_untoggle_doctor(
+    bot: Bot,
+    call: CallbackQuery,
+    db: DatabaseManager,
+    uid: str,
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    user_data: UserData,
+    doctors_list: dict[str, DoctorEntry],
+    p_info: PatientInfo,
+    d_name_display: str,
+) -> None:
+    """Обрабатывает снятие врача с мониторинга: очистка кэша, удаление сообщений,
+    перестроение клавиатуры.
+    """
+    user_data = await db.get_user_data(uid)
+    monitored = user_data["monitoring"].get(p_id, {})
 
-    await db.toggle_monitoring(
-        uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
-    )
+    # Удаляем связанное сообщение из чата
+    msg_key = f"{p_id}_{d_id}"
+    await _delete_cleanup_msg_entry(bot, uid, msg_key, user_data["last_messages"])
+    await db.update_user(uid, {"last_messages": user_data["last_messages"]})
 
-    raw_p = user_data.get("patients", {}).get(p_id)
-    if raw_p is None:
+    cache_key = f"{uid}_{p_id}_{d_id}"
+    await delete_cache_keys_by_prefix(cache_key)
+
+    city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
+    clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
+    nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
+
+    if isinstance(call.message, Message):
+        await _send_nav_photo(
+            bot,
+            call.message,
+            nav_type,
+            _("monitoring-disabled-for").format(name=d_name_display),
+            get_doctor_selection(
+                p_id,
+                clinic_id,
+                doctors_list,
+                monitored,
+                p_info.get("bday", ""),
+                city_idx,
+            ),
+            db=db,
+        )
+
+
+async def _handle_toggle_on_doctor(
+    api: ZdravClient,
+    bot: Bot,
+    call: CallbackQuery,
+    db: DatabaseManager,
+    uid: str,
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    doc_info: DoctorEntry,
+    doctors_list: dict[str, DoctorEntry],
+    p_info: PatientInfo,
+    d_name_display: str,
+) -> None:
+    """Обрабатывает включение мониторинга врача: проверка слотов, отправка результата,
+    обновление клавиатуры.
+    """
+    message = call.message
+    if message is None:
         return
-    p_info: PatientInfo = raw_p
 
-    if already_monitored:
-        user_data = await db.get_user_data(uid)
-        monitored = user_data["monitoring"].get(p_id, {})
-
-        # Удаляем связанное сообщение из чата
-        msg_key = f"{p_id}_{d_id}"
-        await _delete_cleanup_msg_entry(bot, uid, msg_key, user_data["last_messages"])
-        await db.update_user(uid, {"last_messages": user_data["last_messages"]})
-
-        cache_key = f"{uid}_{p_id}_{d_id}"
-        await delete_cache_keys_by_prefix(cache_key)
-
-        # Получаем city_idx для кнопки "назад" (если есть)
-        city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
-
-        # Определяем nav_type для изображения врача
-        clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-        nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
-
-        if isinstance(call.message, Message):
-            await _send_nav_photo(
-                bot,
-                call.message,
-                nav_type,
-                _("monitoring-disabled-for").format(name=d_name_display),
-                get_doctor_selection(
-                    p_id,
-                    clinic_id,
-                    doctors_list,
-                    monitored,
-                    p_info.get("bday", ""),
-                    city_idx,
-                ),
-                db=db,
-            )
-        return
-
-    # Сразу отправляем "загрузочное" сообщение — пользователь видит, что бот работает
     patient_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
     d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
     spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
 
-    loading_msg = await call.message.answer(
+    # Отправляем «загрузочное» сообщение
+    loading_msg = await message.answer(
         f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {patient_label}\n{_('checking-slots')}"
     )
 
     await call.answer()
     slots = await api.check_slots(d_id, p_id, clinic_id)
 
-    # Сохраняем в кэш мониторинга, чтобы избежать дублирующих уведомлений
+    # Сохраняем в кэш мониторинга
     if slots is not None:
         cache_key = f"{uid}_{p_id}_{d_id}"
         await swap_cache_key(cache_key, slots if slots else "NONE")
@@ -827,7 +800,6 @@ async def toggle_doctor(
         slots_display = _("slots-will-notify")
 
     link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
-
     text = format_notification_text(
         patient_label, d_name_display, spec_text, status_text, slots_display, link
     )
@@ -836,32 +808,31 @@ async def toggle_doctor(
     with contextlib.suppress(Exception):
         await loading_msg.delete()
 
-    # Отправляем финальный результат с изображением-заголовком
+    # Отправляем финальный результат
     notify_type = "available" if has_slots else "empty"
     photo_path = get_notify_image_path(notify_type)
     try:
         if photo_path is not None:
             photo = FSInputFile(photo_path)
-            result_msg = await call.message.answer_photo(
+            result_msg = await message.answer_photo(
                 photo, caption=text, parse_mode="Markdown"
             )
         else:
-            result_msg = await call.message.answer(text)
+            result_msg = await message.answer(text)
     except Exception:
-        result_msg = await call.message.answer(text)
+        result_msg = await message.answer(text)
 
-    # Сохраняем message_id в базу для будущих обновлений
     await db.set_last_message_id(uid, p_id, d_id, result_msg.message_id)
 
-    # Обновляем клавиатуру выбора врачей (галочка + кнопка сброса клиники)
+    # Обновляем клавиатуру выбора врачей
     city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
     clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
     nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
 
-    if isinstance(call.message, Message):
+    if isinstance(message, Message):
         await _send_nav_photo(
             bot,
-            call.message,
+            message,
             nav_type,
             _("monitoring-enabled-for").format(name=d_name_display),
             get_doctor_selection(
@@ -876,6 +847,75 @@ async def toggle_doctor(
         )
 
     await call.answer(_("done-toast"))
+
+
+@router.callback_query(callback_filter(ToggleDoctor))
+async def toggle_doctor(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    api: ZdravClient,
+    bot: Bot,
+    callback_data: ToggleDoctor,
+) -> None:
+    """Переключает мониторинг врача: включает или выключает.
+
+    Декомпозирован на три этапа:
+    1. :func:`_guard_toggle_doctor` — проверка контекста и прав.
+    2. :func:`_handle_untoggle_doctor` — снятие с мониторинга.
+    3. :func:`_handle_toggle_on_doctor` — включение мониторинга.
+    """
+    # --- Этап 1: проверка прав и контекста ---
+    guard_result = await _guard_toggle_doctor(call, db, callback_data)
+    if guard_result is None:
+        return
+
+    uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info = guard_result
+    d_name = doc_info.get("name", _("doctor-fallback-name"))
+    doctor_specialty = doc_info.get("specialty", "")
+    d_name_display = shorten_fio(d_name)
+
+    already_monitored = d_id in user_data["monitoring"].get(p_id, {})
+
+    # --- Этап 2: работа с БД (toggle) ---
+    await db.toggle_monitoring(
+        uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
+    )
+
+    raw_p = user_data.get("patients", {}).get(p_id)
+    if raw_p is None:
+        return
+    p_info: PatientInfo = raw_p
+
+    # --- Этап 3: ответ пользователю (снятие или включение) ---
+    if already_monitored:
+        await _handle_untoggle_doctor(
+            bot,
+            call,
+            db,
+            uid,
+            p_id,
+            clinic_id,
+            d_id,
+            user_data,
+            doctors_list,
+            p_info,
+            d_name_display,
+        )
+    else:
+        await _handle_toggle_on_doctor(
+            api,
+            bot,
+            call,
+            db,
+            uid,
+            p_id,
+            clinic_id,
+            d_id,
+            doc_info,
+            doctors_list,
+            p_info,
+            d_name_display,
+        )
 
 
 @router.callback_query(callback_filter(StopPatientMonitoring))
