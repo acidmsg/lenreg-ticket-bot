@@ -1,0 +1,197 @@
+{% extends "base.html" %} {% block title %}Настройки безопасности — LenReg Ticket Bot{% endblock %}
+{% block content %}
+<style>
+  /* ── Страница настроек — центрированная карточка ── */
+  .auth-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 10rem);
+  }
+
+  .auth-card {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3xl);
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .auth-card__title {
+    font-size: var(--font-xl);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-2xl);
+    text-align: center;
+    color: var(--color-text-primary);
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .auth-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .auth-form__field label {
+    font-size: var(--font-sm);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .auth-form__field input {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-md);
+    font-family: inherit;
+    transition: border-color var(--transition-fast);
+  }
+
+  .auth-form__field input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  .auth-form__field input[readonly] {
+    opacity: 0.7;
+    cursor: default;
+  }
+
+  .auth-form__msg {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    text-align: center;
+  }
+
+  .auth-form__msg--success {
+    background: var(--status-ok-bg);
+    color: var(--status-available);
+  }
+
+  .auth-form__msg--error {
+    background: var(--status-err-bg);
+    color: var(--color-danger);
+  }
+
+  .auth-form__submit {
+    margin-top: var(--space-sm);
+    padding: 0.65rem 1rem;
+    font-size: var(--font-md);
+    width: 100%;
+  }
+
+  .auth-form__links {
+    margin-top: var(--space-xl);
+    text-align: center;
+    font-size: var(--font-sm);
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  @media (width <= 768px) {
+    .auth-page {
+      min-height: calc(100vh - 14rem);
+      padding: var(--space-md);
+    }
+
+    .auth-card {
+      padding: var(--space-xl);
+    }
+  }
+</style>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <h1 class="auth-card__title">Настройки безопасности</h1>
+    <form id="settings-form" class="auth-form">
+      <div class="auth-form__field">
+        <label for="current-username">Текущий логин</label>
+        <input type="text" id="current-username" value="{{ username }}" readonly />
+      </div>
+      <div class="auth-form__field">
+        <label for="new-username">Новый логин</label>
+        <input
+          type="text"
+          id="new-username"
+          name="new_username"
+          placeholder="Оставьте пустым, чтобы не менять"
+          autocomplete="username"
+        />
+      </div>
+      <div class="auth-form__field">
+        <label for="old-password">Текущий пароль</label>
+        <input
+          type="password"
+          id="old-password"
+          name="old_password"
+          required
+          autocomplete="current-password"
+        />
+      </div>
+      <div class="auth-form__field">
+        <label for="new-password">Новый пароль</label>
+        <input
+          type="password"
+          id="new-password"
+          name="new_password"
+          required
+          autocomplete="new-password"
+        />
+      </div>
+      <div id="settings-msg" class="auth-form__msg hidden"></div>
+      <button type="submit" class="btn btn--primary auth-form__submit">Сохранить</button>
+    </form>
+    <div class="auth-form__links">
+      <a href="/">← Назад к дашборду</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msgEl = document.getElementById('settings-msg');
+    msgEl.classList.add('hidden');
+
+    const old_password = document.getElementById('old-password').value;
+    const new_username = document.getElementById('new-username').value;
+    const new_password = document.getElementById('new-password').value;
+
+    try {
+      const resp = await fetch('/api/settings/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password, new_username, new_password })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        msgEl.textContent = 'Пароль успешно изменён';
+        msgEl.className = 'auth-form__msg auth-form__msg--success';
+        document.getElementById('old-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('current-username').value =
+          new_username || document.getElementById('current-username').value;
+      } else {
+        msgEl.textContent = data.detail || 'Ошибка';
+        msgEl.className = 'auth-form__msg auth-form__msg--error';
+      }
+      msgEl.classList.remove('hidden');
+    } catch {
+      msgEl.textContent = 'Сетевая ошибка';
+      msgEl.className = 'auth-form__msg auth-form__msg--error';
+      msgEl.classList.remove('hidden');
+    }
+  });
+</script>
+{% endblock %}

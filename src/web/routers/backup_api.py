@@ -98,8 +98,8 @@ def _safe_backup_path(backup_dir: Path, filename: str, category: str) -> Path:
     if category not in _CATEGORIES:
         raise ValueError(f"Недопустимая категория: {category}")
 
-    full_path = (backup_dir / category / filename).resolve()
-    expected_prefix = backup_dir.resolve()
+    full_path = Path(os.path.realpath(backup_dir / category / filename))
+    expected_prefix = Path(os.path.realpath(backup_dir))
 
     try:
         full_path.relative_to(expected_prefix)
@@ -395,13 +395,13 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
                 "message": "Интерпретатор bash не найден в системе.",
             },
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Неожиданная ошибка при запуске backup.sh")
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": f"Ошибка запуска бэкапа: {e}",
+                "message": "Внутренняя ошибка при запуске бэкапа.",
             },
         )
 
@@ -475,10 +475,11 @@ async def restore_backup(
         category = full_path.parent.name
         safe_path = _safe_backup_path(backup_dir, filename, category)
         full_path = safe_path
-    except ValueError as e:
+    except ValueError:
+        logger.warning("Path traversal validation failed for file: %s", filename)
         return JSONResponse(
             status_code=400,
-            content={"status": "error", "message": str(e)},
+            content={"status": "error", "message": "Некорректное имя файла или путь."},
         )
 
     # ── Шаг 1: запрос подтверждения (без токена) ──────────────
@@ -600,13 +601,13 @@ async def restore_backup(
                 "message": "Интерпретатор bash не найден в системе.",
             },
         )
-    except Exception as e:
-        logger.critical("Неожиданная ошибка при восстановлении из %s: %s", filename, e)
+    except Exception:
+        logger.exception("Неожиданная ошибка при восстановлении из %s", filename)
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": f"Ошибка восстановления: {e}",
+                "message": "Внутренняя ошибка при восстановлении.",
             },
         )
 
@@ -671,10 +672,11 @@ async def delete_backup(
         category = full_path.parent.name
         safe_path = _safe_backup_path(backup_dir, filename, category)
         full_path = safe_path
-    except ValueError as e:
+    except ValueError:
+        logger.warning("Path traversal validation failed for file: %s", filename)
         return JSONResponse(
             status_code=400,
-            content={"status": "error", "message": str(e)},
+            content={"status": "error", "message": "Некорректное имя файла или путь."},
         )
 
     category = full_path.parent.name
@@ -685,19 +687,34 @@ async def delete_backup(
         full_path,
     )
 
+    # NOTE: CodeQL false positive (py/path-injection).
+    # full_path validated by: (1) _safe_backup_path() —
+    # запрет символов + категория + relative_to(),
+    # (2) os.path.realpath() + startswith() hardening ниже.
+    # Hardening: resolve symlinks and verify path stays within backup_dir
+    if not str(full_path.resolve()).startswith(str(backup_dir.resolve())):
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Некорректный путь."},
+        )
+
     # Удаляем файл бэкапа и маркеры
     removed_files: list[str] = []
     try:
         if full_path.is_file():
+            # NOTE: CodeQL false positive (py/path-injection).
+            # full_path validated by: (1) _safe_backup_path() —
+            # запрет символов + категория + relative_to(),
+            # (2) os.path.realpath() + startswith() hardening выше.
             full_path.unlink()
             removed_files.append(str(full_path))
-    except OSError as e:
-        logger.error("Ошибка удаления файла %s: %s", full_path, e)
+    except OSError:
+        logger.exception("Ошибка удаления файла %s", full_path)
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": f"Не удалось удалить файл: {e}",
+                "message": "Ошибка при удалении файла.",
             },
         )
 
@@ -706,6 +723,10 @@ async def delete_backup(
         marker = full_path.with_name(full_path.name + suffix)
         try:
             if marker.is_file():
+                # NOTE: CodeQL false positive (py/path-injection).
+                # full_path validated by: (1) _safe_backup_path() —
+                # запрет символов + категория + relative_to(),
+                # (2) os.path.realpath() + startswith() hardening выше.
                 marker.unlink()
                 removed_files.append(str(marker))
         except OSError:
@@ -777,13 +798,13 @@ async def backup_status(request: Request) -> dict[str, Any] | JSONResponse:
                 "message": "Интерпретатор bash не найден в системе.",
             },
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Неожиданная ошибка при выполнении backup_healthcheck.sh")
         return JSONResponse(
             status_code=500,
             content={
                 "status": "error",
-                "message": f"Ошибка healthcheck: {e}",
+                "message": "Внутренняя ошибка healthcheck.",
             },
         )
 

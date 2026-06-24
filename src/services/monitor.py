@@ -669,6 +669,45 @@ async def monitor_loop(
             await asyncio.sleep(60)
 
 
+async def _monitor_iteration(
+    bot: Bot,
+    api: ZdravClient,
+    db: DatabaseManager,
+    *,
+    state: dict,
+) -> None:
+    """Одна итерация мониторинга слотов (для BackgroundTaskManager).
+
+    Выполняет один полный цикл проверки всех активных цепочек мониторинга.
+    Менеджер владеет ``while True``, sleep, retry и обработкой CancelledError.
+
+    Args:
+        bot: Экземпляр Telegram-бота.
+        api: Клиент API zdrav.lenreg.ru.
+        db: Менеджер базы данных.
+        state: Словарь с мутабельным состоянием между итерациями:
+            - ``initial_sync`` (bool): подавлять ли уведомления в первом цикле.
+            - ``semaphore`` (asyncio.Semaphore): семафор конкурентности.
+            - ``empty_counts`` (dict): счётчики пустых слотов.
+            - ``empty_counts_lock`` (asyncio.Lock): лок для empty_counts.
+    """
+    initial_sync = state.get("initial_sync", True)
+
+    await _run_monitoring_iteration(
+        semaphore=state["semaphore"],
+        api=api,
+        bot=bot,
+        db=db,
+        empty_counts_lock=state["empty_counts_lock"],
+        empty_counts=state["empty_counts"],
+        initial_sync=initial_sync,
+    )
+
+    if initial_sync:
+        logger.info("Initial sync completed — уведомления разблокированы")
+        state["initial_sync"] = False
+
+
 async def force_check_single_doctor(
     api: ZdravClient,
     uid: str,

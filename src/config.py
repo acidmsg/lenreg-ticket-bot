@@ -181,6 +181,14 @@ class Settings(BaseSettings):
     WEB_DASHBOARD_PORT: int = 8080
     WEB_DASHBOARD_API_KEY: str = ""
 
+    # === Web Dashboard Auth (F5) ===
+    # Логин для входа в дашборд (session-based auth)
+    WEB_DASHBOARD_USERNAME: str = "admin"
+    # Пароль для входа в дашборд (если пусто — аутентификация отключена)
+    WEB_DASHBOARD_PASSWORD: str = ""
+    # Секретный ключ для подписи сессионных cookie
+    WEB_DASHBOARD_SECRET_KEY: str = ""
+
     # === Mini App (F10) ===
     MINI_APP_ENABLED: bool = True
     MINI_APP_URL: str = ""  # Полный URL Mini App (например, https://example.com/app/)

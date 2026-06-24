@@ -27,16 +27,19 @@ logger = logging.getLogger(__name__)
 
 class StaticNoCacheMiddleware:
     """
-    Чистый ASGI middleware для отключения кэширования статики (/app/* и /static/*).
+    Чистый ASGI middleware для отключения кэширования ВСЕХ ответов сервера.
 
     В отличие от BaseHTTPMiddleware (который работает через StreamingResponse
     и не совместим со StaticFiles, смонтированными через app.mount()),
     этот middleware работает напрямую с ASGI scope/receive/send
-    и гарантированно добавляет заголовки ко всем ответам /app/* и /static/*.
+    и гарантированно добавляет заголовки ко всем HTTP-ответам.
 
-    Cloudflare CDN и браузеры агрессивно кэшируют JS/CSS,
+    Cloudflare CDN и браузеры агрессивно кэшируют HTML-страницы, JS и CSS,
     из-за чего обновления фронтенда (как дашборда, так и Mini App)
     не доходят до пользователей даже после пересборки Docker-образа.
+    В частности, отсутствие Cache-Control на HTML-страницах дашборда
+    приводит к тому, что Cloudflare отдаёт закэшированную версию sidebar'а
+    без новых ссылок (например, /settings).
 
     Устанавливает:
     - Cache-Control: no-cache, no-store, must-revalidate
@@ -50,11 +53,6 @@ class StaticNoCacheMiddleware:
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        path: str = scope.get("path", "")
-        if not (path.startswith("/app/") or path.startswith("/static/")):
             await self.app(scope, receive, send)
             return
 
@@ -100,14 +98,30 @@ def create_app(
     app.state.config = config
     app.state.zdrav_client = zdrav_client  # API-клиент для Mini App
 
-    # Middleware аутентификации дашборда (только для путей /, /users, /logs и т.д.)
-    from src.web.auth import APIKeyMiddleware
+    # Session-based аутентификация дашборда (как в x-ui)
+    # Заменяет Caddy basic auth и APIKeyMiddleware.
+    # Middleware авторегистрируется через set_session_middleware() в __init__.
+    from src.web.auth_session import SessionAuthMiddleware, hash_password
 
-    if config.WEB_DASHBOARD_API_KEY:
-        logger.info("APIKeyMiddleware: включен (API-ключ задан)")
-        app.add_middleware(APIKeyMiddleware, api_key=config.WEB_DASHBOARD_API_KEY)
-    else:
-        logger.debug("APIKeyMiddleware: отключен (API-ключ не задан)")
+    password_hash = ""
+    if config.WEB_DASHBOARD_PASSWORD:
+        password_hash = hash_password(config.WEB_DASHBOARD_PASSWORD)
+
+    app.add_middleware(
+        SessionAuthMiddleware,
+        username=config.WEB_DASHBOARD_USERNAME,
+        password_hash=password_hash,
+        secret=config.WEB_DASHBOARD_SECRET_KEY,
+    )
+
+    # APIKeyMiddleware (старая защита по ключу) — закомментирован,
+    # т.к. теперь все API-эндпоинты защищены SessionAuthMiddleware.
+    # from src.web.auth import APIKeyMiddleware
+    # if config.WEB_DASHBOARD_API_KEY:
+    #     logger.info("APIKeyMiddleware: включен (API-ключ задан)")
+    #     app.add_middleware(APIKeyMiddleware, api_key=config.WEB_DASHBOARD_API_KEY)
+    # else:
+    #     logger.debug("APIKeyMiddleware: отключен (API-ключ не задан)")
 
     # Middleware аутентификации Mini App (initData) — только для /api/user/*
     if config.MINI_APP_ENABLED:
@@ -139,18 +153,20 @@ def create_app(
     app.state.templates = templates
 
     # Роутеры
-    from src.web.routers import api, backup_api, pages
+    from src.web.routers import api, auth_pages, backup_api, pages
 
+    # auth_pages — до pages, чтобы /login не перехватывался
+    app.include_router(auth_pages.router)
     app.include_router(pages.router)  # HTML-страницы
     app.include_router(api.router, prefix="/api")  # JSON API дашборда
     app.include_router(backup_api.router)  # JSON API бэкапов (/api/backups/*)
 
-    # Отключаем кэширование ВСЕХ статических файлов (/app/* и /static/*)
-    # на уровне HTTP-заголовков. Cloudflare CDN и браузеры агрессивно
-    # кэшируют JS/CSS, из-за чего обновления фронтенда (и дашборда,
-    # и Mini App) не доходят до пользователей после пересборки образа.
+    # Отключаем кэширование ВСЕХ ответов сервера на уровне HTTP-заголовков.
+    # Cloudflare CDN и браузеры агрессивно кэшируют HTML, JS и CSS,
+    # из-за чего обновления фронтенда (и дашборда, и Mini App)
+    # не доходят до пользователей после пересборки образа.
     app.add_middleware(StaticNoCacheMiddleware)
-    logger.debug("StaticNoCacheMiddleware: включен для /app/* и /static/*")
+    logger.debug("StaticNoCacheMiddleware: включен для всех ответов сервера")
 
     # Роутер Mini App API (/api/user/*)
     if config.MINI_APP_ENABLED:

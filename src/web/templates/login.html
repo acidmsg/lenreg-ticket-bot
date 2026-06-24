@@ -1,0 +1,167 @@
+{% extends "base.html" %} {% block title %}Вход — LenReg Ticket Bot{% endblock %} {% block content
+%}
+<style>
+  /* ── Страница входа — центрированная карточка ── */
+  .auth-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 10rem);
+  }
+
+  .auth-card {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3xl);
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .auth-card__title {
+    font-size: var(--font-xl);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-2xl);
+    text-align: center;
+    color: var(--color-text-primary);
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .auth-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .auth-form__field label {
+    font-size: var(--font-sm);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .auth-form__field input {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-md);
+    font-family: inherit;
+    transition: border-color var(--transition-fast);
+  }
+
+  .auth-form__field input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  .auth-form__error {
+    background: var(--status-err-bg);
+    color: var(--color-danger);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    text-align: center;
+  }
+
+  .auth-form__submit {
+    margin-top: var(--space-sm);
+    padding: 0.65rem 1rem;
+    font-size: var(--font-md);
+    width: 100%;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  @media (width <= 768px) {
+    .auth-page {
+      min-height: calc(100vh - 14rem);
+      padding: var(--space-md);
+    }
+
+    .auth-card {
+      padding: var(--space-xl);
+    }
+  }
+</style>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <h1 class="auth-card__title">Вход в дашборд</h1>
+    <form id="login-form" class="auth-form" method="post" action="/api/login">
+      <input type="hidden" name="next" value="{{ next }}" />
+      <div class="auth-form__field">
+        <label for="username">Логин</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          required
+          autofocus
+          autocomplete="username"
+        />
+      </div>
+      <div class="auth-form__field">
+        <label for="password">Пароль</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          required
+          autocomplete="current-password"
+        />
+      </div>
+      <div id="login-error" class="auth-form__error hidden"></div>
+      <button type="submit" class="btn btn--primary auth-form__submit">Войти</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.add('hidden');
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const next = form.querySelector('[name=next]').value;
+
+    try {
+      const resp = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        // Validate redirect target: only allow same-origin relative paths
+        let safeNext = '/';
+        try {
+          const url = new URL(next, window.location.origin);
+          if (url.origin === window.location.origin) {
+            safeNext = url.pathname;
+          }
+        } catch (_) {
+          // Invalid URL → stay at '/'
+        }
+        window.location.href = safeNext;
+      } else {
+        errorEl.textContent = data.detail || 'Ошибка входа';
+        errorEl.classList.remove('hidden');
+      }
+    } catch {
+      errorEl.textContent = 'Сетевая ошибка';
+      errorEl.classList.remove('hidden');
+    }
+  });
+</script>
+{% endblock %}

@@ -29,13 +29,21 @@ from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
 from src.middleware.ratelimit import UserRateLimitMiddleware
 from src.middleware.userdata import UserDataPreloadMiddleware
-from src.services.cleanup import cleanup_loop
-from src.services.doctor_discovery import discovery_loop, sync_clinic_names
+from src.services.background import (
+    BackgroundTaskManager,
+    RetryConfig,
+    ScheduleConfig,
+)
+from src.services.cleanup import _cleanup_iteration
+from src.services.doctor_discovery import (
+    _discovery_iteration,
+    sync_clinic_names,
+)
 from src.services.error_notifier import error_notifier
-from src.services.healthcheck import healthcheck_loop, safe_set
+from src.services.healthcheck import _healthcheck_iteration, safe_set
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
-from src.services.monitor import monitor_loop
+from src.services.monitor import _monitor_iteration
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
     _parse_proxy_host_port,
@@ -91,39 +99,77 @@ async def _bot_me_with_retry(
 
 async def _start_background_tasks(
     bot: Bot, api: ZdravClient, db: DatabaseManager, database: Database
-) -> list[asyncio.Task[object]]:
-    """Запускает все фоновые задачи.
+) -> BackgroundTaskManager:
+    """Запускает все фоновые задачи через BackgroundTaskManager.
 
     Вызывается ТОЛЬКО после успешной проверки связи с Telegram API,
     чтобы снизить нагрузку на IOCP в момент старта и избежать конкуренции
     с прокси-соединением.
     """
-    tasks: list[asyncio.Task[object]] = []
+    manager = BackgroundTaskManager()
 
-    tasks.append(asyncio.create_task(monitor_loop(bot, api, db)))
+    # ── Мониторинг слотов ────────────────────────────────────────────
+    monitor_state: dict = {
+        "initial_sync": True,
+        "semaphore": asyncio.Semaphore(10),
+        "empty_counts": {},
+        "empty_counts_lock": asyncio.Lock(),
+    }
+    manager.add(
+        _monitor_iteration,
+        name="monitor",
+        schedule=ScheduleConfig(interval=60, jitter=(42, 85)),
+        retry=RetryConfig(max_retries=3, backoff_min=2.0, backoff_max=300),
+        bot=bot,
+        api=api,
+        db=db,
+        state=monitor_state,
+    )
 
-    # Один агрегированный discovery_loop вместо N per-clinic задач
-    tasks.append(
-        asyncio.create_task(
-            discovery_loop(
-                api,
-                database,
-                settings.DISCOVERY_PATIENT_ID_ADULT,
-                settings.DISCOVERY_PATIENT_ID_CHILD,
-            )
-        )
+    # ── Discovery врачей ─────────────────────────────────────────────
+    manager.add(
+        _discovery_iteration,
+        name="discovery",
+        schedule=ScheduleConfig(interval=settings.DISCOVERY_INTERVAL),
+        retry=RetryConfig(max_retries=3),
+        api=api,
+        database=database,
+        patient_id_adult=settings.DISCOVERY_PATIENT_ID_ADULT,
+        patient_id_child=settings.DISCOVERY_PATIENT_ID_CHILD,
     )
     await safe_set("discovery_tasks_alive", 1)
 
-    tasks.append(asyncio.create_task(healthcheck_loop(bot, api, db)))
-    tasks.append(asyncio.create_task(cleanup_loop(bot, db)))
+    # ── Healthcheck ──────────────────────────────────────────────────
+    manager.add(
+        _healthcheck_iteration,
+        name="healthcheck",
+        schedule=ScheduleConfig(interval=settings.CHECK_INTERVAL),
+        retry=RetryConfig(max_retries=3, backoff_min=10.0),
+        bot=bot,
+        api=api,
+        db=db,
+        health_metrics=health_metrics,
+    )
+
+    # ── Очистка сообщений ────────────────────────────────────────────
+    manager.add(
+        _cleanup_iteration,
+        name="cleanup",
+        schedule=ScheduleConfig(interval=settings.CLEANUP_INTERVAL),
+        retry=RetryConfig(max_retries=3),
+        bot=bot,
+        db=db,
+    )
 
     # Статическая валидация схем API выполняется через scripts/generate_api_schemas.py
     # в процессе разработки. Рантайм-проверка схем (schema_check_loop) отключена
     # в пользу статического подхода — см. Задачу 2.8 ROADMAP.
 
-    logger.info(f"Запущено {len(tasks)} фоновых задач")
-    return tasks
+    await manager.start_all()
+    logger.info(
+        f"Запущено {len(manager.status())} фоновых задач через BackgroundTaskManager"
+    )
+    return manager
 
 
 async def _start_metrics_server(
@@ -501,7 +547,7 @@ async def main() -> None:
     bot, dp = await bootstrap_bot(session, redis_client)
 
     # Запуск фоновых задач (только после проверки связи с Telegram)
-    background_tasks = await _start_background_tasks(bot, api, db, database)
+    manager = await _start_background_tasks(bot, api, db, database)
 
     # Запуск веб-инфраструктуры (дашборд + метрики)
     dashboard_task, metrics_runner = await bootstrap_web(db, api)
@@ -517,9 +563,7 @@ async def main() -> None:
         await error_notifier.notify(e, context="polling_crash")
     finally:
         logger.info("Остановка фоновых задач...")
-        for task in background_tasks:
-            task.cancel()
-        await asyncio.gather(*background_tasks, return_exceptions=True)
+        await manager.stop_all(shutdown_timeout=30.0)
 
         # Остановка веб-дашборда
         if dashboard_task is not None:

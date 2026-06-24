@@ -37,6 +37,19 @@ async def cleanup_loop(bot: Bot, db: DatabaseManager) -> None:
         await asyncio.sleep(settings.CLEANUP_INTERVAL)
 
 
+async def _cleanup_iteration(
+    bot: Bot,
+    db: DatabaseManager,
+) -> None:
+    """Одна итерация очистки старых сообщений (для BackgroundTaskManager).
+
+    Выполняет один полный проход по всем пользователям, удаляя сообщения
+    старше ``MESSAGE_TTL_SECONDS``.  Менеджер владеет ``while True``,
+    sleep, retry и обработкой CancelledError.
+    """
+    await _cleanup_pass(bot, db)
+
+
 async def _cleanup_pass(bot: Bot, db: DatabaseManager) -> None:
     """Один проход очистки для всех пользователей.
 

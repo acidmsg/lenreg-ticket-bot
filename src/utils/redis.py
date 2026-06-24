@@ -137,7 +137,7 @@ class RedisClient:
         if not self._available:
             return None
         try:
-            return await self.client.get(key)  # type: ignore[no-any-return]
+            return cast("str | None", await self.client.get(key))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis get({key}): connection error — {e}. Fallback: return None."
@@ -158,7 +158,7 @@ class RedisClient:
         if not self._available:
             return False
         try:
-            return await self.client.set(key, value, ex=ex)  # type: ignore[no-any-return]
+            return cast("bool", await self.client.set(key, value, ex=ex))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis set({key}): connection error — {e}. Fallback: return False."
@@ -179,7 +179,7 @@ class RedisClient:
         if not self._available:
             return 0
         try:
-            return await self.client.delete(*keys)  # type: ignore[no-any-return]
+            return cast("int", await self.client.delete(*keys))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis delete({keys}): connection error — {e}. Fallback: return 0."
@@ -200,7 +200,7 @@ class RedisClient:
         if not self._available:
             return 0
         try:
-            return await self.client.exists(*keys)  # type: ignore[no-any-return]
+            return cast("int", await self.client.exists(*keys))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis exists({keys}): connection error — {e}. Fallback: return 0."
@@ -221,7 +221,7 @@ class RedisClient:
         if not self._available:
             return False
         try:
-            return await self.client.expire(key, seconds)  # type: ignore[no-any-return]
+            return cast("bool", await self.client.expire(key, seconds))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis expire({key}, {seconds}s): connection error — {e}. → False"
@@ -244,7 +244,7 @@ class RedisClient:
         if not self._available:
             return -2
         try:
-            return await self.client.ttl(key)  # type: ignore[no-any-return]
+            return cast("int", await self.client.ttl(key))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis ttl({key}): connection error — {e}. Fallback: return -2."
@@ -265,7 +265,7 @@ class RedisClient:
         if not self._available:
             return []
         try:
-            return await self.client.keys(pattern)  # type: ignore[no-any-return]
+            return cast("list[str]", await self.client.keys(pattern))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis keys({pattern}): connection error — {e}. Fallback: return []."
@@ -288,7 +288,7 @@ class RedisClient:
         if not self._available:
             return 0
         try:
-            return await self.client.incr(key)  # type: ignore[no-any-return]
+            return cast("int", await self.client.incr(key))
         except RedisConnectionError as e:
             logger.warning(
                 f"Redis incr({key}): connection error — {e}. Fallback: return 0."

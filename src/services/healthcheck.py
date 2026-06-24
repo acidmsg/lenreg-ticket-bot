@@ -215,6 +215,100 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
             await asyncio.sleep(60)
 
 
+async def _healthcheck_iteration(
+    bot: Bot,
+    api: ZdravClient,
+    db: DatabaseManager,
+    *,
+    health_metrics: HealthMetrics | None = None,
+) -> None:
+    """Одна итерация healthcheck (для BackgroundTaskManager).
+
+    Выполняет:
+    1. Проверку доступности API zdrav.lenreg.ru.
+    2. Проверку доступности Redis (ping).
+    3. Атомарный снапшот метрик и логирование состояния.
+
+    Менеджер владеет ``while True``, sleep, retry и обработкой CancelledError.
+
+    Args:
+        bot: Экземпляр Telegram-бота (зарезервировано, не используется).
+        api: Клиент API zdrav.lenreg.ru.
+        db: Менеджер базы данных.
+        health_metrics: Опциональная ссылка на глобальный HealthMetrics
+            (по умолчанию используется модульный ``metrics``).
+    """
+    _ = health_metrics  # Явно принимаем, но используем модульный metrics
+
+    # Один запрос — любая клиника/пациент, API общий
+    ok = False
+    check_start = time.time()
+    try:
+        specialties = await api.fetch_speciality_list(
+            settings.DISCOVERY_PATIENT_ID_ADULT,
+            settings.DEFAULT_CLINIC_ID,
+            limiter=api.limiter_healthcheck,
+        )
+        if specialties is not None:
+            ok = True
+            await safe_increment("api_success_total")
+            await safe_increment("api_checks_total")
+        else:
+            await safe_increment("api_checks_total")
+            await safe_increment("api_errors_total")
+            await safe_set("last_api_error_time", time.time())
+            await safe_set("last_api_error_message", "API вернул None")
+    except Exception as e:
+        await safe_increment("api_checks_total")
+        await safe_increment("api_errors_total")
+        await safe_set("last_api_error_time", time.time())
+        await safe_set("last_api_error_message", str(e)[:200])
+        logger.error(f"Healthcheck: ошибка API: {e}")
+
+    # Проверка доступности Redis (активная, через ping)
+    redis_ok = False
+    try:
+        redis_client = await get_redis()
+        redis_ok = await redis_client.health_check()
+    except (RedisConnectionError, RedisTimeoutError, RedisError) as e:
+        logger.warning(
+            "Healthcheck: Redis недоступен | Причина: %s | "
+            "Действие: продолжаем без кэша и rate limiting",
+            e,
+        )
+    except Exception as e:
+        logger.warning(
+            "Healthcheck: ошибка проверки Redis | Причина: %s | "
+            "Действие: считаем Redis недоступным",
+            e,
+        )
+
+    # Атомарно фиксируем снапшот
+    now = time.time()
+    async with metrics_lock:
+        metrics.last_api_check_time = now
+        metrics.last_api_ok = ok
+        metrics.last_check_duration = now - check_start
+        metrics.last_redis_check_time = now
+        metrics.redis_ok = redis_ok
+        uptime = metrics.uptime_str()
+        api_health = metrics.api_health_str()
+
+    stats = db.get_user_statistics()
+
+    # Логируем состояние
+    redis_status = "✅" if redis_ok else "❌"
+    logger.info(
+        f"Healthcheck | "
+        f"Uptime: {uptime} | "
+        f"API: {api_health} | "
+        f"Redis: {redis_status} | "
+        f"Users: {stats['total_users']} | "
+        f"Patients: {stats['total_patients']} | "
+        f"Monitored: {stats['total_monitored_doctors']}"
+    )
+
+
 async def format_status_report(db: DatabaseManager) -> str:
     """Форматирует отчёт о состоянии бота для команды /status."""
     stats = db.get_user_statistics()

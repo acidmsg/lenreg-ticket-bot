@@ -374,10 +374,10 @@ async def remove_doctor(
 
     try:
         p_id, d_id = _monitoring_id_to_parts(monitoring_id)
-    except ValueError as e:
+    except ValueError:
         return JSONResponse(
             status_code=400,
-            content={"detail": str(e)},
+            content={"detail": "Неверный формат monitoring_id."},
         )
 
     user_data = await db.get_user_data(telegram_id)
@@ -771,10 +771,14 @@ async def delete_patient(
         )
 
     await db.delete_patient(telegram_id, patient_id)
+    # NOTE: CodeQL false positive (py/clear-text-logging-sensitive-data).
+    # ID маскированы до последних 4 символов — приватные данные не раскрываются.
+    masked_patient = str(patient_id)[-4:]
+    masked_telegram = str(telegram_id)[-4:]
     logger.info(
-        "Пациент %s удалён пользователем %s",
-        patient_id,
-        telegram_id,
+        "Пациент ...%s удалён пользователем ...%s",
+        masked_patient,
+        masked_telegram,
     )
     return {"status": "deleted", "patient_id": patient_id}
 
@@ -793,10 +797,10 @@ async def get_slots(
 
     try:
         p_id, d_id = _monitoring_id_to_parts(monitoring_id)
-    except ValueError as e:
+    except ValueError:
         return JSONResponse(
             status_code=400,
-            content={"detail": str(e)},
+            content={"detail": "Неверный формат monitoring_id."},
         )
 
     # Проверяем, что врач действительно отслеживается
@@ -900,8 +904,10 @@ async def force_check_doctor(
     # 1. Разбираем monitoring_id
     try:
         p_id, d_id = _monitoring_id_to_parts(body.monitoring_id)
-    except ValueError as e:
-        return JSONResponse(status_code=400, content={"detail": str(e)})
+    except ValueError:
+        return JSONResponse(
+            status_code=400, content={"detail": "Неверный формат monitoring_id."}
+        )
 
     # 2. Получаем данные пользователя и проверяем, что врач отслеживается
     user_data = await db.get_user_data(telegram_id)
