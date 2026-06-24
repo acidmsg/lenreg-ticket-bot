@@ -434,16 +434,17 @@ async def _check_single_doctor(
 
     # --- Шаг 3: API-запрос под семафором ---
     async with semaphore:
-        slots = await api.check_slots(
+        slots_result = await api.check_slots(
             d_id, p_id, clinic_id, limiter=api.limiter_monitor
         )
 
-    logger.info(f"API result for {d_id}: {slots}")
+    logger.info(f"API result for {d_id}: {slots_result}")
 
-    if slots is None:
+    if slots_result is None:
         logger.warning(f"API error for {d_id}, {p_id}. Skipping.")
         return
 
+    slots = slots_result.formatted
     cache_key = f"{uid}_{p_id}_{d_id}"
 
     # --- Шаг 4: защита от ложных пустых ответов ---

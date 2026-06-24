@@ -14,10 +14,13 @@ from src.api.models import (
     AppointmentListResponse,
     CheckPatientRequest,
     CheckPatientResponse,
+    CheckSlotsResult,
     ClinicListRequest,
     ClinicListResponse,
     DoctorListRequest,
     DoctorListResponse,
+    SignupRequest,
+    SignupResponse,
     SpecialityListRequest,
     SpecialityListResponse,
 )
@@ -376,11 +379,11 @@ class ZdravClient:
         patient_id: str,
         clinic_id: str,
         limiter: aiolimiter.AsyncLimiter | None = None,
-    ) -> list[str] | None:
+    ) -> CheckSlotsResult | None:
         """Проверяет доступные слоты для записи к указанному врачу.
 
         Выполняет POST-запрос к эндпоинту /appointment_list/ и возвращает
-        отсортированный список доступных слотов.
+        CheckSlotsResult с форматированными строками и сырыми слотами.
 
         Args:
             doc_id: Идентификатор врача.
@@ -391,8 +394,7 @@ class ZdravClient:
 
         Returns:
             None — ошибка API (исчерпаны попытки, 403/429 и т.п.).
-            [] — успешный запрос, но слотов нет.
-            ["DD.MM.YYYY в HH:MM", ...] — список доступных дат и времени.
+            CheckSlotsResult — результат с полями formatted, slots, has_slots.
         """
         payload = AppointmentListRequest.model_validate(
             {
@@ -430,22 +432,124 @@ class ZdravClient:
                 f"{self.base_url}/appointment_list/",
             )
             logger.info(f"API response for {doc_id}: {model.response}")
-            slots = []
+            formatted: list[str] = []
+            raw_slots: list = []
             for date, items in model.response.items():
                 for s in items:
+                    raw_slots.append(s)
                     t = s.date_start.time
                     if t:
-                        slots.append(f"{date} в {t}")
-            slots.sort()
-            if not slots:
+                        formatted.append(f"{date} в {t}")
+            formatted.sort()
+            if not formatted:
                 logger.info(f"API returned 200 but no slots for {doc_id}")
-            return slots
+            return CheckSlotsResult(formatted=formatted, slots=raw_slots)
         elif res.status_code in [403, 429]:
             logger.warning(
                 f"Заблокировано API (check_slots): {res.status_code}",
                 exc_info=True,
             )
         return None
+
+    async def book_appointment(
+        self,
+        clinic_id: str,
+        patient_id: str,
+        appointment_id: str,
+        history_id: str = "",
+        referral_id: str = "",
+    ) -> SignupResponse:
+        """Бронирование талона (запись к врачу).
+
+        Выполняет POST-запрос к эндпоинту /api/signup/ для бронирования
+        выбранного слота.
+
+        Args:
+            clinic_id: ID поликлиники (appointment_form-clinic_id).
+            patient_id: ID пациента (appointment_form-patient_id).
+            appointment_id: ID слота из appointment_list
+                            (appointment_form-appointment_id).
+            history_id: ID истории, опционально.
+            referral_id: ID направления, опционально.
+
+        Returns:
+            SignupResponse с полями success, response, error.
+            При ошибке сети/таймауте возвращает SignupResponse(success=False)
+            с описанием ошибки в поле error.
+        """
+        payload = SignupRequest.model_validate(
+            {
+                "appointment_form-clinic_id": clinic_id,
+                "appointment_form-patient_id": patient_id,
+                "appointment_form-appointment_id": appointment_id,
+                "appointment_form-history_id": history_id,
+                "appointment_form-referral_id": referral_id,
+                "csrfmiddlewaretoken": settings.CSRF_TOKEN,
+            }
+        ).model_dump(by_alias=True)
+
+        try:
+            res = await self._request_with_retry(
+                f"{self.base_url}/signup/",
+                payload,
+                limiter=self.limiter,
+            )
+        except asyncio.CancelledError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.error(
+                "Сеть/таймаут book_appointment: clinic=%s patient=%s slot=%s — %r",
+                clinic_id,
+                patient_id,
+                appointment_id,
+                e,
+            )
+            return SignupResponse(
+                success=False,
+                error={"detail": f"Сетевая ошибка: {e}"},
+            )
+        except Exception as e:
+            logger.error(
+                "Критическая ошибка в book_appointment: %r",
+                e,
+                exc_info=True,
+            )
+            return SignupResponse(
+                success=False,
+                error={"detail": str(e)},
+            )
+
+        if res.status_code == 200:
+            try:
+                json_data = res.json()
+            except Exception:
+                json_data = {"success": True, "response": {}, "error": {}}
+            model = self._validate_response(
+                json_data,
+                SignupResponse,
+                "signup",
+                f"{self.base_url}/signup/",
+            )
+            logger.info(
+                "Бронирование: clinic=%s patient=%s slot=%s success=%s",
+                clinic_id,
+                patient_id,
+                appointment_id,
+                model.success,
+            )
+            return model
+        elif res.status_code in [403, 429]:
+            logger.warning("Заблокировано API (book_appointment): %d", res.status_code)
+            return SignupResponse(
+                success=False,
+                error={"detail": f"API заблокировало запрос: HTTP {res.status_code}"},
+            )
+        else:
+            logger.error("Неожиданный статус бронирования: %d", res.status_code)
+            return SignupResponse(
+                success=False,
+                error={"detail": f"HTTP {res.status_code}"},
+            )
 
     async def fetch_all_doctors(
         self,

@@ -24,6 +24,9 @@ from src.handlers.callbacks import (
     CB_STOP_ALL,
     BackToCities,
     BackToClinics,
+    BookCancel,
+    BookConfirm,
+    BookSlot,
     CitySelect,
     ClinicSelect,
     DeletePatientAsk,
@@ -35,6 +38,8 @@ from src.handlers.callbacks import (
 )
 from src.i18n import _
 from src.keyboards.inline import (
+    build_slot_booking_keyboard,
+    get_booking_confirmation_keyboard,
     get_city_selection,
     get_clinic_selection,
     get_confirm_deletion,
@@ -48,6 +53,8 @@ from src.services.healthcheck import format_status_report
 from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
 from src.utils.helpers import (
     extract_msg_id,
+    format_booking_confirmation,
+    format_booking_result,
     format_notification_text,
     format_slots,
     shorten_fio,
@@ -777,13 +784,16 @@ async def _handle_toggle_on_doctor(
     )
 
     await call.answer()
-    slots = await api.check_slots(d_id, p_id, clinic_id)
+    slots_result = await api.check_slots(d_id, p_id, clinic_id)
 
     # Сохраняем в кэш мониторинга
-    if slots is not None:
+    if slots_result is not None:
         cache_key = f"{uid}_{p_id}_{d_id}"
-        await swap_cache_key(cache_key, slots if slots else "NONE")
+        await swap_cache_key(
+            cache_key, slots_result.formatted if slots_result.formatted else "NONE"
+        )
 
+    slots = slots_result.formatted if slots_result else None
     user_data = await db.get_user_data(uid)
     monitored = user_data["monitoring"].get(p_id, {})
 
@@ -800,14 +810,19 @@ async def _handle_toggle_on_doctor(
     else:
         slots_display = _("slots-will-notify")
 
-    link = _("signup-link-text").format(url=settings.SIGNUP_URL) if has_slots else ""
+    # Текст уведомления (без ссылки SIGNUP_URL — заменена на инлайн-кнопки)
     text = format_notification_text(
-        patient_label, d_name_display, spec_text, status_text, slots_display, link
+        patient_label, d_name_display, spec_text, status_text, slots_display
     )
 
     # Удаляем загрузочное сообщение
     with contextlib.suppress(Exception):
         await loading_msg.delete()
+
+    # Клавиатура с кнопками «Записаться» для каждого слота
+    reply_markup = None
+    if has_slots and slots_result is not None:
+        reply_markup = build_slot_booking_keyboard(p_id, clinic_id, d_id, slots_result)
 
     # Отправляем финальный результат
     notify_type = "available" if has_slots else "empty"
@@ -816,12 +831,12 @@ async def _handle_toggle_on_doctor(
         if photo_path is not None:
             photo = FSInputFile(photo_path)
             result_msg = await message.answer_photo(
-                photo, caption=text, parse_mode="Markdown"
+                photo, caption=text, reply_markup=reply_markup, parse_mode="Markdown"
             )
         else:
-            result_msg = await message.answer(text)
+            result_msg = await message.answer(text, reply_markup=reply_markup)
     except Exception:
-        result_msg = await message.answer(text)
+        result_msg = await message.answer(text, reply_markup=reply_markup)
 
     await db.set_last_message_id(uid, p_id, d_id, result_msg.message_id)
 
@@ -1263,3 +1278,273 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> 
             await call.message.delete()
     except Exception:
         logger.debug("Не удалось удалить сообщение с выбором формата экспорта")
+
+
+# ── Хендлеры бронирования (Manual Booking) ──────────────────
+
+
+@router.callback_query(callback_filter(BookSlot))
+async def book_slot(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    bot: Bot,
+    callback_data: BookSlot,
+) -> None:
+    """Обработка нажатия кнопки «Записаться»: проверка безопасности,
+    редактирование сообщения в подтверждение.
+    """
+    if not call.from_user or not call.message:
+        return
+
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
+    d_id = callback_data.d_id
+    appointment_id = callback_data.appointment_id
+    slot_date = callback_data.slot_date
+    slot_time = callback_data.slot_time
+    uid = str(call.from_user.id)
+
+    # --- Проверка безопасности ---
+    if await is_spam(uid):
+        await call.answer(_("rate-limit-toast"))
+        return
+
+    user_data = await db.get_user_data(uid)
+
+    # Пациент должен принадлежать пользователю
+    if p_id not in user_data.get("patients", {}):
+        logger.warning("book_slot: пациент %s не принадлежит uid=%s", p_id, uid)
+        await call.answer("⛔ Пациент не найден", show_alert=True)
+        return
+
+    # Врач должен быть в мониторинге пользователя
+    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
+    if d_id not in p_monitoring:
+        logger.warning("book_slot: врач %s не в мониторинге uid=%s", d_id, uid)
+        await call.answer("⛔ Врач не в мониторинге", show_alert=True)
+        return
+
+    # clinic_id должен совпадать с clinic_id в мониторинге врача
+    d_info = p_monitoring[d_id]
+    expected_clinic = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
+    if expected_clinic and expected_clinic != clinic_id:
+        logger.warning(
+            "book_slot: clinic_id не совпадает (callback=%s, monitoring=%s)",
+            clinic_id,
+            expected_clinic,
+        )
+        await call.answer("⛔ Неверная клиника", show_alert=True)
+        return
+
+    # --- Формирование подтверждения ---
+    d_name = ""
+    if isinstance(d_info, dict):
+        d_name = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
+
+    clinic_name = await db.get_clinic_name(clinic_id) or ""
+
+    confirm_text = format_booking_confirmation(
+        d_name, slot_date, slot_time, clinic_name
+    )
+    confirm_kb = get_booking_confirmation_keyboard(
+        p_id, clinic_id, d_id, appointment_id
+    )
+
+    # Редактируем сообщение со слотами → подтверждение
+    try:
+        msg = call.message
+        if isinstance(msg, Message):
+            try:
+                await msg.edit_caption(
+                    caption=confirm_text,
+                    reply_markup=confirm_kb,
+                    parse_mode="Markdown",
+                )
+            except Exception:
+                await msg.edit_text(
+                    confirm_text,
+                    reply_markup=confirm_kb,
+                    parse_mode="Markdown",
+                )
+    except Exception:
+        logger.debug("Не удалось отредактировать сообщение в book_slot")
+
+    await call.answer()
+
+
+@router.callback_query(callback_filter(BookConfirm))
+async def book_confirm(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    api: ZdravClient,
+    bot: Bot,
+    callback_data: BookConfirm,
+) -> None:
+    """Подтверждение записи: вызов book_appointment() и показ результата."""
+    if not call.from_user or not call.message:
+        return
+
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
+    d_id = callback_data.d_id
+    appointment_id = callback_data.appointment_id
+    uid = str(call.from_user.id)
+
+    # --- Повторная проверка безопасности ---
+    if await is_spam(uid):
+        await call.answer(_("rate-limit-toast"))
+        return
+
+    user_data = await db.get_user_data(uid)
+    if p_id not in user_data.get("patients", {}):
+        await call.answer("⛔ Пациент не найден", show_alert=True)
+        return
+
+    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
+    if d_id not in p_monitoring:
+        await call.answer("⛔ Врач не в мониторинге", show_alert=True)
+        return
+
+    # --- Имя врача и клиника для отображения ---
+    d_info = p_monitoring[d_id]
+    d_name = (
+        shorten_fio(d_info.get("name", _("doctor-fallback-name")))
+        if isinstance(d_info, dict)
+        else d_id
+    )
+    clinic_name = await db.get_clinic_name(clinic_id) or ""
+
+    # --- Показываем статус «выполняется» ---
+    try:
+        if isinstance(call.message, Message):
+            await call.message.edit_caption(
+                caption=_("booking-in-progress"),
+                parse_mode="Markdown",
+            )
+        else:
+            await call.message.edit_text(
+                _("booking-in-progress"),
+                parse_mode="Markdown",
+            )
+    except Exception:
+        pass
+
+    await call.answer()
+
+    # --- Вызов API бронирования ---
+    result = await api.book_appointment(
+        clinic_id=clinic_id,
+        patient_id=p_id,
+        appointment_id=appointment_id,
+    )
+
+    # --- Формирование и показ результата ---
+    if result.success:
+        result_text = format_booking_result(
+            d_name,
+            date="",  # Реальная дата неизвестна из ответа API
+            time="",
+            clinic_name=clinic_name,
+            success=True,
+        )
+    else:
+        error_detail = result.error.get("detail", "неизвестная ошибка")
+        error_text = _("booking-failed").format(reason=error_detail)
+        result_text = error_text
+
+    try:
+        if isinstance(call.message, Message):
+            await call.message.edit_caption(
+                caption=result_text,
+                parse_mode="Markdown",
+            )
+        else:
+            await call.message.edit_text(
+                result_text,
+                parse_mode="Markdown",
+            )
+    except Exception:
+        logger.debug("Не удалось отредактировать сообщение в book_confirm")
+
+
+@router.callback_query(callback_filter(BookCancel))
+async def book_cancel(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    api: ZdravClient,
+    bot: Bot,
+    callback_data: BookCancel,
+) -> None:
+    """Отмена записи: re-query check_slots() и восстановление списка слотов."""
+    if not call.from_user or not call.message:
+        return
+
+    p_id = callback_data.p_id
+    clinic_id = callback_data.clinic_id
+    d_id = callback_data.d_id
+    uid = str(call.from_user.id)
+
+    # --- Re-query слотов ---
+    slots_result = await api.check_slots(d_id, p_id, clinic_id)
+
+    if slots_result is None:
+        await call.answer("⚠️ Не удалось проверить слоты", show_alert=True)
+        return
+
+    # --- Формирование обновлённого списка ---
+    user_data = await db.get_user_data(uid)
+    p_info = user_data.get("patients", {}).get(p_id)
+    patient_label = (p_info.get("alias") or p_info.get("fio", "")) if p_info else ""
+    d_name_display = ""
+
+    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
+    d_info = p_monitoring.get(d_id, {})
+    if isinstance(d_info, dict):
+        d_name_display = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
+
+    slots = slots_result.formatted
+    has_slots = bool(slots)
+    status_text = _("slots-available-status") if has_slots else _("slots-empty-status")
+
+    if has_slots and slots:
+        slot_lines = format_slots(
+            slots,
+            detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
+            compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
+        )
+        slots_display = "\n".join(slot_lines)
+    else:
+        slots_display = _("slots-will-notify")
+
+    # Спек-текст
+    d_spec = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
+    d_spec_display = shorten_specialty(d_spec)
+    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
+
+    text = format_notification_text(
+        patient_label, d_name_display, spec_text, status_text, slots_display
+    )
+
+    # Клавиатура с кнопками «Записаться»
+    reply_markup = None
+    if has_slots:
+        reply_markup = build_slot_booking_keyboard(p_id, clinic_id, d_id, slots_result)
+
+    # Редактируем сообщение обратно в список слотов
+    try:
+        if isinstance(call.message, Message):
+            await call.message.edit_caption(
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+            )
+        else:
+            await call.message.edit_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+            )
+    except Exception:
+        logger.debug("Не удалось отредактировать сообщение в book_cancel")
+
+    await call.answer()

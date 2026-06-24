@@ -88,3 +88,31 @@ class StopPatientMonitoring(CallbackData, prefix="stop_patient"):
     p_id: str
     origin: str
     city_idx: str = "all"
+
+
+class BookSlot(CallbackData, prefix="book"):
+    """Запись на слот: book_{p_id}_{clinic_id}_{d_id}_{appt_id}_{DD.MM}_{HH:MM}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+    appointment_id: str
+    slot_date: str  # "ДД.ММ"
+    slot_time: str  # "ЧЧ:ММ"
+
+
+class BookConfirm(CallbackData, prefix="book_yes"):
+    """Подтверждение записи: book_yes_{p_id}_{clinic_id}_{d_id}_{appointment_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+    appointment_id: str
+
+
+class BookCancel(CallbackData, prefix="book_no"):
+    """Отмена записи: book_no_{p_id}_{clinic_id}_{d_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str

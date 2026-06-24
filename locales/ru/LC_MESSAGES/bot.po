@@ -437,3 +437,39 @@ msgstr "неактивен"
 #: src/services/export.py:44, 157
 msgid "export-no-data-error"
 msgstr "Нет данных для экспорта."
+
+#: src/handlers/common.py (booking)
+msgid "btn-book-slot"
+msgstr "📅 Записаться на {date} в {time}"
+
+#: src/handlers/common.py (booking)
+msgid "btn-booking-confirm"
+msgstr "✅ Подтвердить"
+
+#: src/handlers/common.py (booking)
+msgid "btn-booking-back"
+msgstr "↩ Назад"
+
+#: src/handlers/common.py (booking)
+msgid "booking-in-progress"
+msgstr "⏳ Выполняется запись..."
+
+#: src/handlers/common.py (booking)
+msgid "booking-slot-taken"
+msgstr "Слот уже занят. Выберите другой."
+
+#: src/handlers/common.py (booking)
+msgid "booking-forbidden"
+msgstr "Доступ запрещён. Попробуйте позже."
+
+#: src/handlers/common.py (booking)
+msgid "booking-rate-limited"
+msgstr "Слишком много запросов. Подождите минуту."
+
+#: src/handlers/common.py (booking)
+msgid "booking-network-error"
+msgstr "Сервер не отвечает. Попробуйте позже."
+
+#: src/handlers/common.py (booking)
+msgid "booking-unknown-error"
+msgstr "Непредвиденная ошибка. Администратор уведомлён."

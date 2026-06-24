@@ -393,6 +393,58 @@ def format_notification_text(
     )
 
 
+# ── Форматирование сообщений бронирования ──────────────────────
+
+
+def format_booking_confirmation(
+    d_name: str,
+    date: str,
+    time: str,
+    clinic_name: str = "",
+) -> str:
+    """Форматирует текст подтверждения записи.
+
+    Args:
+        d_name: Имя врача (сокращённое, «Иванов И.И.»).
+        date: Дата слота в формате «ДД.ММ».
+        time: Время слота в формате «ЧЧ:ММ».
+        clinic_name: Название клиники (опционально).
+
+    Returns:
+        Текст подтверждения для inline-сообщения.
+    """
+    clinic_line = f"\n{clinic_name}" if clinic_name else ""
+    return f"🧑‍⚕️ {d_name}\n📅 {date} в {time}{clinic_line}\n\n❓ Записаться?"
+
+
+def format_booking_result(
+    d_name: str,
+    date: str,
+    time: str,
+    clinic_name: str = "",
+    success: bool = True,
+    error_detail: str = "",
+) -> str:
+    """Форматирует результат записи.
+
+    Args:
+        d_name: Имя врача (сокращённое).
+        date: Дата слота.
+        time: Время слота.
+        clinic_name: Название клиники (опционально).
+        success: True — успех, False — ошибка.
+        error_detail: Текст ошибки (только при success=False).
+
+    Returns:
+        Текст результата для inline-сообщения.
+    """
+    if success:
+        clinic_line = f"\n🏥 {clinic_name}" if clinic_name else ""
+        return f"✅ Вы записаны!\n🧑‍⚕️ {d_name}\n📅 {date} в {time}{clinic_line}"
+    else:
+        return f"❌ Не удалось записаться: {error_detail}"
+
+
 # ── Верификация Telegram initData (HMAC-SHA256) ─────────────────
 
 # Сигнатура — HMAC-SHA256("WebAppData", BOT_TOKEN), используемая как ключ

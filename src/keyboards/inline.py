@@ -379,3 +379,77 @@ def get_registration_keyboard(step: str):
     )
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_booking_confirmation_keyboard(
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    appointment_id: str,
+):
+    """Клавиатура подтверждения записи: [✅ Подтвердить] [↩ Назад]."""
+    from src.handlers.callbacks import BookCancel, BookConfirm
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=_("btn-booking-confirm"),
+        callback_data=BookConfirm(
+            p_id=p_id,
+            clinic_id=clinic_id,
+            d_id=d_id,
+            appointment_id=appointment_id,
+        ).pack(),
+    )
+    builder.button(
+        text=_("btn-booking-back"),
+        callback_data=BookCancel(
+            p_id=p_id,
+            clinic_id=clinic_id,
+            d_id=d_id,
+        ).pack(),
+    )
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def build_slot_booking_keyboard(
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    slots_result,
+):
+    """Клавиатура с кнопками «Записаться» для каждого слота.
+
+    Args:
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+        slots_result: CheckSlotsResult с полями .formatted и .slots.
+    """
+    from src.handlers.callbacks import BookSlot
+
+    builder = InlineKeyboardBuilder()
+
+    for slot in slots_result.slots:
+        # Извлекаем дату и время из AppointmentSlot
+        date_start = slot.date_start
+        # date_start.iso имеет формат "YYYY-MM-DD", берём "MM-DD" → "MM.DD"
+        iso_date = date_start.iso or ""
+        short_date = iso_date[5:].replace("-", ".") if len(iso_date) == 10 else iso_date
+        short_time = date_start.time or ""
+
+        label = _("btn-book-slot").format(date=short_date, time=short_time)
+        builder.button(
+            text=label,
+            callback_data=BookSlot(
+                p_id=p_id,
+                clinic_id=clinic_id,
+                d_id=d_id,
+                appointment_id=slot.id,
+                slot_date=short_date,
+                slot_time=short_time,
+            ).pack(),
+        )
+
+    builder.adjust(1)
+    return builder.as_markup()

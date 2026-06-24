@@ -825,7 +825,7 @@ async def get_slots(
 
     # Живой запрос слотов
     try:
-        slots_raw = await api.check_slots(
+        slots_result = await api.check_slots(
             doc_id=d_id,
             patient_id=p_id,
             clinic_id=clinic_id,
@@ -860,7 +860,8 @@ async def get_slots(
         )
 
     # Форматирование слотов
-    # check_slots возвращает list[str] вида "ДД.ММ.ГГГГ в ЧЧ:ММ" или None/[]
+    # check_slots возвращает CheckSlotsResult с полем formatted или None
+    slots_raw = slots_result.formatted if slots_result else None
     slots: list[dict[str, str]] = []
     if slots_raw:
         for slot_str in slots_raw:

@@ -6,6 +6,7 @@ Pydantic-модели для запросов и ответов API zdrav.lenreg
 заменяя сырые dict-конструкторы.
 """
 
+from dataclasses import dataclass, field
 from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, Field
@@ -125,6 +126,19 @@ class AppointmentListRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SignupRequest(BaseModel):
+    """Payload для POST /api/signup/ — бронирование талона."""
+
+    clinic_id: str = Field(default="", alias="appointment_form-clinic_id")
+    patient_id: str = Field(default="", alias="appointment_form-patient_id")
+    appointment_id: str = Field(default="", alias="appointment_form-appointment_id")
+    history_id: str = Field(default="", alias="appointment_form-history_id")
+    referral_id: str = Field(default="", alias="appointment_form-referral_id")
+    csrfmiddlewaretoken: str = Field(default="")
+
+    model_config = {"populate_by_name": True}
+
+
 class ClinicListRequest(BaseModel):
     """Payload для /api/clinic_list/."""
 
@@ -239,6 +253,39 @@ class AppointmentListResponse(BaseModel):
     response: dict[str, list[AppointmentSlot]] = Field(default_factory=dict)
     success: bool | None = None  # не всегда приходит в этом эндпоинте
     error: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── signup ─────────────────────────────────────────────────────
+
+
+class SignupResponse(BaseModel):
+    """Ответ POST /api/signup/ — результат бронирования талона."""
+
+    success: bool = False
+    response: dict[str, Any] = Field(default_factory=dict)
+    error: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── составной результат check_slots ────────────────────────────
+
+
+@dataclass
+class CheckSlotsResult:
+    """Результат проверки слотов: форматированные строки + сырые данные.
+
+    Атрибуты:
+        formatted: Список строк вида "ДД.ММ.ГГГГ в ЧЧ:ММ" для отображения.
+        slots: Сырые слоты AppointmentSlot с id для бронирования.
+        has_slots: True если есть хотя бы один слот.
+    """
+
+    formatted: list[str] = field(default_factory=list)
+    slots: list[AppointmentSlot] = field(default_factory=list)
+
+    @property
+    def has_slots(self) -> bool:
+        """True если есть хотя бы один доступный слот."""
+        return len(self.formatted) > 0 or len(self.slots) > 0
 
 
 # ── clinic_list ───────────────────────────────────────────────
