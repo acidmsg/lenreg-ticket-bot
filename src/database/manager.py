@@ -8,6 +8,7 @@ import time
 
 from src.database.database import Database
 from src.database.types import (
+    BookingEntry,
     DoctorEntry,
     LastMessageEntry,
     MonitoringEntry,
@@ -321,6 +322,39 @@ class DatabaseManager:
     async def get_doctors_for_clinic(self, clinic_id: str) -> dict[str, DoctorEntry]:
         """Возвращает словарь врачей клиники (прокси к get_clinic_doctors)."""
         return await self._db.get_clinic_doctors(str(clinic_id))
+
+    # ── Бронирования ────────────────────────────────────────
+
+    async def save_booking(self, booking: BookingEntry) -> None:
+        """Сохраняет запись бронирования (прокси в self._db.save_booking)."""
+        await self._db.save_booking(booking)
+
+    async def get_user_bookings(self, uid: str) -> list[BookingEntry]:
+        """Активные записи пользователя (прокси в self._db.get_user_bookings)."""
+        return await self._db.get_user_bookings(uid)
+
+    async def get_user_bookings_archive(self, uid: str) -> list[BookingEntry]:
+        """Возвращает архивные записи пользователя (прокси)."""
+        return await self._db.get_user_bookings_archive(uid)
+
+    async def archive_booking(self, booking_id: str) -> None:
+        """Архивирует запись по booking_id (прокси в self._db.archive_booking)."""
+        await self._db.archive_booking(booking_id)
+
+    async def archive_past_bookings(self, uid: str) -> int:
+        """Автоархивация прошедших записей пользователя.
+
+        Вызывает self._db.archive_past_bookings() и логирует результат.
+        Возвращает количество заархивированных записей.
+        """
+        from loguru import logger
+
+        count = await self._db.archive_past_bookings(uid)
+        if count > 0:
+            logger.info(
+                "Автоархивация для uid={}: {} записей перемещено в архив", uid, count
+            )
+        return count
 
     # ── Управление подключением ─────────────────────────────
 

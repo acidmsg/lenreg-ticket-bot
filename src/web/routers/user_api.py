@@ -11,17 +11,18 @@ API-эндпоинты для Telegram Mini App.
 import asyncio
 import datetime
 import logging
+import time as time_module
 from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from src.database.manager import DatabaseManager
-from src.database.types import PatientInfo
+from src.database.types import BookingEntry, PatientInfo
 from src.utils.cache import get_cache_key
-from src.utils.helpers import safe_name
+from src.utils.helpers import format_error_message, safe_name
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,18 @@ class ForceCheckRequest(BaseModel):
     monitoring_id: str = Field(
         ..., description="ID мониторинга в формате {patient_id}_{doctor_id}"
     )
+
+
+class BookRequest(BaseModel):
+    """Тело запроса на бронирование талона (POST /api/user/book)."""
+
+    clinic_id: str = Field(..., description="ID клиники")
+    patient_id: str = Field(..., description="ID пациента")
+    appointment_id: str = Field(
+        ..., description="ID слота (appointment_id из check_slots)"
+    )
+    history_id: str = Field(default="", description="ID истории (опционально)")
+    referral_id: str = Field(default="", description="ID направления (опционально)")
 
 
 # ── Вспомогательные функции ──────────────────────────────────
@@ -490,6 +503,7 @@ async def get_available_doctors(
     """
     db = _get_db(request)
     api = _get_api(request)
+    telegram_id = _get_telegram_id(request)
 
     # 1. Получаем врачей из БД
     doctors_dict = await db.get_doctors_for_clinic(clinic_id)
@@ -512,7 +526,18 @@ async def get_available_doctors(
             # Если discovery упал — возвращаем пустой список, но не 500
             doctors_dict = {}
 
-    # 3. Получаем свежие слоты из API (один batch-запрос)
+    # 3. Получаем данные мониторинга пользователя для отметки is_monitored
+    monitored_doctor_ids: set[str] = set()
+    try:
+        user_data = await db.get_user_data(telegram_id)
+        monitoring = user_data.get("monitoring", {})
+        for _p_id, monitored_doctors in monitoring.items():
+            for d_id in monitored_doctors:
+                monitored_doctor_ids.add(d_id)
+    except Exception:
+        logger.exception("Ошибка получения данных мониторинга для uid=%s", telegram_id)
+
+    # 4. Получаем свежие слоты из API (один batch-запрос)
     slots_map: dict[str, dict[str, Any]] = {}
     try:
         if specialty_id:
@@ -553,7 +578,7 @@ async def get_available_doctors(
             clinic_id,
         )
 
-    # 4. Формируем ответ: врачи из БД + слоты из API
+    # 5. Формируем ответ: врачи из БД + слоты из API + флаг is_monitored
     doctors: list[dict[str, Any]] = []
     for doc_id, doc_info in doctors_dict.items():
         doc_specialty = doc_info.get("specialty", "")
@@ -571,6 +596,7 @@ async def get_available_doctors(
                 "specialty_id": specialty_id or "",
                 "free_tickets": slots.get("free_tickets", 0),
                 "nearest_date": slots.get("nearest_date"),
+                "is_monitored": doc_id in monitored_doctor_ids,
             }
         )
 
@@ -860,12 +886,17 @@ async def get_slots(
         )
 
     # Форматирование слотов
-    # check_slots возвращает CheckSlotsResult с полем formatted или None
-    slots_raw = slots_result.formatted if slots_result else None
+    # Используем slots_result.slots параллельно с formatted для получения
+    # appointment_id (поле id каждого AppointmentSlot).
+    # Оба списка строятся в одном порядке (итерация по model.response).
     slots: list[dict[str, str]] = []
-    if slots_raw:
-        for slot_str in slots_raw:
-            # Разбираем строку "ДД.ММ.ГГГГ в ЧЧ:ММ"
+    if slots_result:
+        formatted_list = slots_result.formatted or []
+        raw_slots = slots_result.slots or []
+        # Параллельная итерация: formatted даёт "ДД.ММ.ГГГГ в ЧЧ:ММ",
+        # raw_slots даёт AppointmentSlot с полем id = appointment_id.
+        for i, slot_str in enumerate(formatted_list):
+            appointment_id = raw_slots[i].id if i < len(raw_slots) else ""
             parts = slot_str.split(" в ", 1)
             date_str = parts[0] if len(parts) > 0 else slot_str
             time_str = parts[1] if len(parts) > 1 else ""
@@ -873,6 +904,8 @@ async def get_slots(
                 {
                     "date": date_str.strip(),
                     "time": time_str.strip(),
+                    "appointment_id": appointment_id,
+                    "slot_id": appointment_id,  # синоним
                     "clinic_id": clinic_id,
                 }
             )
@@ -981,3 +1014,400 @@ async def force_check_doctor(
         "slots": slots,
         "checked_at": now_iso,
     }
+
+
+# ── Бронирование ─────────────────────────────────────────────
+
+
+@router.post("/book", response_model=None)
+async def book_appointment(
+    request: Request,
+    body: BookRequest,
+) -> dict[str, Any] | JSONResponse:
+    """Забронировать талон (запись к врачу).
+
+    Выполняет бронирование через API zdrav.lenreg.ru и сохраняет
+    запись в таблицу ``bookings``.
+
+    Тело запроса: ``BookRequest`` с полями clinic_id, patient_id,
+    appointment_id, history_id (опционально), referral_id (опционально).
+    """
+    db = _get_db(request)
+    api = _get_api(request)
+    telegram_id = _get_telegram_id(request)
+
+    # 1. Получаем данные пользователя (имя пациента, данные врача)
+    try:
+        user_data = await db.get_user_data(telegram_id)
+    except Exception:
+        logger.exception("Ошибка получения данных пользователя %s", telegram_id)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "unknown",
+                "detail": "Внутренняя ошибка сервера.",
+            },
+        )
+
+    # Имя пациента
+    patients = user_data.get("patients", {})
+    patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
+    patient_name = patient_info.get("fio", body.patient_id)
+
+    # Ищем данные врача в мониторинге пользователя
+    doctor_name = ""
+    doctor_specialty = ""
+    clinic_name = ""
+    d_id = ""
+
+    monitoring = user_data.get("monitoring", {})
+    for _p_id, monitored_doctors in monitoring.items():
+        for _m_d_id, m_d_info in monitored_doctors.items():
+            # Проверяем, что врач из мониторинга соответствует clinic_id из запроса
+            if m_d_info.get("clinic_id") == body.clinic_id:
+                # Ищем appointment_id — нам нужен doctor_id для записи в bookings
+                # В теле запроса нет doctor_id, поэтому ищем в мониторинге по clinic_id
+                # и предполагаем, что это тот самый врач.
+                # Более точный подход: получаем doctor_id из таблицы doctors.
+                pass
+
+    # Получаем doctor_id и doctor_name из таблицы doctors
+    try:
+        doctors_in_clinic = await db.get_doctors_for_clinic(body.clinic_id)
+        # Поскольку в запросе нет doctor_id, используем appointment_id для поиска
+        # Ищем слоты через API и сопоставляем
+    except Exception:
+        logger.exception("Ошибка получения врачей для clinic_id=%s", body.clinic_id)
+
+    # Поскольку в Mini App doctor_id доступен через monitoring_id из slots,
+    # но в body его нет — делаем живой запрос appointment_list для получения
+    # doctor_id и doctor_name.
+    # Альтернативно: получаем doctor_id из мониторинга пользователя
+    # по комбинации clinic_id + проверка слотов этого врача.
+    #
+    # Более простой путь: извлекаем doctor_id из мониторинга,
+    # где clinic_id совпадает с запросом.
+    # Если пользователь отслеживает нескольких врачей в одной клинике —
+    # берём первого подходящего (фронтенд должен передавать doctor_id,
+    # но в текущей спецификации его нет).
+
+    # Пробуем найти doctor_id в мониторинге по clinic_id
+    for _p_id, monitored_doctors in monitoring.items():
+        for m_d_id, m_d_info in monitored_doctors.items():
+            if m_d_info.get("clinic_id") == body.clinic_id:
+                d_id = m_d_id
+                doctor_name = m_d_info.get("name", m_d_id)
+                doctor_specialty = m_d_info.get("specialty", "")
+                clinic_name = await db.get_clinic_name(body.clinic_id) or body.clinic_id
+                break
+        if d_id:
+            break
+
+    # Если doctor_id не найден в мониторинге — пытаемся получить из БД врачей
+    if not d_id:
+        try:
+            doctors_in_clinic = await db.get_doctors_for_clinic(body.clinic_id)
+            if doctors_in_clinic:
+                # Берём первого врача (неточный fallback)
+                first_doc = next(iter(doctors_in_clinic.items()))
+                d_id = first_doc[0]
+                doctor_name = first_doc[1].get("name", d_id)
+                doctor_specialty = first_doc[1].get("specialty", "")
+        except Exception:
+            logger.exception("Ошибка получения врачей для clinic_id=%s", body.clinic_id)
+
+    if not d_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "unknown",
+                "detail": "Не удалось определить врача для записи.",
+            },
+        )
+
+    clinic_name = (
+        clinic_name or await db.get_clinic_name(body.clinic_id) or body.clinic_id
+    )
+
+    # 2. Выполняем бронирование через API
+    try:
+        result = await api.book_appointment(
+            clinic_id=body.clinic_id,
+            patient_id=body.patient_id,
+            appointment_id=body.appointment_id,
+            history_id=body.history_id,
+            referral_id=body.referral_id,
+        )
+    except httpx.TimeoutException:
+        logger.error("Таймаут API при бронировании для пользователя %s", telegram_id)
+        return JSONResponse(
+            status_code=504,
+            content={
+                "success": False,
+                "error": "api_timeout",
+                "detail": format_error_message("api_timeout"),
+            },
+        )
+    except httpx.NetworkError:
+        logger.error(
+            "Сетевая ошибка API при бронировании для пользователя %s", telegram_id
+        )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "error": "api_unavailable",
+                "detail": format_error_message("api_unavailable"),
+            },
+        )
+    except Exception:
+        logger.exception("Ошибка при бронировании для пользователя %s", telegram_id)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "unknown",
+                "detail": format_error_message("unknown"),
+            },
+        )
+
+    # 3. Обрабатываем результат
+    if result.success:
+        # Успех — сохраняем booking в БД
+        booking_id = f"{body.patient_id}_{d_id}_{body.appointment_id}"
+
+        # Определяем дату и время из результата или из контекста
+        slot_date = ""
+        slot_time = ""
+        if result.response:
+            # Пытаемся извлечь дату/время из ответа API
+            slot_date = str(result.response.get("date", ""))
+            slot_time = str(result.response.get("time", ""))
+
+        try:
+            booking = BookingEntry(
+                booking_id=booking_id,
+                uid=telegram_id,
+                p_id=body.patient_id,
+                d_id=d_id,
+                doctor_name=doctor_name,
+                patient_name=patient_name,
+                specialty=doctor_specialty,
+                clinic_id=body.clinic_id,
+                clinic_name=clinic_name,
+                slot_date=slot_date,
+                slot_time=slot_time,
+                appointment_id=body.appointment_id,
+                created_at=time_module.time(),
+                is_archived=0,
+            )
+            await db.save_booking(booking)
+        except Exception as e:
+            logger.error("Ошибка сохранения booking в БД: %s", e)
+            # Не фейлим ответ — запись уже создана на стороне API
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "doctor_name": doctor_name,
+            "specialty": doctor_specialty,
+            "clinic_name": clinic_name,
+            "date": slot_date,
+            "time": slot_time,
+            "patient_name": patient_name,
+        }
+
+    # Ошибка — анализируем причину
+    if result.error:
+        error_detail = result.error.ErrorDescription or result.error.detail or ""
+        error_id = result.error.IdError
+
+        if (
+            error_id == 39
+            or "занят" in error_detail.lower()
+            or "slot_taken" in error_detail.lower()
+        ):
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "success": False,
+                    "error": "slot_taken",
+                    "detail": format_error_message("slot_taken"),
+                },
+            )
+
+        # Классификация: forbidden (HTTP 403 от API)
+        detail_lower = error_detail.lower()
+        if "403" in detail_lower or "заблокировало" in detail_lower:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "success": False,
+                    "error": "forbidden",
+                    "detail": format_error_message("forbidden"),
+                },
+            )
+
+        # Классификация: api_timeout / api_unavailable
+        if "таймаут" in detail_lower or "timeout" in detail_lower:
+            return JSONResponse(
+                status_code=504,
+                content={
+                    "success": False,
+                    "error": "api_timeout",
+                    "detail": format_error_message("api_timeout", error_detail),
+                },
+            )
+        if "сетевая" in detail_lower or "network" in detail_lower:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "success": False,
+                    "error": "api_unavailable",
+                    "detail": format_error_message("api_unavailable", error_detail),
+                },
+            )
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "unknown",
+            "detail": format_error_message("unknown"),
+        },
+    )
+
+
+# ── Мои записи (Фаза 3 рефакторинга UX) ────────────────────
+
+
+def _serialize_booking(booking: BookingEntry) -> dict[str, Any]:
+    """Преобразует BookingEntry в JSON-сериализуемый словарь."""
+    created_at_iso = ""
+    ts = booking.get("created_at", 0.0)
+    if ts:
+        from datetime import UTC, datetime
+
+        dt = datetime.fromtimestamp(float(ts), tz=UTC)
+        created_at_iso = dt.isoformat()
+    return {
+        "booking_id": booking["booking_id"],
+        "doctor_name": booking["doctor_name"],
+        "specialty": booking["specialty"],
+        "clinic_name": booking["clinic_name"],
+        "date": booking["slot_date"],
+        "time": booking["slot_time"],
+        "patient_name": booking["patient_name"],
+        "created_at": created_at_iso,
+        "is_archived": bool(booking.get("is_archived", 0)),
+    }
+
+
+@router.get("/bookings")
+async def get_bookings(request: Request) -> dict[str, Any]:
+    """Возвращает активные записи пользователя (T-11).
+
+    Перед выдачей выполняет автоархивацию прошедших записей.
+    """
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    # Автоархивация прошедших записей
+    try:
+        await db.archive_past_bookings(telegram_id)
+    except Exception:
+        logger.exception("Ошибка автоархивации для uid=%s", telegram_id)
+
+    # Получаем активные записи
+    bookings = await db.get_user_bookings(telegram_id)
+    serialized = [_serialize_booking(b) for b in bookings]
+    return {"bookings": serialized}
+
+
+@router.get("/bookings/archive")
+async def get_bookings_archive(request: Request) -> dict[str, Any]:
+    """Возвращает архивные записи пользователя (T-12)."""
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    bookings = await db.get_user_bookings_archive(telegram_id)
+    serialized = [_serialize_booking(b) for b in bookings]
+    return {"bookings": serialized}
+
+
+@router.get("/bookings/{booking_id}/export")
+async def export_booking(
+    request: Request,
+    booking_id: str,
+    format: str = Query(..., description="Формат экспорта: png, pdf, ics"),
+) -> Response:
+    """Экспорт записи в выбранном формате (T-15).
+
+    Args:
+        booking_id: Составной ID записи.
+        format: ``png``, ``pdf`` или ``ics``.
+
+    Returns:
+        Response с соответствующим media_type и Content-Disposition.
+    """
+
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    # Поиск записи
+    booking = await db.get_booking_by_id(booking_id)
+    if booking is None:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Запись не найдена."},
+        )
+
+    # Проверка принадлежности записи пользователю
+    if booking["uid"] != telegram_id:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Доступ запрещён."},
+        )
+
+    from src.services.export import (
+        export_booking_ics,
+        export_booking_pdf,
+        export_booking_png,
+    )
+
+    fmt = format.lower().strip()
+    if fmt == "png":
+        try:
+            content = export_booking_png(booking)
+        except ImportError:
+            return JSONResponse(
+                status_code=501,
+                content={"detail": "Экспорт в PNG недоступен: Pillow не установлен."},
+            )
+        media_type = "image/png"
+        ext = "png"
+    elif fmt == "pdf":
+        content = export_booking_pdf(booking)
+        media_type = "application/pdf"
+        ext = "pdf"
+    elif fmt == "ics":
+        content = export_booking_ics(booking)
+        media_type = "text/calendar"
+        ext = "ics"
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Неверный формат. Допустимые: png, pdf, ics."},
+        )
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="booking_{booking_id}.{ext}"'
+            ),
+        },
+    )

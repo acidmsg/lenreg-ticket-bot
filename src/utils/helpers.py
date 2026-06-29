@@ -2,6 +2,8 @@
 Вспомогательные функции для форматирования отображаемых данных.
 """
 
+from __future__ import annotations
+
 import hashlib
 import hmac
 import json
@@ -9,12 +11,15 @@ import re
 import time as time_module
 from collections import defaultdict
 from datetime import datetime, time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs
 
 from loguru import logger
 
-from src.i18n import _data
+if TYPE_CHECKING:
+    from src.api.models import SignupResponse
+
+from src.i18n import _, _data
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
@@ -418,31 +423,69 @@ def format_booking_confirmation(
 
 
 def format_booking_result(
-    d_name: str,
-    date: str,
-    time: str,
+    result: SignupResponse,
+    d_name: str = "",
+    date: str = "",
+    time: str = "",
     clinic_name: str = "",
-    success: bool = True,
-    error_detail: str = "",
 ) -> str:
     """Форматирует результат записи.
 
     Args:
+        result: Ответ API (SignupResponse) с полями success и error.
         d_name: Имя врача (сокращённое).
         date: Дата слота.
         time: Время слота.
         clinic_name: Название клиники (опционально).
-        success: True — успех, False — ошибка.
-        error_detail: Текст ошибки (только при success=False).
 
     Returns:
         Текст результата для inline-сообщения.
     """
-    if success:
+    if result.success:
         clinic_line = f"\n🏥 {clinic_name}" if clinic_name else ""
         return f"✅ Вы записаны!\n🧑‍⚕️ {d_name}\n📅 {date} в {time}{clinic_line}"
-    else:
-        return f"❌ Не удалось записаться: {error_detail}"
+
+    error_obj = result.error
+    # IdError 39 — слот занят
+    if error_obj.IdError == 39:
+        return _("booking-slot-taken")
+
+    # Общая ошибка: ErrorDescription (API), detail (сеть), или fallback
+    error_msg = error_obj.ErrorDescription or error_obj.detail or "неизвестная ошибка"
+    return f"❌ Ошибка записи: {error_msg}"
+
+
+# ── Единый формат ошибок (T-19) ──────────────────────────────
+
+# Маппинг кодов ошибок → человекочитаемые сообщения.
+# Используется хелпером :func:`format_error_message` и в боте, и в Mini App API.
+_ERROR_MESSAGES: dict[str, str] = {
+    "slot_taken": "Слот уже занят. Выберите другой.",
+    "api_unavailable": "Сервис записи временно недоступен. Попробуйте позже.",
+    "api_timeout": "Сервис записи не отвечает. Попробуйте позже.",
+    "forbidden": "Сессия истекла. Пожалуйста, начните заново.",
+    "unknown": "Произошла непредвиденная ошибка.",
+    "no_slots": "На данный момент талонов нет.",
+    "monitoring_already_exists": "Враг уже в отслеживании.",
+}
+
+
+def format_error_message(error_code: str, detail: str | None = None) -> str:
+    """Возвращает человекочитаемое сообщение об ошибке.
+
+    Используется и в боте, и в Mini App API для унификации сообщений.
+
+    Args:
+        error_code: Код ошибки (``slot_taken``, ``api_unavailable``, ...).
+        detail: Дополнительная деталь (добавляется после основного сообщения).
+
+    Returns:
+        Отформатированное сообщение об ошибке.
+    """
+    message = _ERROR_MESSAGES.get(error_code, _ERROR_MESSAGES["unknown"])
+    if detail:
+        message = f"{message}\n\nПричина: {detail}"
+    return message
 
 
 # ── Верификация Telegram initData (HMAC-SHA256) ─────────────────

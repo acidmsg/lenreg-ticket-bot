@@ -22,6 +22,7 @@ from src.database.repo_logs import LogRepository
 from src.database.repo_monitoring import MonitoringRepository
 from src.database.repo_users import UserRepository
 from src.database.types import (
+    BookingEntry,
     ClinicInfo,
     DoctorEntry,
     LastMessageEntry,
@@ -423,3 +424,172 @@ class Database:
                 exc_info=True,
             )
             return (0, 0)
+
+    # ── Бронирования ─────────────────────────────────────────
+
+    async def save_booking(self, booking: BookingEntry) -> None:
+        """Сохраняет (INSERT OR REPLACE) запись бронирования в таблицу bookings."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "INSERT OR REPLACE INTO bookings "
+            "(booking_id, uid, p_id, d_id, doctor_name, patient_name, "
+            "specialty, clinic_id, clinic_name, slot_date, slot_time, "
+            "appointment_id, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                booking["booking_id"],
+                booking["uid"],
+                booking["p_id"],
+                booking["d_id"],
+                booking["doctor_name"],
+                booking["patient_name"],
+                booking["specialty"],
+                booking["clinic_id"],
+                booking["clinic_name"],
+                booking["slot_date"],
+                booking["slot_time"],
+                booking["appointment_id"],
+                booking["created_at"],
+                booking["is_archived"],
+            ),
+        )
+        await c.commit()
+
+    async def get_user_bookings(self, uid: str) -> list[BookingEntry]:
+        """Возвращает активные записи пользователя (сортировка по created_at DESC)."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
+            "specialty, clinic_id, clinic_name, slot_date, slot_time, "
+            "appointment_id, created_at, is_archived "
+            "FROM bookings WHERE uid = ? AND is_archived = 0 "
+            "ORDER BY created_at DESC",
+            (uid,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            BookingEntry(
+                booking_id=row["booking_id"],
+                uid=row["uid"],
+                p_id=row["p_id"],
+                d_id=row["d_id"],
+                doctor_name=row["doctor_name"],
+                patient_name=row["patient_name"],
+                specialty=row["specialty"],
+                clinic_id=row["clinic_id"],
+                clinic_name=row["clinic_name"],
+                slot_date=row["slot_date"],
+                slot_time=row["slot_time"],
+                appointment_id=row["appointment_id"],
+                created_at=row["created_at"],
+                is_archived=row["is_archived"],
+            )
+            for row in rows
+        ]
+
+    async def get_user_bookings_archive(self, uid: str) -> list[BookingEntry]:
+        """Возвращает архивные записи пользователя (сортировка по created_at DESC)."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
+            "specialty, clinic_id, clinic_name, slot_date, slot_time, "
+            "appointment_id, created_at, is_archived "
+            "FROM bookings WHERE uid = ? AND is_archived = 1 "
+            "ORDER BY created_at DESC",
+            (uid,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            BookingEntry(
+                booking_id=row["booking_id"],
+                uid=row["uid"],
+                p_id=row["p_id"],
+                d_id=row["d_id"],
+                doctor_name=row["doctor_name"],
+                patient_name=row["patient_name"],
+                specialty=row["specialty"],
+                clinic_id=row["clinic_id"],
+                clinic_name=row["clinic_name"],
+                slot_date=row["slot_date"],
+                slot_time=row["slot_time"],
+                appointment_id=row["appointment_id"],
+                created_at=row["created_at"],
+                is_archived=row["is_archived"],
+            )
+            for row in rows
+        ]
+
+    async def archive_booking(self, booking_id: str) -> None:
+        """Устанавливает флаг is_archived = 1 для указанной записи."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "UPDATE bookings SET is_archived = 1 WHERE booking_id = ?",
+            (booking_id,),
+        )
+        await c.commit()
+
+    async def archive_past_bookings(self, uid: str) -> int:
+        """Автоархивация: помещает в архив записи с датой приёма раньше сегодняшней.
+
+        Сравнивает slot_date (формат 'ДД.ММ.ГГГГ') с текущей датой,
+        преобразуя строки в YYYYMMDD для корректного сравнения.
+
+        Returns:
+            Количество заархивированных записей.
+        """
+        from datetime import date
+
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        today_yyyymmdd = date.today().strftime("%Y%m%d")
+        cursor = await c.execute(
+            "UPDATE bookings SET is_archived = 1 "
+            "WHERE uid = ? AND is_archived = 0 "
+            "AND slot_date != '' "
+            "AND (substr(slot_date, 7, 4) || substr(slot_date, 4, 2) || "
+            "substr(slot_date, 1, 2)) < ?",
+            (uid, today_yyyymmdd),
+        )
+        await c.commit()
+        return cursor.rowcount
+
+    async def get_booking_by_id(self, booking_id: str) -> BookingEntry | None:
+        """Получить запись о бронировании по её составному ID."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        cursor = await c.execute(
+            "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
+            "specialty, clinic_id, clinic_name, slot_date, slot_time, "
+            "appointment_id, created_at, is_archived "
+            "FROM bookings WHERE booking_id = ?",
+            (booking_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return BookingEntry(
+            booking_id=row["booking_id"],
+            uid=row["uid"],
+            p_id=row["p_id"],
+            d_id=row["d_id"],
+            doctor_name=row["doctor_name"],
+            patient_name=row["patient_name"],
+            specialty=row["specialty"],
+            clinic_id=row["clinic_id"],
+            clinic_name=row["clinic_name"],
+            slot_date=row["slot_date"],
+            slot_time=row["slot_time"],
+            appointment_id=row["appointment_id"],
+            created_at=row["created_at"],
+            is_archived=row["is_archived"],
+        )

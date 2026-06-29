@@ -11,14 +11,22 @@ from src.handlers.callbacks import (
     CB_STOP_ALL,
     BackToCities,
     BackToClinics,
+    BookCancel,
+    BookConfirm,
+    BookConfirmLegacy,
+    BookSlot,
+    BookSlotLegacy,
     CitySelect,
     ClinicSelect,
+    CloseSection,
     DeletePatientAsk,
     DeletePatientConfirm,
+    DoctorSection,
     PatientSelect,
+    SelectPatientForBooking,
+    StartMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
-    ToggleDoctor,
 )
 from src.i18n import _
 from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
@@ -27,7 +35,7 @@ from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_special
 def get_main_menu_keyboard(
     mini_app_url: str | None = None,
 ) -> ReplyKeyboardMarkup | None:
-    """Создаёт reply-клавиатуру с кнопкой Mini App.
+    """Создаёт reply-клавиатуру с кнопками Mini App и «Мои записи».
 
     Если mini_app_url не указан или пуст — возвращает None.
     """
@@ -35,7 +43,8 @@ def get_main_menu_keyboard(
         return None
 
     buttons = [
-        [KeyboardButton(text="🌐 Мониторинг", web_app=WebAppInfo(url=mini_app_url))]
+        [KeyboardButton(text="🌐 Поиск талонов", web_app=WebAppInfo(url=mini_app_url))],
+        [KeyboardButton(text="📋 Мои записи")],
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
@@ -138,7 +147,7 @@ def get_doctor_selection(
         label = f"{status}[{doc['specialty']}] {doc['name']}"
         builder.button(
             text=label,
-            callback_data=ToggleDoctor(
+            callback_data=DoctorSection(
                 p_id=p_id, clinic_id=clinic_id, d_id=d_id
             ).pack(),
         )
@@ -150,7 +159,7 @@ def get_doctor_selection(
         label = f"{status}{doc['name']}"
         builder.button(
             text=label,
-            callback_data=ToggleDoctor(
+            callback_data=DoctorSection(
                 p_id=p_id, clinic_id=clinic_id, d_id=d_id
             ).pack(),
         )
@@ -388,12 +397,11 @@ def get_booking_confirmation_keyboard(
     appointment_id: str,
 ):
     """Клавиатура подтверждения записи: [✅ Подтвердить] [↩ Назад]."""
-    from src.handlers.callbacks import BookCancel, BookConfirm
 
     builder = InlineKeyboardBuilder()
     builder.button(
         text=_("btn-booking-confirm"),
-        callback_data=BookConfirm(
+        callback_data=BookConfirmLegacy(
             p_id=p_id,
             clinic_id=clinic_id,
             d_id=d_id,
@@ -418,7 +426,7 @@ def build_slot_booking_keyboard(
     d_id: str,
     slots_result,
 ):
-    """Клавиатура с кнопками «Записаться» для каждого слота.
+    """Клавиатура с кнопками «Записаться» для каждого слота (старый flow).
 
     Args:
         p_id: ID пациента.
@@ -426,7 +434,6 @@ def build_slot_booking_keyboard(
         d_id: ID врача.
         slots_result: CheckSlotsResult с полями .formatted и .slots.
     """
-    from src.handlers.callbacks import BookSlot
 
     builder = InlineKeyboardBuilder()
 
@@ -441,13 +448,178 @@ def build_slot_booking_keyboard(
         label = _("btn-book-slot").format(date=short_date, time=short_time)
         builder.button(
             text=label,
-            callback_data=BookSlot(
+            callback_data=BookSlotLegacy(
                 p_id=p_id,
                 clinic_id=clinic_id,
                 d_id=d_id,
                 appointment_id=slot.id,
                 slot_date=short_date,
                 slot_time=short_time,
+            ).pack(),
+        )
+
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+# ── Новые клавиатурные хелперы для PopupSection (Фаза 1 рефакторинга UX) ──
+
+
+def get_slot_grid_keyboard(
+    slots_result,
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+):
+    """Клавиатура-сетка слотов, сгруппированных по датам.
+
+    Для каждой даты — ряд кнопок с временем (по 3-4 в ряд).
+    Каждый слот — кнопка с callback BookSlot (новый flow, prefix="book_slot").
+
+    Args:
+        slots_result: CheckSlotsResult с полем .slots (список AppointmentSlot).
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+    """
+    from collections import defaultdict
+
+    builder = InlineKeyboardBuilder()
+
+    # Группируем слоты по дате
+    by_date: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+    # ключ = дата (ДД.ММ.ГГГГ), значение = список (время, appointment_id, iso_date)
+
+    for slot in slots_result.slots:
+        date_start = slot.date_start
+        iso_date = date_start.iso or ""
+        short_time = date_start.time or ""
+
+        # Конвертируем YYYY-MM-DD → ДД.ММ.ГГГГ
+        if len(iso_date) == 10:
+            date_display = f"{iso_date[8:10]}.{iso_date[5:7]}.{iso_date[0:4]}"
+        else:
+            date_display = iso_date
+
+        by_date[date_display].append((short_time, slot.id, iso_date))
+
+    # Сортируем даты
+    for date_display in sorted(by_date.keys()):
+        time_slots = sorted(by_date[date_display], key=lambda x: x[0])
+
+        for time_str, appointment_id, _iso_date in time_slots:
+            label = f"📅 {date_display} в {time_str}"
+            builder.button(
+                text=label,
+                callback_data=BookSlot(
+                    p_id=p_id,
+                    clinic_id=clinic_id,
+                    d_id=d_id,
+                    appointment_id=appointment_id,
+                    date=date_display,
+                    time=time_str,
+                ).pack(),
+            )
+
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_doctor_section_keyboard(
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+):
+    """Клавиатура секции врача: кнопка [В отслеживание] + [✕ Закрыть].
+
+    Args:
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=_("btn-start-monitoring"),
+        callback_data=StartMonitoring(
+            p_id=p_id,
+            clinic_id=clinic_id,
+            d_id=d_id,
+        ).pack(),
+    )
+    builder.button(
+        text=_("btn-close-section"),
+        callback_data=CloseSection(p_id=p_id).pack(),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_booking_section_confirm_keyboard(
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    appointment_id: str,
+    date: str,
+    time: str,
+):
+    """Клавиатура подтверждения записи (новый flow — из PopupSection):
+    [✅ Подтвердить] [↩ Назад].
+
+    Кнопка «Назад» возвращает в DoctorSection (re-query слотов).
+
+    Args:
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+        appointment_id: ID слота из API.
+        date: Дата в формате ДД.ММ.ГГГГ.
+        time: Время в формате ЧЧ:ММ.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=_("btn-booking-confirm"),
+        callback_data=BookConfirm(
+            p_id=p_id,
+            clinic_id=clinic_id,
+            d_id=d_id,
+            appointment_id=appointment_id,
+            date=date,
+            time=time,
+        ).pack(),
+    )
+    builder.button(
+        text=_("btn-booking-back"),
+        callback_data=DoctorSection(
+            p_id=p_id,
+            clinic_id=clinic_id,
+            d_id=d_id,
+        ).pack(),
+    )
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def get_patient_select_keyboard(
+    patients: list[dict],
+    clinic_id: str,
+    d_id: str,
+):
+    """Клавиатура выбора пациента для записи к врачу.
+
+    Args:
+        patients: Список пациентов [{"p_id": str, "name": str}, ...].
+        clinic_id: ID клиники.
+        d_id: ID врача.
+    """
+    builder = InlineKeyboardBuilder()
+
+    for pat in patients:
+        builder.button(
+            text=f"👤 {pat['name']}",
+            callback_data=SelectPatientForBooking(
+                p_id=pat["p_id"],
+                clinic_id=clinic_id,
+                d_id=d_id,
             ).pack(),
         )
 

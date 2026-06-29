@@ -58,6 +58,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      cache_from:
+        - lenreg-ticket-bot:latest
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    image: lenreg-ticket-bot:latest
     container_name: lenreg_ticket_bot
     restart: unless-stopped
     user: '1000:1000'

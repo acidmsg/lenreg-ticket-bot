@@ -5,15 +5,15 @@
  * @module views/doctors
  */
 
-import { apiGet, apiPost, apiDelete } from '../api.js';
-import { isInTelegram } from '../auth.js';
-import { createDoctorCard } from '../components/card.js';
-import { escapeHtml } from '../utils/escape.js';
-import { renderError } from '../utils/error.js';
-import { refreshDoctorSlots } from '../utils/monitoring.js';
-import { showConfirm } from '../utils/ui.js';
-import { lucideIcon } from '../components/icon.js';
-import { navigate } from '../app.js';
+import { apiGet, apiPost, apiDelete } from "../api.js";
+import { isInTelegram } from "../auth.js";
+import { createDoctorCard } from "../components/card.js";
+import { escapeHtml } from "../utils/escape.js";
+import { renderError } from "../utils/error.js";
+import { refreshDoctorSlots } from "../utils/monitoring.js";
+import { showConfirm } from "../utils/ui.js";
+import { lucideIcon } from "../components/icon.js";
+import { navigate } from "../app.js";
 
 /**
  * Рендерит главный экран в указанный контейнер.
@@ -27,7 +27,7 @@ export async function renderDoctors(container) {
   container.innerHTML = renderSkeletons();
 
   try {
-    const data = await apiGet('/doctors');
+    const data = await apiGet("/doctors");
     const doctors = data.doctors || [];
 
     if (doctors.length === 0) {
@@ -39,8 +39,8 @@ export async function renderDoctors(container) {
     container.innerHTML = renderDoctorList(doctors);
     bindDoctorEvents(container, doctors);
   } catch (error) {
-    renderError(container, error.message, 'Повторить', () =>
-      renderDoctors(container)
+    renderError(container, error.message, "Повторить", () =>
+      renderDoctors(container),
     );
   }
 }
@@ -51,7 +51,7 @@ export async function renderDoctors(container) {
  * @returns {string} HTML скелетонов
  */
 function renderSkeletons() {
-  let html = '';
+  let html = "";
   for (let i = 0; i < 3; i++) {
     html += `
       <div class="card skeleton--card">
@@ -76,12 +76,12 @@ function renderSkeletons() {
 function renderEmpty() {
   return `
     <div class="empty-state">
-      <div class="empty-state__icon">${lucideIcon('stethoscope', 48)}</div>
+      <div class="empty-state__icon">${lucideIcon("stethoscope", 48)}</div>
       <p class="empty-state__text">
         Вы пока не отслеживаете ни одного врача.
         Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных номерков.
       </p>
-      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Новый мониторинг</button>
+      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Новый мониторинг</button>
     </div>
   `;
 }
@@ -98,19 +98,19 @@ function renderDoctorList(doctors) {
   doctors.forEach((doctor) => {
     if (!grouped[doctor.doctor_id]) {
       grouped[doctor.doctor_id] = {
-        doctorName: extractDoctorName(doctor) || 'Неизвестный врач',
-        specialty: doctor.specialty || '—',
-        clinicName: doctor.clinic_name || '—',
-        clinicId: doctor.clinic_id || '',
-        status: doctor.status || 'checking',
+        doctorName: extractDoctorName(doctor) || "Неизвестный врач",
+        specialty: doctor.specialty || "—",
+        clinicName: doctor.clinic_name || "—",
+        clinicId: doctor.clinic_id || "",
+        status: doctor.status || "checking",
         freeTickets: doctor.free_tickets || 0,
-        patients: []
+        patients: [],
       };
     }
     grouped[doctor.doctor_id].patients.push({
-      name: doctor.patient_name || '',
-      patientId: doctor.patient_id || '',
-      entryId: doctor.monitoring_id || ''
+      name: doctor.patient_name || "",
+      patientId: doctor.patient_id || "",
+      entryId: doctor.monitoring_id || "",
     });
   });
 
@@ -118,7 +118,7 @@ function renderDoctorList(doctors) {
     .map((group) => {
       // monitoringId — от первого пациента в группе
       const monitoringId =
-        group.patients.length > 0 ? group.patients[0].entryId : '';
+        group.patients.length > 0 ? group.patients[0].entryId : "";
       return createDoctorCard({
         doctorName: group.doctorName,
         specialty: group.specialty,
@@ -126,10 +126,11 @@ function renderDoctorList(doctors) {
         status: group.status,
         freeTickets: group.freeTickets,
         patients: group.patients,
-        monitoringId: monitoringId
+        monitoringId: monitoringId,
+        isMonitored: true,
       });
     })
-    .join('');
+    .join("");
 
   return `<div class="doctors-list">${cards}</div>`;
 }
@@ -140,11 +141,11 @@ function renderDoctorList(doctors) {
  * @param {HTMLElement} btn — кнопка refresh
  */
 async function handleDoctorRefresh(btn) {
-  const monitoringId = btn.getAttribute('data-monitoring-id');
+  const monitoringId = btn.getAttribute("data-monitoring-id");
   if (!monitoringId) return;
 
   // Показываем анимацию загрузки
-  btn.classList.add('btn--refresh--loading');
+  btn.classList.add("btn--refresh--loading");
 
   try {
     const result = await refreshDoctorSlots(monitoringId);
@@ -153,22 +154,22 @@ async function handleDoctorRefresh(btn) {
     const total = result.total || 0;
     if (window.showToast) {
       if (total > 0) {
-        window.showToast('Талоны найдены: ' + total);
+        window.showToast("Талоны найдены: " + total);
       } else {
-        window.showToast('Талоны не найдены');
+        window.showToast("Талоны не найдены");
       }
     } else if (isInTelegram()) {
       // Fallback: toast-модуль ещё не загружен — используем Telegram alert
       window.Telegram.WebApp.showPopup({
-        title: 'Проверка номерков',
-        message: total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
-        buttons: [{ type: 'ok' }]
+        title: "Проверка номерков",
+        message: total > 0 ? "Талоны найдены: " + total : "Талоны не найдены",
+        buttons: [{ type: "ok" }],
       });
     }
 
     // Тактильный отклик
     if (window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
     }
   } catch (error) {
     // Показываем ошибку
@@ -178,7 +179,7 @@ async function handleDoctorRefresh(btn) {
       alert(`Ошибка проверки: ${error.message}`);
     }
   } finally {
-    btn.classList.remove('btn--refresh--loading');
+    btn.classList.remove("btn--refresh--loading");
   }
 }
 
@@ -190,16 +191,16 @@ async function handleDoctorRefresh(btn) {
  */
 async function handleDoctorDelete(btn, container) {
   btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
-  const entryId = btn.getAttribute('data-entry-id');
-  const patientName = btn.getAttribute('data-patient-name') || 'этого пациента';
+  const entryId = btn.getAttribute("data-entry-id");
+  const patientName = btn.getAttribute("data-patient-name") || "этого пациента";
 
   // Тактильный отклик перед показом диалога
   if (window.Telegram?.WebApp?.HapticFeedback) {
-    window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
   }
 
   const confirmed = await showConfirm(
-    `Удалить мониторинг для пациента «${patientName}»?`
+    `Удалить мониторинг для пациента «${patientName}»?`,
   );
 
   if (!confirmed) return;
@@ -209,7 +210,7 @@ async function handleDoctorDelete(btn, container) {
 
     // Тактильный отклик
     if (isInTelegram()) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
     }
 
     // Перезагружаем список
@@ -230,20 +231,84 @@ async function handleDoctorDelete(btn, container) {
  * @param {Array} doctors — массив врачей
  */
 function bindDoctorCardClick(container, doctors) {
-  container.querySelectorAll('.doctor-card').forEach((card) => {
-    card.addEventListener('click', (e) => {
+  container.querySelectorAll(".doctor-card").forEach((card) => {
+    card.addEventListener("click", async (e) => {
       // Не реагируем на клики по кнопкам удаления пациентов и кнопке обновления
-      if (e.target.closest('.monitoring-patient__delete')) return;
-      if (e.target.closest('.btn--refresh')) return;
-
-      const entryId = card.getAttribute('data-entry-id');
-      if (!entryId) return;
+      if (e.target.closest(".monitoring-patient__delete")) return;
+      if (e.target.closest(".btn--refresh")) return;
 
       // Находим пациентов для этой карточки
       const patients = findPatientsForCard(card, doctors);
-      navigate('slots', { monitoringId: entryId, patients });
+
+      // Если несколько пациентов — показываем выбор (dropdown)
+      if (patients.length > 1) {
+        const selectedPatient = await showPatientSelect(patients);
+        if (!selectedPatient) return; // пользователь отменил выбор
+        navigate("slots", { monitoringId: selectedPatient.entryId, patients });
+        return;
+      }
+
+      const entryId = card.getAttribute("data-entry-id");
+      if (!entryId) return;
+
+      navigate("slots", { monitoringId: entryId, patients });
     });
   });
+}
+
+/**
+ * Показывает диалог выбора пациента (если врач отслеживается для нескольких).
+ *
+ * @param {Array<{name: string, patientId: string, entryId: string}>} patients
+ * @returns {Promise<{name: string, patientId: string, entryId: string}|null>}
+ */
+async function showPatientSelect(patients) {
+  if (window.Telegram?.WebApp?.showPopup) {
+    const message = patients.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+
+    return new Promise((resolve) => {
+      window.Telegram.WebApp.showPopup(
+        {
+          title: "Выберите пациента",
+          message: `Для записи выберите пациента:\n\n${message}`,
+          buttons: [
+            ...patients.map((p, i) => ({
+              id: String(i),
+              type: "default",
+              text: p.name,
+            })),
+            { type: "cancel" },
+          ],
+        },
+        (buttonId) => {
+          if (buttonId === undefined || buttonId === null) {
+            resolve(null);
+            return;
+          }
+          const idx = parseInt(buttonId, 10);
+          if (idx >= 0 && idx < patients.length) {
+            resolve(patients[idx]);
+          } else {
+            resolve(null);
+          }
+        },
+      );
+    });
+  }
+
+  // Fallback для браузера
+  const list = patients.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+  const choice = window.prompt(
+    `Выберите пациента (введите номер):\n\n${list}`,
+    "1",
+  );
+  if (choice !== null) {
+    const idx = parseInt(choice, 10) - 1;
+    if (idx >= 0 && idx < patients.length) {
+      return patients[idx];
+    }
+  }
+  return null;
 }
 
 /**
@@ -252,8 +317,8 @@ function bindDoctorCardClick(container, doctors) {
  * @param {HTMLElement} container — контейнер со списком
  */
 function bindDoctorRefreshButtons(container) {
-  container.querySelectorAll('.btn--refresh').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+  container.querySelectorAll(".btn--refresh").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
       handleDoctorRefresh(btn);
     });
@@ -266,8 +331,8 @@ function bindDoctorRefreshButtons(container) {
  * @param {HTMLElement} container — контейнер со списком
  */
 function bindDoctorDeleteButtons(container) {
-  container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+  container.querySelectorAll(".monitoring-patient__delete").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
       handleDoctorDelete(btn, container);
     });
@@ -303,9 +368,9 @@ function findPatientsForCard(card, doctors) {
       grouped[doctor.doctor_id] = { patients: [] };
     }
     grouped[doctor.doctor_id].patients.push({
-      name: doctor.patient_name || '',
-      patientId: doctor.patient_id || '',
-      entryId: doctor.monitoring_id || ''
+      name: doctor.patient_name || "",
+      patientId: doctor.patient_id || "",
+      entryId: doctor.monitoring_id || "",
     });
   });
 
@@ -322,10 +387,10 @@ function findPatientsForCard(card, doctors) {
  * @param {HTMLElement} container — контейнер
  */
 function bindEmptyEvents(container) {
-  const addBtn = container.querySelector('#empty-add-btn');
+  const addBtn = container.querySelector("#empty-add-btn");
   if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      navigate('add');
+    addBtn.addEventListener("click", () => {
+      navigate("add");
     });
   }
 }
@@ -343,19 +408,19 @@ function bindEmptyEvents(container) {
  */
 function extractDoctorName(doctor) {
   const name = doctor.name;
-  if (!name) return String(doctor.doctor_name || '');
+  if (!name) return String(doctor.doctor_name || "");
 
   // Если name — строка, возвращаем как есть
-  if (typeof name === 'string') return name;
+  if (typeof name === "string") return name;
 
   // Если name — объект (например, {first_name: "...", last_name: "..."}),
   // пробуем собрать строку из известных полей
-  if (typeof name === 'object' && name !== null) {
+  if (typeof name === "object" && name !== null) {
     const parts = [];
     if (name.last_name) parts.push(name.last_name);
     if (name.first_name) parts.push(name.first_name);
     if (name.middle_name) parts.push(name.middle_name);
-    if (parts.length > 0) return parts.join(' ');
+    if (parts.length > 0) return parts.join(" ");
     // Если не удалось извлечь — используем doctor_name как fallback
     return String(doctor.doctor_name || name);
   }

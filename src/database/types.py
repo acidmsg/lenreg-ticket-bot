@@ -129,3 +129,49 @@ class MonitoringLogEntry(TypedDict):
     slot_date: str
     status: str  # 'появился' | 'исчез' | 'уменьшился'
     ts: float
+
+
+class BookingEntry(TypedDict):
+    """Запись из таблицы ``bookings``."""
+
+    booking_id: str
+    """Составной ключ: ``{patient_id}_{doctor_id}_{appointment_id}``."""
+
+    uid: str
+    """ID пользователя Telegram."""
+
+    p_id: str
+    """ID пациента."""
+
+    d_id: str
+    """ID врача."""
+
+    doctor_name: str
+    """ФИО врача на момент записи."""
+
+    patient_name: str
+    """ФИО пациента на момент записи."""
+
+    specialty: str
+    """Специальность врача."""
+
+    clinic_id: str
+    """ID клиники."""
+
+    clinic_name: str
+    """Название клиники на момент записи."""
+
+    slot_date: str
+    """Дата приёма в формате 'ДД.ММ.ГГГГ'."""
+
+    slot_time: str
+    """Время приёма в формате 'ЧЧ:ММ'."""
+
+    appointment_id: str
+    """ID слота из API."""
+
+    created_at: float
+    """Unix-timestamp создания записи."""
+
+    is_archived: int
+    """0 = активная, 1 = архивная."""

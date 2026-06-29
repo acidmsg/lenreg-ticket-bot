@@ -5,15 +5,16 @@
  * @module app
  */
 
-import { isInTelegram, getUserInfo, getInitDataError } from './auth.js';
-import { escapeHtml } from './utils/escape.js';
-import { renderDoctors } from './views/doctors.js';
-import { renderAddDoctor } from './views/add.js';
-import { renderSlots } from './views/slots.js';
-import { renderPatients, renderPatientAddForm } from './views/patients.js';
-import { renderHeader } from './components/header.js';
-import { lucideIcon } from './components/icon.js';
-import './components/toast.js'; // Сайд-эффект: устанавливает window.showToast
+import { isInTelegram, getUserInfo, getInitDataError } from "./auth.js";
+import { escapeHtml } from "./utils/escape.js";
+import { renderDoctors } from "./views/doctors.js";
+import { renderAddDoctor } from "./views/add.js";
+import { renderSlots } from "./views/slots.js";
+import { renderPatients, renderPatientAddForm } from "./views/patients.js";
+import { renderBookingsList, renderArchiveList } from "./views/bookings.js";
+import { renderHeader } from "./components/header.js";
+import { lucideIcon } from "./components/icon.js";
+import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
 
 // ============================================================
 // Глобальное состояние приложения
@@ -28,9 +29,9 @@ import './components/toast.js'; // Сайд-эффект: устанавлива
 
 /** @type {AppState} */
 const state = {
-  route: 'doctors',
+  route: "doctors",
   routeParams: null,
-  history: []
+  history: [],
 };
 
 // ============================================================
@@ -48,7 +49,7 @@ const state = {
  * блокируя попытки Telegram WebView переопределить цвета через инлайн-стили.
  */
 function forceThemeOverride() {
-  document.documentElement.setAttribute('data-theme', 'dark');
+  document.documentElement.setAttribute("data-theme", "dark");
 }
 
 // ============================================================
@@ -99,7 +100,7 @@ function goBack() {
 function setupBackButton(route) {
   const tg = window.Telegram?.WebApp;
   if (!tg) return;
-  if (route !== 'doctors') {
+  if (route !== "doctors") {
     tg.BackButton.show();
   } else {
     tg.BackButton.hide();
@@ -114,40 +115,50 @@ function setupBackButton(route) {
  */
 function buildRouteHTML(route) {
   const userInfo = getUserInfo();
-  const userName = userInfo ? userInfo.first_name || 'Пользователь' : '';
+  const userName = userInfo ? userInfo.first_name || "Пользователь" : "";
 
   switch (route) {
-    case 'doctors':
+    case "doctors":
       return `
-        ${renderHeader('Мониторинг врачей', state.history.length > 0, userName)}
+        ${renderHeader("Мониторинг врачей", state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
         <div class="fab-group">
-          <button class="btn btn--secondary btn--sm" id="btn-patients"><span class="lucide-icon">${lucideIcon('users', 16)}</span> Пациенты</button>
-          <button class="fab" id="fab-add"><span class="lucide-icon">${lucideIcon('circle-plus', 18)}</span> Новый мониторинг</button>
+          <button class="btn btn--secondary btn--sm" id="btn-patients"><span class="lucide-icon">${lucideIcon("users", 16)}</span> Пациенты</button>
+          <button class="fab" id="fab-add"><span class="lucide-icon">${lucideIcon("circle-plus", 18)}</span> Новый мониторинг</button>
         </div>
       `;
-    case 'add':
+    case "add":
       return `
-        ${renderHeader('Новый мониторинг', true, userName)}
+        ${renderHeader("Новый мониторинг", true, userName)}
         <div class="app-view" id="add-content"></div>
       `;
-    case 'slots':
+    case "slots":
       return `
-        ${renderHeader('Свободные номерки', true, userName)}
+        ${renderHeader("Свободные номерки", true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
-    case 'patients':
+    case "patients":
       return `
-        ${renderHeader('Пациенты', true, userName)}
+        ${renderHeader("Пациенты", true, userName)}
         <div class="app-content" id="patients-content"></div>
       `;
-    case 'patient-add':
+    case "patient-add":
       return `
-        ${renderHeader('Новый пациент', true, userName)}
+        ${renderHeader("Новый пациент", true, userName)}
         <div class="app-view" id="patient-add-content"></div>
       `;
+    case "bookings":
+      return `
+        ${renderHeader("Мои записи", true, userName)}
+        <div class="app-content" id="bookings-content"></div>
+      `;
+    case "bookings-archive":
+      return `
+        ${renderHeader("Архив записей", true, userName)}
+        <div class="app-content" id="archive-content"></div>
+      `;
     default:
-      return '<p>Страница не найдена</p>';
+      return "<p>Страница не найдена</p>";
   }
 }
 
@@ -157,9 +168,9 @@ function buildRouteHTML(route) {
  * @param {HTMLElement} app — корневой элемент приложения
  */
 function bindGoBackHandler(app) {
-  const headerBackBtn = app.querySelector('#header-back');
+  const headerBackBtn = app.querySelector("#header-back");
   if (headerBackBtn) {
-    headerBackBtn.addEventListener('click', goBack);
+    headerBackBtn.addEventListener("click", goBack);
   }
 }
 
@@ -172,28 +183,36 @@ async function renderRouteContent(route) {
   let container;
 
   switch (route) {
-    case 'doctors':
-      container = document.getElementById('doctors-content');
+    case "doctors":
+      container = document.getElementById("doctors-content");
       if (container) {
         await renderDoctors(container);
         bindDoctorsEvents();
       }
       break;
-    case 'add':
-      container = document.getElementById('add-content');
+    case "add":
+      container = document.getElementById("add-content");
       if (container) await renderAddDoctor(container);
       break;
-    case 'slots':
-      container = document.getElementById('slots-content');
+    case "slots":
+      container = document.getElementById("slots-content");
       if (container) await renderSlots(container, state.routeParams);
       break;
-    case 'patients':
-      container = document.getElementById('patients-content');
+    case "patients":
+      container = document.getElementById("patients-content");
       if (container) await renderPatients(container);
       break;
-    case 'patient-add':
-      container = document.getElementById('patient-add-content');
+    case "patient-add":
+      container = document.getElementById("patient-add-content");
       if (container) await renderPatientAddForm(container);
+      break;
+    case "bookings":
+      container = document.getElementById("bookings-content");
+      if (container) await renderBookingsList(container);
+      break;
+    case "bookings-archive":
+      container = document.getElementById("archive-content");
+      if (container) await renderArchiveList(container);
       break;
   }
 }
@@ -202,7 +221,7 @@ async function renderRouteContent(route) {
  * Рендерит текущий экран на основе состояния маршрута.
  */
 async function render() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
   if (!app) return;
 
   const route = state.route;
@@ -223,18 +242,31 @@ async function render() {
  * Привязывает обработчики событий для главного экрана.
  */
 function bindDoctorsEvents() {
-  const fab = document.getElementById('fab-add');
+  const fab = document.getElementById("fab-add");
   if (fab) {
-    fab.addEventListener('click', () => {
-      navigate('add');
+    fab.addEventListener("click", () => {
+      navigate("add");
     });
   }
 
-  const patientsBtn = document.getElementById('btn-patients');
+  const patientsBtn = document.getElementById("btn-patients");
   if (patientsBtn) {
-    patientsBtn.addEventListener('click', () => {
-      navigate('patients');
+    patientsBtn.addEventListener("click", () => {
+      navigate("patients");
     });
+  }
+
+  // Динамически добавляем кнопку «Мои записи» в fab-group если её там нет
+  const fabGroup = document.querySelector(".fab-group");
+  if (fabGroup && !document.getElementById("btn-bookings")) {
+    const bookingsBtn = document.createElement("button");
+    bookingsBtn.id = "btn-bookings";
+    bookingsBtn.className = "btn btn--secondary btn--sm";
+    bookingsBtn.innerHTML = `<span class="lucide-icon">${lucideIcon("calendar", 16)}</span> Мои записи`;
+    bookingsBtn.addEventListener("click", () => {
+      navigate("bookings");
+    });
+    fabGroup.insertBefore(bookingsBtn, fabGroup.firstChild);
   }
 }
 
@@ -246,13 +278,13 @@ function bindDoctorsEvents() {
  * Точка входа приложения.
  */
 function init() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
 
   if (!isInTelegram()) {
     // Показываем сообщение, если открыто вне Telegram
     app.innerHTML = `
       <div class="outside-telegram">
-        <div class="outside-telegram__icon">${lucideIcon('smartphone', 64)}</div>
+        <div class="outside-telegram__icon">${lucideIcon("smartphone", 64)}</div>
         <p class="outside-telegram__text">
           Откройте это приложение через Telegram Mini App.
         </p>
@@ -270,7 +302,7 @@ function init() {
   forceThemeOverride();
 
   // При смене темы в Telegram — переприменить форсированную тему
-  tg.onEvent('themeChanged', () => {
+  tg.onEvent("themeChanged", () => {
     forceThemeOverride();
   });
 
@@ -288,16 +320,16 @@ function init() {
   if (initDataError) {
     app.innerHTML = `
       <div class="outside-telegram">
-        <div class="outside-telegram__icon">${lucideIcon('lock', 64)}</div>
+        <div class="outside-telegram__icon">${lucideIcon("lock", 64)}</div>
         <p class="outside-telegram__text">${escapeHtml(initDataError)}</p>
         <button class="btn btn--primary mt-md" id="initdata-close-btn">
           Закрыть
         </button>
       </div>
     `;
-    const closeBtn = document.getElementById('initdata-close-btn');
+    const closeBtn = document.getElementById("initdata-close-btn");
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+      closeBtn.addEventListener("click", () => {
         window.Telegram.WebApp.close();
       });
     }
@@ -309,8 +341,8 @@ function init() {
 }
 
 // Запуск при загрузке DOM
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
 } else {
   init();
 }

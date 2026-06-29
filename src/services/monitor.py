@@ -98,6 +98,95 @@ async def _send_telegram_safe(
             return False
 
 
+def filter_slots_by_user_prefs(
+    slots: list[str],
+    monitoring_entry: MonitoringEntry,
+) -> list[str]:
+    """Фильтрует слоты согласно настройкам пользователя (T-18).
+
+    Если фильтры не заданы (поля отсутствуют или пустые) — возвращает все слоты.
+
+    Args:
+        slots: Список слотов в формате ``"YYYY-MM-DD в HH:MM"``.
+        monitoring_entry: Запись мониторинга с опциональными полями фильтра.
+
+    Returns:
+        Отфильтрованный список слотов.
+    """
+    if not slots:
+        return slots
+
+    # Проверяем наличие полей фильтра (graceful degradation:
+    # поля могут отсутствовать — фильтры отложены до отдельной фазы)
+    date_from: str = str(monitoring_entry.get("date_from", "") or "")
+    date_to: str = str(monitoring_entry.get("date_to", "") or "")
+    time_from: str = str(monitoring_entry.get("time_from", "") or "")
+    time_to: str = str(monitoring_entry.get("time_to", "") or "")
+    raw_dates = monitoring_entry.get("specific_dates", []) or []
+    specific_dates: list[str] = list(raw_dates) if isinstance(raw_dates, list) else []
+
+    # Если ни один фильтр не задан — возвращаем все слоты
+    has_filters = bool(date_from or date_to or time_from or time_to or specific_dates)
+    if not has_filters:
+        return slots
+
+    from datetime import date, time
+
+    filtered: list[str] = []
+    for slot_str in slots:
+        # Парсим слот: "YYYY-MM-DD в HH:MM"
+        try:
+            parts = slot_str.split(" в ")
+            slot_date_str = parts[0].strip()
+            slot_time_str = parts[1].strip() if len(parts) > 1 else ""
+
+            slot_date = date.fromisoformat(slot_date_str)
+            slot_time = time.fromisoformat(slot_time_str) if slot_time_str else None
+        except (ValueError, IndexError):
+            # Невозможно распарсить — пропускаем слот (не должны доходить сюда)
+            continue
+
+        # Фильтр по дате
+        if date_from:
+            try:
+                df = date.fromisoformat(date_from)
+                if slot_date < df:
+                    continue
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                dt = date.fromisoformat(date_to)
+                if slot_date > dt:
+                    continue
+            except ValueError:
+                pass
+
+        # Фильтр по времени
+        if time_from and slot_time:
+            try:
+                tf = time.fromisoformat(time_from)
+                if slot_time < tf:
+                    continue
+            except ValueError:
+                pass
+        if time_to and slot_time:
+            try:
+                tt = time.fromisoformat(time_to)
+                if slot_time > tt:
+                    continue
+            except ValueError:
+                pass
+
+        # Фильтр по конкретным датам
+        if specific_dates and slot_date_str not in specific_dates:
+            continue
+
+        filtered.append(slot_str)
+
+    return filtered
+
+
 def _handle_disappeared(
     old_slots_data: list[str] | str | None,
 ) -> tuple[str, None, str] | None:
@@ -466,6 +555,32 @@ async def _check_single_doctor(
         return
 
     header, display_slots, notify_type = result
+
+    # --- Шаг 6.5: фильтрация слотов по настройкам пользователя (T-18) ---
+    if slots and isinstance(d_info, dict):
+        filtered_slots = filter_slots_by_user_prefs(slots, d_info)
+        if not filtered_slots:
+            # После фильтрации слотов не осталось — пропускаем уведомление
+            logger.info(
+                "Все слоты отфильтрованы для d_id=%s p_id=%s (настройки пользователя)",
+                d_id,
+                p_id,
+            )
+            return
+        # Обновляем display_slots: убираем те, что не прошли фильтр
+        if display_slots is not None:
+            # display_slots может содержать префикс [NEW], матчим по чистому слоту
+            _new_prefix = "[NEW] "
+            display_filtered: list[str] = []
+            for ds in display_slots:
+                clean = ds[len(_new_prefix) :] if ds.startswith(_new_prefix) else ds
+                if clean in filtered_slots:
+                    display_filtered.append(ds)
+                elif ds.startswith(_new_prefix):
+                    # [NEW] слот, который не прошёл фильтр — ищем без префикса
+                    pass
+            display_slots = display_filtered if display_filtered else filtered_slots
+        slots = filtered_slots
 
     # --- Шаг 7: логирование изменения ---
     await _log_monitoring_change(

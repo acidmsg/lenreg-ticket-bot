@@ -17,6 +17,7 @@ CB_EXPORT_JSON = "export_json"
 CB_SKIP_ALIAS = "skip_alias"
 CB_CANCEL_REGISTRATION = "cancel_registration"
 CB_NOOP = "noop"
+CB_MY_BOOKINGS = "my_bookings"
 
 # ── Типизированные CallbackData с полями данных ──────────────────────────────
 
@@ -90,8 +91,9 @@ class StopPatientMonitoring(CallbackData, prefix="stop_patient"):
     city_idx: str = "all"
 
 
-class BookSlot(CallbackData, prefix="book"):
-    """Запись на слот: book_{p_id}_{clinic_id}_{d_id}_{appt_id}_{DD.MM}_{HH:MM}."""
+class BookSlotLegacy(CallbackData, prefix="book"):
+    """Запись на слот (старый flow — из уведомлений мониторинга):
+    book_{p_id}_{clinic_id}_{d_id}_{appt_id}_{DD.MM}_{HH:MM}."""
 
     p_id: str
     clinic_id: str
@@ -101,8 +103,9 @@ class BookSlot(CallbackData, prefix="book"):
     slot_time: str  # "ЧЧ:ММ"
 
 
-class BookConfirm(CallbackData, prefix="book_yes"):
-    """Подтверждение записи: book_yes_{p_id}_{clinic_id}_{d_id}_{appointment_id}."""
+class BookConfirmLegacy(CallbackData, prefix="book_yes"):
+    """Подтверждение записи (старый flow):
+    book_yes_{p_id}_{clinic_id}_{d_id}_{appointment_id}."""
 
     p_id: str
     clinic_id: str
@@ -112,6 +115,63 @@ class BookConfirm(CallbackData, prefix="book_yes"):
 
 class BookCancel(CallbackData, prefix="book_no"):
     """Отмена записи: book_no_{p_id}_{clinic_id}_{d_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+
+
+# ── Новые CallbackData для PopupSection (Фаза 1 рефакторинга UX) ──
+
+
+class DoctorSection(CallbackData, prefix="doc_sec"):
+    """Открытие секции врача: doc_sec_{p_id}_{clinic_id}_{d_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+
+
+class CloseSection(CallbackData, prefix="close_sec"):
+    """Закрытие секции: close_sec_{p_id}."""
+
+    p_id: str
+
+
+class StartMonitoring(CallbackData, prefix="start_mon"):
+    """Добавление врача в отслеживание: start_mon_{p_id}_{clinic_id}_{d_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+
+
+class BookSlot(CallbackData, prefix="book_slot"):
+    """Выбор слота для записи (новый flow — из PopupSection):
+    book_slot_{p_id}_{clinic_id}_{d_id}_{appointment_id}_{date}_{time}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+    appointment_id: str
+    date: str  # ДД.ММ.ГГГГ
+    time: str  # ЧЧ:ММ
+
+
+class BookConfirm(CallbackData, prefix="book_conf"):
+    """Подтверждение записи (новый flow):
+    book_conf_{p_id}_{clinic_id}_{d_id}_{appointment_id}_{date}_{time}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+    appointment_id: str
+    date: str  # ДД.ММ.ГГГГ
+    time: str  # ЧЧ:ММ
+
+
+class SelectPatientForBooking(CallbackData, prefix="sel_pat_book"):
+    """Выбор пациента для записи: sel_pat_book_{p_id}_{clinic_id}_{d_id}."""
 
     p_id: str
     clinic_id: str

@@ -810,6 +810,25 @@ body {
   height: var(--size-chip);
 }
 
+.slot-chip--clickable {
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+  font-family: inherit;
+}
+
+.slot-chip--clickable:hover {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.slot-chip--clickable:active {
+  transform: scale(0.95);
+}
+
 /* === Stepper (пошаговый выбор) === */
 .stepper {
   display: flex;
@@ -1151,11 +1170,24 @@ body {
   color: var(--color-text-primary);
 }
 
-/* === Блокированная карточка врача (уже отслеживается) === */
-.doctor-card--monitored,
+/* === Блокированная карточка врача (уже отслеживается — только для stepper) === */
 .stepper-item--monitored {
   opacity: 0.5;
   user-select: none;
+}
+
+/* === Карточка отслеживаемого врача на главном экране (зелёный индикатор) === */
+.doctor-card.doctor-card--monitored {
+  border-left: 3px solid var(--status-available);
+}
+
+.doctor-card__monitored-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
 /* === Toast-уведомление === */
@@ -1807,4 +1839,74 @@ body {
   .backup-status__grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================
+   Бронирования (bookings) — Фаза 3
+   ============================================================ */
+
+.booking-card {
+  margin-bottom: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.booking-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.booking-card__doctor {
+  flex: 1;
+}
+
+.booking-card__specialty,
+.booking-card__clinic,
+.booking-card__datetime,
+.booking-card__patient {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+  line-height: var(--line-height-normal);
+}
+
+.booking-card__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.booking-card__actions .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+}
+
+.bookings-list {
+  padding: var(--space-md) 0;
+}
+
+.bookings-archive-link {
+  text-align: center;
+  padding: var(--space-lg) 0;
+}
+
+.empty-state__hint {
+  font-size: var(--font-sm);
+  color: var(--color-text-tertiary);
 }

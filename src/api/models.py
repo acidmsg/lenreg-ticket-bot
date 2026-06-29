@@ -258,12 +258,29 @@ class AppointmentListResponse(BaseModel):
 # ── signup ─────────────────────────────────────────────────────
 
 
+class SignupError(BaseModel):
+    """Ошибка бронирования (ответ API /api/signup/ при неудаче).
+
+    Поля, возвращаемые API zdrav.lenreg.ru при ошибке:
+    - ``IdError``: код ошибки (39 = слот занят).
+    - ``ErrorDescription``: человекочитаемое описание.
+
+    Поле ``detail`` используется для внутренних ошибок (сеть, таймаут, HTTP).
+    """
+
+    IdError: int = 0
+    ErrorDescription: str = ""
+    detail: str = ""
+
+    model_config = {"extra": "allow"}
+
+
 class SignupResponse(BaseModel):
     """Ответ POST /api/signup/ — результат бронирования талона."""
 
     success: bool = False
     response: dict[str, Any] = Field(default_factory=dict)
-    error: dict[str, Any] = Field(default_factory=dict)
+    error: SignupError = Field(default_factory=SignupError)
 
 
 # ── составной результат check_slots ────────────────────────────

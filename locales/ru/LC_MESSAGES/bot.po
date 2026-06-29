@@ -456,7 +456,7 @@ msgstr "⏳ Выполняется запись..."
 
 #: src/handlers/common.py (booking)
 msgid "booking-slot-taken"
-msgstr "Слот уже занят. Выберите другой."
+msgstr "❌ Этот талон уже занят. Пожалуйста, выберите другое время."
 
 #: src/handlers/common.py (booking)
 msgid "booking-forbidden"
@@ -473,3 +473,127 @@ msgstr "Сервер не отвечает. Попробуйте позже."
 #: src/handlers/common.py (booking)
 msgid "booking-unknown-error"
 msgstr "Непредвиденная ошибка. Администратор уведомлён."
+
+# ── Фаза 1 рефакторинга UX (PopupSection) ──────────────────
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-confirm-title"
+msgstr "Подтверждение записи"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-confirm-text"
+msgstr "Записаться к {doctor} на {date} в {time}?"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-success"
+msgstr "✅ Вы записаны!\n{doctor}\n{date} в {time}\n{clinic}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-failed"
+msgstr "❌ Не удалось записаться: {reason}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "no-slots-placeholder"
+msgstr "На данный момент талонов нет."
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-start-monitoring"
+msgstr "🔔 В отслеживание"
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-close-section"
+msgstr "✕"
+
+#: src/handlers/common.py (doctor_section)
+msgid "monitoring-added"
+msgstr "✅ Врач добавлен в отслеживание"
+
+#: src/handlers/common.py (doctor_section)
+msgid "select-patient-for-booking"
+msgstr "Выберите пациента для записи к {doctor}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-back-to-main"
+msgstr "На главную"
+
+# ── Фаза 2 рефакторинга UX (Mini App booking) ──────────────────
+
+#: src/web/static/app/js/views/slots.js
+msgid "slots-booking-hint"
+msgstr "Выберите удобное время для записи"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-modal-title"
+msgstr "Подтверждение записи"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-toast-success"
+msgstr "✅ Вы успешно записаны!"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-toast-error"
+msgstr "❌ Ошибка записи: {reason}"
+
+# ── Фаза 3 рефакторинга UX (Мои записи) ──
+
+#: src/handlers/common.py (my_bookings)
+msgid "btn-my-bookings"
+msgstr "📋 Мои записи"
+
+#: src/handlers/common.py (my_bookings)
+msgid "bookings-title"
+msgstr "Мои записи к врачам"
+
+#: src/handlers/common.py (my_bookings)
+msgid "bookings-empty"
+msgstr "У вас пока нет записей к врачам."
+
+#: src/handlers/common.py (my_bookings)
+msgid "archive-title"
+msgstr "Архив записей"
+
+#: src/handlers/common.py (my_bookings)
+msgid "archive-empty"
+msgstr "В архиве пока нет записей."
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-png"
+msgstr "📥 Сохранить"
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-pdf"
+msgstr "📄 PDF"
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-calendar"
+msgstr "📅 В календарь"
+
+# ── Фаза 4: обработка ошибок и локализация (T-20) ──
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-slot-taken"
+msgstr "❌ Слот уже занят. Выберите другой."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-api-unavailable"
+msgstr "❌ Сервис записи временно недоступен. Попробуйте позже."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-api-timeout"
+msgstr "❌ Сервис записи не отвечает. Попробуйте позже."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-forbidden"
+msgstr "❌ Сессия истекла. Пожалуйста, начните заново."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-unknown"
+msgstr "❌ Произошла непредвиденная ошибка."
+
+#: src/handlers/common.py (start_monitoring)
+msgid "monitoring-already-exists"
+msgstr "⚠️ Враг уже в отслеживании."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "btn-back-to-slots"
+msgstr "↩ Назад к слотам"

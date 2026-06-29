@@ -19,6 +19,7 @@ from src.api.models import (
     ClinicListResponse,
     DoctorListRequest,
     DoctorListResponse,
+    SignupError,
     SignupRequest,
     SignupResponse,
     SpecialityListRequest,
@@ -506,7 +507,7 @@ class ZdravClient:
             )
             return SignupResponse(
                 success=False,
-                error={"detail": f"Сетевая ошибка: {e}"},
+                error=SignupError(detail=f"Сетевая ошибка: {e}"),
             )
         except Exception as e:
             logger.error(
@@ -516,7 +517,7 @@ class ZdravClient:
             )
             return SignupResponse(
                 success=False,
-                error={"detail": str(e)},
+                error=SignupError(detail=str(e)),
             )
 
         if res.status_code == 200:
@@ -542,13 +543,15 @@ class ZdravClient:
             logger.warning("Заблокировано API (book_appointment): %d", res.status_code)
             return SignupResponse(
                 success=False,
-                error={"detail": f"API заблокировало запрос: HTTP {res.status_code}"},
+                error=SignupError(
+                    detail=f"API заблокировало запрос: HTTP {res.status_code}"
+                ),
             )
         else:
             logger.error("Неожиданный статус бронирования: %d", res.status_code)
             return SignupResponse(
                 success=False,
-                error={"detail": f"HTTP {res.status_code}"},
+                error=SignupError(detail=f"HTTP {res.status_code}"),
             )
 
     async def fetch_all_doctors(

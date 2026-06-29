@@ -5,14 +5,15 @@
  * @module views/slots
  */
 
-import { apiGet, apiPost, apiDelete } from '../api.js';
-import { isInTelegram } from '../auth.js';
-import { createSlotCard } from '../components/card.js';
-import { escapeHtml } from '../utils/escape.js';
-import { renderError } from '../utils/error.js';
-import { refreshDoctorSlots } from '../utils/monitoring.js';
-import { showConfirm } from '../utils/ui.js';
-import { lucideIcon } from '../components/icon.js';
+import { navigate } from "../app.js";
+import { apiGet, apiPost, apiDelete } from "../api.js";
+import { isInTelegram } from "../auth.js";
+import { createSlotCard } from "../components/card.js";
+import { escapeHtml } from "../utils/escape.js";
+import { renderError } from "../utils/error.js";
+import { refreshDoctorSlots } from "../utils/monitoring.js";
+import { showConfirm } from "../utils/ui.js";
+import { lucideIcon } from "../components/icon.js";
 
 /**
  * Рендерит экран слотов в указанный контейнер.
@@ -25,7 +26,7 @@ export async function renderSlots(container, params) {
 
   const monitoringId = params?.monitoringId;
   if (!monitoringId) {
-    renderError(container, 'Не указан ID отслеживания.', 'Повторить', null);
+    renderError(container, "Не указан ID отслеживания.", "Повторить", null);
     return;
   }
 
@@ -34,7 +35,7 @@ export async function renderSlots(container, params) {
 
   try {
     const data = await apiGet(
-      `/slots?monitoring_id=${encodeURIComponent(monitoringId)}`
+      `/slots?monitoring_id=${encodeURIComponent(monitoringId)}`,
     );
 
     // Собираем итоговый HTML: информация о враче + пациенты + слоты
@@ -58,8 +59,8 @@ export async function renderSlots(container, params) {
     // Привязываем обработчики (удаление пациентов + кнопка обновления)
     bindSlotEvents(container, patients || [], params);
   } catch (error) {
-    renderError(container, error.message, 'Повторить', () =>
-      renderSlots(container, params)
+    renderError(container, error.message, "Повторить", () =>
+      renderSlots(container, params),
     );
   }
 }
@@ -84,9 +85,9 @@ function renderLoading() {
  * @returns {string} HTML информации
  */
 function renderSlotInfo(data, monitoringId) {
-  const doctorName = extractDoctorName(data) || 'Врач';
-  const specialty = data.specialty || '';
-  const clinicName = data.clinic_name || '';
+  const doctorName = extractDoctorName(data) || "Врач";
+  const specialty = data.specialty || "";
+  const clinicName = data.clinic_name || "";
   const total = data.total || 0;
 
   return `
@@ -98,14 +99,14 @@ function renderSlotInfo(data, monitoringId) {
         <button
           class="btn--refresh"
           id="slots-refresh-btn"
-          data-monitoring-id="${escapeHtml(monitoringId || '')}"
+          data-monitoring-id="${escapeHtml(monitoringId || "")}"
           title="Проверить номерки"
           aria-label="Принудительная проверка номерков"
-        >${lucideIcon('refresh-cw', 20)}</button>
+        >${lucideIcon("refresh-cw", 20)}</button>
       </div>
-      ${specialty ? `<div class="card__subtitle">${escapeHtml(specialty)}</div>` : ''}
-      ${clinicName ? `<div class="card__meta"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> ${escapeHtml(clinicName)}</div>` : ''}
-      ${total > 0 ? `<div class="status status--available mt-md"><span class="lucide-icon">${lucideIcon('circle-check', 14)}</span> Найдено номерков: ${total}</div>` : ''}
+      ${specialty ? `<div class="card__subtitle">${escapeHtml(specialty)}</div>` : ""}
+      ${clinicName ? `<div class="card__meta"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> ${escapeHtml(clinicName)}</div>` : ""}
+      ${total > 0 ? `<div class="status status--available mt-md"><span class="lucide-icon">${lucideIcon("circle-check", 14)}</span> Найдено номерков: ${total}</div>` : ""}
     </div>
   `;
 }
@@ -118,7 +119,7 @@ function renderSlotInfo(data, monitoringId) {
 function renderNoSlots() {
   return `
     <div class="empty-state" style="padding-top: 20px;">
-      <div class="empty-state__icon">${lucideIcon('calendar', 48)}</div>
+      <div class="empty-state__icon">${lucideIcon("calendar", 48)}</div>
       <p class="empty-state__text">
         На данный момент свободных номерков нет.
         Мы уведомим вас, когда они появятся.
@@ -129,32 +130,36 @@ function renderNoSlots() {
 
 /**
  * Рендерит список слотов, сгруппированных по датам.
+ * Каждый слот — кликабельная кнопка с data-атрибутами для бронирования.
  *
- * @param {Array} slots — массив слотов [{ date, time, clinic_id }]
+ * @param {Array} slots — массив слотов [{ date, time, appointment_id, clinic_id }]
  * @returns {string} HTML списка слотов
  */
 function renderSlotList(slots) {
-  // Группируем слоты по дате
+  // Группируем слоты по дате (сохраняем полные данные слота)
   const grouped = {};
   slots.forEach((slot) => {
-    const date = slot.date || '—';
+    const date = slot.date || "—";
     if (!grouped[date]) {
       grouped[date] = [];
     }
-    grouped[date].push(slot.time || '—');
+    grouped[date].push({
+      time: slot.time || "—",
+      appointmentId: slot.appointment_id || slot.slot_id || "",
+    });
   });
 
   // Сортируем даты
   const sortedDates = Object.keys(grouped).sort();
 
   const groupsHtml = sortedDates
-    .map((date) => createSlotCard({ date, times: grouped[date] }))
-    .join('');
+    .map((date) => createSlotCard({ date, slots: grouped[date] }))
+    .join("");
 
   return `
     ${groupsHtml}
     <p class="text-center mt-md" style="color: var(--color-text-secondary); font-size: var(--font-sm);">
-      Для записи на приём откройте сайт zdrav.lenreg.ru
+      Выберите удобное время для записи
     </p>
   `;
 }
@@ -170,21 +175,21 @@ function renderPatientsBlock(patients) {
     .map(
       (p) => `
       <li class="monitoring-patient">
-        <span class="monitoring-patient__icon">${lucideIcon('user', 16)}</span>
+        <span class="monitoring-patient__icon">${lucideIcon("user", 16)}</span>
         <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
         <button
           class="monitoring-patient__delete"
           data-entry-id="${escapeHtml(p.entryId)}"
           data-patient-name="${escapeHtml(p.name)}"
           title="Удалить мониторинг для этого пациента"
-        >${lucideIcon('trash-2', 16)}</button>
-      </li>`
+        >${lucideIcon("trash-2", 16)}</button>
+      </li>`,
     )
-    .join('');
+    .join("");
 
   return `
     <div class="slots-patients">
-      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon('users', 14)}</span> Пациенты:</div>
+      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon("users", 14)}</span> Пациенты:</div>
       <ul class="monitoring-patients">
         ${patientsHtml}
       </ul>
@@ -198,11 +203,11 @@ function renderPatientsBlock(patients) {
  * @param {HTMLElement} btn — кнопка refresh
  */
 async function handleSlotRefresh(btn) {
-  const monitoringId = btn.getAttribute('data-monitoring-id');
+  const monitoringId = btn.getAttribute("data-monitoring-id");
   if (!monitoringId) return;
 
   // Показываем анимацию загрузки
-  btn.classList.add('btn--refresh--loading');
+  btn.classList.add("btn--refresh--loading");
 
   try {
     const result = await refreshDoctorSlots(monitoringId);
@@ -212,22 +217,22 @@ async function handleSlotRefresh(btn) {
     // Только toast-уведомление, без перерисовки слотов
     if (window.showToast) {
       if (total > 0) {
-        window.showToast('Талоны найдены: ' + total);
+        window.showToast("Талоны найдены: " + total);
       } else {
-        window.showToast('Талоны не найдены');
+        window.showToast("Талоны не найдены");
       }
     } else if (isInTelegram()) {
       // Fallback: toast-модуль ещё не загружен — используем Telegram alert
       window.Telegram.WebApp.showPopup({
-        title: 'Проверка номерков',
-        message: total > 0 ? 'Талоны найдены: ' + total : 'Талоны не найдены',
-        buttons: [{ type: 'ok' }]
+        title: "Проверка номерков",
+        message: total > 0 ? "Талоны найдены: " + total : "Талоны не найдены",
+        buttons: [{ type: "ok" }],
       });
     }
 
     // Тактильный отклик
     if (window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
     }
   } catch (error) {
     if (isInTelegram()) {
@@ -236,7 +241,7 @@ async function handleSlotRefresh(btn) {
       alert(`Ошибка проверки: ${error.message}`);
     }
   } finally {
-    btn.classList.remove('btn--refresh--loading');
+    btn.classList.remove("btn--refresh--loading");
   }
 }
 
@@ -250,16 +255,16 @@ async function handleSlotRefresh(btn) {
  */
 async function handleSlotDeletePatient(btn, container, patients, params) {
   btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
-  const entryId = btn.getAttribute('data-entry-id');
-  const patientName = btn.getAttribute('data-patient-name') || 'этого пациента';
+  const entryId = btn.getAttribute("data-entry-id");
+  const patientName = btn.getAttribute("data-patient-name") || "этого пациента";
 
   // Тактильный отклик перед показом диалога
   if (window.Telegram?.WebApp?.HapticFeedback) {
-    window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
   }
 
   const confirmed = await showConfirm(
-    `Удалить мониторинг для пациента «${patientName}»?`
+    `Удалить мониторинг для пациента «${patientName}»?`,
   );
 
   if (!confirmed) return;
@@ -268,12 +273,12 @@ async function handleSlotDeletePatient(btn, container, patients, params) {
     await apiDelete(`/doctors/${encodeURIComponent(entryId)}`);
 
     if (isInTelegram()) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
     }
 
     // Удаляем пациента из списка и перерендериваем секцию
     const updatedPatients = patients.filter((p) => p.entryId !== entryId);
-    const patientsBlock = container.querySelector('.slots-patients');
+    const patientsBlock = container.querySelector(".slots-patients");
     if (patientsBlock) {
       if (updatedPatients.length === 0) {
         patientsBlock.remove();
@@ -300,9 +305,9 @@ async function handleSlotDeletePatient(btn, container, patients, params) {
  * @param {HTMLElement} container — контейнер
  */
 function bindSlotRefreshButtons(container) {
-  const refreshBtn = container.querySelector('#slots-refresh-btn');
+  const refreshBtn = container.querySelector("#slots-refresh-btn");
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', (e) => {
+    refreshBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       handleSlotRefresh(refreshBtn);
     });
@@ -317,8 +322,8 @@ function bindSlotRefreshButtons(container) {
  * @param {object} params — параметры маршрута
  */
 function bindSlotDeletePatientButtons(container, patients, params) {
-  container.querySelectorAll('.monitoring-patient__delete').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+  container.querySelectorAll(".monitoring-patient__delete").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
       handleSlotDeletePatient(btn, container, patients, params);
     });
@@ -335,6 +340,166 @@ function bindSlotDeletePatientButtons(container, patients, params) {
 function bindSlotEvents(container, patients, params) {
   bindSlotRefreshButtons(container);
   bindSlotDeletePatientButtons(container, patients, params);
+  bindSlotChipClicks(container, params);
+}
+
+/**
+ * Привязывает обработчики кликов по кнопкам слотов (бронирование).
+ *
+ * @param {HTMLElement} container — контейнер
+ * @param {object} params — параметры маршрута ({ monitoringId, patients })
+ */
+function bindSlotChipClicks(container, params) {
+  container.querySelectorAll(".slot-chip--clickable").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleSlotBooking(chip, params);
+    });
+  });
+}
+
+/**
+ * Обрабатывает клик по слоту: показывает подтверждение и выполняет бронирование.
+ *
+ * @param {HTMLElement} chip — кнопка слота
+ * @param {object} params — параметры маршрута
+ */
+async function handleSlotBooking(chip, params) {
+  const date = chip.getAttribute("data-slot-date") || "";
+  const time = chip.getAttribute("data-slot-time") || "";
+  const appointmentId = chip.getAttribute("data-appointment-id") || "";
+  const clinicId = chip.getAttribute("data-clinic-id") || "";
+
+  if (!appointmentId) {
+    if (window.showToast) {
+      window.showToast("❌ Невозможно определить слот для записи", "error");
+    }
+    return;
+  }
+
+  // Извлекаем patient_id из monitoringId
+  const monitoringId = params?.monitoringId || "";
+  const parts = monitoringId.split("_");
+  const patientId = parts.length >= 1 ? parts[0] : "";
+
+  if (!patientId || !clinicId) {
+    if (window.showToast) {
+      window.showToast("❌ Недостаточно данных для записи", "error");
+    }
+    return;
+  }
+
+  // Имя врача — из ответа API slots (сохраняется в params при навигации)
+  const doctorName = params?.doctorName || "врачу";
+
+  // Показываем подтверждение
+  const confirmed = await showBookingConfirm(doctorName, date, time);
+
+  if (!confirmed) return;
+
+  // Тактильный отклик
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
+  }
+
+  // Выполняем бронирование
+  try {
+    const result = await apiPost("/book", {
+      clinic_id: clinicId,
+      patient_id: patientId,
+      appointment_id: appointmentId,
+      history_id: "",
+      referral_id: "",
+    });
+
+    if (result.success) {
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+      }
+      if (window.showToast) {
+        window.showToast("✅ Вы успешно записаны!", "success");
+      }
+      // Возвращаемся на главную
+      navigate("doctors");
+    } else {
+      const errorCode = result.error || "unknown";
+      const detail = result.detail || "Неизвестная ошибка";
+      handleBookingError(errorCode, detail);
+    }
+  } catch (error) {
+    handleBookingError("network", error.message);
+  }
+}
+
+/**
+ * Показывает модальное окно подтверждения записи.
+ *
+ * @param {string} doctorName — имя врача
+ * @param {string} date — дата приёма
+ * @param {string} time — время приёма
+ * @returns {Promise<boolean>} подтверждено или нет
+ */
+async function showBookingConfirm(doctorName, date, time) {
+  const message = `Записаться к ${doctorName} на ${date} в ${time}?`;
+
+  if (window.Telegram?.WebApp?.showPopup) {
+    return new Promise((resolve) => {
+      window.Telegram.WebApp.showPopup(
+        {
+          title: "Подтверждение записи",
+          message: message,
+          buttons: [
+            { id: "confirm", type: "default", text: "✅ Подтвердить" },
+            { id: "back", type: "cancel", text: "↩ Назад" },
+          ],
+        },
+        (buttonId) => {
+          resolve(buttonId === "confirm");
+        },
+      );
+    });
+  }
+
+  return window.confirm(message);
+}
+
+/**
+ * Обрабатывает ошибку бронирования: показывает toast с понятным сообщением.
+ *
+ * @param {string} errorCode — код ошибки (slot_taken, api_unavailable, ...)
+ * @param {string} detail — детальное описание
+ */
+function handleBookingError(errorCode, detail) {
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
+  }
+
+  let message;
+  switch (errorCode) {
+    case "slot_taken":
+      message = "❌ Этот талон уже занят. Выберите другое время.";
+      break;
+    case "api_unavailable":
+      message = "❌ Сервер записи временно недоступен. Попробуйте позже.";
+      break;
+    case "api_timeout":
+      message = "❌ Сервер не отвечает. Попробуйте позже.";
+      break;
+    case "forbidden":
+      message = "❌ Доступ запрещён. Попробуйте позже.";
+      break;
+    default:
+      message = `❌ Ошибка записи: ${detail || "попробуйте позже"}`;
+      break;
+  }
+
+  if (window.showToast) {
+    window.showToast(message, "error");
+  } else if (window.Telegram?.WebApp?.showAlert) {
+    window.Telegram.WebApp.showAlert(message);
+  } else {
+    alert(message);
+  }
 }
 
 /**
@@ -350,19 +515,19 @@ function bindSlotEvents(container, patients, params) {
  */
 function extractDoctorName(doctor) {
   const name = doctor.name;
-  if (!name) return String(doctor.doctor_name || '');
+  if (!name) return String(doctor.doctor_name || "");
 
   // Если name — строка, возвращаем как есть
-  if (typeof name === 'string') return name;
+  if (typeof name === "string") return name;
 
   // Если name — объект (например, {first_name: "...", last_name: "..."}),
   // пробуем собрать строку из известных полей
-  if (typeof name === 'object' && name !== null) {
+  if (typeof name === "object" && name !== null) {
     const parts = [];
     if (name.last_name) parts.push(name.last_name);
     if (name.first_name) parts.push(name.first_name);
     if (name.middle_name) parts.push(name.middle_name);
-    if (parts.length > 0) return parts.join(' ');
+    if (parts.length > 0) return parts.join(" ");
     // Если не удалось извлечь — используем doctor_name как fallback
     return String(doctor.doctor_name || name);
   }

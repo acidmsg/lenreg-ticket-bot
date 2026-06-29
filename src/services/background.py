@@ -126,6 +126,33 @@ class TaskStatus:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Метрики Prometheus (синглтоны на уровне модуля — создаются один раз)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_BG_ITERATIONS = Counter(
+    "lenreg_ticket_bg_task_iterations_total",
+    "Счётчик итераций фоновой задачи",
+    labelnames=["task", "status"],
+)
+_BG_DURATION = Histogram(
+    "lenreg_ticket_bg_task_duration_seconds",
+    "Длительность итерации фоновой задачи",
+    labelnames=["task"],
+    buckets=[0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300],
+)
+_BG_RESTARTS = Counter(
+    "lenreg_ticket_bg_task_restarts_total",
+    "Счётчик перезапусков фоновой задачи",
+    labelnames=["task"],
+)
+_BG_ERRORS_CONSECUTIVE = Gauge(
+    "lenreg_ticket_bg_task_errors_consecutive",
+    "Текущее количество последовательных ошибок",
+    labelnames=["task"],
+)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Внутренний класс: метрики одной задачи
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -134,30 +161,15 @@ class _TaskMetrics:
     """Обёртка над 4 Prometheus-метриками для одной фоновой задачи.
 
     Создаётся лениво при первом запуске задачи, если ``metrics=True``.
+    Использует модульные синглтоны метрик — не создаёт новых при каждом вызове.
     """
 
     def __init__(self, task_name: str) -> None:
-        self.iterations: Counter = Counter(
-            "lenreg_ticket_bg_task_iterations_total",
-            "Счётчик итераций фоновой задачи",
-            labelnames=["task", "status"],
-        )
-        self.duration: Histogram = Histogram(
-            "lenreg_ticket_bg_task_duration_seconds",
-            "Длительность итерации фоновой задачи",
-            labelnames=["task"],
-            buckets=[0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300],
-        )
-        self.restarts: Counter = Counter(
-            "lenreg_ticket_bg_task_restarts_total",
-            "Счётчик перезапусков фоновой задачи",
-            labelnames=["task"],
-        )
-        self.errors_consecutive: Gauge = Gauge(
-            "lenreg_ticket_bg_task_errors_consecutive",
-            "Текущее количество последовательных ошибок",
-            labelnames=["task"],
-        )
+        self.task_name: str = task_name
+        self.iterations: Counter = _BG_ITERATIONS
+        self.duration: Histogram = _BG_DURATION
+        self.restarts: Counter = _BG_RESTARTS
+        self.errors_consecutive: Gauge = _BG_ERRORS_CONSECUTIVE
 
 
 # ══════════════════════════════════════════════════════════════════════════════

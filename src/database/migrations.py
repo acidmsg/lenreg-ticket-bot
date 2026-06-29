@@ -107,9 +107,40 @@ async def migrate_v7_add_date_column(db) -> None:
     logger.info("Миграция v7: добавлена колонка date в user_monitoring")
 
 
+async def migrate_v8_create_bookings(db) -> None:
+    """Создаёт таблицу bookings для хранения записей на приём."""
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS bookings (
+    booking_id     TEXT PRIMARY KEY,
+    uid            TEXT NOT NULL,
+    p_id           TEXT NOT NULL,
+    d_id           TEXT NOT NULL,
+    doctor_name    TEXT NOT NULL DEFAULT '',
+    patient_name   TEXT NOT NULL DEFAULT '',
+    specialty      TEXT NOT NULL DEFAULT '',
+    clinic_id      TEXT NOT NULL DEFAULT '',
+    clinic_name    TEXT NOT NULL DEFAULT '',
+    slot_date      TEXT NOT NULL DEFAULT '',
+    slot_time      TEXT NOT NULL DEFAULT '',
+    appointment_id TEXT NOT NULL DEFAULT '',
+    created_at     REAL NOT NULL DEFAULT 0,
+    is_archived    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookings_uid ON bookings(uid);
+CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at);
+""")
+    await c.commit()
+    logger.info("Миграция v8: создана таблица bookings")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
     (6, migrate_v6_monitoring_log),
     (7, migrate_v7_add_date_column),
+    (8, migrate_v8_create_bookings),
 ]
