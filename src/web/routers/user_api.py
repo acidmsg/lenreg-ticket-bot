@@ -10,6 +10,7 @@ API-эндпоинты для Telegram Mini App.
 
 import asyncio
 import datetime
+import json
 import logging
 import time as time_module
 from typing import Any, cast
@@ -20,7 +21,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from src.database.manager import DatabaseManager
-from src.database.types import BookingEntry, PatientInfo
+from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
 from src.utils.cache import get_cache_key
 from src.utils.helpers import format_error_message, safe_name
 
@@ -97,6 +98,18 @@ class BookRequest(BaseModel):
     )
     history_id: str = Field(default="", description="ID истории (опционально)")
     referral_id: str = Field(default="", description="ID направления (опционально)")
+
+
+class MonitoringFilterRequest(BaseModel):
+    """Тело запроса настройки фильтра отслеживания (PUT /filter)."""
+
+    date_from: str = Field(default="", description="Начало интервала дат (ГГГГ-ММ-ДД)")
+    date_to: str = Field(default="", description="Конец интервала дат (ГГГГ-ММ-ДД)")
+    time_from: str = Field(default="", description="Начало интервала времени (ЧЧ:ММ)")
+    time_to: str = Field(default="", description="Конец интервала времени (ЧЧ:ММ)")
+    specific_dates: list[str] = Field(
+        default_factory=list, description="Список конкретных дат (ГГГГ-ММ-ДД)"
+    )
 
 
 # ── Вспомогательные функции ──────────────────────────────────
@@ -211,6 +224,82 @@ def _parse_cache_status(cached_value: Any) -> tuple[str, int]:
     return ("checking", 0)
 
 
+def _validate_filter_date(value: str) -> None:
+    """Проверяет формат даты фильтра 'ГГГГ-ММ-ДД' (пустая строка допустима).
+
+    Raises:
+        ValueError: Если формат даты некорректен.
+    """
+    if not value:
+        return
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Неверный формат даты: '{value}'. Ожидается ГГГГ-ММ-ДД."
+        ) from exc
+
+
+def _validate_filter_time(value: str) -> None:
+    """Проверяет формат времени фильтра 'ЧЧ:ММ' (пустая строка допустима).
+
+    Raises:
+        ValueError: Если формат времени некорректен.
+    """
+    if not value:
+        return
+    try:
+        datetime.time.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Неверный формат времени: '{value}'. Ожидается ЧЧ:ММ."
+        ) from exc
+
+
+async def _compute_matching_free_tickets(
+    telegram_id: str,
+    p_id: str,
+    d_id: str,
+    monitoring_entry: MonitoringEntry | None,
+    free_tickets: int,
+) -> int:
+    """Вычисляет число талонов, подходящих под фильтр отслеживания.
+
+    Живой ответ API содержит только счётчик свободных талонов, поэтому фильтр
+    применяется к списку слотов из Redis-кэша мониторинга. Если фильтр не
+    задан — возвращается общий счётчик ``free_tickets``.
+    """
+    from src.services.monitor import filter_slots_by_user_prefs, has_slot_filters
+
+    if monitoring_entry is None or not has_slot_filters(monitoring_entry):
+        return free_tickets
+
+    cache_key = f"{telegram_id}_{p_id}_{d_id}"
+    cached_value = await get_cache_key(cache_key)
+    if not isinstance(cached_value, list) or not cached_value:
+        return 0
+
+    return len(filter_slots_by_user_prefs(list(cached_value), monitoring_entry))
+
+
+def _serialize_monitoring_filter(entry: MonitoringEntry) -> dict[str, Any]:
+    """Сериализует фильтр отслеживания записи мониторинга для JSON-ответа (§9.8).
+
+    Поле ``specific_dates`` хранится в БД JSON-строкой и возвращается списком.
+    Разбор делегируется ``monitor._parse_specific_dates`` — единый источник логики
+    чтения фильтра, без дублирования.
+    """
+    from src.services.monitor import _parse_specific_dates
+
+    return {
+        "date_from": entry.get("date_from", "") or "",
+        "date_to": entry.get("date_to", "") or "",
+        "time_from": entry.get("time_from", "") or "",
+        "time_to": entry.get("time_to", "") or "",
+        "specific_dates": _parse_specific_dates(entry),
+    }
+
+
 @router.get("/doctors")
 async def get_doctors(
     request: Request,
@@ -221,6 +310,11 @@ async def get_doctors(
     Читает актуальный статус из Redis-кэша мониторинга (ключ
     ``mon:{telegram_id}_{p_id}_{d_id}``), заполняемого ``monitor.py``.
     При недоступности Redis — возвращает ``"checking"`` / 0.
+
+    По каждому врачу возвращаются два счётчика: ``free_tickets`` (общий) и
+    ``matching_free_tickets`` (подходящие под фильтр отслеживания, если он
+    задан). Расчёт делегируется ``_compute_matching_free_tickets`` — единый
+    источник логики фильтрации (§7.3).
     """
     db = _get_db(request)
     telegram_id = _get_telegram_id(request)
@@ -246,6 +340,13 @@ async def get_doctors(
             cache_key = f"{telegram_id}_{p_id}_{d_id}"
             cached_value = await get_cache_key(cache_key)
             status, free_tickets = _parse_cache_status(cached_value)
+            matching_free_tickets = await _compute_matching_free_tickets(
+                telegram_id=telegram_id,
+                p_id=p_id,
+                d_id=d_id,
+                monitoring_entry=d_info,
+                free_tickets=free_tickets,
+            )
 
             doctors_list.append(
                 {
@@ -259,7 +360,9 @@ async def get_doctors(
                     "clinic_name": clinic_name or "",
                     "status": status,
                     "free_tickets": free_tickets,
+                    "matching_free_tickets": matching_free_tickets,
                     "last_check": None,
+                    "filter": _serialize_monitoring_filter(d_info),
                 }
             )
 
@@ -425,6 +528,90 @@ async def remove_doctor(
     }
 
 
+@router.put("/monitoring/{monitoring_id}/filter", response_model=None)
+async def update_monitoring_filter(
+    request: Request,
+    monitoring_id: str,
+    body: MonitoringFilterRequest,
+) -> dict[str, Any] | JSONResponse:
+    """Настроить фильтр отслеживания врача (T-16).
+
+    ``monitoring_id`` — строка формата ``{patient_id}_{doctor_id}``.
+    Пустые строки снимают соответствующее ограничение; пустой
+    ``specific_dates`` отключает отбор по конкретным датам.
+    """
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    try:
+        p_id, d_id = _monitoring_id_to_parts(monitoring_id)
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Неверный формат monitoring_id."},
+        )
+
+    # Валидация форматов дат и времени
+    try:
+        _validate_filter_date(body.date_from.strip())
+        _validate_filter_date(body.date_to.strip())
+        _validate_filter_time(body.time_from.strip())
+        _validate_filter_time(body.time_to.strip())
+        cleaned_dates = [value.strip() for value in body.specific_dates]
+        for value in cleaned_dates:
+            _validate_filter_date(value)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    # Проверка наличия записи мониторинга
+    user_data = await db.get_user_data(telegram_id)
+    if d_id not in user_data.get("monitoring", {}).get(p_id, {}):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": (
+                    f"Врач с monitoring_id='{monitoring_id}' не найден в мониторинге."
+                ),
+            },
+        )
+
+    filter_data = {
+        "date_from": body.date_from.strip(),
+        "date_to": body.date_to.strip(),
+        "time_from": body.time_from.strip(),
+        "time_to": body.time_to.strip(),
+        "specific_dates": json.dumps(cleaned_dates, ensure_ascii=False),
+    }
+
+    try:
+        await db.update_monitoring_filter(telegram_id, p_id, d_id, filter_data)
+    except ValueError:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Мониторинг не найден."},
+        )
+    except Exception:
+        logger.exception(
+            "Ошибка обновления фильтра для monitoring_id=%s", monitoring_id
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Внутренняя ошибка сервера"},
+        )
+
+    return {
+        "status": "ok",
+        "monitoring_id": monitoring_id,
+        "filter": {
+            "date_from": filter_data["date_from"],
+            "date_to": filter_data["date_to"],
+            "time_from": filter_data["time_from"],
+            "time_to": filter_data["time_to"],
+            "specific_dates": cleaned_dates,
+        },
+    }
+
+
 @router.get("/clinics")
 async def get_clinics(request: Request) -> dict[str, Any]:
     """Список поликлиник (из кэша БД)."""
@@ -527,13 +714,16 @@ async def get_available_doctors(
             doctors_dict = {}
 
     # 3. Получаем данные мониторинга пользователя для отметки is_monitored
+    #    и фильтры пациента — для расчёта matching_free_tickets
     monitored_doctor_ids: set[str] = set()
+    patient_monitoring: dict[str, MonitoringEntry] = {}
     try:
         user_data = await db.get_user_data(telegram_id)
         monitoring = user_data.get("monitoring", {})
         for _p_id, monitored_doctors in monitoring.items():
             for d_id in monitored_doctors:
                 monitored_doctor_ids.add(d_id)
+        patient_monitoring = monitoring.get(patient_id, {})
     except Exception:
         logger.exception("Ошибка получения данных мониторинга для uid=%s", telegram_id)
 
@@ -588,13 +778,22 @@ async def get_available_doctors(
             continue
 
         slots = slots_map.get(doc_id, {})
+        free_tickets = int(slots.get("free_tickets", 0))
+        matching_free_tickets = await _compute_matching_free_tickets(
+            telegram_id=telegram_id,
+            p_id=patient_id,
+            d_id=doc_id,
+            monitoring_entry=patient_monitoring.get(doc_id),
+            free_tickets=free_tickets,
+        )
         doctors.append(
             {
                 "doctor_id": doc_id,
                 "name": safe_name(doc_info.get("name", "")),
                 "specialty_name": doc_specialty,
                 "specialty_id": specialty_id or "",
-                "free_tickets": slots.get("free_tickets", 0),
+                "free_tickets": free_tickets,
+                "matching_free_tickets": matching_free_tickets,
                 "nearest_date": slots.get("nearest_date"),
                 "is_monitored": doc_id in monitored_doctor_ids,
             }

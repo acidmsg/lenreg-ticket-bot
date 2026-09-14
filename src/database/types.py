@@ -44,6 +44,21 @@ class MonitoringEntry(TypedDict):
     date: str
     """Дата приёма в формате 'ДД.ММ.ГГГГ' (может быть пустой)."""
 
+    date_from: NotRequired[str]
+    """Начало интервала дат 'ГГГГ-ММ-ДД' (пусто — без ограничения)."""
+
+    date_to: NotRequired[str]
+    """Конец интервала дат 'ГГГГ-ММ-ДД' (пусто — без ограничения)."""
+
+    time_from: NotRequired[str]
+    """Начало интервала времени 'ЧЧ:ММ' (пусто — без ограничения)."""
+
+    time_to: NotRequired[str]
+    """Конец интервала времени 'ЧЧ:ММ' (пусто — без ограничения)."""
+
+    specific_dates: NotRequired[str]
+    """JSON-массив строк 'ГГГГ-ММ-ДД' с конкретными датами (по умолчанию '[]')."""
+
 
 class LastMessageEntry(TypedDict):
     """Запись о последнем сообщении (ключ в user_data['last_messages'])."""

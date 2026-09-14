@@ -7,20 +7,20 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="app-version" content="3" />
+    <meta name="app-version" content="4" />
     <title>Мониторинг врачей</title>
     <link rel="stylesheet" href="/static/app/vendor/vanilla-calendar.min.css" />
-    <link rel="stylesheet" href="css/style.css?v=3" />
+    <link rel="stylesheet" href="css/style.css?v=4" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       (function () {
         function applyTheme(scheme) {
-          document.documentElement.dataset.theme = scheme || 'dark';
+          document.documentElement.dataset.theme = scheme || "dark";
         }
         // Telegram Mini App
         if (window.Telegram && window.Telegram.WebApp) {
           applyTheme(window.Telegram.WebApp.colorScheme);
-          window.Telegram.WebApp.onEvent('themeChanged', function () {
+          window.Telegram.WebApp.onEvent("themeChanged", function () {
             applyTheme(window.Telegram.WebApp.colorScheme);
           });
         }
@@ -30,11 +30,13 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- components/*.js подключаются графом ES-модулей из js/app.js
+         (в т.ч. components/filter-modal.js), отдельные теги не нужны -->
     <script src="/static/app/js/utils/escape.js"></script>
     <script src="/static/app/js/utils/doctor.js"></script>
     <script src="/static/app/js/utils/dom.js"></script>
     <script src="/static/app/js/utils/monitoring.js"></script>
     <script src="/static/app/js/utils/ui.js"></script>
-    <script type="module" src="js/app.js?v=3"></script>
+    <script type="module" src="js/app.js?v=4"></script>
   </body>
 </html>

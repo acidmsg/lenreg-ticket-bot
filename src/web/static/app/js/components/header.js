@@ -5,8 +5,8 @@
  * @module components/header
  */
 
-import { lucideIcon } from './icon.js';
-import { escapeHtml } from '../utils/escape.js';
+import { lucideIcon } from "./icon.js";
+import { escapeHtml } from "../utils/escape.js";
 
 /**
  * Рендерит HTML шапки.
@@ -16,14 +16,14 @@ import { escapeHtml } from '../utils/escape.js';
  * @param {string} [userName=''] — имя пользователя
  * @returns {string} HTML-строка шапки
  */
-export function renderHeader(title, showBack = false, userName = '') {
+export function renderHeader(title, showBack = false, userName = "") {
   const backButtonHtml = showBack
-    ? `<button class="app-header__back" aria-label="Назад" id="header-back">${lucideIcon('chevron-left', 24)}</button>`
-    : '';
+    ? `<button class="app-header__back" aria-label="Назад" id="header-back">${lucideIcon("chevron-left", 24)}</button>`
+    : "";
 
   const userNameHtml = userName
     ? `<span class="app-header__user">${escapeHtml(userName)}</span>`
-    : '';
+    : "";
 
   return `
     <header class="app-header">

@@ -7,8 +7,14 @@ from src.handlers.callbacks import (
     CB_ADD_PATIENT,
     CB_BACK_TO_MAIN,
     CB_CANCEL_REGISTRATION,
+    CB_FILTER_BACK,
+    CB_FILTER_CANCEL,
+    CB_FILTER_DONE,
+    CB_FILTER_SKIP,
     CB_SKIP_ALIAS,
     CB_STOP_ALL,
+    FILTER_WIZARD_STEPS,
+    FILTER_WIZARD_SUMMARY_STEP,
     BackToCities,
     BackToClinics,
     BookCancel,
@@ -22,6 +28,7 @@ from src.handlers.callbacks import (
     DeletePatientAsk,
     DeletePatientConfirm,
     DoctorSection,
+    FilterSetup,
     PatientSelect,
     SelectPatientForBooking,
     StartMonitoring,
@@ -525,27 +532,88 @@ def get_slot_grid_keyboard(
     return builder.as_markup()
 
 
-def get_doctor_section_keyboard(
+def get_monitoring_action(
     p_id: str,
     clinic_id: str,
     d_id: str,
-):
-    """Клавиатура секции врача: кнопка [В отслеживание] + [✕ Закрыть].
+    is_monitored: bool,
+) -> tuple[str, str]:
+    """Возвращает пару (текст, callback_data) кнопки мониторинга секции врача.
+
+    Если врач отслеживается — кнопка ведёт в мастер настройки фильтра (§9.3.1),
+    иначе — добавляет врача в отслеживание.
 
     Args:
         p_id: ID пациента.
         clinic_id: ID клиники.
         d_id: ID врача.
+        is_monitored: Врач уже отслеживается для этой пары пациент + врач.
     """
-    builder = InlineKeyboardBuilder()
-    builder.button(
-        text=_("btn-start-monitoring"),
-        callback_data=StartMonitoring(
+    if is_monitored:
+        callback_data = FilterSetup(
             p_id=p_id,
             clinic_id=clinic_id,
             d_id=d_id,
-        ).pack(),
+        ).pack()
+        return _("btn-filter-setup"), callback_data
+
+    callback_data = StartMonitoring(
+        p_id=p_id,
+        clinic_id=clinic_id,
+        d_id=d_id,
+    ).pack()
+    return _("btn-start-monitoring"), callback_data
+
+
+def get_filter_wizard_keyboard(step: str):
+    """Клавиатура шага мастера фильтра (§9.3.4).
+
+    Шаги ввода (1–5): [⏭ Пропустить] + [↩ Назад] (кроме первого) + [✕ Отмена].
+    Шаг подтверждения: [✅ Готово] + [↩ Назад] + [✕ Отмена].
+
+    Args:
+        step: Имя состояния шага мастера (из ``FILTER_WIZARD_STEPS``
+            либо ``FILTER_WIZARD_SUMMARY_STEP``).
+    """
+    builder = InlineKeyboardBuilder()
+    if step == FILTER_WIZARD_SUMMARY_STEP:
+        builder.button(text=_("btn-filter-done"), callback_data=CB_FILTER_DONE)
+    else:
+        builder.button(text=_("btn-filter-skip"), callback_data=CB_FILTER_SKIP)
+    if step != FILTER_WIZARD_STEPS[0]:
+        builder.button(text=_("btn-filter-back"), callback_data=CB_FILTER_BACK)
+    builder.button(text=_("btn-filter-cancel"), callback_data=CB_FILTER_CANCEL)
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_filter_summary_keyboard():
+    """Клавиатура шага подтверждения фильтра: [✅ Готово] + [↩ Назад] + [✕ Отмена]."""
+    return get_filter_wizard_keyboard(FILTER_WIZARD_SUMMARY_STEP)
+
+
+def get_doctor_section_keyboard(
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    is_monitored: bool = False,
+):
+    """Клавиатура секции врача: кнопка мониторинга + [✕ Закрыть].
+
+    Кнопка мониторинга переключается по состоянию отслеживания: [🔔 В отслеживание]
+    при ``is_monitored=False`` и [🔎 Настроить фильтр] при ``is_monitored=True``.
+
+    Args:
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+        is_monitored: Врач уже отслеживается для этой пары пациент + врач.
+    """
+    builder = InlineKeyboardBuilder()
+    action_text, action_callback = get_monitoring_action(
+        p_id, clinic_id, d_id, is_monitored
     )
+    builder.button(text=action_text, callback_data=action_callback)
     builder.button(
         text=_("btn-close-section"),
         callback_data=CloseSection(p_id=p_id).pack(),

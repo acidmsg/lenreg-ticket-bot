@@ -7,6 +7,11 @@
 
 import { lucideIcon } from "./icon.js";
 import { escapeHtml } from "../utils/escape.js";
+import {
+  renderFilterBadge,
+  hasActiveFilter,
+  formatIsoDate,
+} from "./filter-modal.js";
 
 /**
  * Создаёт HTML карточки врача со списком отслеживающих пациентов.
@@ -16,8 +21,10 @@ import { escapeHtml } from "../utils/escape.js";
  * @param {string} options.specialty — специальность
  * @param {string} options.clinicName — название клиники
  * @param {string} options.status — статус: 'slots_available', 'no_slots', 'checking'
- * @param {number} [options.freeTickets=0] — количество свободных слотов
- * @param {Array<{name: string, patientId: string, entryId: string}>} [options.patients=[]] — пациенты, отслеживающие врача
+ * @param {number} [options.freeTickets=0] — общее количество свободных слотов
+ * @param {number} [options.matchingFreeTickets=0] — количество слотов, подходящих под фильтр (§7.3)
+ * @param {Array<{name: string, patientId: string, entryId: string, filter?: object|null}>} [options.patients=[]] — пациенты, отслеживающие врача; filter — фильтр пары пациент + врач
+ * @param {object|null} [options.filter=null] — фильтр-фолбэк для пациентов без собственного фильтра; задаёт цветовую индикацию карточки (§7.3)
  * @returns {string} HTML-строка карточки врача
  */
 export function createDoctorCard({
@@ -26,11 +33,13 @@ export function createDoctorCard({
   clinicName,
   status,
   freeTickets = 0,
+  matchingFreeTickets = 0,
   patients = [],
+  filter = null,
   monitoringId = "",
   isMonitored = false,
 }) {
-  const statusInfo = getStatusInfo(status, freeTickets);
+  const statusInfo = getStatusInfo();
 
   // Список пациентов с кнопками удаления
   // data-entry-id на карточке = entryId первого пациента (для навигации в слоты)
@@ -47,6 +56,14 @@ export function createDoctorCard({
             <span class="monitoring-patient__icon">${lucideIcon("user", 16)}</span>
             <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
             <span
+              class="monitoring-patient__filter"
+              data-entry-id="${escapeHtml(p.entryId)}"
+              data-patient-name="${escapeHtml(p.name)}"
+              title="Настроить фильтр отслеживания"
+              role="button"
+              tabindex="0"
+            >${lucideIcon("sliders-horizontal", 16)}</span>
+            <span
               class="monitoring-patient__delete"
               data-entry-id="${escapeHtml(p.entryId)}"
               data-patient-name="${escapeHtml(p.name)}"
@@ -54,6 +71,7 @@ export function createDoctorCard({
               role="button"
               tabindex="0"
             >${lucideIcon("trash-2", 16)}</span>
+            ${renderFilterBadge(p.filter ?? filter)}
           </li>`,
           )
           .join("")}
@@ -68,17 +86,11 @@ export function createDoctorCard({
   // CSS-класс для отслеживаемого врача
   const monitoredClass = isMonitored ? " doctor-card--monitored" : "";
 
-  // Футер со статусом номерков — синхронизирован с заголовком (ориентируется на status)
+  // Футер карточки: при заданном фильтре — цветовая индикация слотов (§7.3),
+  // без фильтра — прежний статус номерков (поведение не меняется).
   const footerHtml =
-    status === "slots_available" && Number(freeTickets) > 0
-      ? `<div class="card__footer card__footer--slots">
-        <span class="lucide-icon">${lucideIcon("circle-check", 14)}</span>
-        <span style="color: var(--status-available);">Есть номерки! (${freeTickets})</span>
-      </div>`
-      : `<div class="card__footer card__footer--noslots">
-        <span class="lucide-icon">${lucideIcon("circle-x", 14)}</span>
-        <span style="color: var(--color-danger); opacity: 0.7;">Номерков на данный момент нет</span>
-      </div>`;
+    renderSlotsIndicator({ freeTickets, matchingFreeTickets, filter }) ||
+    renderStatusFooter(status, freeTickets);
 
   return `
     <div class="card doctor-card${monitoredClass}" data-entry-id="${escapeHtml(firstEntryId)}">
@@ -124,7 +136,7 @@ export function createSlotCard({ date, slots, clinicId = "" }) {
   const timeChips = slots
     .map(
       (s) =>
-        `<button class="slot-chip slot-chip--clickable" data-slot-date="${escapeHtml(date)}" data-slot-time="${escapeHtml(s.time)}" data-appointment-id="${escapeHtml(s.appointmentId)}" data-clinic-id="${escapeHtml(clinicId)}">${escapeHtml(s.time)}</button>`,
+        `<button class="slot-chip slot-chip--clickable" data-slot-date="${escapeHtml(date)}" data-slot-time="${escapeHtml(s.time)}" data-appointment-id="${escapeHtml(s.appointmentId)}" data-clinic-id="${escapeHtml(s.clinicId || clinicId)}">${escapeHtml(s.time)}</button>`,
     )
     .join("");
 
@@ -193,14 +205,130 @@ export function createBookingCard(booking) {
   `;
 }
 
+/** Маркеры цветовой индикации слотов (§7.3). */
+const SLOTS_STATE_MARKER = {
+  matching: "🟢",
+  partial: "🟡",
+  none: "🔴",
+};
+
 /**
- * Возвращает информацию о статусе для отображения.
+ * Определяет состояние индикации слотов по счётчикам (§7.3).
+ *
+ * - `matching` — есть слоты под фильтр (`matching > 0`);
+ * - `partial` — слоты есть, но не под фильтр (`total > 0, matching === 0`);
+ * - `none` — слотов нет (`total === 0`).
+ *
+ * @param {number} total — общее число свободных слотов
+ * @param {number} matching — число слотов, подходящих под фильтр
+ * @returns {"matching"|"partial"|"none"} состояние индикации
+ */
+export function resolveSlotsState(total, matching) {
+  if (matching > 0) return "matching";
+  if (total > 0) return "partial";
+  return "none";
+}
+
+/**
+ * Форматирует интервал значений (`значение – значение`).
+ *
+ * @param {string} from — начало интервала
+ * @param {string} to — конец интервала
+ * @returns {string} интервал, либо пустая строка
+ */
+export function formatRange(from, to) {
+  if (from && to) return `${from} – ${to}`;
+  if (from) return `с ${from}`;
+  if (to) return `по ${to}`;
+  return "";
+}
+
+/**
+ * Собирает строки «Интервал» и «Время» по фильтру (§7.3).
+ *
+ * @param {object} filter — фильтр отслеживания
+ * @returns {Array<string>} готовые строки (пусто, если ограничений нет)
+ */
+export function renderFilterLines(filter) {
+  const lines = [];
+
+  const dateRange = formatRange(
+    formatIsoDate(filter.date_from || ""),
+    formatIsoDate(filter.date_to || ""),
+  );
+  if (dateRange) lines.push(`Интервал: ${dateRange}`);
+
+  const timeRange = formatRange(filter.time_from || "", filter.time_to || "");
+  if (timeRange) lines.push(`Время: ${timeRange}`);
+
+  return lines;
+}
+
+/**
+ * Рендерит цветовую индикацию слотов для врача с фильтром (§7.3).
+ *
+ * Для врачей без фильтра возвращает пустую строку — карточка сохраняет
+ * прежнее отображение статуса номерков.
+ *
+ * @param {object} options — параметры индикации
+ * @param {number} options.freeTickets — общее число свободных слотов
+ * @param {number} options.matchingFreeTickets — число слотов под фильтр
+ * @param {object|null} options.filter — фильтр отслеживания
+ * @returns {string} HTML-строка индикации или `""`
+ */
+export function renderSlotsIndicator({
+  freeTickets,
+  matchingFreeTickets,
+  filter,
+}) {
+  if (!hasActiveFilter(filter)) return "";
+
+  const total = Number(freeTickets) || 0;
+  const matching = Number(matchingFreeTickets ?? freeTickets) || 0;
+  const state = resolveSlotsState(total, matching);
+  const summary = `Слотов: ${total} (Под фильтр: ${matching})`;
+
+  const details = renderFilterLines(filter)
+    .map(
+      (line) =>
+        `<span class="doctor-card__slots-detail">${escapeHtml(line)}</span>`,
+    )
+    .join("");
+
+  return `
+    <div class="doctor-card__slots doctor-card__slots--${state}">
+      <span class="doctor-card__slots-marker" aria-hidden="true">${SLOTS_STATE_MARKER[state]}</span>
+      <span class="doctor-card__slots-line">${escapeHtml(summary)}</span>
+      ${details}
+    </div>`;
+}
+
+/**
+ * Рендерит прежний футер карточки со статусом номерков.
  *
  * @param {string} status — статус ('slots_available', 'no_slots', 'checking')
  * @param {number} freeTickets — количество свободных слотов
+ * @returns {string} HTML-строка футера
+ */
+export function renderStatusFooter(status, freeTickets) {
+  if (status === "slots_available" && Number(freeTickets) > 0) {
+    return `<div class="card__footer card__footer--slots">
+        <span class="lucide-icon">${lucideIcon("circle-check", 14)}</span>
+        <span style="color: var(--status-available);">Есть номерки! (${freeTickets})</span>
+      </div>`;
+  }
+  return `<div class="card__footer card__footer--noslots">
+        <span class="lucide-icon">${lucideIcon("circle-x", 14)}</span>
+        <span style="color: var(--color-danger); opacity: 0.7;">Номерков на данный момент нет</span>
+      </div>`;
+}
+
+/**
+ * Возвращает информацию о статусе для отображения.
+ *
  * @returns {{ class: string, html: string, pulseClass?: string }}
  */
-function getStatusInfo(status, freeTickets) {
+function getStatusInfo() {
   // Все статусы показывают одинаково: зелёная мигающая точка + «мониторинг».
   // Информация о наличии/отсутствии номерков — только в футере карточки.
   return {

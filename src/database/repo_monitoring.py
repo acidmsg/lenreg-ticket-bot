@@ -14,9 +14,10 @@ class MonitoringRepository(BaseRepository):
     async def get_user_monitoring(
         self, uid: str
     ) -> dict[str, dict[str, MonitoringEntry]]:
-        """Возвращает словарь мониторинга пользователя."""
+        """Возвращает словарь мониторинга пользователя (включая поля фильтра)."""
         cursor = await self._c.execute(
-            "SELECT p_id, d_id, name, clinic_id, specialty, date "
+            "SELECT p_id, d_id, name, clinic_id, specialty, date, "
+            "date_from, date_to, time_from, time_to, specific_dates "
             "FROM user_monitoring WHERE uid = ?",
             (uid,),
         )
@@ -26,13 +27,61 @@ class MonitoringRepository(BaseRepository):
             p_id = row["p_id"]
             if p_id not in result:
                 result[p_id] = {}
-            result[p_id][row["d_id"]] = {
+            entry: MonitoringEntry = {
                 "name": row["name"],
                 "clinic_id": row["clinic_id"],
                 "specialty": row["specialty"],
                 "date": row["date"],
+                "date_from": row["date_from"] or "",
+                "date_to": row["date_to"] or "",
+                "time_from": row["time_from"] or "",
+                "time_to": row["time_to"] or "",
+                "specific_dates": row["specific_dates"] or "[]",
             }
+            result[p_id][row["d_id"]] = entry
         return result
+
+    async def update_monitoring_filter(
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        filter_data: dict[str, str],
+    ) -> None:
+        """Обновляет поля фильтра отслеживания для указанной строки мониторинга.
+
+        Args:
+            uid: ID пользователя Telegram.
+            p_id: ID пациента.
+            d_id: ID врача.
+            filter_data: Поля фильтра (``date_from``, ``date_to``, ``time_from``,
+                ``time_to``, ``specific_dates``). Отсутствующие ключи сбрасываются.
+
+        Raises:
+            ValueError: Если запись мониторинга не найдена.
+        """
+        specific_dates = filter_data.get("specific_dates", "") or "[]"
+        cursor = await self._c.execute(
+            "UPDATE user_monitoring "
+            "SET date_from = ?, date_to = ?, time_from = ?, time_to = ?, "
+            "specific_dates = ? "
+            "WHERE uid = ? AND p_id = ? AND d_id = ?",
+            (
+                filter_data.get("date_from", ""),
+                filter_data.get("date_to", ""),
+                filter_data.get("time_from", ""),
+                filter_data.get("time_to", ""),
+                specific_dates,
+                uid,
+                p_id,
+                d_id,
+            ),
+        )
+        await self._c.commit()
+        if cursor.rowcount == 0:
+            raise ValueError(
+                f"Мониторинг не найден: uid={uid}, p_id={p_id}, d_id={d_id}"
+            )
 
     async def add_monitoring_entry(
         self,

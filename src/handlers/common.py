@@ -4,9 +4,16 @@ import time as time_module
 
 import aiofiles.os
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    FSInputFile,
+    InlineKeyboardMarkup,
+    Message,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 
@@ -22,6 +29,7 @@ from src.database.types import (
     UserData,
 )
 from src.filters.admin import IsAdmin
+from src.handlers import filter_setup
 from src.handlers.callback_parser import create_callback_filter
 from src.handlers.callbacks import (
     CB_BACK_TO_MAIN,
@@ -43,6 +51,7 @@ from src.handlers.callbacks import (
     DeletePatientAsk,
     DeletePatientConfirm,
     DoctorSection,
+    FilterSetup,
     PatientSelect,
     SelectPatientForBooking,
     StartMonitoring,
@@ -61,12 +70,18 @@ from src.keyboards.inline import (
     get_doctor_section_keyboard,
     get_doctor_selection,
     get_main_menu_keyboard,
+    get_monitoring_action,
     get_patient_select_keyboard,
     get_patient_selection,
     get_slot_grid_keyboard,
 )
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
-from src.services.export import export_monitoring_csv, export_monitoring_json
+from src.services.export import (
+    _build_ticket_payload,
+    export_booking_barcode_png,
+    export_monitoring_csv,
+    export_monitoring_json,
+)
 from src.services.healthcheck import format_status_report
 from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
 from src.utils.helpers import (
@@ -401,8 +416,19 @@ async def cmd_status(message: Message, db: DatabaseManager) -> None:
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, db: DatabaseManager, bot: Bot) -> None:
-    """Команда /start — приветствие с изображением-заголовком patient_select."""
+async def cmd_start(
+    message: Message,
+    db: DatabaseManager,
+    bot: Bot,
+    state: FSMContext | None = None,
+) -> None:
+    """Команда /start — приветствие с изображением-заголовком patient_select.
+
+    Прерывает любой незавершённый FSM-сценарий, в том числе мастер фильтра (§9.3.6).
+    """
+    if state is not None:
+        await state.clear()
+
     uid = str(message.from_user.id) if message.from_user else "unknown"
     user_data = await db.get_user_data(uid)
 
@@ -1634,6 +1660,9 @@ async def doctor_section(
         p_id = candidate_patients[0]["p_id"]
     # Иначе используем p_id из callback (текущий пациент из контекста клиники)
 
+    # Состояние отслеживания пары пациент + врач переключает кнопку (§9.3.1)
+    is_monitored = d_id in monitoring_patients.get(p_id, {})
+
     # ── Получение данных врача ──
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_raw = doctors_list.get(d_id)
@@ -1685,13 +1714,11 @@ async def doctor_section(
                 for btn in row:
                     builder.button(text=btn.text, callback_data=btn.callback_data)
         builder.adjust(1)
-        # Добавляем row с [Отслеживание] и [Закрыть]
-        builder.button(
-            text=_("btn-start-monitoring"),
-            callback_data=StartMonitoring(
-                p_id=p_id, clinic_id=clinic_id, d_id=d_id
-            ).pack(),
+        # Добавляем row с кнопкой мониторинга/фильтра и [Закрыть]
+        action_text, action_callback = get_monitoring_action(
+            p_id, clinic_id, d_id, is_monitored
         )
+        builder.button(text=action_text, callback_data=action_callback)
         builder.button(
             text=_("btn-close-section"),
             callback_data=CloseSection(p_id=p_id).pack(),
@@ -1700,7 +1727,7 @@ async def doctor_section(
     else:
         # Сценарий C: нет талонов / API ошибка
         text = header + f"\n\n📭 {_('no-slots-placeholder')}"
-        reply_markup = get_doctor_section_keyboard(p_id, clinic_id, d_id)
+        reply_markup = get_doctor_section_keyboard(p_id, clinic_id, d_id, is_monitored)
 
     # ── Отправка/редактирование сообщения ──
     try:
@@ -1799,6 +1826,88 @@ async def book_slot_section(
     await call.answer()
 
 
+_CAPTION_MAX_LENGTH = 1024
+
+
+async def _show_barcode_fallback(
+    message: Message,
+    fallback_text: str,
+    reply_markup: InlineKeyboardMarkup,
+) -> None:
+    """Best-effort показывает текстовый талон вместо фото со штрих-кодом."""
+    with contextlib.suppress(Exception):
+        await message.edit_text(
+            fallback_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+        )
+
+
+async def _deliver_booking_ticket(
+    message: Message,
+    booking: BookingEntry,
+    caption: str,
+    fallback_text: str,
+    reply_markup: InlineKeyboardMarkup,
+) -> None:
+    """Отправляет фото талона со штрих-кодом; при любом сбое — текстовый фолбэк.
+
+    Сценарий записи не должен падать из-за талона: ошибка генерации,
+    превышение лимита подписи или сбой Telegram API приводят к текстовому
+    сообщению с номером талона.
+    """
+    try:
+        png = await asyncio.to_thread(export_booking_barcode_png, booking)
+    except ImportError:
+        logger.warning("python-barcode недоступен — показываем текстовый талон")
+        await _show_barcode_fallback(message, fallback_text, reply_markup)
+        return
+    except Exception as e:
+        # Граница отказоустойчивости: сбой генерации → текстовый талон
+        logger.warning(f"Ошибка генерации штрих-кода талона: {e}")
+        await _show_barcode_fallback(message, fallback_text, reply_markup)
+        return
+
+    if len(caption) > _CAPTION_MAX_LENGTH:
+        logger.warning("Подпись талона превышает лимит Telegram (1024) — фолбэк")
+        await _show_barcode_fallback(message, fallback_text, reply_markup)
+        return
+
+    try:
+        await message.answer_photo(
+            BufferedInputFile(png, filename="ticket.png"),
+            caption=caption,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+        )
+    except TelegramRetryAfter as e:
+        logger.error(
+            f"Telegram rate limit при отправке талона: retry_after={e.retry_after}"
+        )
+        await asyncio.sleep(e.retry_after)
+        try:
+            await message.answer_photo(
+                BufferedInputFile(png, filename="ticket.png"),
+                caption=caption,
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+            )
+        except TelegramAPIError as retry_error:
+            logger.error(f"Повторная отправка талона не удалась: {retry_error}")
+            await _show_barcode_fallback(message, fallback_text, reply_markup)
+            return
+    except TelegramAPIError as e:
+        logger.error(f"Ошибка отправки талона в Telegram: {e}")
+        await _show_barcode_fallback(message, fallback_text, reply_markup)
+        return
+
+    # Best-effort удаление статусного сообщения «⏳ Выполняется запись...»
+    try:
+        await message.delete()
+    except Exception as e:
+        logger.debug(f"Не удалось удалить статусное сообщение записи: {e}")
+
+
 @router.callback_query(create_callback_filter(BookConfirm))
 async def book_confirm_section(
     call: CallbackQuery,
@@ -1884,24 +1993,24 @@ async def book_confirm_section(
             clinic=clinic_name,
         )
 
-        # Сохраняем запись в БД (T-17)
+        # Сохраняем запись в БД (T-17) до отправки талона
+        booking = BookingEntry(
+            booking_id=f"{p_id}_{d_id}_{appointment_id}",
+            uid=uid,
+            p_id=p_id,
+            d_id=d_id,
+            doctor_name=doctor_name,
+            patient_name=patient_name,
+            specialty=doctor_specialty,
+            clinic_id=clinic_id,
+            clinic_name=clinic_name,
+            slot_date=date,
+            slot_time=time,
+            appointment_id=appointment_id,
+            created_at=time_module.time(),
+            is_archived=0,
+        )
         try:
-            booking = BookingEntry(
-                booking_id=f"{p_id}_{d_id}_{appointment_id}",
-                uid=uid,
-                p_id=p_id,
-                d_id=d_id,
-                doctor_name=doctor_name,
-                patient_name=patient_name,
-                specialty=doctor_specialty,
-                clinic_id=clinic_id,
-                clinic_name=clinic_name,
-                slot_date=date,
-                slot_time=time,
-                appointment_id=appointment_id,
-                created_at=time_module.time(),
-                is_archived=0,
-            )
             await db.save_booking(booking)
         except Exception as e:
             logger.error(f"Ошибка сохранения booking: {e}")
@@ -1914,15 +2023,31 @@ async def book_confirm_section(
         )
         reply_markup = builder.as_markup()
 
-        try:
-            if isinstance(call.message, Message):
-                await call.message.edit_text(
-                    success_text,
+        # Талон: подпись с номером и текстовый фолбэк (T-22)
+        ticket = _build_ticket_payload(booking)
+        caption = (
+            f"{success_text}\n{_('booking-ticket-code-label').format(ticket=ticket)}"
+        )
+        fallback_text = (
+            f"{success_text}\n"
+            f"{_('booking-ticket-barcode-unavailable').format(ticket=ticket)}"
+        )
+
+        if isinstance(call.message, Message):
+            await _deliver_booking_ticket(
+                call.message,
+                booking,
+                caption,
+                fallback_text,
+                reply_markup,
+            )
+        else:
+            with contextlib.suppress(Exception):
+                await call.message.edit_text(  # type: ignore[attr-defined]
+                    fallback_text,
                     reply_markup=reply_markup,
                     parse_mode="Markdown",
                 )
-        except Exception:
-            logger.debug("Не удалось показать успех записи")
 
     elif result.error and result.error.IdError == 39:
         # Слот занят — кнопка «Назад к слотам»
@@ -1987,9 +2112,14 @@ async def book_confirm_section(
 async def start_monitoring(
     call: CallbackQuery,
     db: DatabaseManager,
+    state: FSMContext,
     callback_data: StartMonitoring,
 ) -> None:
-    """Добавление врача в отслеживание (T-04) — без фильтра."""
+    """Добавление врача в отслеживание (T-04) и запуск мастера фильтра (T-21).
+
+    Идемпотентность: повторное нажатие не снимает мониторинг, а сразу открывает
+    мастер настройки существующего фильтра (§9.3.1).
+    """
     if not call.from_user or not call.message:
         return
 
@@ -2008,27 +2138,44 @@ async def start_monitoring(
         d_name = doc_info.get("name", _("doctor-fallback-name"))
         doctor_specialty = doc_info.get("specialty", "")
 
-    # --- Toggle мониторинга ---
-    await db.toggle_monitoring(
-        uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
+    # --- Идемпотентное добавление: toggle только для новой пары ---
+    user_data = await db.get_user_data(uid)
+    created = d_id not in user_data.get("monitoring", {}).get(p_id, {})
+    if created:
+        await db.toggle_monitoring(
+            uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
+        )
+
+    # --- Запуск мастера фильтра (§9.3) ---
+    await filter_setup.begin_filter_wizard(
+        call,
+        state,
+        db,
+        p_id,
+        clinic_id,
+        d_id,
+        doctor_name=d_name,
+        doctor_specialty=doctor_specialty,
+        created=created,
     )
 
-    # --- Показ результата ---
-    await call.answer()
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_text(
-                _("monitoring-added"),
-                reply_markup=InlineKeyboardBuilder()
-                .button(
-                    text=_("btn-back-to-main"),
-                    callback_data=CB_BACK_TO_MAIN,
-                )
-                .as_markup(),
-                parse_mode="Markdown",
-            )
-    except Exception:
-        logger.debug("Не удалось показать результат start_monitoring")
+
+@router.callback_query(create_callback_filter(FilterSetup))
+async def filter_setup_entry(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    state: FSMContext,
+    callback_data: FilterSetup,
+) -> None:
+    """Вход в мастер фильтра по кнопке [🔎 Настроить фильтр] (T-21, §9.3.1)."""
+    await filter_setup.begin_filter_wizard(
+        call,
+        state,
+        db,
+        callback_data.p_id,
+        callback_data.clinic_id,
+        callback_data.d_id,
+    )
 
 
 @router.callback_query(create_callback_filter(CloseSection))

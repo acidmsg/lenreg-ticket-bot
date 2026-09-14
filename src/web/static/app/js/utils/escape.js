@@ -10,13 +10,13 @@
  * @returns {string} Экранированная строка.
  */
 export function escapeHtml(text) {
-  const div = document.createElement('div');
+  const div = document.createElement("div");
   div.textContent = String(text);
   return div.innerHTML;
 }
 
 // Обратная совместимость: глобальный доступ для кода, не использующего ES6-модули
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.AppUtils = window.AppUtils || {};
   window.AppUtils.escapeHtml = escapeHtml;
 }

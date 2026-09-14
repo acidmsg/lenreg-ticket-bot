@@ -51,7 +51,7 @@ export function safeRemove(key) {
 }
 
 // Обратная совместимость: глобальный доступ для IIFE-скриптов (_design_lab/ и др.)
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.AppUtils = window.AppUtils || {};
   window.AppUtils.safeGet = safeGet;
   window.AppUtils.safeSet = safeSet;

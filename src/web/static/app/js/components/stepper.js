@@ -9,8 +9,8 @@
  * @module components/stepper
  */
 
-import { lucideIcon } from './icon.js';
-import { escapeHtml } from '../utils/escape.js';
+import { lucideIcon } from "./icon.js";
+import { escapeHtml } from "../utils/escape.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Хелперы построения HTML (чистые функции, без замыканий)
@@ -24,7 +24,7 @@ import { escapeHtml } from '../utils/escape.js';
 function buildLoadingHTML() {
   return `
     <div class="stepper-spinner">
-      <span class="lucide-icon lucide-icon--spin">${lucideIcon('refresh-cw', 48)}</span>
+      <span class="lucide-icon lucide-icon--spin">${lucideIcon("refresh-cw", 48)}</span>
     </div>`;
 }
 
@@ -39,7 +39,7 @@ function buildItemsHTML(items, renderItem) {
   if (!items || items.length === 0) {
     return `
       <div class="empty-state">
-        <div class="empty-state__icon">${lucideIcon('circle-slash', 48)}</div>
+        <div class="empty-state__icon">${lucideIcon("circle-slash", 48)}</div>
         <p class="empty-state__text">Ничего не найдено</p>
       </div>
     `;
@@ -48,12 +48,12 @@ function buildItemsHTML(items, renderItem) {
   const itemsHtml = items
     .map(
       (item, index) => `
-      <li class="list__item stepper-item${item._monitored ? ' stepper-item--monitored' : ''}" data-index="${index}">
+      <li class="list__item stepper-item${item._monitored ? " stepper-item--monitored" : ""}" data-index="${index}">
         ${renderItem(item)}
       </li>
-    `
+    `,
     )
-    .join('');
+    .join("");
 
   return `<ul class="list">${itemsHtml}</ul>`;
 }
@@ -68,13 +68,13 @@ function buildItemsHTML(items, renderItem) {
 function buildStepperProgress(steps, currentStep) {
   return steps
     .map((_, i) => {
-      let cls = 'stepper__dot';
-      if (i < currentStep) cls += ' stepper__dot--done';
-      else if (i === currentStep) cls += ' stepper__dot--current';
-      else cls += ' stepper__dot--future';
+      let cls = "stepper__dot";
+      if (i < currentStep) cls += " stepper__dot--done";
+      else if (i === currentStep) cls += " stepper__dot--current";
+      else cls += " stepper__dot--future";
       return `<span class="${cls}"></span>`;
     })
-    .join('');
+    .join("");
 }
 
 /**
@@ -95,7 +95,7 @@ function buildSearchBarHTML(placeholder) {
           autocomplete="off"
         >
         <button type="button" class="search-bar__clear" id="stepper-search-clear" aria-label="Очистить">
-          <span class="lucide-icon">${lucideIcon('x', 16)}</span>
+          <span class="lucide-icon">${lucideIcon("x", 16)}</span>
         </button>
       </div>
     </div>
@@ -127,7 +127,7 @@ function buildStepperHTML(steps, currentStep, opts) {
     contentHTML,
     canGoBack,
     isLastStep,
-    isWidget
+    isWidget,
   } = opts;
 
   const progressHtml = buildStepperProgress(steps, currentStep);
@@ -135,20 +135,20 @@ function buildStepperHTML(steps, currentStep, opts) {
   const searchHtml =
     searchPlaceholder !== undefined
       ? buildSearchBarHTML(searchPlaceholder)
-      : '';
+      : "";
 
   const clinicLinkHtml =
-    searchMode === 'doctors'
+    searchMode === "doctors"
       ? `<div class="stepper__alt-action">
-          <button class="btn btn--secondary btn--sm stepper__clinic-btn" id="stepper-switch-clinics"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> Выбрать поликлинику</button>
+          <button class="btn btn--secondary btn--sm stepper__clinic-btn" id="stepper-switch-clinics"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> Выбрать поликлинику</button>
         </div>`
-      : '';
+      : "";
 
   const backButtonHtml = canGoBack
-    ? `<button class="btn btn--secondary" id="stepper-back"><span class="lucide-icon">${lucideIcon('arrow-left', 16)}</span> Назад</button>`
-    : `<button class="btn btn--danger" id="stepper-cancel"><span class="lucide-icon">${lucideIcon('x', 16)}</span> Отмена</button>`;
+    ? `<button class="btn btn--secondary" id="stepper-back"><span class="lucide-icon">${lucideIcon("arrow-left", 16)}</span> Назад</button>`
+    : `<button class="btn btn--danger" id="stepper-cancel"><span class="lucide-icon">${lucideIcon("x", 16)}</span> Отмена</button>`;
 
-  const nextBtnClass = isLastStep || isWidget ? '' : ' stepper__btn--next';
+  const nextBtnClass = isLastStep || isWidget ? "" : " stepper__btn--next";
 
   return `
     <div class="stepper">
@@ -160,8 +160,8 @@ function buildStepperHTML(steps, currentStep, opts) {
       <div class="stepper__content" id="stepper-content">${contentHTML}</div>
       <div class="stepper__actions">
         ${backButtonHtml}
-        <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? '' : ' disabled'}>
-          ${isLastStep ? `<span class="lucide-icon">${lucideIcon('check', 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon('arrow-right', 16)}</span> Далее`}
+        <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? "" : " disabled"}>
+          ${isLastStep ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> Далее`}
         </button>
       </div>
     </div>
@@ -179,20 +179,20 @@ function buildStepperHTML(steps, currentStep, opts) {
  * @param {object} state — объект состояния stepper'а
  */
 function bindStepperNavigation(container, state) {
-  const backBtn = document.getElementById('stepper-back');
-  const cancelBtn = document.getElementById('stepper-cancel');
-  const nextBtn = document.getElementById('stepper-next');
+  const backBtn = document.getElementById("stepper-back");
+  const cancelBtn = document.getElementById("stepper-cancel");
+  const nextBtn = document.getElementById("stepper-next");
 
   if (backBtn) {
-    backBtn.addEventListener('click', () => {
+    backBtn.addEventListener("click", () => {
       // Если мы в режиме clinics (переключились с doctors) — возврат в doctors
-      if (state._currentSearchMode === 'clinics' && state.currentStep === 1) {
-        state._currentSearchMode = 'doctors';
+      if (state._currentSearchMode === "clinics" && state.currentStep === 1) {
+        state._currentSearchMode = "doctors";
         const clinicStep = state.steps[state.currentStep];
-        clinicStep.searchMode = 'doctors';
-        clinicStep.title = 'Поиск врача';
-        clinicStep.description = `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
-        clinicStep.searchPlaceholder = 'Фамилия, имя или отчество...';
+        clinicStep.searchMode = "doctors";
+        clinicStep.title = "Поиск врача";
+        clinicStep.description = `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
+        clinicStep.searchPlaceholder = "Фамилия, имя или отчество...";
         state.stepData = [];
         state.render();
         return;
@@ -213,7 +213,7 @@ function bindStepperNavigation(container, state) {
   }
 
   if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
+    cancelBtn.addEventListener("click", () => {
       if (state.onCancel) {
         state.onCancel();
       }
@@ -221,8 +221,8 @@ function bindStepperNavigation(container, state) {
   }
 
   if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      const isWidget = state.steps[state.currentStep].type === 'widget';
+    nextBtn.addEventListener("click", () => {
+      const isWidget = state.steps[state.currentStep].type === "widget";
       if (isWidget) {
         state.advanceStep(0);
         return;
@@ -236,16 +236,16 @@ function bindStepperNavigation(container, state) {
   }
 
   // Кнопка «Выбрать поликлинику» (только в doctors-режиме)
-  const switchBtn = document.getElementById('stepper-switch-clinics');
+  const switchBtn = document.getElementById("stepper-switch-clinics");
   if (switchBtn) {
-    switchBtn.addEventListener('click', () => {
+    switchBtn.addEventListener("click", () => {
       const step = state.steps[state.currentStep];
-      state._currentSearchMode = 'clinics';
-      step.searchMode = 'clinics';
-      step.title = 'Выбор поликлиники';
-      step.description = 'Выберите поликлинику из списка';
-      if (typeof step.onSearchModeChange === 'function') {
-        step.onSearchModeChange('clinics');
+      state._currentSearchMode = "clinics";
+      step.searchMode = "clinics";
+      step.title = "Выбор поликлиники";
+      step.description = "Выберите поликлинику из списка";
+      if (typeof step.onSearchModeChange === "function") {
+        step.onSearchModeChange("clinics");
       }
       state.stepData = [];
       state.render();
@@ -260,14 +260,14 @@ function bindStepperNavigation(container, state) {
  * @param {object} state — объект состояния stepper'а
  */
 function updateStepperContent(container, state) {
-  const contentEl = document.getElementById('stepper-content');
+  const contentEl = document.getElementById("stepper-content");
   if (!contentEl) return;
 
   const isLastStep = state.currentStep === state.steps.length - 1;
   const currentStepDef = state.steps[state.currentStep];
 
   // Widget-шаг: рендерим напрямую, не как список
-  const isWidget = currentStepDef.type === 'widget';
+  const isWidget = currentStepDef.type === "widget";
   if (isWidget && state.stepData.length > 0) {
     contentEl.innerHTML = currentStepDef.renderItem(state.stepData[0]);
     setupStepperSearch(container, state);
@@ -280,13 +280,13 @@ function updateStepperContent(container, state) {
   }
 
   // Плейсхолдер при пустом поиске в режиме глобального поиска врачей
-  if (state._currentSearchMode === 'doctors' && state.stepData.length === 0) {
-    const searchInput = document.getElementById('stepper-search');
-    const searchQuery = searchInput ? searchInput.value.trim() : '';
-    if (searchQuery === '') {
+  if (state._currentSearchMode === "doctors" && state.stepData.length === 0) {
+    const searchInput = document.getElementById("stepper-search");
+    const searchQuery = searchInput ? searchInput.value.trim() : "";
+    if (searchQuery === "") {
       contentEl.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state__icon">${lucideIcon('search', 48)}</div>
+          <div class="empty-state__icon">${lucideIcon("search", 48)}</div>
           <p class="empty-state__text">Начните вводить фамилию, имя или отчество врача</p>
         </div>
       `;
@@ -297,38 +297,38 @@ function updateStepperContent(container, state) {
 
   contentEl.innerHTML = buildItemsHTML(
     state.stepData,
-    currentStepDef.renderItem
+    currentStepDef.renderItem,
   );
 
   if (isLastStep) return;
 
-  const items = container.querySelectorAll('.stepper-item');
+  const items = container.querySelectorAll(".stepper-item");
   items.forEach((item) => {
-    item.addEventListener('click', () => {
-      const index = parseInt(item.getAttribute('data-index'), 10);
+    item.addEventListener("click", () => {
+      const index = parseInt(item.getAttribute("data-index"), 10);
       if (!isNaN(index) && state.stepData[index]) {
         if (state.stepData[index]._monitored) {
           // showToast вызывается глобально (определён в toast.js)
-          if (typeof showToast === 'function') {
-            showToast('Этот врач уже отслеживается');
+          if (typeof showToast === "function") {
+            showToast("Этот врач уже отслеживается");
           }
           return;
         }
-        items.forEach((i) => i.classList.remove('stepper-item--selected'));
-        item.classList.add('stepper-item--selected');
+        items.forEach((i) => i.classList.remove("stepper-item--selected"));
+        item.classList.add("stepper-item--selected");
         state.advanceStep(index);
       }
     });
   });
 
-  const isWidgetAuto = currentStepDef.type === 'widget';
+  const isWidgetAuto = currentStepDef.type === "widget";
   if (
     state.stepData.length === 1 &&
     items.length === 1 &&
-    state._currentSearchMode !== 'doctors' &&
+    state._currentSearchMode !== "doctors" &&
     !isWidgetAuto
   ) {
-    items[0].classList.add('stepper-item--selected');
+    items[0].classList.add("stepper-item--selected");
     setTimeout(() => {
       if (
         state.currentStep < state.steps.length - 1 &&
@@ -349,36 +349,36 @@ function updateStepperContent(container, state) {
  * @param {object} state — объект состояния stepper'а
  */
 function setupStepperSearch(container, state) {
-  const searchInput = document.getElementById('stepper-search');
+  const searchInput = document.getElementById("stepper-search");
   if (!searchInput) return;
 
-  const clearBtn = document.getElementById('stepper-search-clear');
+  const clearBtn = document.getElementById("stepper-search-clear");
   if (clearBtn) {
-    clearBtn.style.display = searchInput.value.trim() ? 'flex' : 'none';
+    clearBtn.style.display = searchInput.value.trim() ? "flex" : "none";
     clearBtn.onclick = () => {
-      searchInput.value = '';
+      searchInput.value = "";
       searchInput.focus();
-      searchInput.dispatchEvent(new Event('input'));
+      searchInput.dispatchEvent(new Event("input"));
     };
   }
 
   const step = state.steps[state.currentStep];
   const isDoctorMode =
-    state._currentSearchMode === 'doctors' && step.searchMode !== undefined;
+    state._currentSearchMode === "doctors" && step.searchMode !== undefined;
 
   // Таймер автоподсказки: через 3 секунды бездействия показать подсказку.
-  let hintTimer = setTimeout(() => {
-    if (state.currentStep !== 1 || state._currentSearchMode !== 'doctors')
+  const hintTimer = setTimeout(() => {
+    if (state.currentStep !== 1 || state._currentSearchMode !== "doctors")
       return;
-    const input = document.getElementById('stepper-search');
-    if (input && input.value.trim() === '') {
-      const hintEl = document.getElementById('stepper-hint');
+    const input = document.getElementById("stepper-search");
+    if (input && input.value.trim() === "") {
+      const hintEl = document.getElementById("stepper-hint");
       if (!hintEl) {
-        const contentEl = document.getElementById('stepper-content');
+        const contentEl = document.getElementById("stepper-content");
         if (contentEl) {
-          const hint = document.createElement('div');
-          hint.id = 'stepper-hint';
-          hint.className = 'stepper-hint';
+          const hint = document.createElement("div");
+          hint.id = "stepper-hint";
+          hint.className = "stepper-hint";
           hint.innerHTML =
             '<p class="stepper-hint__text">Не знаете врача? Выберите поликлинику, чтобы увидеть список врачей в учреждении.</p>';
           contentEl.parentNode.insertBefore(hint, contentEl);
@@ -390,20 +390,20 @@ function setupStepperSearch(container, state) {
   searchInput.oninput = (e) => {
     // При вводе — скрыть подсказку
     clearTimeout(hintTimer);
-    const hintEl = document.getElementById('stepper-hint');
+    const hintEl = document.getElementById("stepper-hint");
     if (hintEl) hintEl.remove();
 
     const query = e.target.value;
 
     // Показать/скрыть кнопку очистки
     if (clearBtn) {
-      clearBtn.style.display = query ? 'flex' : 'none';
+      clearBtn.style.display = query ? "flex" : "none";
     }
 
     // Скрыть/показать кнопку «Выбрать поликлинику»
-    const clinicBtn = document.getElementById('stepper-switch-clinics');
+    const clinicBtn = document.getElementById("stepper-switch-clinics");
     if (clinicBtn) {
-      clinicBtn.style.display = query.trim() ? 'none' : '';
+      clinicBtn.style.display = query.trim() ? "none" : "";
     }
 
     if (isDoctorMode) {
@@ -412,7 +412,7 @@ function setupStepperSearch(container, state) {
 
       state._searchDebounce = setTimeout(() => {
         if (query.length >= 2) {
-          const input = document.getElementById('stepper-search');
+          const input = document.getElementById("stepper-search");
           if (input) input.value = query;
           state.loadStepData(state.steps[state.currentStep]);
         } else if (query.length === 0) {
@@ -422,9 +422,9 @@ function setupStepperSearch(container, state) {
       }, 400);
     } else {
       // Клиентская фильтрация
-      container.querySelectorAll('.stepper-item').forEach((item) => {
+      container.querySelectorAll(".stepper-item").forEach((item) => {
         const text = item.textContent.toLowerCase();
-        item.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+        item.style.display = text.includes(query.toLowerCase()) ? "" : "none";
       });
     }
   };
@@ -459,7 +459,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     steps,
     onComplete,
     onCancel,
-    container
+    container,
   };
 
   /**
@@ -484,7 +484,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
    */
   function render() {
     if (state.currentStep >= steps.length) {
-      container.innerHTML = '';
+      container.innerHTML = "";
       if (onComplete) {
         onComplete(state.selections);
       }
@@ -510,15 +510,15 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     let displayTitle = step.title;
     let displayDesc = step.description;
     if (state.currentStep === 1 && state._currentSearchMode !== null) {
-      const isClinicMode = state._currentSearchMode === 'clinics';
-      displayTitle = isClinicMode ? 'Выбор поликлиники' : 'Поиск врача';
+      const isClinicMode = state._currentSearchMode === "clinics";
+      displayTitle = isClinicMode ? "Выбор поликлиники" : "Поиск врача";
       displayDesc = isClinicMode
-        ? 'Выберите поликлинику из списка'
-        : `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
+        ? "Выберите поликлинику из списка"
+        : `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
     }
 
     const isLastStep = state.currentStep === steps.length - 1;
-    const isWidget = step.type === 'widget';
+    const isWidget = step.type === "widget";
 
     // Определяем HTML-содержимое контентной области
     const contentHTML =
@@ -534,7 +534,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       contentHTML,
       canGoBack: state.currentStep > 0,
       isLastStep,
-      isWidget
+      isWidget,
     });
 
     bindStepperNavigation(container, state);
@@ -554,7 +554,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     } catch (error) {
       if (loadId !== state._loadId) return;
       state.stepData = [];
-      showError(error.message || 'Ошибка загрузки данных');
+      showError(error.message || "Ошибка загрузки данных");
       return;
     } finally {
       if (loadId === state._loadId) {
@@ -572,19 +572,19 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
    * @param {string} message — текст ошибки
    */
   function showError(message) {
-    const contentEl = document.getElementById('stepper-content');
+    const contentEl = document.getElementById("stepper-content");
     if (!contentEl) return;
 
     contentEl.innerHTML = `
       <div class="error-state">
         <p class="error-state__text">${escapeHtml(message)}</p>
-        <button class="btn btn--primary" id="stepper-retry"><span class="lucide-icon">${lucideIcon('refresh-cw', 16)}</span> Повторить</button>
+        <button class="btn btn--primary" id="stepper-retry"><span class="lucide-icon">${lucideIcon("refresh-cw", 16)}</span> Повторить</button>
       </div>
     `;
 
-    const retryBtn = document.getElementById('stepper-retry');
+    const retryBtn = document.getElementById("stepper-retry");
     if (retryBtn) {
-      retryBtn.addEventListener('click', () => {
+      retryBtn.addEventListener("click", () => {
         loadStepData(steps[state.currentStep]);
       });
     }
@@ -609,7 +609,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       state.currentStep = Math.max(0, Math.min(index, steps.length));
       state.selections.length = Math.min(
         state.selections.length,
-        state.currentStep
+        state.currentStep,
       );
       state.stepData = [];
       render();
@@ -623,6 +623,6 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
       state.selections.length = 0;
       state.stepData = [];
       render();
-    }
+    },
   };
 }

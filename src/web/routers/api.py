@@ -167,9 +167,14 @@ async def toggle_doctor_scan(request: Request) -> dict[str, Any]:
 
 @router.post("/dashboard/doctor-scan/force")
 async def force_doctor_scan(request: Request) -> dict[str, Any]:
-    """Принудительный запуск сканирования врачей."""
-    trigger_force_scan()
-    return {"status": "started"}
+    """Принудительный запуск сканирования врачей.
+
+    ``trigger_force_scan()`` потокобезопасно планирует установку флага в loop'е
+    фоновой задачи discovery. Если цикл ещё не запущен, запрос игнорируется:
+    в ответе возвращается статус ``unavailable`` вместо ложного ``started``.
+    """
+    started = trigger_force_scan()
+    return {"status": "started" if started else "unavailable"}
 
 
 @router.get("/health")

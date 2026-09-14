@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 import time
 from collections.abc import Mapping
@@ -25,8 +26,54 @@ from src.utils.helpers import (
 )
 from src.utils.telegram_utils import send_or_update_message
 
-# Rate limiter для отправки уведомлений в Telegram: ≤ 25 сообщений/сек
-_telegram_limiter = aiolimiter.AsyncLimiter(max_rate=25, time_period=1.0)
+# ── Rate limiter уведомлений Telegram (per-loop) ──────────────────────
+# Telegram Bot API: ≤ 25 сообщений/сек суммарно — параметры лимита сохраняются.
+_TELEGRAM_MAX_RATE = 25.0
+_TELEGRAM_TIME_PERIOD = 1.0
+
+# Реестр лимитеров по event loop'у. Ключ — сам loop (не id): id переиспользуется
+# после сборки мусора, что привело бы к ложному попаданию в чужой лимитер.
+_telegram_limiters: dict[asyncio.AbstractEventLoop, aiolimiter.AsyncLimiter] = {}
+
+
+def _prune_closed_loops() -> None:
+    """Удаляет из реестра лимитеры закрытых event loop'ов.
+
+    ``WeakKeyDictionary`` здесь неприменим: ``aiolimiter.AsyncLimiter`` хранит в
+    слоте ``_event_loop`` **сильную** ссылку на loop, поэтому значение удерживает
+    свой ключ и слабое связывание не освобождает записи. Явная очистка по
+    ``is_closed()`` делает рост структуры ограниченным числом живых loop'ов:
+    в production loop ровно один, в тестах записи прежних loop'ов удаляются при
+    следующем обращении.
+    """
+    for loop in [item for item in _telegram_limiters if item.is_closed()]:
+        del _telegram_limiters[loop]
+
+
+def _get_telegram_limiter() -> aiolimiter.AsyncLimiter:
+    """Возвращает лимитер отправки уведомлений для текущего event loop.
+
+    Лимитер — это пропускной шлюз, а не защита разделяемого состояния, поэтому
+    его допустимо создавать per-loop (в отличие от ``Lock`` и ``Event``).
+    Общая семантика 25 сообщений/с не нарушается: в production отправитель
+    уведомлений ровно один — фоновая задача мониторинга в главном event loop,
+    и она получает из реестра единственный экземпляр. В тестах каждый loop
+    получает свежий лимитер, что устраняет перепривязку ``aiolimiter`` и
+    ``RuntimeWarning`` о переиспользовании экземпляра между loop'ами.
+
+    Вызывается только из корутины: без running loop ``get_running_loop()``
+    возбуждает ``RuntimeError`` — это контракт, а не ошибка.
+    """
+    loop = asyncio.get_running_loop()
+    _prune_closed_loops()
+    limiter = _telegram_limiters.get(loop)
+    if limiter is None:
+        limiter = aiolimiter.AsyncLimiter(
+            max_rate=_TELEGRAM_MAX_RATE,
+            time_period=_TELEGRAM_TIME_PERIOD,
+        )
+        _telegram_limiters[loop] = limiter
+    return limiter
 
 
 async def _send_telegram_safe(
@@ -42,7 +89,8 @@ async def _send_telegram_safe(
     """Отправка уведомления в Telegram с rate limiting и обработкой 429.
 
     Обёртка над :func:`send_or_update_message`, которая:
-    - Применяет глобальный лимитер ``_telegram_limiter`` (≤25 сообщений/сек).
+    - Применяет per-loop лимитер ``_get_telegram_limiter()`` (≤25 сообщений/сек
+      суммарно для отправителя).
     - Перехватывает ``TelegramRetryAfter`` (429), ждёт ``retry_after``
       и повторяет отправку один раз.
     - Логирует все ошибки отправки.
@@ -50,7 +98,7 @@ async def _send_telegram_safe(
     Returns:
         True если отправка успешна, False при ошибке.
     """
-    async with _telegram_limiter:
+    async with _get_telegram_limiter():
         try:
             await send_or_update_message(
                 bot,
@@ -98,6 +146,35 @@ async def _send_telegram_safe(
             return False
 
 
+def _parse_specific_dates(monitoring_entry: MonitoringEntry) -> list[str]:
+    """Разбирает поле ``specific_dates`` (JSON-строка из БД) в список дат.
+
+    Дополнительно поддерживается уже распарсенный список — на случай вызовов
+    вне слоя БД.
+    """
+    raw = monitoring_entry.get("specific_dates", "") or ""
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    try:
+        parsed = json.loads(raw) if raw else []
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed]
+
+
+def has_slot_filters(monitoring_entry: MonitoringEntry) -> bool:
+    """Проверяет, задан ли хотя бы один фильтр слотов в записи мониторинга."""
+    return bool(
+        monitoring_entry.get("date_from")
+        or monitoring_entry.get("date_to")
+        or monitoring_entry.get("time_from")
+        or monitoring_entry.get("time_to")
+        or _parse_specific_dates(monitoring_entry)
+    )
+
+
 def filter_slots_by_user_prefs(
     slots: list[str],
     monitoring_entry: MonitoringEntry,
@@ -116,19 +193,15 @@ def filter_slots_by_user_prefs(
     if not slots:
         return slots
 
-    # Проверяем наличие полей фильтра (graceful degradation:
-    # поля могут отсутствовать — фильтры отложены до отдельной фазы)
+    # Поля фильтра объявлены как NotRequired: отсутствие = «без ограничения»
+    if not has_slot_filters(monitoring_entry):
+        return slots
+
     date_from: str = str(monitoring_entry.get("date_from", "") or "")
     date_to: str = str(monitoring_entry.get("date_to", "") or "")
     time_from: str = str(monitoring_entry.get("time_from", "") or "")
     time_to: str = str(monitoring_entry.get("time_to", "") or "")
-    raw_dates = monitoring_entry.get("specific_dates", []) or []
-    specific_dates: list[str] = list(raw_dates) if isinstance(raw_dates, list) else []
-
-    # Если ни один фильтр не задан — возвращаем все слоты
-    has_filters = bool(date_from or date_to or time_from or time_to or specific_dates)
-    if not has_filters:
-        return slots
+    specific_dates = _parse_specific_dates(monitoring_entry)
 
     from datetime import date, time
 

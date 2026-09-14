@@ -171,7 +171,8 @@ class UserRepository(BaseRepository):
     ) -> dict[str, dict[str, MonitoringEntry]]:
         """Возвращает словарь мониторинга пользователя (для агрегации в get_user)."""
         cursor = await self._c.execute(
-            "SELECT p_id, d_id, name, clinic_id, specialty, date "
+            "SELECT p_id, d_id, name, clinic_id, specialty, date, "
+            "date_from, date_to, time_from, time_to, specific_dates "
             "FROM user_monitoring WHERE uid = ?",
             (uid,),
         )
@@ -181,10 +182,16 @@ class UserRepository(BaseRepository):
             p_id = row["p_id"]
             if p_id not in result:
                 result[p_id] = {}
-            result[p_id][row["d_id"]] = {
+            entry: MonitoringEntry = {
                 "name": row["name"],
                 "clinic_id": row["clinic_id"],
                 "specialty": row["specialty"],
                 "date": row["date"],
+                "date_from": row["date_from"] or "",
+                "date_to": row["date_to"] or "",
+                "time_from": row["time_from"] or "",
+                "time_to": row["time_to"] or "",
+                "specific_dates": row["specific_dates"] or "[]",
             }
+            result[p_id][row["d_id"]] = entry
         return result

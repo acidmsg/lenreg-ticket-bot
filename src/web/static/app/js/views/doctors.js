@@ -5,10 +5,10 @@
  * @module views/doctors
  */
 
-import { apiGet, apiPost, apiDelete } from "../api.js";
+import { apiGet, apiDelete } from "../api.js";
 import { isInTelegram } from "../auth.js";
 import { createDoctorCard } from "../components/card.js";
-import { escapeHtml } from "../utils/escape.js";
+import { openFilterModal } from "../components/filter-modal.js";
 import { renderError } from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
 import { showConfirm } from "../utils/ui.js";
@@ -104,6 +104,10 @@ function renderDoctorList(doctors) {
         clinicId: doctor.clinic_id || "",
         status: doctor.status || "checking",
         freeTickets: doctor.free_tickets || 0,
+        // Карточка строится на первого пациента в группе (как monitoringId),
+        // поэтому фильтр и счётчик «под фильтр» тоже берутся у первого (§7.3).
+        matchingFreeTickets: doctor.matching_free_tickets || 0,
+        filter: doctor.filter || null,
         patients: [],
       };
     }
@@ -111,6 +115,8 @@ function renderDoctorList(doctors) {
       name: doctor.patient_name || "",
       patientId: doctor.patient_id || "",
       entryId: doctor.monitoring_id || "",
+      // Фильтр — свойство пары пациент + врач (§9.1), бейдж рендерится в строке
+      filter: doctor.filter || null,
     });
   });
 
@@ -125,6 +131,8 @@ function renderDoctorList(doctors) {
         clinicName: group.clinicName,
         status: group.status,
         freeTickets: group.freeTickets,
+        matchingFreeTickets: group.matchingFreeTickets,
+        filter: group.filter,
         patients: group.patients,
         monitoringId: monitoringId,
         isMonitored: true,
@@ -233,8 +241,10 @@ async function handleDoctorDelete(btn, container) {
 function bindDoctorCardClick(container, doctors) {
   container.querySelectorAll(".doctor-card").forEach((card) => {
     card.addEventListener("click", async (e) => {
-      // Не реагируем на клики по кнопкам удаления пациентов и кнопке обновления
+      // Не реагируем на клики по кнопкам удаления пациентов, настройки
+      // фильтра и кнопке обновления
       if (e.target.closest(".monitoring-patient__delete")) return;
+      if (e.target.closest(".monitoring-patient__filter")) return;
       if (e.target.closest(".btn--refresh")) return;
 
       // Находим пациентов для этой карточки
@@ -340,6 +350,40 @@ function bindDoctorDeleteButtons(container) {
 }
 
 /**
+ * Привязывает обработчики кнопок настройки фильтра в строках пациентов.
+ *
+ * Кнопка живёт в строке пациента, поэтому фильтр открывается для пары
+ * пациент + врач (§9.5.1). `stopPropagation` обязателен: иначе сработает
+ * навигация в слоты по клику на карточку.
+ *
+ * @param {HTMLElement} container — контейнер со списком
+ * @param {Array} doctors — массив врачей из API
+ */
+function bindFilterButtons(container, doctors) {
+  container.querySelectorAll(".monitoring-patient__filter").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      btn.blur();
+
+      const monitoringId = btn.getAttribute("data-entry-id");
+      if (!monitoringId) return;
+
+      const doctor = doctors.find(
+        (item) => item.monitoring_id === monitoringId,
+      );
+
+      openFilterModal({
+        monitoringId,
+        doctorName: doctor ? extractDoctorName(doctor) : "",
+        patientName: doctor ? doctor.patient_name || "" : "",
+        filter: doctor ? doctor.filter || null : null,
+        onChanged: () => renderDoctors(container),
+      });
+    });
+  });
+}
+
+/**
  * Привязывает обработчики событий для списка врачей.
  *
  * @param {HTMLElement} container — контейнер со списком
@@ -349,6 +393,7 @@ function bindDoctorEvents(container, doctors) {
   bindDoctorCardClick(container, doctors);
   bindDoctorRefreshButtons(container);
   bindDoctorDeleteButtons(container);
+  bindFilterButtons(container, doctors);
 }
 
 /**

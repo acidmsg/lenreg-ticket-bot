@@ -438,3 +438,341 @@ msgstr "inactive"
 #: src/services/export.py:44, 157
 msgid "export-no-data-error"
 msgstr "No data to export."
+
+#: src/handlers/common.py (booking)
+msgid "btn-book-slot"
+msgstr "📅 Book for {date} at {time}"
+
+#: src/handlers/common.py (booking)
+msgid "btn-booking-confirm"
+msgstr "✅ Confirm"
+
+#: src/handlers/common.py (booking)
+msgid "btn-booking-back"
+msgstr "↩ Back"
+
+#: src/handlers/common.py (booking)
+msgid "booking-in-progress"
+msgstr "⏳ Booking in progress..."
+
+#: src/handlers/common.py (booking)
+msgid "booking-slot-taken"
+msgstr "❌ This slot is already taken. Please choose another time."
+
+#: src/handlers/common.py (booking)
+msgid "booking-forbidden"
+msgstr "Access denied. Please try again later."
+
+#: src/handlers/common.py (booking)
+msgid "booking-rate-limited"
+msgstr "Too many requests. Please wait a minute."
+
+#: src/handlers/common.py (booking)
+msgid "booking-network-error"
+msgstr "The server is not responding. Please try again later."
+
+#: src/handlers/common.py (booking)
+msgid "booking-unknown-error"
+msgstr "Unexpected error. The administrator has been notified."
+
+# ── Фаза 1 рефакторинга UX (PopupSection) ──────────────────
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-confirm-title"
+msgstr "Booking confirmation"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-confirm-text"
+msgstr "Book with {doctor} on {date} at {time}?"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-success"
+msgstr "✅ You are booked!\n{doctor}\n{date} at {time}\n{clinic}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "booking-failed"
+msgstr "❌ Failed to book: {reason}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "no-slots-placeholder"
+msgstr "No appointments available at the moment."
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-start-monitoring"
+msgstr "🔔 Track"
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-close-section"
+msgstr "✕"
+
+#: src/handlers/common.py (doctor_section)
+msgid "monitoring-added"
+msgstr "✅ Doctor added to tracking"
+
+#: src/handlers/common.py (doctor_section)
+msgid "select-patient-for-booking"
+msgstr "Select a patient to book with {doctor}"
+
+#: src/handlers/common.py (doctor_section)
+msgid "btn-back-to-main"
+msgstr "Back to main"
+
+# ── Фаза 2 рефакторинга UX (Mini App booking) ──────────────────
+
+#: src/web/static/app/js/views/slots.js
+msgid "slots-booking-hint"
+msgstr "Choose a convenient time to book"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-modal-title"
+msgstr "Booking confirmation"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-toast-success"
+msgstr "✅ You have been booked successfully!"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-toast-error"
+msgstr "❌ Booking error: {reason}"
+
+# ── Фаза 3 рефакторинга UX (Мои записи) ──
+
+#: src/handlers/common.py (my_bookings)
+msgid "btn-my-bookings"
+msgstr "📋 My bookings"
+
+#: src/handlers/common.py (my_bookings)
+msgid "bookings-title"
+msgstr "My doctor appointments"
+
+#: src/handlers/common.py (my_bookings)
+msgid "bookings-empty"
+msgstr "You have no doctor appointments yet."
+
+#: src/handlers/common.py (my_bookings)
+msgid "archive-title"
+msgstr "Appointment archive"
+
+#: src/handlers/common.py (my_bookings)
+msgid "archive-empty"
+msgstr "No archived appointments yet."
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-png"
+msgstr "📥 Save"
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-pdf"
+msgstr "📄 PDF"
+
+#: src/web/static/app/js/views/bookings.js
+msgid "btn-export-calendar"
+msgstr "📅 To calendar"
+
+# ── Фаза 4: обработка ошибок и локализация (T-20) ──
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-slot-taken"
+msgstr "❌ The slot is already taken. Choose another one."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-api-unavailable"
+msgstr "❌ The booking service is temporarily unavailable. Try again later."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-api-timeout"
+msgstr "❌ The booking service is not responding. Try again later."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-forbidden"
+msgstr "❌ Session expired. Please start over."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "booking-error-unknown"
+msgstr "❌ An unexpected error occurred."
+
+#: src/handlers/common.py (start_monitoring)
+msgid "monitoring-already-exists"
+msgstr "⚠️ This doctor is already being tracked."
+
+#: src/handlers/common.py (book_confirm_section)
+msgid "btn-back-to-slots"
+msgstr "↩ Back to slots"
+
+#: src/handlers/common.py (filter_setup)
+msgid "filter-setup-title"
+msgstr "Monitoring filter setup"
+
+#: src/web/routers/user_api.py (get_available_doctors)
+msgid "matching-slots-count"
+msgstr "Matching filter: {count}"
+
+#: src/web/routers/user_api.py (update_monitoring_filter)
+msgid "filter-updated"
+msgstr "✅ Filter updated"
+
+# ── Мастер настройки фильтра отслеживания (T-21, §9) ──
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-date-from"
+msgstr "Step 1/5. Enter the start date (DD.MM.YYYY) or skip:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-date-to"
+msgstr "Step 2/5. Enter the end date (DD.MM.YYYY) or skip:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-time-from"
+msgstr "Step 3/5. Enter the start time (HH:MM) or skip:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-time-to"
+msgstr "Step 4/5. Enter the end time (HH:MM) or skip:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-specific-dates"
+msgstr "Step 5/5. List specific dates separated by commas (DD.MM.YYYY) or skip:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-summary-title"
+msgstr "Check your filter:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-date-range"
+msgstr "📅 Dates: {date_from} – {date_to}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-time-range"
+msgstr "🕒 Time: {time_from} – {time_to}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-specific-dates"
+msgstr "📌 Specific dates: {dates}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-empty"
+msgstr "No filter set — notifications for all slots."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-saved"
+msgstr "✅ Filter saved"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-saved-empty"
+msgstr "✅ Monitoring added without a filter"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-cancelled"
+msgstr "Filter setup cancelled. Monitoring remains without a filter."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date"
+msgstr "❌ Invalid date format. Expected DD.MM.YYYY, e.g. 25.06.2026."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date-past"
+msgstr "❌ The date cannot be in the past."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-time"
+msgstr "❌ Invalid time format. Expected HH:MM, e.g. 09:30."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date-range"
+msgstr "❌ The end date is earlier than the start date."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-time-range"
+msgstr "❌ The end time is earlier than the start time."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-specific-dates"
+msgstr "❌ Could not parse the dates. List them separated by commas as DD.MM.YYYY (max 10)."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-skip"
+msgstr "⏭ Skip"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-back"
+msgstr "↩ Back"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-done"
+msgstr "✅ Done"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-cancel"
+msgstr "✕ Cancel"
+
+#: src/keyboards/inline.py (get_doctor_section_keyboard)
+msgid "btn-filter-setup"
+msgstr "🔎 Set up filter"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-modal-title"
+msgstr "Tracking filter"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-date-from"
+msgstr "Date from"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-date-to"
+msgstr "Date to"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-time-from"
+msgstr "Time from"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-time-to"
+msgstr "Time to"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-specific-dates"
+msgstr "Specific dates"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-specific-dates-hint"
+msgstr "Comma-separated, YYYY-MM-DD, max 10"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-hint-empty"
+msgstr "Leave the fields empty to be notified about all slots."
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-modal-cancel"
+msgstr "Cancel"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "btn-filter-save"
+msgstr "Save"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "btn-filter-reset"
+msgstr "Reset filter"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-save-error"
+msgstr "❌ Failed to save the filter: {reason}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-slots-count"
+msgstr "Slots: {count}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-filter-interval"
+msgstr "Interval: {range}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-filter-time"
+msgstr "Time: {range}"
+
+#: src/handlers/common.py
+msgid "booking-ticket-code-label"
+msgstr "Ticket number: {ticket}"
+
+#: src/handlers/common.py
+msgid "booking-ticket-barcode-unavailable"
+msgstr "Ticket barcode unavailable — show this ticket number: {ticket}"

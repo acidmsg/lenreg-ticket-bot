@@ -13,21 +13,21 @@
  */
 function showToast(message) {
   // Удалить старый toast если есть
-  const old = document.getElementById('stepper-toast');
+  const old = document.getElementById("stepper-toast");
   if (old) old.remove();
 
-  const toast = document.createElement('div');
-  toast.id = 'stepper-toast';
-  toast.className = 'stepper-toast';
+  const toast = document.createElement("div");
+  toast.id = "stepper-toast";
+  toast.className = "stepper-toast";
   toast.textContent = message;
   document.body.appendChild(toast);
 
   // Анимация появления
-  requestAnimationFrame(() => toast.classList.add('stepper-toast--visible'));
+  requestAnimationFrame(() => toast.classList.add("stepper-toast--visible"));
 
   // Авто-скрытие через 4 секунды
   setTimeout(() => {
-    toast.classList.remove('stepper-toast--visible');
+    toast.classList.remove("stepper-toast--visible");
     setTimeout(() => toast.remove(), 300);
   }, 4000);
 }

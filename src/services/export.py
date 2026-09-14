@@ -355,6 +355,48 @@ def export_booking_png(
     return buf.getvalue()
 
 
+def _build_ticket_payload(booking: BookingEntry) -> str:
+    """Номер талона для штрих-кода: appointment_id, иначе booking_id."""
+    appointment_id = booking.get("appointment_id", "")
+    if appointment_id:
+        return appointment_id
+    return booking.get("booking_id", "")
+
+
+def export_booking_barcode_png(booking: BookingEntry) -> bytes:
+    """Генерирует PNG со штрих-кодом талона (Code 128).
+
+    Args:
+        booking: Данные записи (BookingEntry TypedDict).
+
+    Returns:
+        PNG-изображение со штрих-кодом в виде байтов.
+
+    Raises:
+        ImportError: Если python-barcode не установлен.
+    """
+    import barcode
+    from barcode.writer import ImageWriter
+
+    payload = _build_ticket_payload(booking)
+    ticket = barcode.get("code128", payload, writer=ImageWriter())
+
+    buffer = io.BytesIO()
+    ticket.write(
+        buffer,
+        options={
+            "module_width": 0.3,
+            "module_height": 15.0,
+            "quiet_zone": 2.0,
+            "write_text": False,
+            "dpi": 300,
+            "background": "white",
+            "foreground": "black",
+        },
+    )
+    return buffer.getvalue()
+
+
 def export_booking_pdf(
     booking: "BookingEntry",
 ) -> bytes:

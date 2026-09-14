@@ -68,6 +68,7 @@
   --color-bg-secondary: #12121c;
   --color-text-primary: #e0e8f8;
   --color-text-secondary: #89b;
+  --color-text-muted: #4a5568;
   --color-accent: #09b653;
   --color-accent-rgb: 9, 182, 83;
   --color-accent-text: #0a0a10;
@@ -93,6 +94,7 @@
   --color-bg-secondary: #fff;
   --color-text-primary: #1e293b;
   --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
   --color-accent: #3b82f6;
   --color-accent-rgb: 59, 130, 246;
   --color-accent-text: #fff;
@@ -1282,6 +1284,7 @@ body {
   padding: 2px 0;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1332,6 +1335,56 @@ body {
   opacity: 1;
 }
 
+/* === Кнопка настройки фильтра в строке пациента (🔎) === */
+.monitoring-patient__filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-monitoring);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    opacity var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.monitoring-patient__filter:hover {
+  color: var(--color-accent);
+  background: rgb(255 255 255 / 8%);
+  opacity: 1;
+}
+
+/* === Бейдж текущего фильтра в строке пациента === */
+.filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: var(--font-xs);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-secondary);
+}
+
+.filter-summary__item {
+  white-space: nowrap;
+}
+
+/* Бейдж занимает отдельную строку под именем пациента */
+.monitoring-patient .filter-summary {
+  flex-basis: 100%;
+  margin-left: 22px;
+}
+
 /* === Футер карточки (статус слотов) === */
 .card__footer {
   display: flex;
@@ -1351,6 +1404,42 @@ body {
   background: rgb(239 68 68 / 6%);
 }
 
+/* === Индикация слотов в карточке врача с фильтром (§7.3) ===
+   Три состояния кодируются модификатором `--matching|--partial|--none`,
+   цвета — только на семантических токенах дизайн-системы. */
+.doctor-card__slots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  line-height: var(--line-height-normal);
+}
+
+.doctor-card__slots-line {
+  font-weight: var(--font-weight-medium);
+}
+
+.doctor-card__slots-detail {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+}
+
+.doctor-card__slots--matching {
+  color: var(--status-available);
+}
+
+.doctor-card__slots--partial {
+  color: var(--color-monitoring);
+}
+
+.doctor-card__slots--none {
+  color: var(--status-noslots);
+}
+
 /* === Утилиты === */
 .text-center {
   text-align: center;
@@ -1368,9 +1457,19 @@ body {
   display: none !important;
 }
 
-/* === Vanilla Calendar Pro — адаптация под тему мини-приложения === */
-.vanilla-calendar,
-[data-calendar-theme="dark"].vanilla-calendar {
+/* === Vanilla Calendar Pro — адаптация под тему мини-приложения ===
+   Правила заскоуплены модификатором контейнера `.calendar--patient`
+   (календарь даты рождения пациента). Класс навешивается в
+   `js/components/calendar.js` на корневой элемент календаря: библиотека
+   рендерит календарь в отдельный элемент (в режиме `input: true` — в body),
+   поэтому статичная обёртка в разметке формы невозможна.
+   Селектор `:where()` не добавляет специфичности, поэтому каскад
+   относительно вендорных стилей сохраняется без изменений (TD-004). */
+:where(.calendar--patient, .calendar--slots).vanilla-calendar,
+:where(
+    .calendar--patient,
+    .calendar--slots
+  )[data-calendar-theme="dark"].vanilla-calendar {
   background-color: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -1378,32 +1477,32 @@ body {
   z-index: 100;
 }
 
-.vanilla-calendar-header {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-header {
   color: var(--color-text-primary);
 }
 
-.vanilla-calendar-month,
-.vanilla-calendar-year {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-month,
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-year {
   color: var(--color-text-primary);
   font-size: var(--font-md);
   font-weight: var(--font-weight-semibold);
 }
 
-.vanilla-calendar-arrow {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-arrow {
   color: var(--color-text-primary);
 }
 
-.vanilla-calendar-arrow:hover {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-arrow:hover {
   color: var(--color-accent);
 }
 
-.vanilla-calendar-weekday {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-weekday {
   color: var(--color-text-secondary);
   font-size: var(--font-sm);
   font-weight: var(--font-weight-medium);
 }
 
-.vanilla-calendar-day__btn {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-day__btn {
   color: var(--color-text-primary);
   border-radius: var(--radius-md);
   font-size: var(--font-sm);
@@ -1413,7 +1512,8 @@ body {
   min-height: 38px;
 }
 
-[data-calendar-theme="dark"] .vanilla-calendar-day__btn {
+:where(.calendar--patient, .calendar--slots)[data-calendar-theme="dark"]
+  .vanilla-calendar-day__btn {
   background-color: var(--color-bg-secondary);
 }
 
@@ -1423,14 +1523,14 @@ body {
    ======================================== */
 
 /* Обычный день: hover с accent-оттенком */
-.vanilla-calendar-day__btn:hover {
+:where(.calendar--patient) .vanilla-calendar-day__btn:hover {
   background: rgb(var(--color-accent-rgb) / 10%);
   border-color: var(--color-accent);
 }
 
 /* Today: инвертированная пилюля —
    текст = цвет фона календаря, заливка = цвет текста */
-.vanilla-calendar-day__btn_today {
+:where(.calendar--patient) .vanilla-calendar-day__btn_today {
   color: var(--color-bg-primary) !important;
   background: var(--color-text-primary) !important;
   border: none !important;
@@ -1438,59 +1538,186 @@ body {
   border-radius: var(--radius-md);
 }
 
-.vanilla-calendar-day__btn_today:hover {
+:where(.calendar--patient) .vanilla-calendar-day__btn_today:hover {
   opacity: 0.85;
   background: var(--color-text-primary) !important;
 }
 
 /* Selected: accent-рамка 1px + полупрозрачный accent-фон */
-.vanilla-calendar-day__btn_selected {
+:where(.calendar--patient) .vanilla-calendar-day__btn_selected {
   border: 1px solid var(--color-accent) !important;
   background: rgb(var(--color-accent-rgb) / 10%) !important;
   color: var(--color-accent) !important;
   font-weight: var(--font-weight-semibold);
 }
 
-.vanilla-calendar-day__btn_selected:hover {
+:where(.calendar--patient) .vanilla-calendar-day__btn_selected:hover {
   border: 1px solid var(--color-accent) !important;
   background: rgb(var(--color-accent-rgb) / 15%) !important;
 }
 
 /* Тёмная тема: дублируем selected-стили с повышенной специфичностью,
-   чтобы перекрыть [data-calendar-theme="dark"] .vanilla-calendar-day__btn */
-[data-calendar-theme="dark"] .vanilla-calendar-day__btn_selected {
+   чтобы перекрыть вендорные `[data-calendar-theme="dark"] .vanilla-calendar-day__btn` */
+:where(.calendar--patient)[data-calendar-theme="dark"]
+  .vanilla-calendar-day__btn_selected {
   border: 1px solid var(--color-accent) !important;
   background: rgb(var(--color-accent-rgb) / 10%) !important;
   color: var(--color-accent) !important;
 }
 
 /* Если today и selected совпадают — приоритет selected */
-.vanilla-calendar-day__btn_today.vanilla-calendar-day__btn_selected {
+:where(.calendar--patient)
+  .vanilla-calendar-day__btn_today.vanilla-calendar-day__btn_selected {
   border: 1px solid var(--color-accent) !important;
   background: rgb(var(--color-accent-rgb) / 10%) !important;
   color: var(--color-accent) !important;
 }
 
 /* Родительская ячейка: сбрасываем сплошную заливку */
-.vanilla-calendar-day_selected {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-day_selected {
   background: transparent;
 }
 
 /* Кнопка внутри выбранной ячейки — растягиваем на всю ячейку */
-.vanilla-calendar-day_selected .vanilla-calendar-day__btn {
+:where(.calendar--patient, .calendar--slots)
+  .vanilla-calendar-day_selected
+  .vanilla-calendar-day__btn {
   width: 100%;
   height: 100%;
 }
 
-.vanilla-calendar-day__btn_prev,
-.vanilla-calendar-day__btn_next {
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-day__btn_prev,
+:where(.calendar--patient, .calendar--slots) .vanilla-calendar-day__btn_next {
   color: #4a5568;
   background: transparent;
 }
 
-.vanilla-calendar-day__btn:disabled {
+:where(.calendar--patient, .calendar--slots)
+  .vanilla-calendar-day__btn:disabled {
   color: var(--color-text-secondary);
   opacity: 0.35;
+}
+
+/* === Календарь слотов (Этап 3, T-08) — гибридный адаптивный вариант ===
+   Мобильный (<768px): вариант 3 (minimal-dot) — accent-точка под доступным днём.
+   Десктоп (≥768px): вариант 2 (border-ring) — кольцо вокруг доступного/выбранного дня.
+   Базовая тема (шапка, дни недели, размеры кнопок, disabled) общая с `.calendar--patient`
+   и задана селекторами `:where(.calendar--patient, .calendar--slots)` выше. */
+
+/* Доступный день: точка под числом (вариант 3, мобильный) */
+:where(.calendar--slots) .vanilla-calendar-day__btn.slots-day--available {
+  position: relative;
+}
+
+:where(.calendar--slots)
+  .vanilla-calendar-day__btn.slots-day--available::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+/* Hover доступного дня */
+:where(.calendar--slots) .vanilla-calendar-day__btn.slots-day--available:hover {
+  background: rgb(var(--color-accent-rgb) / 8%);
+}
+
+/* Сегодня: приглушённый текст без заливки (вариант 3) */
+:where(.calendar--slots).vanilla-calendar .vanilla-calendar-day__btn_today {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+  background: transparent;
+  border: none;
+}
+
+/* Выбранный день: accent-текст + сплошная точка (вариант 3) */
+:where(.calendar--slots).vanilla-calendar .vanilla-calendar-day__btn_selected,
+:where(.calendar--slots).vanilla-calendar
+  .vanilla-calendar-day__btn_selected.slots-day--available {
+  color: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+:where(.calendar--slots)
+  .vanilla-calendar-day__btn_selected.slots-day--available::after {
+  width: 6px;
+  height: 6px;
+}
+
+/* Десктоп: вариант 2 (border-ring) вместо точки */
+@media (width >= 768px) {
+  :where(.calendar--slots)
+    .vanilla-calendar-day__btn.slots-day--available::after {
+    display: none;
+  }
+
+  :where(.calendar--slots) .vanilla-calendar-day__btn.slots-day--available {
+    box-shadow: inset 0 0 0 1px rgb(var(--color-accent-rgb) / 35%);
+  }
+
+  :where(.calendar--slots) .vanilla-calendar-day__btn_selected,
+  :where(.calendar--slots)
+    .vanilla-calendar-day__btn_selected.slots-day--available {
+    box-shadow: 0 0 0 2px var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  :where(.calendar--slots)[data-calendar-theme="dark"]
+    .vanilla-calendar-day__btn_selected {
+    box-shadow: 0 0 0 2px var(--color-accent);
+    color: var(--color-accent) !important;
+    background: transparent !important;
+  }
+}
+
+/* === Гибридная раскладка календаря слотов ===
+   ≥768px: календарь слева + панель слотов справа.
+   <768px: стек, панель раскрывается после выбора даты. */
+.slots-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.slots-layout__calendar {
+  min-width: 0;
+}
+
+.slots-layout__calendar .vanilla-calendar {
+  width: 100%;
+}
+
+.slots-layout__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.slots-panel__empty {
+  padding: var(--space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  text-align: center;
+}
+
+@media (width >= 768px) {
+  .slots-layout {
+    grid-template-columns: minmax(260px, 320px) 1fr;
+  }
+}
+
+@media (width < 768px) {
+  .slots-layout__panel:not(.slots-layout__panel--open) {
+    display: none;
+  }
 }
 
 /* === Fallback: prefers-color-scheme для браузеров вне Telegram === */
@@ -1500,6 +1727,7 @@ body {
     --color-bg-secondary: #fff;
     --color-text-primary: #1e293b;
     --color-text-secondary: #64748b;
+    --color-text-muted: #94a3b8;
     --color-accent: #3b82f6;
     --color-accent-text: #fff;
     --color-accent-hover: #2563eb;
@@ -1909,4 +2137,176 @@ body {
 .empty-state__hint {
   font-size: var(--font-sm);
   color: var(--color-text-tertiary);
+}
+
+/* === Модальное окно Mini App ===
+   Оверлей, панель и анимация — по образцу .backup-modal-overlay /
+   .backup-modal (§9.5.2). Ключевые кадры modal-slide-in переиспользуются. */
+.app-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: var(--space-lg);
+}
+
+.app-modal {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-slide-in var(--transition-slow);
+}
+
+.app-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-modal__title {
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.app-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-modal__close:hover {
+  background: rgb(255 255 255 / 8%);
+  color: var(--color-text-primary);
+}
+
+.app-modal__body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.app-modal__subtitle {
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-modal__hint {
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-md);
+}
+
+.app-modal__form-error {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid rgb(234 51 111 / 25%);
+  border-radius: var(--radius-md);
+  background: rgb(234 51 111 / 8%);
+  color: var(--color-danger);
+  font-size: var(--font-xs);
+}
+
+.app-modal__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-modal__footer .btn {
+  flex: 1;
+}
+
+/* === Поля формы Mini App === */
+.form-field {
+  margin-bottom: var(--space-md);
+}
+
+.form-field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.form-field__label {
+  display: block;
+  flex: 0 0 92px;
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Подпись над полем (без строки .form-field__row) */
+.form-field > .form-field__label {
+  flex: none;
+  margin-bottom: var(--space-xs);
+}
+
+.form-field__input {
+  width: 100%;
+  height: var(--size-control-md);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  transition: border-color var(--transition-fast);
+}
+
+/* Нативные контролы date/time под тёмную тему приложения */
+.form-field__input[type="date"],
+.form-field__input[type="time"] {
+  color-scheme: dark;
+}
+
+.form-field__input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.form-field__input--invalid {
+  border-color: var(--color-danger);
+}
+
+.form-field__hint {
+  margin-top: var(--space-xs);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.form-field__error {
+  margin-top: var(--space-xs);
+  font-size: var(--font-xs);
+  color: var(--color-danger);
 }

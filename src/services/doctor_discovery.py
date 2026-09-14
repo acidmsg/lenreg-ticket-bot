@@ -16,11 +16,54 @@ from src.services.metrics import prometheus_metrics
 _force_scan_event = asyncio.Event()
 """Событие, сигнализирующее о запросе принудительного сканирования."""
 
+_force_scan_loop: asyncio.AbstractEventLoop | None = None
+"""Event loop, в котором работает цикл discovery — владелец ``_force_scan_event``."""
 
-def trigger_force_scan() -> None:
-    """Устанавливает флаг принудительного сканирования (вызывается из API дашборда)."""
-    _force_scan_event.set()
+
+def _bind_force_scan_loop() -> None:
+    """Запоминает текущий event loop как владельца ``_force_scan_event``.
+
+    Вызывается при старте цикла discovery, чтобы ``trigger_force_scan()`` из
+    другого потока (веб-роутер uvicorn) знал, в какой loop планировать ``set()``.
+    """
+    global _force_scan_loop
+    _force_scan_loop = asyncio.get_running_loop()
+
+
+def trigger_force_scan() -> bool:
+    """Потокобезопасно устанавливает флаг принудительного сканирования врачей.
+
+    Вызывается из веб-роутера, то есть из потока uvicorn, поэтому прямой
+    ``Event.set()`` недопустим: событие принадлежит loop'у фоновой задачи
+    discovery, а ``set()`` из чужого потока завершает Future чужого loop'а
+    (``RuntimeError: Non-thread-safe operation invoked ...``). Если владелец
+    известен и работает — установка планируется через
+    ``AbstractEventLoop.call_soon_threadsafe()``; при вызове из того же loop'а
+    (в том числе после перехода на единый loop) — выполняется напрямую.
+
+    Returns:
+        True если флаг установлен; False если цикл discovery ещё не запущен
+        (запрос кнопки до старта задачи игнорируется без исключения).
+    """
+    loop = _force_scan_loop
+    if loop is None or not loop.is_running():
+        logger.warning(
+            "Принудительное сканирование врачей запрошено до запуска цикла discovery"
+        )
+        return False
+
+    try:
+        current_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    if current_loop is loop:
+        _force_scan_event.set()
+    else:
+        loop.call_soon_threadsafe(_force_scan_event.set)
+
     logger.info("Принудительное сканирование врачей запрошено через API")
+    return True
 
 
 async def fetch_specialties(
@@ -67,6 +110,7 @@ async def discovery_loop(
     """Цикл Discovery врачей — итерирует все активные clinic_ids из БД."""
 
     logger.info("Цикл Discovery врачей запущен (агрегированный)")
+    _bind_force_scan_loop()
 
     while True:
         # Проверка: включено ли плановое сканирование и/или запрошен force-скан
@@ -202,6 +246,8 @@ async def _discovery_iteration(
     Если плановое сканирование выключено (``doctor_scan_enabled != "1"``)
     и force-скан не запрошен — итерация завершается без действий (no-op).
     """
+    _bind_force_scan_loop()
+
     # Проверка: включено ли плановое сканирование и/или запрошен force-скан
     scan_enabled = await database.config.get_config("doctor_scan_enabled", "1")
     force_requested = _force_scan_event.is_set()

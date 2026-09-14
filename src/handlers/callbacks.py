@@ -19,6 +19,26 @@ CB_CANCEL_REGISTRATION = "cancel_registration"
 CB_NOOP = "noop"
 CB_MY_BOOKINGS = "my_bookings"
 
+# ── Callback'и мастера настройки фильтра отслеживания (T-21, §9.3.2) ──────────
+
+CB_FILTER_SKIP = "filter_skip"
+CB_FILTER_BACK = "filter_back"
+CB_FILTER_DONE = "filter_done"
+CB_FILTER_CANCEL = "filter_cancel"
+
+# Порядок шагов мастера: имена состояний FSM FilterSetupStates (§9.3.3).
+# Единый источник порядка для роутера мастера и клавиатуры.
+FILTER_WIZARD_STEPS: tuple[str, ...] = (
+    "wait_date_from",
+    "wait_date_to",
+    "wait_time_from",
+    "wait_time_to",
+    "wait_specific_dates",
+)
+
+# Шаг подтверждения мастера (сводка введённого фильтра).
+FILTER_WIZARD_SUMMARY_STEP = "wait_summary"
+
 # ── Типизированные CallbackData с полями данных ──────────────────────────────
 
 
@@ -140,6 +160,14 @@ class CloseSection(CallbackData, prefix="close_sec"):
 
 class StartMonitoring(CallbackData, prefix="start_mon"):
     """Добавление врача в отслеживание: start_mon_{p_id}_{clinic_id}_{d_id}."""
+
+    p_id: str
+    clinic_id: str
+    d_id: str
+
+
+class FilterSetup(CallbackData, prefix="filter"):
+    """Настройка фильтра отслеживания: filter_{p_id}_{clinic_id}_{d_id}."""
 
     p_id: str
     clinic_id: str

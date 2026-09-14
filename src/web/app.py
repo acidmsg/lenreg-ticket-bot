@@ -2,7 +2,12 @@
 Создание FastAPI-приложения для веб-дашборда и Telegram Mini App.
 
 Фабрика create_app() регистрирует middleware, статику, шаблоны и роутеры.
-Запускается как asyncio.Task в том же event loop, что и aiogram-бот.
+Приложение запускается как ``asyncio.Task`` (``uvicorn.Server.serve()``) в том же
+event loop'е, что и aiogram-бот, фоновые задачи и Prometheus-сервер: loop-bound
+ресурсы (``api``, ``db``, метрики) используются без перехода между потоками.
+
+Единый event loop процесса — TD-009, этап 2:
+[`event-loop-ownership.md`](../../specs/design/event-loop-ownership.md:1).
 """
 
 import logging
@@ -71,9 +76,12 @@ class StaticNoCacheMiddleware:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # startup: singleton'ы уже созданы в main.py, ничего не делаем
+    # startup: singleton'ы уже созданы в main.py, ничего не делаем.
+    # Создавать здесь ресурсы запрещено: они принадлежат процессу и его event
+    # loop'у, а не HTTP-приложению (см. event-loop-ownership.md, вариант C).
     yield
-    # shutdown: uvicorn.Server остановит себя сам при task.cancel()
+    # shutdown: остановкой управляет Server.serve() — main() выставляет
+    # server.should_exit = True и дренирует задачу; task.cancel() не используется.
 
 
 def create_app(

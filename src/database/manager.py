@@ -6,6 +6,8 @@ import asyncio
 import copy
 import time
 
+from loguru import logger
+
 from src.database.database import Database
 from src.database.types import (
     BookingEntry,
@@ -296,6 +298,41 @@ class DatabaseManager:
             updated = await self._db.get_user(uid)
             if updated:
                 self._data_cache[uid] = updated
+
+    async def update_monitoring_filter(
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        filter_data: dict[str, str],
+    ) -> None:
+        """Обновляет фильтр отслеживания врача (БД + кэш).
+
+        Raises:
+            ValueError: Если запись мониторинга не найдена.
+        """
+        uid = str(uid)
+        async with self._lock:
+            await self._db.update_monitoring_filter(uid, p_id, d_id, filter_data)
+
+            user_data = self._get_user_data_nolock(uid)
+            doctor_entry = user_data["monitoring"].get(p_id, {}).get(d_id)
+            if doctor_entry is not None:
+                doctor_entry["date_from"] = filter_data.get("date_from", "")
+                doctor_entry["date_to"] = filter_data.get("date_to", "")
+                doctor_entry["time_from"] = filter_data.get("time_from", "")
+                doctor_entry["time_to"] = filter_data.get("time_to", "")
+                doctor_entry["specific_dates"] = (
+                    filter_data.get("specific_dates", "") or "[]"
+                )
+
+        logger.info(
+            "Фильтр мониторинга обновлён: uid={}, p_id={}, d_id={}, поля={}",
+            uid,
+            p_id,
+            d_id,
+            sorted(filter_data.keys()),
+        )
 
     async def stop_all_monitoring(self, uid: str) -> None:
         uid = str(uid)

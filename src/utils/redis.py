@@ -31,8 +31,9 @@ class RedisClient:
 
     **Важно:** Экземпляры привязаны к event loop, в котором созданы.
     ``get_instance()`` возвращает экземпляр для текущего event loop.
-    Это позволяет использовать Redis из разных потоков (бот + веб-дашборд)
-    без ошибок «bound to a different event loop».
+    После перехода на единый event loop процесса (TD-009, этап 2) в карте
+    ровно один инстанс; per-loop механика сохранена как страховка от появления
+    второго loop'а и накладных расходов не создаёт.
 
     Использование:
         redis = await RedisClient.get_instance()
@@ -54,8 +55,8 @@ class RedisClient:
         """Возвращает экземпляр RedisClient для текущего event loop.
 
         Создаёт новый экземпляр при первом обращении из каждого event loop.
-        Это предотвращает ошибки «bound to a different event loop» при
-        использовании Redis из веб-дашборда (uvicorn в отдельном потоке).
+        Это предотвращает ошибки «bound to a different event loop», если
+        в процессе когда-либо появится второй event loop.
 
         Если Redis недоступен, экземпляр всё равно создаётся, но переходит
         в режим graceful degradation (is_available = False). Все методы
@@ -419,7 +420,12 @@ class RedisClient:
 
     @classmethod
     async def shutdown(cls) -> None:
-        """Закрывает все экземпляры RedisClient (по одному на event loop)."""
+        """Закрывает все экземпляры RedisClient (по одному на event loop).
+
+        После этапа 2 TD-009 в процессе один event loop, поэтому карта содержит
+        единственный инстанс, созданный в том же loop'е, откуда вызывается
+        ``shutdown()`` — закрытие из главного loop'а корректно.
+        """
         for instance in cls._instances.values():
             await instance.close()
         cls._instances.clear()

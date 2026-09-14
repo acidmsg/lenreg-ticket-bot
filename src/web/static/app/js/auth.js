@@ -22,9 +22,9 @@ export function isInTelegram() {
  */
 export function getInitData() {
   if (!isInTelegram()) {
-    return '';
+    return "";
   }
-  return window.Telegram.WebApp.initData || '';
+  return window.Telegram.WebApp.initData || "";
 }
 
 /**
@@ -35,13 +35,13 @@ export function getInitData() {
  */
 export function getInitDataError() {
   if (!isInTelegram()) {
-    return 'Приложение должно быть открыто внутри Telegram.';
+    return "Приложение должно быть открыто внутри Telegram.";
   }
   if (!getInitData()) {
     return (
-      'Не удалось получить данные аутентификации Telegram.\n\n' +
-      'Попробуйте открыть приложение через меню бота ' +
-      '(нажмите на название бота в шапке → «Мониторинг»).'
+      "Не удалось получить данные аутентификации Telegram.\n\n" +
+      "Попробуйте открыть приложение через меню бота " +
+      "(нажмите на название бота в шапке → «Мониторинг»)."
     );
   }
   return null;

@@ -5,13 +5,14 @@
  * @module views/patients
  */
 
-import { apiGet, apiPost, apiDelete } from '../api.js';
-import { isInTelegram } from '../auth.js';
-import { lucideIcon } from '../components/icon.js';
-import { escapeHtml } from '../utils/escape.js';
-import { renderError } from '../utils/error.js';
-import { showConfirm } from '../utils/ui.js';
-import { navigate } from '../app.js';
+import { apiGet, apiPost, apiDelete } from "../api.js";
+import { isInTelegram } from "../auth.js";
+import { createPatientCalendar } from "../components/calendar.js";
+import { lucideIcon } from "../components/icon.js";
+import { escapeHtml } from "../utils/escape.js";
+import { renderError } from "../utils/error.js";
+import { showConfirm } from "../utils/ui.js";
+import { navigate } from "../app.js";
 
 // ============================================================
 // Валидация
@@ -24,21 +25,21 @@ import { navigate } from '../app.js';
  * @returns {{ valid: boolean, error: string|null }}
  */
 function validatePatientName(value) {
-  const trimmed = (value || '').trim();
+  const trimmed = (value || "").trim();
   if (!trimmed) {
-    return { valid: false, error: 'Введите фамилию, имя и отчество' };
+    return { valid: false, error: "Введите фамилию, имя и отчество" };
   }
   if (!/^[а-яёА-ЯЁ\s-]+$/.test(trimmed)) {
     return {
       valid: false,
-      error: 'Допустима только кириллица, пробелы и дефис'
+      error: "Допустима только кириллица, пробелы и дефис",
     };
   }
   const parts = trimmed.split(/\s+/).filter(Boolean);
   if (parts.length !== 3) {
     return {
       valid: false,
-      error: 'ФИО должно состоять из трёх слов: Фамилия Имя Отчество'
+      error: "ФИО должно состоять из трёх слов: Фамилия Имя Отчество",
     };
   }
   return { valid: true, error: null };
@@ -51,22 +52,22 @@ function validatePatientName(value) {
  * @returns {{ valid: boolean, error: string|null }}
  */
 function validateBday(value) {
-  const trimmed = (value || '').trim();
+  const trimmed = (value || "").trim();
   if (!trimmed) {
-    return { valid: false, error: 'Введите дату рождения' };
+    return { valid: false, error: "Введите дату рождения" };
   }
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(trimmed)) {
     return {
       valid: false,
-      error: 'Дата рождения должна быть в формате ДД.ММ.ГГГГ'
+      error: "Дата рождения должна быть в формате ДД.ММ.ГГГГ",
     };
   }
 
-  const [d, m, y] = trimmed.split('.').map(Number);
+  const [d, m, y] = trimmed.split(".").map(Number);
 
   // Проверка месяца
   if (m < 1 || m > 12) {
-    return { valid: false, error: 'Некорректный месяц (01–12)' };
+    return { valid: false, error: "Некорректный месяц (01–12)" };
   }
 
   // Проверка дня с учётом реального календаря (високосные годы, разная длина месяцев)
@@ -74,7 +75,7 @@ function validateBday(value) {
   if (d < 1 || d > daysInMonth) {
     return {
       valid: false,
-      error: `Некорректный день для выбранного месяца (1–${daysInMonth})`
+      error: `Некорректный день для выбранного месяца (1–${daysInMonth})`,
     };
   }
 
@@ -83,7 +84,7 @@ function validateBday(value) {
   today.setHours(0, 0, 0, 0);
   const inputDate = new Date(y, m - 1, d);
   if (inputDate > today) {
-    return { valid: false, error: 'Дата рождения не может быть в будущем' };
+    return { valid: false, error: "Дата рождения не может быть в будущем" };
   }
 
   return { valid: true, error: null };
@@ -99,11 +100,11 @@ function validateBday(value) {
 function setFieldError(inputEl, errorEl, message) {
   if (!inputEl || !errorEl) return;
   if (message) {
-    inputEl.classList.add('form__input--invalid');
+    inputEl.classList.add("form__input--invalid");
     errorEl.textContent = message;
   } else {
-    inputEl.classList.remove('form__input--invalid');
-    errorEl.textContent = '';
+    inputEl.classList.remove("form__input--invalid");
+    errorEl.textContent = "";
   }
 }
 
@@ -157,7 +158,7 @@ function buildPatientFormHTML() {
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--color-danger); font-size: var(--font-sm);"></div>
       <div class="fab-group">
         <button class="btn btn--secondary btn--sm" id="patient-add-back">← Назад</button>
-        <button class="fab" id="patient-add-submit"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить</button>
+        <button class="fab" id="patient-add-submit"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить</button>
       </div>
     </div>
   `;
@@ -166,59 +167,6 @@ function buildPatientFormHTML() {
 // ============================================================
 // Календарь и маска даты
 // ============================================================
-
-/**
- * Инициализирует VanillaCalendar на поле ввода даты.
- *
- * @param {HTMLInputElement} dateInput — поле ввода даты
- * @returns {VanillaCalendar} экземпляр календаря
- */
-function initPatientCalendar(dateInput) {
-  // Сегодняшняя дата в YYYY-MM-DD — верхняя граница (нельзя родиться в будущем)
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-
-  const calendar = new VanillaCalendar(dateInput, {
-    input: true,
-    settings: {
-      lang: 'ru',
-      selection: {
-        day: 'single'
-      },
-      visibility: {
-        theme: 'dark'
-      },
-      range: {
-        min: '1900-01-01',
-        max: todayStr,
-        disablePast: false
-      }
-    },
-    actions: {
-      clickDay(event, self) {
-        // Блокируем выбор дат, отключённых библиотекой (за пределами range).
-        // Библиотека v2.9.10 не проверяет dayBtnDisabled в обработчике клика —
-        // только добавляет CSS-класс. Сбрасываем selectedDates до changeToInput.
-        const target = event.target;
-        if (target.classList.contains(self.CSSClasses.dayBtnDisabled)) {
-          self.selectedDates = [];
-        }
-      },
-      changeToInput(event, self) {
-        const date = self.selectedDates[0];
-        if (!date) return;
-        const [y, m, d] = date.split('-');
-        self.HTMLInputElement.value = `${d}.${m}.${y}`;
-        // Флаг предотвращает обратную синхронизацию (маска → календарь)
-        // при программной установке значения из календаря
-        self.HTMLInputElement._fromCalendar = true;
-        self.hide();
-      }
-    }
-  });
-  calendar.init();
-  return calendar;
-}
 
 /**
  * Навешивает умную маску ввода даты с посегментной валидацией цифр
@@ -234,9 +182,9 @@ function initPatientCalendar(dateInput) {
  * @param {HTMLElement} bdayError — элемент для ошибки валидации даты
  */
 function setupDateMask(inputEl, calendar, bdayError) {
-  inputEl.addEventListener('input', () => {
-    const raw = inputEl.value.replace(/\D/g, '');
-    let digits = '';
+  inputEl.addEventListener("input", () => {
+    const raw = inputEl.value.replace(/\D/g, "");
+    let digits = "";
 
     for (let i = 0; i < Math.min(raw.length, 8); i++) {
       const ch = raw[i];
@@ -270,10 +218,10 @@ function setupDateMask(inputEl, calendar, bdayError) {
       digits += ch;
     }
 
-    let formatted = '';
+    let formatted = "";
     if (digits.length > 0) formatted += digits.slice(0, 2);
-    if (digits.length > 2) formatted += '.' + digits.slice(2, 4);
-    if (digits.length > 4) formatted += '.' + digits.slice(4, 8);
+    if (digits.length > 2) formatted += "." + digits.slice(2, 4);
+    if (digits.length > 4) formatted += "." + digits.slice(4, 8);
 
     if (inputEl.value !== formatted) {
       inputEl.value = formatted;
@@ -300,7 +248,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
       // если дата валидна и ввод не из календаря — переключаем календарь
       // на соответствующий месяц/год и подсвечиваем выбранную дату.
       if (result.valid && !inputEl._fromCalendar) {
-        const [d, m, y] = inputEl.value.split('.').map(Number);
+        const [d, m, y] = inputEl.value.split(".").map(Number);
         // Параметры update() в VanillaCalendar Pro v2.9.10 — булевы флаги
         // (true = «использовать сохранённое значение из settings.selected»),
         // а не новые значения года/месяца. Передача числовых значений (year: 2025,
@@ -309,7 +257,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
         // Для переключения месяца/года нужно установить selectedYear/selectedMonth
         // (0-based, как Date.getMonth()) до вызова update() без аргументов.
         // Тогда be() возьмёт значения из selectedYear/selectedMonth/selectedDates.
-        const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         calendar.selectedDates = [dateStr];
         calendar.selectedYear = y;
         calendar.selectedMonth = m - 1; // 0-based: январь=0, ..., декабрь=11
@@ -324,7 +272,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
       // Год ещё не введён — авто-подставляем текущий или прошлый.
       // Если ДД.ММ.текущийГод > сегодня → используем прошлый год.
       // День подсвечиваем синтетической ISO-датой с вычисленным годом.
-      const [dd, mm] = inputEl.value.split('.').map(Number);
+      const [dd, mm] = inputEl.value.split(".").map(Number);
       if (mm >= 1 && mm <= 12) {
         const today = new Date();
         let year = today.getFullYear();
@@ -334,7 +282,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
         }
         // Подсвечиваем день в календаре при частичном вводе (ДД.ММ без года).
         // Синтетическая ISO-дата с вычисленным годом для визуальной подсветки.
-        const partialISO = `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        const partialISO = `${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
         calendar.selectedDates = [partialISO];
         calendar.selectedYear = year;
         calendar.selectedMonth = mm - 1; // 0-based
@@ -358,7 +306,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
       // Подсвечиваем день в календаре при частичном вводе (только ДД).
       // Синтетическая ISO-дата с вычисленным месяцем/годом для визуальной подсветки.
       const displayMonth = month + 1; // 1-based для ISO-строки
-      const partialISO = `${year}-${String(displayMonth).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      const partialISO = `${year}-${String(displayMonth).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
       calendar.selectedDates = [partialISO];
       calendar.selectedYear = year;
       calendar.selectedMonth = month;
@@ -374,7 +322,7 @@ function setupDateMask(inputEl, calendar, bdayError) {
       calendar.update();
     } else if (
       inputLen < 10 &&
-      inputEl.classList.contains('form__input--invalid')
+      inputEl.classList.contains("form__input--invalid")
     ) {
       // Сбрасываем ошибку при стирании символов
       setFieldError(inputEl, bdayError, null);
@@ -393,23 +341,23 @@ function setupDateMask(inputEl, calendar, bdayError) {
  * @param {Function} onSuccess — колбэк при успешном добавлении
  */
 function setupPatientFormSubmit(form, onSuccess) {
-  const container = form.closest('.patient-add-form');
+  const container = form.closest(".patient-add-form");
   if (!container) return;
 
-  const fioInput = container.querySelector('#patient-fio');
-  const bdayInput = container.querySelector('#patient-bday');
-  const aliasInput = container.querySelector('#patient-alias');
-  const fioError = container.querySelector('#patient-fio-error');
-  const bdayError = container.querySelector('#patient-bday-error');
-  const errorEl = container.querySelector('#patient-form-error');
-  const submitBtn = container.querySelector('#patient-add-submit');
+  const fioInput = container.querySelector("#patient-fio");
+  const bdayInput = container.querySelector("#patient-bday");
+  const aliasInput = container.querySelector("#patient-alias");
+  const fioError = container.querySelector("#patient-fio-error");
+  const bdayError = container.querySelector("#patient-bday-error");
+  const errorEl = container.querySelector("#patient-form-error");
+  const submitBtn = container.querySelector("#patient-add-submit");
 
   if (!submitBtn) return;
 
-  submitBtn.addEventListener('click', async () => {
-    const full_name = fioInput?.value?.trim() || '';
-    const birth_date = bdayInput?.value?.trim() || '';
-    const alias = aliasInput?.value?.trim() || '';
+  submitBtn.addEventListener("click", async () => {
+    const full_name = fioInput?.value?.trim() || "";
+    const birth_date = bdayInput?.value?.trim() || "";
+    const alias = aliasInput?.value?.trim() || "";
 
     // Валидация с подсветкой полей
     const fioResult = validatePatientName(full_name);
@@ -427,11 +375,11 @@ function setupPatientFormSubmit(form, onSuccess) {
     try {
       const body = { full_name, birth_date };
       if (alias) body.alias = alias;
-      await apiPost('/patients/add', body);
+      await apiPost("/patients/add", body);
 
       // Тактильный отклик (если доступен)
       if (isInTelegram() && window.Telegram.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
       }
 
       onSuccess();
@@ -457,14 +405,14 @@ export async function renderPatients(container) {
   `;
 
   try {
-    const data = await apiGet('/patients');
+    const data = await apiGet("/patients");
     const patients = data.patients || [];
 
     container.innerHTML = renderPatientList(patients);
     bindEvents(container);
   } catch (error) {
-    renderError(container, error.message, 'Повторить', () =>
-      renderPatients(container)
+    renderError(container, error.message, "Повторить", () =>
+      renderPatients(container),
     );
   }
 }
@@ -479,26 +427,26 @@ export async function renderPatientAddForm(container) {
 
   container.innerHTML = buildPatientFormHTML();
 
-  const dateInput = container.querySelector('#patient-bday');
-  const fioInput = container.querySelector('#patient-fio');
-  const fioError = container.querySelector('#patient-fio-error');
-  const bdayError = container.querySelector('#patient-bday-error');
+  const dateInput = container.querySelector("#patient-bday");
+  const fioInput = container.querySelector("#patient-fio");
+  const fioError = container.querySelector("#patient-fio-error");
+  const bdayError = container.querySelector("#patient-bday-error");
 
   // Инициализация календаря и маски даты
   let calendar = null;
   if (dateInput) {
-    calendar = initPatientCalendar(dateInput);
+    calendar = createPatientCalendar(dateInput);
     setupDateMask(dateInput, calendar, bdayError);
   }
 
   // Валидация ФИО в реальном времени
   if (fioInput) {
-    fioInput.addEventListener('blur', () => {
+    fioInput.addEventListener("blur", () => {
       const result = validatePatientName(fioInput.value);
       setFieldError(fioInput, fioError, result.error);
     });
-    fioInput.addEventListener('input', () => {
-      if (fioInput.classList.contains('form__input--invalid')) {
+    fioInput.addEventListener("input", () => {
+      if (fioInput.classList.contains("form__input--invalid")) {
         const result = validatePatientName(fioInput.value);
         if (result.valid) {
           setFieldError(fioInput, fioError, null);
@@ -509,7 +457,7 @@ export async function renderPatientAddForm(container) {
 
   // Валидация даты рождения в реальном времени (blur + input)
   if (dateInput) {
-    dateInput.addEventListener('blur', () => {
+    dateInput.addEventListener("blur", () => {
       const result = validateBday(dateInput.value);
       setFieldError(dateInput, bdayError, result.error);
       // Скрыть календарь с задержкой, чтобы focus успел установиться
@@ -524,17 +472,17 @@ export async function renderPatientAddForm(container) {
         }
       }, 150);
     });
-    dateInput.addEventListener('focus', () => {
+    dateInput.addEventListener("focus", () => {
       if (calendar) calendar.show();
     });
-    dateInput.addEventListener('input', () => {
+    dateInput.addEventListener("input", () => {
       const len = dateInput.value.trim().length;
       if (len === 10) {
         const result = validateBday(dateInput.value);
         setFieldError(dateInput, bdayError, result.error);
       } else if (
         len < 10 &&
-        dateInput.classList.contains('form__input--invalid')
+        dateInput.classList.contains("form__input--invalid")
       ) {
         setFieldError(dateInput, bdayError, null);
       }
@@ -542,18 +490,18 @@ export async function renderPatientAddForm(container) {
   }
 
   // Кнопка «Назад»
-  const backBtn = container.querySelector('#patient-add-back');
+  const backBtn = container.querySelector("#patient-add-back");
   if (backBtn) {
-    backBtn.addEventListener('click', () => {
-      navigate('patients');
+    backBtn.addEventListener("click", () => {
+      navigate("patients");
     });
   }
 
   // Отправка формы
-  const form = container.querySelector('#patient-form');
+  const form = container.querySelector("#patient-form");
   if (form) {
     setupPatientFormSubmit(form, () => {
-      navigate('patients');
+      navigate("patients");
     });
   }
 }
@@ -568,41 +516,41 @@ function renderPatientList(patients) {
   if (patients.length === 0) {
     return `
       <div class="empty-state">
-        <div class="empty-state__icon">${lucideIcon('user', 48)}</div>
+        <div class="empty-state__icon">${lucideIcon("user", 48)}</div>
         <p class="empty-state__text">
           У вас пока нет добавленных пациентов.
           Добавьте пациента, чтобы начать отслеживать врачей.
         </p>
-        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
+        <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить пациента</button>
       </div>
     `;
   }
 
   // Сортировка пациентов в алфавитном порядке по ФИО (кириллица).
   // localeCompare('ru') обеспечивает корректную сортировку букв «ё», «Ё» и т.д.
-  patients.sort((a, b) => (a.fio || '').localeCompare(b.fio || '', 'ru'));
+  patients.sort((a, b) => (a.fio || "").localeCompare(b.fio || "", "ru"));
 
   const items = patients
     .map(
       (p) => `
       <li class="patient-card" data-patient-id="${escapeHtml(p.patient_id)}">
         <div class="patient-card__info">
-          <div class="patient-card__name">${escapeHtml(p.fio || 'Без имени')}</div>
-          ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ''}
-          ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ''}
+          <div class="patient-card__name">${escapeHtml(p.fio || "Без имени")}</div>
+          ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ""}
+          ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ""}
         </div>
         <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
-          ${lucideIcon('trash-2', 18)}
+          ${lucideIcon("trash-2", 18)}
         </button>
       </li>
-    `
+    `,
     )
-    .join('');
+    .join("");
 
   return `
     <ul class="list">${items}</ul>
     <div class="mt-md text-center">
-      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon('circle-plus', 16)}</span> Добавить пациента</button>
+      <button class="btn btn--primary" id="patient-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить пациента</button>
     </div>
   `;
 }
@@ -613,32 +561,32 @@ function renderPatientList(patients) {
  * @param {HTMLElement} container — контейнер
  */
 function bindEvents(container) {
-  const addBtn = container.querySelector('#patient-add-btn');
+  const addBtn = container.querySelector("#patient-add-btn");
   if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      navigate('patient-add');
+    addBtn.addEventListener("click", () => {
+      navigate("patient-add");
     });
   }
 
   // Обработчики кнопок удаления пациента
-  container.querySelectorAll('.patient-card__delete').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+  container.querySelectorAll(".patient-card__delete").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const patientId = btn.dataset.patientId;
       const confirmed = await showConfirm(
-        'Удалить пациента из списка отслеживаемых?'
+        "Удалить пациента из списка отслеживаемых?",
       );
       if (confirmed) {
         try {
           await apiDelete(`/patients/${patientId}`);
           // Перезагружаем список пациентов
-          const patientsContainer = container.closest('#patients-content');
+          const patientsContainer = container.closest("#patients-content");
           if (patientsContainer) {
             await renderPatients(patientsContainer);
           }
         } catch (error) {
           if (window.showToast) {
-            window.showToast(error.message, 'error');
+            window.showToast(error.message, "error");
           } else {
             alert(error.message);
           }
@@ -657,7 +605,7 @@ function bindEvents(container) {
 function showFormError(el, message) {
   if (!el) return;
   el.textContent = message;
-  el.classList.remove('hidden');
+  el.classList.remove("hidden");
 }
 
 /**
@@ -667,5 +615,5 @@ function showFormError(el, message) {
  */
 function hideFormError(el) {
   if (!el) return;
-  el.classList.add('hidden');
+  el.classList.add("hidden");
 }

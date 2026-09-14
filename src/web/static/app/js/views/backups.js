@@ -8,13 +8,13 @@
  * @module views/backups
  */
 
-import { lucideIcon } from '../components/icon.js';
-import { escapeHtml } from '../utils/escape.js';
+import { lucideIcon } from "../components/icon.js";
+import { escapeHtml } from "../utils/escape.js";
 
 // ── Конфигурация ─────────────────────────────────────────────
 
 /** Базовый путь API бэкапов */
-const API_BASE = '/api/backups';
+const API_BASE = "/api/backups";
 
 /** @type {string|null} Токен подтверждения восстановления (шаг 1) */
 let restoreToken = null;
@@ -38,7 +38,7 @@ let restoreFilename = null;
  */
 function getApiKey() {
   const meta = document.querySelector('meta[name="x-api-key"]');
-  return meta ? meta.getAttribute('content') : null;
+  return meta ? meta.getAttribute("content") : null;
 }
 
 /**
@@ -56,14 +56,14 @@ const FETCH_TIMEOUT_MS = 30_000;
  */
 async function apiFetch(path, options = {}) {
   const headers = {
-    'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-    ...(options.headers || {})
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+    ...(options.headers || {}),
   };
 
   const apiKey = getApiKey();
   if (apiKey) {
-    headers['X-API-Key'] = apiKey;
+    headers["X-API-Key"] = apiKey;
   }
 
   const controller = new AbortController();
@@ -73,7 +73,7 @@ async function apiFetch(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
-      signal: controller.signal
+      signal: controller.signal,
     });
     return response;
   } finally {
@@ -88,7 +88,7 @@ async function apiFetch(path, options = {}) {
  * @returns {Promise<any>} распарсенный JSON
  */
 async function apiGet(path) {
-  const response = await apiFetch(path, { method: 'GET' });
+  const response = await apiFetch(path, { method: "GET" });
   return handleResponse(response);
 }
 
@@ -101,8 +101,8 @@ async function apiGet(path) {
  */
 async function apiPost(path, body = null) {
   const response = await apiFetch(path, {
-    method: 'POST',
-    body: body ? JSON.stringify(body) : undefined
+    method: "POST",
+    body: body ? JSON.stringify(body) : undefined,
   });
   return handleResponse(response);
 }
@@ -114,7 +114,7 @@ async function apiPost(path, body = null) {
  * @returns {Promise<any>} распарсенный JSON
  */
 async function apiDelete(path) {
-  const response = await apiFetch(path, { method: 'DELETE' });
+  const response = await apiFetch(path, { method: "DELETE" });
   return handleResponse(response);
 }
 
@@ -131,7 +131,7 @@ async function handleResponse(response) {
   } catch {
     if (!response.ok) {
       throw new Error(
-        `Ошибка сервера: ${response.status} ${response.statusText}`
+        `Ошибка сервера: ${response.status} ${response.statusText}`,
       );
     }
     return null;
@@ -140,7 +140,7 @@ async function handleResponse(response) {
   if (!response.ok) {
     const message =
       (Array.isArray(data.detail)
-        ? data.detail.map((e) => e.msg || JSON.stringify(e)).join('; ')
+        ? data.detail.map((e) => e.msg || JSON.stringify(e)).join("; ")
         : data.detail) ||
       data.message ||
       `Ошибка ${response.status}`;
@@ -157,10 +157,10 @@ async function handleResponse(response) {
  */
 async function init() {
   // Замена текста кнопки «Обновить» на иконку
-  const refreshBtn = document.getElementById('btn-refresh-backups');
+  const refreshBtn = document.getElementById("btn-refresh-backups");
   if (refreshBtn) {
-    refreshBtn.innerHTML = `${lucideIcon('refresh-cw', 16)}`;
-    refreshBtn.title = 'Обновить';
+    refreshBtn.innerHTML = `${lucideIcon("refresh-cw", 16)}`;
+    refreshBtn.title = "Обновить";
   }
 
   await Promise.all([loadStatus(), loadBackups()]);
@@ -171,56 +171,56 @@ async function init() {
  * Загружает и рендерит панель статуса.
  */
 async function loadStatus() {
-  const lastBackupEl = document.getElementById('status-last-backup');
-  const lastSizeEl = document.getElementById('status-last-size');
-  const integrityEl = document.getElementById('status-integrity');
-  const freeSpaceEl = document.getElementById('status-free-space');
+  const lastBackupEl = document.getElementById("status-last-backup");
+  const lastSizeEl = document.getElementById("status-last-size");
+  const integrityEl = document.getElementById("status-integrity");
+  const freeSpaceEl = document.getElementById("status-free-space");
 
   if (!lastBackupEl || !lastSizeEl || !integrityEl || !freeSpaceEl) return;
 
   try {
-    const data = await apiGet('/status');
+    const data = await apiGet("/status");
 
     // Специальная обработка статуса "no_backups" — вообще нет ни одного бэкапа
-    if (data.status === 'no_backups') {
-      lastBackupEl.textContent = 'Нет бэкапов';
-      lastBackupEl.classList.add('text-muted');
-      lastSizeEl.textContent = '—';
-      integrityEl.textContent = '—';
-      freeSpaceEl.textContent = data.free_space_human || '—';
+    if (data.status === "no_backups") {
+      lastBackupEl.textContent = "Нет бэкапов";
+      lastBackupEl.classList.add("text-muted");
+      lastSizeEl.textContent = "—";
+      integrityEl.textContent = "—";
+      freeSpaceEl.textContent = data.free_space_human || "—";
       return;
     }
 
     // last_backup: "none" (скрипт) или null/undefined — показываем «Никогда»
     if (
       data.last_backup &&
-      data.last_backup !== 'none' &&
-      data.last_backup !== 'None'
+      data.last_backup !== "none" &&
+      data.last_backup !== "None"
     ) {
       lastBackupEl.textContent = formatDateTime(data.last_backup);
-      lastBackupEl.classList.remove('text-muted');
+      lastBackupEl.classList.remove("text-muted");
     } else {
-      lastBackupEl.textContent = 'Никогда';
-      lastBackupEl.classList.add('text-muted');
+      lastBackupEl.textContent = "Никогда";
+      lastBackupEl.classList.add("text-muted");
     }
 
-    lastSizeEl.textContent = data.last_size_human || '—';
+    lastSizeEl.textContent = data.last_size_human || "—";
 
     // integrity: "N/A" означает «не проверялась» (нет бэкапов для проверки)
-    if (data.last_integrity && data.last_integrity !== 'N/A') {
+    if (data.last_integrity && data.last_integrity !== "N/A") {
       integrityEl.innerHTML = renderIntegrityBadge(data.last_integrity);
     } else {
-      integrityEl.textContent = '—';
+      integrityEl.textContent = "—";
     }
 
-    freeSpaceEl.textContent = data.free_space_human || '—';
+    freeSpaceEl.textContent = data.free_space_human || "—";
   } catch (error) {
-    lastBackupEl.textContent = 'Ошибка';
-    lastBackupEl.style.color = 'var(--color-danger)';
-    lastSizeEl.textContent = '—';
-    integrityEl.textContent = '—';
-    freeSpaceEl.textContent = '—';
-    console.error('Ошибка загрузки статуса бэкапов:', error);
+    lastBackupEl.textContent = "Ошибка";
+    lastBackupEl.style.color = "var(--color-danger)";
+    lastSizeEl.textContent = "—";
+    integrityEl.textContent = "—";
+    freeSpaceEl.textContent = "—";
+    console.error("Ошибка загрузки статуса бэкапов:", error);
   }
 }
 
@@ -228,13 +228,13 @@ async function loadStatus() {
  * Загружает и рендерит таблицу бэкапов.
  */
 async function loadBackups() {
-  const tbody = document.getElementById('backup-table-body');
+  const tbody = document.getElementById("backup-table-body");
   if (!tbody) return;
 
   tbody.innerHTML = `<tr><td colspan="5" class="text-muted">Загрузка...</td></tr>`;
 
   try {
-    const data = await apiGet('');
+    const data = await apiGet("");
     const backups = data.backups || [];
 
     if (backups.length === 0) {
@@ -243,11 +243,11 @@ async function loadBackups() {
       return;
     }
 
-    tbody.innerHTML = backups.map(renderBackupRow).join('');
+    tbody.innerHTML = backups.map(renderBackupRow).join("");
     bindRowEvents();
   } catch (error) {
     tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="color:var(--color-danger)">Ошибка загрузки: ${escapeHtml(error.message)}</td></tr>`;
-    console.error('Ошибка загрузки списка бэкапов:', error);
+    console.error("Ошибка загрузки списка бэкапов:", error);
   }
 }
 
@@ -274,7 +274,7 @@ function renderBackupRow(backup) {
           Восстановить
         </button>
         <button class="btn-link backup-delete-btn" data-filename="${escapeHtml(backup.filename)}" data-category="${escapeHtml(backup.category)}" style="color:var(--color-danger);margin-left:8px;" title="Удалить бэкап">
-          ${lucideIcon('trash-2', 18)}
+          ${lucideIcon("trash-2", 18)}
         </button>
       </td>
     </tr>
@@ -289,9 +289,9 @@ function renderBackupRow(backup) {
  */
 function renderCategoryBadge(category) {
   const labels = {
-    daily: 'Ежедневный',
-    weekly: 'Еженедельный',
-    monthly: 'Ежемесячный'
+    daily: "Ежедневный",
+    weekly: "Еженедельный",
+    monthly: "Ежемесячный",
   };
   const label = labels[category] || category;
   return `<span class="backup-category-badge backup-category-badge--${category}">${escapeHtml(label)}</span>`;
@@ -310,14 +310,14 @@ function renderIntegrityBadge(integrity) {
     ok: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#09b653" stroke-width="1.2" fill="#09b653" fill-opacity="0.15"/><path d="M5 8l2 2.5 4-3.5" stroke="#09b653" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     fail: '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#f85149" stroke-width="1.2" fill="#f85149" fill-opacity="0.15"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#f85149" stroke-width="1.2" stroke-linecap="round"/></svg>',
     unchecked:
-      '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#d29922" stroke-width="1.2" fill="#d29922" fill-opacity="0.15"/><path d="M8 2L1.5 13h13L8 2z" stroke="#d29922" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9" stroke="#d29922" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="#d29922"/></svg>'
+      '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#d29922" stroke-width="1.2" fill="#d29922" fill-opacity="0.15"/><path d="M8 2L1.5 13h13L8 2z" stroke="#d29922" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9" stroke="#d29922" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.6" fill="#d29922"/></svg>',
   };
   const map = {
-    ok: { text: 'Цел', cls: 'backup-integrity--ok' },
-    fail: { text: 'Повреждён', cls: 'backup-integrity--fail' },
-    unchecked: { text: 'Не проверен', cls: 'backup-integrity--unchecked' }
+    ok: { text: "Цел", cls: "backup-integrity--ok" },
+    fail: { text: "Повреждён", cls: "backup-integrity--fail" },
+    unchecked: { text: "Не проверен", cls: "backup-integrity--unchecked" },
   };
-  const info = map[integrity] || { text: integrity, cls: '' };
+  const info = map[integrity] || { text: integrity, cls: "" };
   const svg =
     svgMap[integrity] ||
     '<svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/></svg>';
@@ -336,11 +336,11 @@ function formatDateTime(isoString) {
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return isoString;
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   } catch {
     return isoString;
@@ -354,29 +354,29 @@ function formatDateTime(isoString) {
  */
 function bindEvents() {
   // Кнопка «Создать бэкап сейчас»
-  const createBtn = document.getElementById('btn-create-backup');
+  const createBtn = document.getElementById("btn-create-backup");
   if (createBtn) {
-    createBtn.addEventListener('click', onCreateBackup);
+    createBtn.addEventListener("click", onCreateBackup);
   }
 
   // Кнопка «Обновить»
-  const refreshBtn = document.getElementById('btn-refresh-backups');
+  const refreshBtn = document.getElementById("btn-refresh-backups");
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
+    refreshBtn.addEventListener("click", async () => {
       await Promise.all([loadStatus(), loadBackups()]);
     });
   }
 
   // Закрытие модального окна
-  const modalClose = document.getElementById('restore-modal-close');
+  const modalClose = document.getElementById("restore-modal-close");
   if (modalClose) {
-    modalClose.addEventListener('click', closeRestoreModal);
+    modalClose.addEventListener("click", closeRestoreModal);
   }
 
   // Клик по оверлею — закрыть модальное окно
-  const overlay = document.getElementById('restore-modal-overlay');
+  const overlay = document.getElementById("restore-modal-overlay");
   if (overlay) {
-    overlay.addEventListener('click', (e) => {
+    overlay.addEventListener("click", (e) => {
       if (e.target === overlay) {
         closeRestoreModal();
       }
@@ -388,8 +388,8 @@ function bindEvents() {
  * Привязывает обработчики к кнопкам «Восстановить» и «Удалить» в строках таблицы.
  */
 function bindRowEvents() {
-  document.querySelectorAll('.backup-restore-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+  document.querySelectorAll(".backup-restore-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const filename = btn.dataset.filename;
       const category = btn.dataset.category;
       if (filename) {
@@ -398,8 +398,8 @@ function bindRowEvents() {
     });
   });
 
-  document.querySelectorAll('.backup-delete-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+  document.querySelectorAll(".backup-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const filename = btn.dataset.filename;
       const category = btn.dataset.category;
       if (filename) {
@@ -415,37 +415,37 @@ function bindRowEvents() {
  * Обработчик кнопки «Создать бэкап сейчас».
  */
 async function onCreateBackup() {
-  const btn = document.getElementById('btn-create-backup');
-  const spinner = document.getElementById('backup-spinner');
+  const btn = document.getElementById("btn-create-backup");
+  const spinner = document.getElementById("backup-spinner");
 
   if (!btn || !spinner) return;
 
   btn.disabled = true;
-  btn.textContent = 'Выполняется...';
-  spinner.classList.remove('hidden');
+  btn.textContent = "Выполняется...";
+  spinner.classList.remove("hidden");
 
   try {
-    const data = await apiPost('/run');
+    const data = await apiPost("/run");
 
-    if (data.status === 'ok') {
-      showToast('Бэкап успешно создан', 'success');
+    if (data.status === "ok") {
+      showToast("Бэкап успешно создан", "success");
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
-      showToast(data.message || 'Ошибка создания бэкапа', 'error');
+      showToast(data.message || "Ошибка создания бэкапа", "error");
     }
   } catch (error) {
     if (
-      error.message.includes('409') ||
-      error.message.includes('уже выполняется')
+      error.message.includes("409") ||
+      error.message.includes("уже выполняется")
     ) {
-      showToast('Бэкап уже выполняется. Попробуйте позже.', 'warning');
+      showToast("Бэкап уже выполняется. Попробуйте позже.", "warning");
     } else {
-      showToast(`Ошибка: ${error.message}`, 'error');
+      showToast(`Ошибка: ${error.message}`, "error");
     }
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Создать бэкап сейчас';
-    spinner.classList.add('hidden');
+    btn.textContent = "Создать бэкап сейчас";
+    spinner.classList.add("hidden");
   }
 }
 
@@ -459,16 +459,16 @@ async function onCreateBackup() {
  */
 async function onDeleteBackup(filename, category) {
   const categoryLabels = {
-    daily: 'ежедневный',
-    weekly: 'еженедельный',
-    monthly: 'ежемесячный',
-    manual: 'ручной'
+    daily: "ежедневный",
+    weekly: "еженедельный",
+    monthly: "ежемесячный",
+    manual: "ручной",
   };
   const catLabel = categoryLabels[category] || category;
 
   if (
     !confirm(
-      `Удалить бэкап?\n\nФайл: ${filename}\nКатегория: ${catLabel}\n\nЭто действие необратимо.`
+      `Удалить бэкап?\n\nФайл: ${filename}\nКатегория: ${catLabel}\n\nЭто действие необратимо.`,
     )
   ) {
     return;
@@ -477,14 +477,14 @@ async function onDeleteBackup(filename, category) {
   try {
     const data = await apiDelete(`/${encodeURIComponent(filename)}`);
 
-    if (data.status === 'ok') {
-      showToast(`Бэкап ${filename} удалён`, 'success');
+    if (data.status === "ok") {
+      showToast(`Бэкап ${filename} удалён`, "success");
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
-      showToast(data.message || 'Ошибка удаления бэкапа', 'error');
+      showToast(data.message || "Ошибка удаления бэкапа", "error");
     }
   } catch (error) {
-    showToast(`Ошибка: ${error.message}`, 'error');
+    showToast(`Ошибка: ${error.message}`, "error");
   }
 }
 
@@ -500,16 +500,16 @@ function openRestoreStep1(filename, category) {
   restoreFilename = filename;
   restoreToken = null;
 
-  const body = document.getElementById('restore-modal-body');
-  const footer = document.getElementById('restore-modal-footer');
+  const body = document.getElementById("restore-modal-body");
+  const footer = document.getElementById("restore-modal-footer");
 
   if (!body || !footer) return;
 
   const categoryLabels = {
-    daily: 'ежедневный',
-    weekly: 'еженедельный',
-    monthly: 'ежемесячный',
-    manual: 'ручной'
+    daily: "ежедневный",
+    weekly: "еженедельный",
+    monthly: "ежемесячный",
+    manual: "ручной",
   };
   const catLabel = categoryLabels[category] || category;
 
@@ -529,11 +529,11 @@ function openRestoreStep1(filename, category) {
   `;
 
   document
-    .getElementById('restore-modal-cancel')
-    ?.addEventListener('click', closeRestoreModal);
+    .getElementById("restore-modal-cancel")
+    ?.addEventListener("click", closeRestoreModal);
   document
-    .getElementById('restore-modal-confirm')
-    ?.addEventListener('click', onRestoreStep1Confirm);
+    .getElementById("restore-modal-confirm")
+    ?.addEventListener("click", onRestoreStep1Confirm);
 
   showRestoreModal();
 }
@@ -542,20 +542,20 @@ function openRestoreStep1(filename, category) {
  * Подтверждение шага 1 — запрос токена.
  */
 async function onRestoreStep1Confirm() {
-  const body = document.getElementById('restore-modal-body');
-  const footer = document.getElementById('restore-modal-footer');
+  const body = document.getElementById("restore-modal-body");
+  const footer = document.getElementById("restore-modal-footer");
 
   if (!body || !footer) return;
 
   body.innerHTML = '<p class="text-muted">Запрос подтверждения...</p>';
-  footer.innerHTML = '';
+  footer.innerHTML = "";
 
   try {
     const data = await apiPost(
-      `/restore/${encodeURIComponent(restoreFilename)}`
+      `/restore/${encodeURIComponent(restoreFilename)}`,
     );
 
-    if (data.status === 'confirm_required') {
+    if (data.status === "confirm_required") {
       restoreToken = data.token;
       openRestoreStep2();
     } else {
@@ -563,16 +563,16 @@ async function onRestoreStep1Confirm() {
       footer.innerHTML =
         '<button class="btn btn--secondary" id="restore-modal-cancel">Закрыть</button>';
       document
-        .getElementById('restore-modal-cancel')
-        ?.addEventListener('click', closeRestoreModal);
+        .getElementById("restore-modal-cancel")
+        ?.addEventListener("click", closeRestoreModal);
     }
   } catch (error) {
     body.innerHTML = `<p style="color:var(--color-danger)">Ошибка: ${escapeHtml(error.message)}</p>`;
     footer.innerHTML =
       '<button class="btn btn--secondary" id="restore-modal-cancel">Закрыть</button>';
     document
-      .getElementById('restore-modal-cancel')
-      ?.addEventListener('click', closeRestoreModal);
+      .getElementById("restore-modal-cancel")
+      ?.addEventListener("click", closeRestoreModal);
   }
 }
 
@@ -580,8 +580,8 @@ async function onRestoreStep1Confirm() {
  * Шаг 2: финальное подтверждение с токеном.
  */
 function openRestoreStep2() {
-  const body = document.getElementById('restore-modal-body');
-  const footer = document.getElementById('restore-modal-footer');
+  const body = document.getElementById("restore-modal-body");
+  const footer = document.getElementById("restore-modal-footer");
 
   if (!body || !footer) return;
 
@@ -605,37 +605,37 @@ function openRestoreStep2() {
   `;
 
   document
-    .getElementById('restore-modal-cancel')
-    ?.addEventListener('click', closeRestoreModal);
+    .getElementById("restore-modal-cancel")
+    ?.addEventListener("click", closeRestoreModal);
   document
-    .getElementById('restore-modal-final-confirm')
-    ?.addEventListener('click', onRestoreFinalConfirm);
+    .getElementById("restore-modal-final-confirm")
+    ?.addEventListener("click", onRestoreFinalConfirm);
 }
 
 /**
  * Финальное подтверждение — вызов restore с токеном.
  */
 async function onRestoreFinalConfirm() {
-  const body = document.getElementById('restore-modal-body');
-  const footer = document.getElementById('restore-modal-footer');
+  const body = document.getElementById("restore-modal-body");
+  const footer = document.getElementById("restore-modal-footer");
 
   if (!body || !footer) return;
 
   body.innerHTML = '<p class="text-muted">Выполняется восстановление...</p>';
-  footer.innerHTML = '';
+  footer.innerHTML = "";
 
   try {
     const data = await apiPost(
-      `/restore/${encodeURIComponent(restoreFilename)}?token=${encodeURIComponent(restoreToken)}`
+      `/restore/${encodeURIComponent(restoreFilename)}?token=${encodeURIComponent(restoreToken)}`,
     );
 
-    if (data.status === 'ok') {
+    if (data.status === "ok") {
       body.innerHTML =
         '<p style="color:var(--status-available)">Восстановление успешно завершено.</p>';
-      showToast('База данных восстановлена из бэкапа', 'success');
+      showToast("База данных восстановлена из бэкапа", "success");
       await Promise.all([loadStatus(), loadBackups()]);
     } else {
-      body.innerHTML = `<p style="color:var(--color-danger)">Ошибка восстановления: ${escapeHtml(data.message || 'Неизвестная ошибка')}</p>`;
+      body.innerHTML = `<p style="color:var(--color-danger)">Ошибка восстановления: ${escapeHtml(data.message || "Неизвестная ошибка")}</p>`;
     }
   } catch (error) {
     body.innerHTML = `<p style="color:var(--color-danger)">Ошибка: ${escapeHtml(error.message)}</p>`;
@@ -644,18 +644,18 @@ async function onRestoreFinalConfirm() {
   footer.innerHTML =
     '<button class="btn btn--secondary" id="restore-modal-close-btn">Закрыть</button>';
   document
-    .getElementById('restore-modal-close-btn')
-    ?.addEventListener('click', closeRestoreModal);
+    .getElementById("restore-modal-close-btn")
+    ?.addEventListener("click", closeRestoreModal);
 }
 
 /**
  * Показывает модальное окно.
  */
 function showRestoreModal() {
-  const overlay = document.getElementById('restore-modal-overlay');
+  const overlay = document.getElementById("restore-modal-overlay");
   if (overlay) {
-    overlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    overlay.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
   }
 }
 
@@ -663,10 +663,10 @@ function showRestoreModal() {
  * Скрывает модальное окно и сбрасывает состояние.
  */
 function closeRestoreModal() {
-  const overlay = document.getElementById('restore-modal-overlay');
+  const overlay = document.getElementById("restore-modal-overlay");
   if (overlay) {
-    overlay.classList.add('hidden');
-    document.body.style.overflow = '';
+    overlay.classList.add("hidden");
+    document.body.style.overflow = "";
   }
   restoreToken = null;
   restoreFilename = null;
@@ -676,4 +676,4 @@ function closeRestoreModal() {
 
 // ── Запуск ───────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener("DOMContentLoaded", init);

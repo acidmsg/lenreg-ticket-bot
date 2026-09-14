@@ -592,8 +592,186 @@ msgstr "❌ Произошла непредвиденная ошибка."
 
 #: src/handlers/common.py (start_monitoring)
 msgid "monitoring-already-exists"
-msgstr "⚠️ Враг уже в отслеживании."
+msgstr "⚠️ Врач уже в отслеживании."
 
 #: src/handlers/common.py (book_confirm_section)
 msgid "btn-back-to-slots"
 msgstr "↩ Назад к слотам"
+
+#: src/handlers/common.py (filter_setup)
+msgid "filter-setup-title"
+msgstr "Настройка фильтра отслеживания"
+
+#: src/web/routers/user_api.py (get_available_doctors)
+msgid "matching-slots-count"
+msgstr "Под фильтр: {count}"
+
+#: src/web/routers/user_api.py (update_monitoring_filter)
+msgid "filter-updated"
+msgstr "✅ Фильтр обновлён"
+
+# ── Мастер настройки фильтра отслеживания (T-21, §9) ──
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-date-from"
+msgstr "Шаг 1/5. Введите дату начала интервала (ДД.ММ.ГГГГ) или пропустите:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-date-to"
+msgstr "Шаг 2/5. Введите дату конца интервала (ДД.ММ.ГГГГ) или пропустите:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-time-from"
+msgstr "Шаг 3/5. Введите время начала интервала (ЧЧ:ММ) или пропустите:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-time-to"
+msgstr "Шаг 4/5. Введите время конца интервала (ЧЧ:ММ) или пропустите:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-specific-dates"
+msgstr "Шаг 5/5. Перечислите конкретные даты через запятую (ДД.ММ.ГГГГ) или пропустите:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-step-summary-title"
+msgstr "Проверьте фильтр:"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-date-range"
+msgstr "📅 Даты: {date_from} – {date_to}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-time-range"
+msgstr "🕒 Время: {time_from} – {time_to}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-specific-dates"
+msgstr "📌 Конкретные даты: {dates}"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-summary-empty"
+msgstr "Фильтр не задан — уведомления обо всех талонах."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-saved"
+msgstr "✅ Фильтр сохранён"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-saved-empty"
+msgstr "✅ Мониторинг добавлен без фильтра"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-cancelled"
+msgstr "Настройка фильтра отменена. Мониторинг остался без фильтра."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date"
+msgstr "❌ Неверный формат даты. Ожидается ДД.ММ.ГГГГ, например 25.06.2026."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date-past"
+msgstr "❌ Дата не может быть в прошлом."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-time"
+msgstr "❌ Неверный формат времени. Ожидается ЧЧ:ММ, например 09:30."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-date-range"
+msgstr "❌ Дата окончания раньше даты начала."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-time-range"
+msgstr "❌ Конец интервала времени раньше начала."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "filter-err-specific-dates"
+msgstr "❌ Не удалось разобрать даты. Перечислите их через запятую в формате ДД.ММ.ГГГГ (не более 10)."
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-skip"
+msgstr "⏭ Пропустить"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-back"
+msgstr "↩ Назад"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-done"
+msgstr "✅ Готово"
+
+#: src/handlers/filter_setup.py (filter wizard)
+msgid "btn-filter-cancel"
+msgstr "✕ Отмена"
+
+#: src/keyboards/inline.py (get_doctor_section_keyboard)
+msgid "btn-filter-setup"
+msgstr "🔎 Настроить фильтр"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-modal-title"
+msgstr "Фильтр отслеживания"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-date-from"
+msgstr "Дата с"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-date-to"
+msgstr "Дата по"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-time-from"
+msgstr "Время с"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-time-to"
+msgstr "Время по"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-specific-dates"
+msgstr "Конкретные даты"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-field-specific-dates-hint"
+msgstr "Через запятую, формат ГГГГ-ММ-ДД, не более 10"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-hint-empty"
+msgstr "Оставьте поля пустыми, чтобы получать уведомления обо всех талонах."
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-modal-cancel"
+msgstr "Отмена"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "btn-filter-save"
+msgstr "Сохранить"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "btn-filter-reset"
+msgstr "Сбросить фильтр"
+
+#: src/web/static/app/js/components/filter-modal.js
+msgid "filter-save-error"
+msgstr "❌ Не удалось сохранить фильтр: {reason}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-slots-count"
+msgstr "Слотов: {count}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-filter-interval"
+msgstr "Интервал: {range}"
+
+#: src/web/static/app/js/components/card.js
+msgid "card-filter-time"
+msgstr "Время: {range}"
+
+#: src/handlers/common.py
+msgid "booking-ticket-code-label"
+msgstr "Номер талона: {ticket}"
+
+#: src/handlers/common.py
+msgid "booking-ticket-barcode-unavailable"
+msgstr "Штрих-код талона недоступен — покажите этот номер талона: {ticket}"

@@ -105,6 +105,26 @@ poetry run python -m src.main
 
 </details>
 
+## Проверки кода
+
+### Python
+
+```bash
+poetry install --with dev
+pytest
+ruff check src
+```
+
+### Фронтенд Mini App (JS)
+
+JS-модули Mini App (`src/web/static/app/js`) покрыты Jest-тестами (`tests/js/`).
+
+```bash
+npm ci          # установка dev-зависимостей
+npm run lint:js # ESLint
+npm test        # Jest-тесты
+```
+
 ## Лицензия
 
 ISC. Подробнее — в [`pyproject.toml`](pyproject.toml:7).

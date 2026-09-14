@@ -8,12 +8,12 @@
  * @module views/add
  */
 
-import { apiGet, apiPost } from '../api.js';
-import { isInTelegram } from '../auth.js';
-import { createStepper } from '../components/stepper.js';
-import { escapeHtml } from '../utils/escape.js';
-import { lucideIcon } from '../components/icon.js';
-import { navigate } from '../app.js';
+import { apiGet, apiPost } from "../api.js";
+import { isInTelegram } from "../auth.js";
+import { createStepper } from "../components/stepper.js";
+import { escapeHtml } from "../utils/escape.js";
+import { lucideIcon } from "../components/icon.js";
+import { navigate } from "../app.js";
 
 /**
  * Рендерит экран добавления врача в указанный контейнер.
@@ -23,63 +23,54 @@ import { navigate } from '../app.js';
 export function renderAddDoctor(container) {
   if (!container) return;
 
-  /** Выбранный пациент (если один — выбирается автоматически) */
-  let selectedPatient = null;
-
-  /** ID выбранной поликлиники */
-  let selectedClinic = null;
-
-  /** ID выбранного врача */
-  let selectedDoctor = null;
-
   const steps = [
     {
-      title: 'Выберите пациента',
-      description: 'Для кого отслеживать врача?',
+      title: "Выберите пациента",
+      description: "Для кого отслеживать врача?",
       loadData: loadPatients,
-      renderItem: renderPatientItem
+      renderItem: renderPatientItem,
     },
     {
-      title: 'Поиск врача',
-      description: `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`,
-      searchPlaceholder: 'Фамилия, имя или отчество...',
-      searchMode: 'doctors',
+      title: "Поиск врача",
+      description: `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`,
+      searchPlaceholder: "Фамилия, имя или отчество...",
+      searchMode: "doctors",
       onSearchModeChange: (mode) => {
         const step = steps[1];
-        if (mode === 'doctors') {
-          step.title = 'Поиск врача';
-          step.description = `${lucideIcon('search', 14)} Начните вводить фамилию, имя или отчество врача`;
-          step.searchPlaceholder = 'Фамилия, имя или отчество...';
+        if (mode === "doctors") {
+          step.title = "Поиск врача";
+          step.description = `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
+          step.searchPlaceholder = "Фамилия, имя или отчество...";
         } else {
-          step.title = 'Выбор поликлиники';
-          step.description = 'Выберите поликлинику из списка';
-          step.searchPlaceholder = 'Поиск клиники...';
+          step.title = "Выбор поликлиники";
+          step.description = "Выберите поликлинику из списка";
+          step.searchPlaceholder = "Поиск клиники...";
         }
       },
       loadData: async (selections) => {
-        if (steps[1].searchMode === 'doctors') {
+        if (steps[1].searchMode === "doctors") {
           return await searchDoctorsGlobally(selections);
         }
         return await loadClinics(selections);
       },
       renderItem: (item) => {
-        if (steps[1].searchMode === 'doctors') {
+        if (steps[1].searchMode === "doctors") {
           return renderDoctorSearchItem(item);
         }
         return renderClinicItem(item);
-      }
+      },
     },
     {
-      title: 'Выберите врача',
-      description: 'Какого конкретно врача отслеживать?',
-      searchPlaceholder: 'Поиск по имени или специальности...',
+      title: "Выберите врача",
+      description: "Какого конкретно врача отслеживать?",
+      searchPlaceholder: "Поиск по имени или специальности...",
       loadData: loadDoctors,
-      renderItem: renderDoctorItem
+      renderItem: renderDoctorItem,
     },
     {
-      title: 'Подтверждение',
+      title: "Подтверждение",
       description:
-        'Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг',
+        "Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг",
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
         const patient = selections[0]?.value || {};
@@ -89,8 +80,8 @@ export function renderAddDoctor(container) {
           // Глобальный поиск: selections[1] — врач с clinic_id/clinic_name внутри
           doctor = selections[1]?.value || {};
           clinic = {
-            name: doctor?.clinic_name || '',
-            short_name: doctor?.clinic_name || ''
+            name: doctor?.clinic_name || "",
+            short_name: doctor?.clinic_name || "",
           };
         } else {
           // Нормальный поток: selections[1] — поликлиника, selections[2] — врач
@@ -104,12 +95,12 @@ export function renderAddDoctor(container) {
             patient,
             clinic,
             doctor,
-            _skipNext: selections[1]?._skipNext
-          }
+            _skipNext: selections[1]?._skipNext,
+          },
         ];
       },
-      renderItem: (item) => renderConfirmation(item)
-    }
+      renderItem: (item) => renderConfirmation(item),
+    },
   ];
 
   createStepper({
@@ -126,9 +117,9 @@ export function renderAddDoctor(container) {
         // Глобальный поиск: doctor уже содержит clinic_id
         doctor = selections[1]?.value;
         clinic = {
-          clinic_id: doctor?.clinic_id || '',
-          short_name: doctor?.clinic_name || '',
-          name: doctor?.clinic_name || ''
+          clinic_id: doctor?.clinic_id || "",
+          short_name: doctor?.clinic_name || "",
+          name: doctor?.clinic_name || "",
         };
       } else {
         // Нормальный поток
@@ -136,44 +127,43 @@ export function renderAddDoctor(container) {
         doctor = selections[2]?.value;
       }
 
-      const clinicName = clinic?.short_name || clinic?.name || '';
-      const doctorName = extractDoctorName(doctor) || '';
-      const specialtyName = doctor?.specialty_name || '';
+      const doctorName = extractDoctorName(doctor) || "";
+      const specialtyName = doctor?.specialty_name || "";
 
       try {
-        await apiPost('/doctors/add', {
-          clinic_id: clinic?.clinic_id || clinic?.id || String(clinic || ''),
-          specialty_id: doctor?.specialty_id || '',
-          doctor_id: doctor?.doctor_id || doctor?.id || String(doctor || ''),
+        await apiPost("/doctors/add", {
+          clinic_id: clinic?.clinic_id || clinic?.id || String(clinic || ""),
+          specialty_id: doctor?.specialty_id || "",
+          doctor_id: doctor?.doctor_id || doctor?.id || String(doctor || ""),
           patient_id:
-            patient?.patient_id || patient?.id || String(patient || ''),
+            patient?.patient_id || patient?.id || String(patient || ""),
           doctor_name: doctorName,
-          specialty_name: specialtyName
+          specialty_name: specialtyName,
         });
 
         // Тактильный отклик
         if (isInTelegram()) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
         }
 
         // Возвращаемся на главный экран
-        navigate('doctors');
+        navigate("doctors");
       } catch (error) {
         // Дубликат (врач уже отслеживается) — просто возвращаемся на главную без ошибки
-        const msg = (error.message || '').toLowerCase();
+        const msg = (error.message || "").toLowerCase();
         if (
-          msg.includes('уже отслеживается') ||
-          msg.includes('already') ||
-          msg.includes('duplicate') ||
-          msg.includes('exists')
+          msg.includes("уже отслеживается") ||
+          msg.includes("already") ||
+          msg.includes("duplicate") ||
+          msg.includes("exists")
         ) {
-          navigate('doctors');
+          navigate("doctors");
           return;
         }
 
         if (isInTelegram()) {
           window.Telegram.WebApp.showAlert(
-            `Ошибка при добавлении: ${error.message}`
+            `Ошибка при добавлении: ${error.message}`,
           );
         } else {
           alert(`Ошибка при добавлении: ${error.message}`);
@@ -181,18 +171,18 @@ export function renderAddDoctor(container) {
       }
     },
     onCancel: () => {
-      navigate('doctors');
-    }
+      navigate("doctors");
+    },
   });
 
   // Перехватываем клики по уже отслеживаемым врачам
   container.addEventListener(
-    'click',
+    "click",
     (e) => {
-      const stepperItem = e.target.closest('.stepper-item');
+      const stepperItem = e.target.closest(".stepper-item");
       if (!stepperItem) return;
 
-      const monitoredEl = stepperItem.querySelector('.doctor-card--monitored');
+      const monitoredEl = stepperItem.querySelector(".doctor-card--monitored");
       if (!monitoredEl) return;
 
       // Останавливаем всплытие, чтобы stepper не засчитал выбор
@@ -200,13 +190,13 @@ export function renderAddDoctor(container) {
       e.stopImmediatePropagation();
 
       if (isInTelegram()) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred("warning");
       }
       if (window.showToast) {
-        window.showToast('Этот врач уже отслеживается');
+        window.showToast("Этот врач уже отслеживается");
       }
     },
-    true
+    true,
   );
 }
 
@@ -220,23 +210,23 @@ export function renderAddDoctor(container) {
  * @returns {Promise<Array<{value: object, label: string}>>}
  */
 async function loadPatients() {
-  const data = await apiGet('/patients');
+  const data = await apiGet("/patients");
   const patients = data.patients || [];
 
   if (patients.length === 0) {
     throw new Error(
-      'У вас нет добавленных пациентов. Вернитесь назад и нажмите «Пациенты», чтобы добавить пациента.'
+      "У вас нет добавленных пациентов. Вернитесь назад и нажмите «Пациенты», чтобы добавить пациента.",
     );
   }
 
   // Сортировка пациентов в алфавитном порядке по ФИО (кириллица).
   // localeCompare('ru') обеспечивает корректную сортировку букв «ё», «Ё» и т.д.
-  patients.sort((a, b) => (a.fio || '').localeCompare(b.fio || '', 'ru'));
+  patients.sort((a, b) => (a.fio || "").localeCompare(b.fio || "", "ru"));
 
   return patients.map((p) => ({
     value: p,
-    label: `${p.fio || 'Пациент'}${p.alias ? ` (${p.alias})` : ''}`,
-    subtitle: p.bday ? `Дата рождения: ${p.bday}` : ''
+    label: `${p.fio || "Пациент"}${p.alias ? ` (${p.alias})` : ""}`,
+    subtitle: p.bday ? `Дата рождения: ${p.bday}` : "",
   }));
 }
 
@@ -247,22 +237,22 @@ async function loadPatients() {
  */
 async function loadClinics() {
   // Пытаемся загрузить из localStorage (TTL 1 час)
-  const cached = getFromCache('clinics_cache');
+  const cached = getFromCache("clinics_cache");
   if (cached) {
     return cached;
   }
 
-  const data = await apiGet('/clinics');
+  const data = await apiGet("/clinics");
   const clinics = data.clinics || [];
 
   const items = clinics.map((c) => ({
     value: c,
-    label: c.short_name || c.name || 'Поликлиника',
-    subtitle: `${c.name || ''}${c.city ? `, ${c.city}` : ''}`
+    label: c.short_name || c.name || "Поликлиника",
+    subtitle: `${c.name || ""}${c.city ? `, ${c.city}` : ""}`,
   }));
 
   // Кэшируем на 1 час
-  saveToCache('clinics_cache', items);
+  saveToCache("clinics_cache", items);
 
   return items;
 }
@@ -288,18 +278,18 @@ async function loadDoctors(selections = []) {
   }
   // Если нет clinic_id — не вызываем API (гонка при быстром переключении)
   if (!params.clinic_id) return [];
-  const data = await apiGet('/doctors/available', params);
+  const data = await apiGet("/doctors/available", params);
   const doctors = data.doctors || [];
 
   // Получаем текущие мониторинги пользователя, чтобы пометить уже отслеживаемых врачей
   let monitoredDoctorIds = new Set();
   try {
-    const monitoringData = await apiGet('/doctors', {
-      patient_id: params.patient_id || ''
+    const monitoringData = await apiGet("/doctors", {
+      patient_id: params.patient_id || "",
     });
     const monitoredDoctors = monitoringData.doctors || [];
     monitoredDoctorIds = new Set(
-      monitoredDoctors.map((d) => String(d.doctor_id))
+      monitoredDoctors.map((d) => String(d.doctor_id)),
     );
   } catch {
     // Если не удалось получить мониторинги — не блокируем загрузку списка
@@ -307,13 +297,13 @@ async function loadDoctors(selections = []) {
 
   return doctors.map((d) => ({
     value: d,
-    label: extractDoctorName(d) || 'Неизвестный врач',
-    specialty: d.specialty_name || '',
+    label: extractDoctorName(d) || "Неизвестный врач",
+    specialty: d.specialty_name || "",
     subtitle:
       d.free_tickets !== undefined
         ? `Свободных номерков: ${d.free_tickets}`
-        : '',
-    _monitored: monitoredDoctorIds.has(String(d.doctor_id))
+        : "",
+    _monitored: monitoredDoctorIds.has(String(d.doctor_id)),
   }));
 }
 
@@ -329,8 +319,8 @@ async function loadDoctors(selections = []) {
  */
 async function searchDoctorsGlobally(selections = []) {
   // Читаем поисковый запрос из поля ввода stepper
-  const searchInput = document.getElementById('stepper-search');
-  const query = searchInput ? searchInput.value.trim() : '';
+  const searchInput = document.getElementById("stepper-search");
+  const query = searchInput ? searchInput.value.trim() : "";
 
   if (query.length < 2) {
     return [];
@@ -338,7 +328,7 @@ async function searchDoctorsGlobally(selections = []) {
 
   const params = { q: query };
 
-  const data = await apiGet('/doctors/search', params);
+  const data = await apiGet("/doctors/search", params);
   const doctors = data.doctors || [];
 
   // Получаем текущие мониторинги, чтобы пометить уже отслеживаемых врачей
@@ -346,12 +336,12 @@ async function searchDoctorsGlobally(selections = []) {
   try {
     const patient = selections[0]?.value;
     if (patient) {
-      const monitoringData = await apiGet('/doctors', {
-        patient_id: patient.patient_id || patient.id || ''
+      const monitoringData = await apiGet("/doctors", {
+        patient_id: patient.patient_id || patient.id || "",
       });
       const monitoredDoctors = monitoringData.doctors || [];
       monitoredDoctorIds = new Set(
-        monitoredDoctors.map((d) => String(d.doctor_id))
+        monitoredDoctors.map((d) => String(d.doctor_id)),
       );
     }
   } catch {
@@ -360,12 +350,12 @@ async function searchDoctorsGlobally(selections = []) {
 
   return doctors.map((d) => ({
     value: d,
-    label: d.name || 'Неизвестный врач',
-    specialty: d.specialty_name || '',
-    subtitle: d.clinic_name || '',
+    label: d.name || "Неизвестный врач",
+    specialty: d.specialty_name || "",
+    subtitle: d.clinic_name || "",
     // Флаг для stepper: пропустить шаг выбора врача внутри клиники
     _skipNext: true,
-    _monitored: monitoredDoctorIds.has(String(d.doctor_id))
+    _monitored: monitoredDoctorIds.has(String(d.doctor_id)),
   }));
 }
 
@@ -383,9 +373,9 @@ function renderPatientItem(item) {
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
-      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
+      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ""}
     </div>
-    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
+    <span class="list__item-arrow">${lucideIcon("arrow-right", 16)}</span>
   `;
 }
 
@@ -399,9 +389,9 @@ function renderClinicItem(item) {
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
-      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
+      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ""}
     </div>
-    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
+    <span class="list__item-arrow">${lucideIcon("arrow-right", 16)}</span>
   `;
 }
 
@@ -426,8 +416,8 @@ function renderDoctorSearchItem(item) {
       <div class="doctor-card--monitored">
         <div class="list__item-content">
           <div class="list__item-title">${escapeHtml(item.label)}</div>
-          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ''}
+          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ""}
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ""}
           <div class="list__item-subtitle" style="color: var(--color-danger);">уже отслеживается</div>
         </div>
       </div>
@@ -437,10 +427,10 @@ function renderDoctorSearchItem(item) {
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
-      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
+      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ""}
+      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ""}
     </div>
-    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
+    <span class="list__item-arrow">${lucideIcon("arrow-right", 16)}</span>
   `;
 }
 
@@ -457,8 +447,8 @@ function renderDoctorItem(item) {
       <div class="doctor-card--monitored">
         <div class="list__item-content">
           <div class="list__item-title">${escapeHtml(item.label)}</div>
-          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ''}
+          ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ""}
+          ${item.subtitle ? `<div class="list__item-subtitle" style="color: var(--color-text-secondary);">${escapeHtml(item.subtitle)}</div>` : ""}
           <div class="list__item-subtitle" style="color: var(--color-danger);">уже отслеживается</div>
         </div>
       </div>
@@ -468,10 +458,10 @@ function renderDoctorItem(item) {
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
-      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ''}
-      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ''}
+      ${item.specialty ? `<div class="list__item-subtitle">${escapeHtml(item.specialty)}</div>` : ""}
+      ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ""}
     </div>
-    <span class="list__item-arrow">${lucideIcon('arrow-right', 16)}</span>
+    <span class="list__item-arrow">${lucideIcon("arrow-right", 16)}</span>
   `;
 }
 
@@ -486,27 +476,27 @@ function renderConfirmation(item) {
   const clinic = item.clinic || {};
   const doctor = item.doctor || {};
 
-  const patientName = patient.fio || 'Неизвестно';
-  const clinicName = clinic.short_name || clinic.name || 'Неизвестно';
-  const doctorName = extractDoctorName(doctor) || 'Неизвестно';
-  const specialtyName = doctor.specialty_name || '';
+  const patientName = patient.fio || "Неизвестно";
+  const clinicName = clinic.short_name || clinic.name || "Неизвестно";
+  const doctorName = extractDoctorName(doctor) || "Неизвестно";
+  const specialtyName = doctor.specialty_name || "";
 
   return `
     <div class="confirm-card">
-      <div class="confirm-card__icon">${lucideIcon('file-text', 48)}</div>
+      <div class="confirm-card__icon">${lucideIcon("file-text", 48)}</div>
       <div class="confirm-card__details">
-        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('user', 14)}</span> Пациент</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("user", 14)}</span> Пациент</div>
         <div class="confirm-value">${escapeHtml(patientName)}</div>
-        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('hospital', 14)}</span> Клиника</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> Клиника</div>
         <div class="confirm-value">${escapeHtml(clinicName)}</div>
-        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('stethoscope', 14)}</span> Врач</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("stethoscope", 14)}</span> Врач</div>
         <div class="confirm-value">${escapeHtml(doctorName)}</div>
         ${
           specialtyName
             ? `
-        <div class="confirm-label"><span class="lucide-icon">${lucideIcon('microscope', 14)}</span> Специальность</div>
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("microscope", 14)}</span> Специальность</div>
         <div class="confirm-value">${escapeHtml(specialtyName)}</div>`
-            : ''
+            : ""
         }
       </div>
     </div>
@@ -517,7 +507,7 @@ function renderConfirmation(item) {
 // Кэширование в localStorage
 // ============================================================
 
-const CACHE_PREFIX = 'mini_app_';
+const CACHE_PREFIX = "mini_app_";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 час
 
 /**
@@ -530,7 +520,7 @@ function saveToCache(key, data) {
   try {
     const entry = {
       timestamp: Date.now(),
-      data
+      data,
     };
     localStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(entry));
   } catch {
@@ -574,19 +564,19 @@ function getFromCache(key) {
  */
 function extractDoctorName(doctor) {
   const name = doctor.name;
-  if (!name) return '';
+  if (!name) return "";
 
   // Если name — строка, возвращаем как есть
-  if (typeof name === 'string') return name;
+  if (typeof name === "string") return name;
 
   // Если name — объект (например, {first_name: "...", last_name: "..."}),
   // пробуем собрать строку из известных полей
-  if (typeof name === 'object' && name !== null) {
+  if (typeof name === "object" && name !== null) {
     const parts = [];
     if (name.last_name) parts.push(name.last_name);
     if (name.first_name) parts.push(name.first_name);
     if (name.middle_name) parts.push(name.middle_name);
-    if (parts.length > 0) return parts.join(' ');
+    if (parts.length > 0) return parts.join(" ");
     // Если не удалось извлечь — возвращаем строковое представление объекта
     return String(name);
   }

@@ -147,6 +147,18 @@ class Database:
             uid, p_id, d_id, name, clinic_id, specialty, date
         )
 
+    async def update_monitoring_filter(
+        self,
+        uid: str,
+        p_id: str,
+        d_id: str,
+        filter_data: dict[str, str],
+    ) -> None:
+        """Обновляет фильтр отслеживания врача (делегирует в репозиторий)."""
+        return await self.monitoring.update_monitoring_filter(
+            uid, p_id, d_id, filter_data
+        )
+
     async def remove_monitoring_entry(self, uid: str, p_id: str, d_id: str) -> None:
         """Удаляет запись мониторинга."""
         return await self.monitoring.remove_monitoring_entry(uid, p_id, d_id)

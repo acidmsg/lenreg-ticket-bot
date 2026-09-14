@@ -137,10 +137,45 @@ CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at);
     logger.info("Миграция v8: создана таблица bookings")
 
 
+async def migrate_v9_add_monitoring_filters(db) -> None:
+    """Добавляет колонки фильтра отслеживания в таблицу ``user_monitoring``.
+
+    Миграция идемпотентна: перед ``ALTER TABLE`` проверяется наличие колонки
+    через ``PRAGMA table_info`` (SQLite не поддерживает ``ADD COLUMN IF NOT EXISTS``).
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(user_monitoring)")
+    existing_columns = {row["name"] for row in await cursor.fetchall()}
+
+    new_columns: dict[str, str] = {
+        "date_from": "TEXT DEFAULT ''",
+        "date_to": "TEXT DEFAULT ''",
+        "time_from": "TEXT DEFAULT ''",
+        "time_to": "TEXT DEFAULT ''",
+        "specific_dates": "TEXT DEFAULT '[]'",
+    }
+
+    added: list[str] = []
+    for column_name, definition in new_columns.items():
+        if column_name in existing_columns:
+            continue
+        await c.execute(
+            f"ALTER TABLE user_monitoring ADD COLUMN {column_name} {definition}"
+        )
+        added.append(column_name)
+
+    await c.commit()
+    logger.info("Миграция v9: колонки фильтра user_monitoring (добавлено: %s)", added)
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
     (6, migrate_v6_monitoring_log),
     (7, migrate_v7_add_date_column),
     (8, migrate_v8_create_bookings),
+    (9, migrate_v9_add_monitoring_filters),
 ]

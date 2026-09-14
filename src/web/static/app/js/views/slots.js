@@ -8,6 +8,7 @@
 import { navigate } from "../app.js";
 import { apiGet, apiPost, apiDelete } from "../api.js";
 import { isInTelegram } from "../auth.js";
+import { createSlotsCalendar } from "../components/calendar.js";
 import { createSlotCard } from "../components/card.js";
 import { escapeHtml } from "../utils/escape.js";
 import { renderError } from "../utils/error.js";
@@ -51,13 +52,31 @@ export async function renderSlots(container, params) {
     if (slots.length === 0) {
       html += renderNoSlots();
     } else {
-      html += renderSlotList(slots);
+      html += renderSlotsLayout();
     }
 
     container.innerHTML = html;
 
     // Привязываем обработчики (удаление пациентов + кнопка обновления)
     bindSlotEvents(container, patients || [], params);
+
+    // Гибридный режим: календарь слотов + панель выбранной даты.
+    // При недоступности VanillaCalendar — откат к плоскому списку.
+    if (slots.length > 0) {
+      const calendarReady = initSlotsCalendar(
+        container,
+        slots,
+        params,
+        data.clinic_id || "",
+      );
+      if (!calendarReady) {
+        const layout = container.querySelector(".slots-layout");
+        if (layout) {
+          layout.outerHTML = renderSlotList(slots, data.clinic_id || "");
+        }
+        bindSlotChipClicks(container, params);
+      }
+    }
   } catch (error) {
     renderError(container, error.message, "Повторить", () =>
       renderSlots(container, params),
@@ -129,27 +148,117 @@ function renderNoSlots() {
 }
 
 /**
- * Рендерит список слотов, сгруппированных по датам.
- * Каждый слот — кликабельная кнопка с data-атрибутами для бронирования.
+ * Группирует слоты по датам, сохраняя время и данные для бронирования.
  *
  * @param {Array} slots — массив слотов [{ date, time, appointment_id, clinic_id }]
- * @returns {string} HTML списка слотов
+ * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
+ * @returns {Object<string, Array<{time: string, appointmentId: string, clinicId: string}>>}
+ *   карта «дата → слоты»
  */
-function renderSlotList(slots) {
-  // Группируем слоты по дате (сохраняем полные данные слота)
+function groupSlotsByDate(slots, fallbackClinicId = "") {
   const grouped = {};
   slots.forEach((slot) => {
-    const date = slot.date || "—";
-    if (!grouped[date]) {
-      grouped[date] = [];
-    }
+    const date = slot.date || "";
+    if (!date) return;
+    if (!grouped[date]) grouped[date] = [];
     grouped[date].push({
       time: slot.time || "—",
       appointmentId: slot.appointment_id || slot.slot_id || "",
+      clinicId: slot.clinic_id || fallbackClinicId || "",
     });
   });
+  return grouped;
+}
 
-  // Сортируем даты
+/**
+ * Рендерит гибридную раскладку: календарь + панель слотов выбранной даты.
+ * На десктопе панель видна всегда, на мобильном раскрывается после выбора даты.
+ *
+ * @returns {string} HTML раскладки
+ */
+function renderSlotsLayout() {
+  return `
+    <div class="slots-layout">
+      <div class="slots-layout__calendar" id="slots-calendar"></div>
+      <div class="slots-layout__panel" id="slots-panel"></div>
+    </div>
+  `;
+}
+
+/**
+ * Рендерит слоты выбранной даты для панели.
+ *
+ * @param {Object} grouped — карта «дата → слоты»
+ * @param {string} date — выбранная дата (YYYY-MM-DD)
+ * @returns {string} HTML панели
+ */
+function renderSlotsPanel(grouped, date) {
+  const daySlots = grouped[date] || [];
+  if (date && daySlots.length > 0) {
+    return createSlotCard({ date, slots: daySlots });
+  }
+  return `
+    <div class="slots-panel__empty">
+      На выбранную дату свободных номерков нет
+    </div>
+  `;
+}
+
+/**
+ * Инициализирует календарь слотов и панель выбранной даты.
+ *
+ * @param {HTMLElement} container — контейнер экрана
+ * @param {Array} slots — массив слотов
+ * @param {object} params — параметры маршрута
+ * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
+ * @returns {boolean} true, если календарь инициализирован
+ */
+function initSlotsCalendar(container, slots, params, fallbackClinicId = "") {
+  if (typeof VanillaCalendar !== "function") return false;
+
+  const calendarEl = container.querySelector("#slots-calendar");
+  const panelEl = container.querySelector("#slots-panel");
+  if (!calendarEl || !panelEl) return false;
+
+  const grouped = groupSlotsByDate(slots, fallbackClinicId);
+  const dates = Object.keys(grouped).sort();
+  if (dates.length === 0) return false;
+
+  const slotCounts = {};
+  dates.forEach((date) => {
+    slotCounts[date] = grouped[date].length;
+  });
+
+  const renderPanel = (date) => {
+    // Клик по недоступной дате сбрасывает selectedDates в null —
+    // панель при этом не трогаем, чтобы не терять текущий выбор.
+    if (!date) return;
+    panelEl.innerHTML = renderSlotsPanel(grouped, date);
+    panelEl.classList.add("slots-layout__panel--open");
+    bindSlotChipClicks(panelEl, params);
+  };
+
+  const calendar = createSlotsCalendar(calendarEl, {
+    slotDates: dates,
+    slotCounts,
+    onSelect: renderPanel,
+  });
+  if (!calendar) return false;
+
+  renderPanel(calendar.selectedDates[0] || dates[0]);
+  return true;
+}
+
+/**
+ * Рендерит плоский список слотов, сгруппированных по датам (fallback).
+ * Каждый слот — кликабельная кнопка с data-атрибутами для бронирования.
+ *
+ * @param {Array} slots — массив слотов [{ date, time, appointment_id, clinic_id }]
+ * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
+ * @returns {string} HTML списка слотов
+ */
+function renderSlotList(slots, fallbackClinicId = "") {
+  const grouped = groupSlotsByDate(slots, fallbackClinicId);
   const sortedDates = Object.keys(grouped).sort();
 
   const groupsHtml = sortedDates

@@ -3,7 +3,7 @@
  * Используется в doctors.js и slots.js для refresh-проверок.
  */
 
-import { apiPost } from '../api.js';
+import { apiPost } from "../api.js";
 
 /**
  * Проверить слоты врача — POST /doctors/check.
@@ -11,8 +11,8 @@ import { apiPost } from '../api.js';
  * @returns {Promise<object>} { found: number, total: number, last_checked: string }
  */
 export async function checkDoctorSlots(monitoringId) {
-  const data = await apiPost('/doctors/check', {
-    monitoring_id: String(monitoringId)
+  const data = await apiPost("/doctors/check", {
+    monitoring_id: String(monitoringId),
   });
   return data;
 }

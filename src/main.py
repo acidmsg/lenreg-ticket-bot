@@ -10,12 +10,12 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
-import threading
-import time
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING
 
 import aiofiles.os
+import uvicorn
 from aiogram import Bot, Dispatcher
 from aiohttp import web
 from loguru import logger
@@ -60,6 +60,13 @@ _PROXY_RETRIES = 3
 _PROXY_RETRY_DELAY = 2.0  # секунд
 _TG_RETRIES = 3
 _TG_RETRY_DELAY = 3.0  # секунд
+
+# Константы веб-дашборда (TD-009, этап 2): дашборд живёт в главном event loop'е
+_DASHBOARD_PORT_RETRIES = 3
+_DASHBOARD_STARTUP_TIMEOUT = 10.0  # ожидание готовности server.started, секунд
+_DASHBOARD_STARTUP_POLL_INTERVAL = 0.05  # период опроса server.started, секунд
+_DASHBOARD_DRAIN_TIMEOUT = 10.0  # дренаж in-flight HTTP-запросов при остановке, секунд
+_DASHBOARD_SOCKET_BACKLOG = 2048  # совпадает с uvicorn.Config.backlog по умолчанию
 
 
 async def _bot_me_with_retry(
@@ -193,47 +200,153 @@ async def _start_metrics_server(
     return runner, site
 
 
-def _run_uvicorn_sync(app, host: str, port: int) -> bool:
-    """Запускает uvicorn в daemon-потоке с SO_REUSEADDR.
+def _bind_socket(host: str, port: int, *, reuse_address: bool) -> socket.socket:
+    """Базовый хелпер: создаёт сокет и привязывает его к адресу.
 
-    Создаёт pre-bound socket с SO_REUSEADDR и передаёт его в uvicorn
-    через параметр ``sockets=[sock]``, т.к. ``Config`` не имеет
-    атрибута ``sock`` (uvicorn 0.47.0).
+    При ``reuse_address=True`` включается ``SO_REUSEADDR`` — это снимает проблему
+    ``[Errno 10048]`` на Windows (адрес в состоянии TIME_WAIT). При
+    ``reuse_address=False`` bind честно сообщает о занятости порта (на Windows
+    ``SO_REUSEADDR`` позволяет повторный bind к занятому адресу, маскируя проблему).
+
+    Raises:
+        OSError: сокет не удалось создать или привязать. Дескриптор закрывается
+            перед пробросом исключения, утечки не остаётся.
     """
-    import uvicorn
-
-    result: dict[str, object] = {"success": False, "exception": None}
-
-    def _serve() -> None:
-        try:
-            config = uvicorn.Config(app, host=host, port=port, log_level="info")
-            server = uvicorn.Server(config)
-
-            # Создаём сокет с SO_REUSEADDR до вызова bind()
-            # Решает проблему [Errno 10048] на Windows (TIME_WAIT)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if reuse_address:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((host, port))
+        sock.bind((host, port))
+    except OSError:
+        sock.close()
+        raise
+    return sock
 
-            # Передаём pre-bound socket — uvicorn использует его
-            # вместо создания собственного (см. Server.startup)
-            server.run(sockets=[sock])
-        except Exception as e:
-            result["exception"] = e
-            logger.exception("uvicorn Server.run() завершился с ошибкой")
 
-    thread = threading.Thread(target=_serve, daemon=True)
-    thread.start()
+def _create_dashboard_socket(host: str, port: int) -> socket.socket:
+    """Фабрика: bound+listening сокет для uvicorn с ``SO_REUSEADDR``.
 
-    time.sleep(1.5)
+    Сокет занимается до старта uvicorn и передаётся в ``Server.serve(sockets=[sock])``
+    (``uvicorn.Config`` не имеет атрибута ``sock``). Это исключает гонку за порт и
+    позволяет освободить его при неудачном старте сервера.
 
-    if thread.is_alive():
-        result["success"] = True
-        return True
+    Raises:
+        OSError: порт занят или сокет не удалось перевести в режим listening.
+    """
+    sock = _bind_socket(host, port, reuse_address=True)
+    try:
+        sock.listen(_DASHBOARD_SOCKET_BACKLOG)
+    except OSError:
+        sock.close()
+        raise
+    return sock
 
-    exc = result["exception"]
-    logger.warning("Дашборд не смог занять порт {}: {}", port, exc)
-    return False
+
+class _DashboardServer(uvicorn.Server):
+    """uvicorn-сервер дашборда без перехвата сигналов процесса.
+
+    uvicorn 0.47.0 (проверено установленной версией; диапазон проекта
+    ``uvicorn>=0.34,<1.0``) в ``Server.serve()`` выполняет
+    ``with self.capture_signals():`` — метод является ``@contextlib.contextmanager``.
+    В главном потоке ``capture_signals()`` подменяет обработчики SIGINT/SIGTERM на
+    ``self.handle_exit``. После перехода дашборда в главный event loop (TD-009,
+    этап 2) это лишило бы ``asyncio.run(main())`` штатного Ctrl+C, поэтому перехват
+    отключён: остановкой управляет ``main()`` через ``server.should_exit``.
+    """
+
+    @contextmanager
+    def capture_signals(self) -> Iterator[None]:
+        """No-op замена ``uvicorn.Server.capture_signals``."""
+        yield
+
+
+def _log_dashboard_task_result(task: asyncio.Task) -> None:
+    """Логирует падение задачи веб-дашборда, изолируя его от поллинга.
+
+    Callback навешивается при создании задачи: исключение веб-слоя не должно
+    пробрасываться в aiogram-поллинг, но обязано попасть в логи.
+    """
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.opt(exception=error).error("Задача веб-дашборда завершилась с ошибкой")
+
+
+async def _wait_dashboard_started(
+    server: uvicorn.Server, dashboard_task: asyncio.Task
+) -> None:
+    """Ожидает готовности uvicorn-сервера по флагу ``server.started``.
+
+    Заменяет ``time.sleep(1.5)`` и проверку ``thread.is_alive()`` из прежней потоковой
+    реализации: опрос идёт в том же event loop'е и не блокирует поллинг.
+
+    Raises:
+        RuntimeError: задача сервера завершилась, так и не выставив ``started``.
+    """
+    while not server.started:
+        if dashboard_task.done():
+            raise RuntimeError("uvicorn-сервер завершился до готовности")
+        await asyncio.sleep(_DASHBOARD_STARTUP_POLL_INTERVAL)
+
+
+async def _stop_dashboard_server(
+    server: uvicorn.Server,
+    dashboard_task: asyncio.Task,
+    drain_timeout: float,
+) -> None:
+    """Останавливает uvicorn-задачу: ``should_exit`` + дренаж, при таймауте — отмена.
+
+    Дренаж завершает in-flight HTTP-запросы до закрытия ``api`` и БД.
+    """
+    server.should_exit = True
+    try:
+        await asyncio.wait_for(dashboard_task, timeout=drain_timeout)
+    except TimeoutError:
+        logger.warning(
+            f"Дренаж веб-дашборда не завершился за {drain_timeout}с — отменяю задачу"
+        )
+        dashboard_task.cancel()
+        await asyncio.gather(dashboard_task, return_exceptions=True)
+    except Exception:
+        logger.exception("Задача веб-дашборда завершилась с ошибкой")
+
+
+async def _start_dashboard_on_port(
+    web_app,
+    port: int,
+    logger,
+) -> tuple[uvicorn.Server, asyncio.Task] | None:
+    """Запускает uvicorn на конкретном порту в текущем event loop'е.
+
+    Returns:
+        (server, task) при успешном старте; ``None`` — если порт занять не удалось
+        либо сервер не стал готов за ``_DASHBOARD_STARTUP_TIMEOUT``.
+    """
+    try:
+        sock = _create_dashboard_socket("0.0.0.0", port)
+    except OSError as exc:
+        logger.warning(f"Не удалось занять порт {port}: {exc}")
+        return None
+
+    config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="info")
+    server = _DashboardServer(config)
+    dashboard_task = asyncio.create_task(server.serve(sockets=[sock]), name="dashboard")
+    dashboard_task.add_done_callback(_log_dashboard_task_result)
+
+    try:
+        await asyncio.wait_for(
+            _wait_dashboard_started(server, dashboard_task),
+            timeout=_DASHBOARD_STARTUP_TIMEOUT,
+        )
+    except Exception as exc:
+        logger.warning(f"Дашборд не запустился на порту {port}: {exc}")
+        await _stop_dashboard_server(server, dashboard_task, _DASHBOARD_DRAIN_TIMEOUT)
+        sock.close()  # освобождаем порт, если uvicorn не успел забрать сокет
+        return None
+
+    logger.info(f"Веб-дашборд запущен на http://0.0.0.0:{port}")
+    return server, dashboard_task
 
 
 async def _check_port_available(host: str, port: int) -> bool:
@@ -249,14 +362,17 @@ async def _check_port_available(host: str, port: int) -> bool:
     к уже занятому адресу, маскируя проблему).
     """
     loop = asyncio.get_running_loop()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        await loop.run_in_executor(None, sock.bind, (host, port))
-        return True  # bind успешен — порт свободен
-    except OSError:
-        return False  # bind не удался — порт занят
-    finally:
-        sock.close()
+
+    def _probe() -> bool:
+        """Пробный bind в executor'е: True — порт свободен."""
+        try:
+            probe = _bind_socket(host, port, reuse_address=False)
+        except OSError:
+            return False
+        probe.close()
+        return True
+
+    return await loop.run_in_executor(None, _probe)
 
 
 async def _run_dashboard_safe(
@@ -264,31 +380,38 @@ async def _run_dashboard_safe(
     port: int,
     fallback_ports: list[int],
     logger,
-) -> int | None:
-    """Запускает uvicorn-сервер веб-дашборда с retry и fallback-портами."""
+) -> tuple[uvicorn.Server, asyncio.Task] | None:
+    """Запускает uvicorn-сервер веб-дашборда с retry и fallback-портами.
+
+    Returns:
+        (server, task) — сервер и его задача в главном event loop'е, либо ``None``,
+        если ни один порт из цепочки занять не удалось.
+    """
     ports_to_try = [port, *fallback_ports]
 
     for p in ports_to_try:
-        for attempt in range(3):
+        for attempt in range(_DASHBOARD_PORT_RETRIES):
             # Pre-flight проверка порта (адрес должен совпадать с uvicorn)
             if not await _check_port_available("0.0.0.0", p):
                 logger.warning(
-                    f"Порт {p} занят (попытка {attempt + 1}/3), жду {2**attempt}с..."
+                    f"Порт {p} занят (попытка {attempt + 1}/"
+                    f"{_DASHBOARD_PORT_RETRIES}), жду {2**attempt}с..."
                 )
                 await asyncio.sleep(2**attempt)
                 continue
 
             logger.info(
-                f"Пробую запустить дашборд на порту {p} (попытка {attempt + 1}/3)..."
+                f"Пробую запустить дашборд на порту {p} "
+                f"(попытка {attempt + 1}/{_DASHBOARD_PORT_RETRIES})..."
             )
-            success = await asyncio.to_thread(_run_uvicorn_sync, web_app, "0.0.0.0", p)
-            if success:
-                logger.info(f"Веб-дашборд запущен на http://0.0.0.0:{p}")
-                return p
+            dashboard = await _start_dashboard_on_port(web_app, p, logger)
+            if dashboard is not None:
+                return dashboard
 
             # uvicorn упал — мог занять порт, повтор через exponential backoff
             logger.warning(
-                f"uvicorn на порту {p} упал (попытка {attempt + 1}/3), "
+                f"uvicorn на порту {p} упал "
+                f"(попытка {attempt + 1}/{_DASHBOARD_PORT_RETRIES}), "
                 f"повтор через {2**attempt}с..."
             )
             await asyncio.sleep(2**attempt)
@@ -305,15 +428,22 @@ async def run_dashboard(
     api: ZdravClient,
     host: str,
     port: int,
-) -> None:
-    """Запускает uvicorn-сервер веб-дашборда как asyncio-задачу."""
+) -> tuple[uvicorn.Server, asyncio.Task] | None:
+    """Запускает uvicorn-сервер веб-дашборда в главном event loop'е.
+
+    Сервер создаётся как ``asyncio.Task`` (``Server.serve()``) и остаётся в том же
+    loop'е, что и aiogram-поллинг, фоновые задачи и Prometheus-сервер (TD-009, этап 2).
+
+    Returns:
+        (server, task) для управления остановкой, либо ``None`` при неудаче.
+    """
     from src.web.app import create_app
 
     try:
         web_app = create_app(db, health_metrics, prometheus_metrics, config, api)
     except Exception:
         logger.exception("Ошибка при создании FastAPI-приложения веб-дашборда")
-        return
+        return None
 
     try:
         fallback_ports = [8091, 8092, 8093]
@@ -324,8 +454,10 @@ async def run_dashboard(
                 "Веб-дашборд не запущен ни на одном порту из: "
                 f"{[port, *fallback_ports]}"
             )
+        return result
     except Exception:
         logger.exception("Ошибка при запуске uvicorn-сервера веб-дашборда")
+        return None
 
 
 async def bootstrap_logging() -> None:
@@ -479,9 +611,12 @@ async def bootstrap_bot(
     dp.update.outer_middleware(UserDataPreloadMiddleware())
     dp.update.outer_middleware(ActivityLogMiddleware())
 
-    # Регистрация роутеров
-    from src.handlers import common, registration
+    # Регистрация роутеров.
+    # filter_setup — первым: его state-scoped хендлеры ввода фильтра должны иметь
+    # приоритет над общими текстовыми хендлерами остальных роутеров (T-21, §9.9).
+    from src.handlers import common, filter_setup, registration
 
+    dp.include_router(filter_setup.router)
     dp.include_router(common.router)
     dp.include_router(registration.router)
 
@@ -500,11 +635,13 @@ async def bootstrap_bot(
 async def bootstrap_web(
     db: DatabaseManager,
     api: ZdravClient,
-) -> tuple[asyncio.Task | None, web.AppRunner | None]:
+) -> tuple[uvicorn.Server | None, asyncio.Task | None, web.AppRunner | None]:
     """Запуск веб-дашборда и Prometheus-метрик (если включены в настройках).
 
     Returns:
-        (dashboard_task, metrics_runner) — для последующей остановки.
+        (dashboard_server, dashboard_task, metrics_runner) — для последующей
+        остановки. Первые два элемента равны ``None``, если дашборд отключён
+        или не поднялся ни на одном порту.
     """
     # Запуск Prometheus HTTP-сервера
     metrics_runner: web.AppRunner | None = None
@@ -514,27 +651,24 @@ async def bootstrap_web(
         logger.warning(f"Не удалось запустить сервер метрик: {e}")
 
     # Запуск веб-дашборда
-    dashboard_task: asyncio.Task | None = None
-    if settings.WEB_DASHBOARD_ENABLED:
-        try:
-            dashboard_task = asyncio.create_task(
-                run_dashboard(
-                    db,
-                    health_metrics,
-                    prometheus_metrics,
-                    settings,
-                    api,
-                    host="0.0.0.0",
-                    port=settings.WEB_DASHBOARD_PORT,
-                )
-            )
-            logger.info("Задача веб-дашборда создана")
-        except Exception as e:
-            logger.error(f"Не удалось создать задачу веб-дашборда: {e}", exc_info=True)
-    else:
+    if not settings.WEB_DASHBOARD_ENABLED:
         logger.info("Веб-дашборд отключен (WEB_DASHBOARD_ENABLED=False)")
+        return None, None, metrics_runner
 
-    return dashboard_task, metrics_runner
+    dashboard = await run_dashboard(
+        db,
+        health_metrics,
+        prometheus_metrics,
+        settings,
+        api,
+        host="0.0.0.0",
+        port=settings.WEB_DASHBOARD_PORT,
+    )
+    if dashboard is None:
+        return None, None, metrics_runner
+
+    dashboard_server, dashboard_task = dashboard
+    return dashboard_server, dashboard_task, metrics_runner
 
 
 async def main() -> None:
@@ -550,7 +684,7 @@ async def main() -> None:
     manager = await _start_background_tasks(bot, api, db, database)
 
     # Запуск веб-инфраструктуры (дашборд + метрики)
-    dashboard_task, metrics_runner = await bootstrap_web(db, api)
+    dashboard_server, dashboard_task, metrics_runner = await bootstrap_web(db, api)
 
     logger.info("Бот запущен и готов помогать!")
 
@@ -562,14 +696,17 @@ async def main() -> None:
         logger.exception("Критическая ошибка в поллинге")
         await error_notifier.notify(e, context="polling_crash")
     finally:
+        # Дашборд останавливается первым: in-flight веб-запросы должны завершиться
+        # до закрытия api и БД, иначе они обратятся к уже закрытым ресурсам.
+        if dashboard_server is not None and dashboard_task is not None:
+            logger.info("Остановка веб-дашборда...")
+            await _stop_dashboard_server(
+                dashboard_server, dashboard_task, _DASHBOARD_DRAIN_TIMEOUT
+            )
+            logger.info("Веб-дашборд остановлен")
+
         logger.info("Остановка фоновых задач...")
         await manager.stop_all(shutdown_timeout=30.0)
-
-        # Остановка веб-дашборда
-        if dashboard_task is not None:
-            dashboard_task.cancel()
-            await asyncio.gather(dashboard_task, return_exceptions=True)
-            logger.info("Веб-дашборд остановлен")
 
         # Остановка Prometheus HTTP-сервера
         if metrics_runner is not None:
