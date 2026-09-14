@@ -39,6 +39,11 @@ export async function renderSlots(container, params) {
       `/slots?monitoring_id=${encodeURIComponent(monitoringId)}`,
     );
 
+    // §11.5: источник истины для карточки подтверждения — ответ
+    // GET /api/user/slots, привязанный к monitoringId. Поля сохраняются
+    // в params, который живёт в замыкании обработчиков чипов.
+    saveBookingData(params, data);
+
     // Собираем итоговый HTML: информация о враче + пациенты + слоты
     let html = renderSlotInfo(data, monitoringId);
 
@@ -82,6 +87,21 @@ export async function renderSlots(container, params) {
       renderSlots(container, params),
     );
   }
+}
+
+/**
+ * Сохраняет в params данные врача и клиники из ответа слотов (§11.5).
+ *
+ * Дублирование этих полей в `navigate("slots", …)` не требуется: ответ
+ * `GET /api/user/slots` уже содержит `doctor_name`, `specialty`, `clinic_name`.
+ *
+ * @param {object} params — параметры маршрута (мутируются)
+ * @param {object} data — ответ `GET /api/user/slots`
+ */
+function saveBookingData(params, data) {
+  params.doctorName = extractDoctorName(data);
+  params.specialty = data.specialty || "";
+  params.clinicName = data.clinic_name || "";
 }
 
 /**
@@ -498,11 +518,20 @@ async function handleSlotBooking(chip, params) {
     return;
   }
 
-  // Имя врача — из ответа API slots (сохраняется в params при навигации)
-  const doctorName = params?.doctorName || "врачу";
+  // Карточка подтверждения (§11.5): врач, специальность и клиника —
+  // из ответа `GET /api/user/slots` (сохранены в params функцией
+  // saveBookingData), пациент — из params.patients.
+  const booking = {
+    doctor: params?.doctorName || "",
+    specialty: params?.specialty || "",
+    clinic: params?.clinicName || "",
+    date,
+    time,
+    patient: findPatientName(params?.patients, monitoringId, patientId),
+  };
 
   // Показываем подтверждение
-  const confirmed = await showBookingConfirm(doctorName, date, time);
+  const confirmed = await showBookingConfirm(booking);
 
   if (!confirmed) return;
 
@@ -541,21 +570,85 @@ async function handleSlotBooking(chip, params) {
 }
 
 /**
+ * Находит имя пациента для карточки подтверждения.
+ *
+ * Основной ключ — `entryId === monitoringId` (§11.5): `monitoring_id` имеет
+ * формат `{p_id}_{d_id}` и совпадает с `entryId` пациента. Фолбэк —
+ * сравнение `patientId` с `p_id`, извлечённым из `monitoringId`. Если
+ * пациент не найден, возвращается пустая строка: строка пациента в карточке
+ * не выводится, данные не подменяются.
+ *
+ * @param {Array<{name: string, patientId: string, entryId: string}>} patients — пациенты
+ * @param {string} monitoringId — ID мониторинга вида `{p_id}_{d_id}`
+ * @param {string} patientId — `p_id`, извлечённый из `monitoringId`
+ * @returns {string} имя пациента или пустая строка
+ */
+function findPatientName(patients, monitoringId, patientId) {
+  const entries = patients || [];
+  const patient =
+    entries.find((entry) => entry.entryId === monitoringId) ||
+    entries.find((entry) => entry.patientId === patientId);
+  return patient?.name || "";
+}
+
+/**
+ * Собирает текст карточки подтверждения записи (§11.5).
+ *
+ * Порядок строк совпадает с ботом (§11.2). Строки с пустым значением
+ * отбрасываются вместе с эмодзи. Значения экранируются: popup Mini App
+ * рендерит HTML.
+ *
+ * Ключи-паритеты локализации (каталоги `locales/ru` и `locales/en`):
+ * `booking-confirm-popup-doctor`, `booking-confirm-popup-specialty`,
+ * `booking-confirm-popup-clinic`, `booking-confirm-popup-datetime`,
+ * `booking-confirm-popup-patient`, `booking-confirm-popup-question`.
+ *
+ * @param {object} booking — данные записи
+ * @param {string} booking.doctor — врач
+ * @param {string} booking.specialty — специальность (может быть пустой)
+ * @param {string} booking.clinic — клиника (может быть пустой)
+ * @param {string} booking.date — дата приёма (`ДД.ММ.ГГГГ`)
+ * @param {string} booking.time — время приёма (`ЧЧ:ММ`)
+ * @param {string} booking.patient — пациент (может быть пустой)
+ * @returns {string} текст карточки с вопросом подтверждения
+ */
+export function buildBookingConfirmMessage(booking) {
+  const rows = [
+    booking.doctor ? `🧑‍⚕️ ${escapeHtml(booking.doctor)}` : "",
+    booking.specialty ? `📋 ${escapeHtml(booking.specialty)}` : "",
+    booking.clinic ? `🏥 ${escapeHtml(booking.clinic)}` : "",
+    booking.date
+      ? `📅 ${escapeHtml(booking.date)} в ${escapeHtml(booking.time)}`
+      : "",
+    booking.patient ? `👤 Пациент: ${escapeHtml(booking.patient)}` : "",
+  ];
+
+  const card = rows.filter((row) => row !== "").join("\n");
+
+  // ❓ Записаться? — ключ-паритет booking-confirm-popup-question
+  return `${card}\n\n❓ Записаться?`;
+}
+
+/**
  * Показывает модальное окно подтверждения записи.
  *
- * @param {string} doctorName — имя врача
- * @param {string} date — дата приёма
- * @param {string} time — время приёма
+ * Текст собирается один раз (§Ⅰ модульность) и используется в обеих ветках:
+ * `Telegram.WebApp.showPopup` и `window.confirm`.
+ *
+ * @param {object} booking — данные записи ({ doctor, specialty, clinic, date, time, patient })
  * @returns {Promise<boolean>} подтверждено или нет
  */
-async function showBookingConfirm(doctorName, date, time) {
-  const message = `Записаться к ${doctorName} на ${date} в ${time}?`;
+export async function showBookingConfirm(booking) {
+  // Заголовок — ключ-паритет booking-confirm-popup-title,
+  // кнопки — существующие btn-booking-confirm / btn-booking-back.
+  const title = "Подтверждение записи";
+  const message = buildBookingConfirmMessage(booking);
 
   if (window.Telegram?.WebApp?.showPopup) {
     return new Promise((resolve) => {
       window.Telegram.WebApp.showPopup(
         {
-          title: "Подтверждение записи",
+          title: title,
           message: message,
           buttons: [
             { id: "confirm", type: "default", text: "✅ Подтвердить" },
@@ -569,7 +662,7 @@ async function showBookingConfirm(doctorName, date, time) {
     });
   }
 
-  return window.confirm(message);
+  return window.confirm(`${title}\n\n${message}`);
 }
 
 /**

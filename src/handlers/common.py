@@ -4,7 +4,7 @@ import time as time_module
 
 import aiofiles.os
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramRetryAfter
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -17,8 +17,9 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 
+from src.api.models import CheckSlotsResult
 from src.api.zdrav_client import ZdravClient
-from src.assets.utils import get_nav_image_path, get_notify_image_path
+from src.assets.utils import get_nav_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import (
@@ -40,11 +41,8 @@ from src.handlers.callbacks import (
     CB_STOP_ALL,
     BackToCities,
     BackToClinics,
-    BookCancel,
     BookConfirm,
-    BookConfirmLegacy,
     BookSlot,
-    BookSlotLegacy,
     CitySelect,
     ClinicSelect,
     CloseSection,
@@ -57,12 +55,9 @@ from src.handlers.callbacks import (
     StartMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
-    ToggleDoctor,
 )
 from src.i18n import _
 from src.keyboards.inline import (
-    build_slot_booking_keyboard,
-    get_booking_confirmation_keyboard,
     get_booking_section_confirm_keyboard,
     get_city_selection,
     get_clinic_selection,
@@ -83,14 +78,13 @@ from src.services.export import (
     export_monitoring_json,
 )
 from src.services.healthcheck import format_status_report
-from src.utils.cache import delete_cache_keys_by_prefix, is_spam, swap_cache_key
+from src.utils.cache import delete_cache_keys_by_prefix, is_spam
 from src.utils.helpers import (
+    SlotDateTime,
     extract_msg_id,
-    format_booking_confirmation,
-    format_booking_result,
+    format_booking_card,
     format_error_message,
-    format_notification_text,
-    format_slots,
+    resolve_slot_datetime,
     shorten_fio,
     shorten_specialty,
 )
@@ -714,271 +708,6 @@ async def select_clinic(
         )
 
 
-async def _guard_toggle_doctor(
-    call: CallbackQuery,
-    db: DatabaseManager,
-    callback_data: ToggleDoctor,
-) -> tuple[str, str, str, str, UserData, dict[str, DoctorEntry], DoctorEntry] | None:
-    """Проверяет контекст и права для toggle_doctor.
-
-    Проверяет: наличие message/from_user, spam-защиту, наличие данных
-    пользователя, существование врача в списке клиники.
-
-    Returns:
-        Кортеж (uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info)
-        или None если проверка не пройдена.
-    """
-    if not call.message or not call.from_user:
-        return None
-
-    if await is_spam(str(call.from_user.id)):
-        return None
-
-    p_id = callback_data.p_id
-    clinic_id = callback_data.clinic_id
-    d_id = callback_data.d_id
-    uid = str(call.from_user.id)
-
-    user_data = await db.get_user_data(uid)
-    doctors_list = await db.get_doctors_for_clinic(clinic_id)
-    raw_doc = doctors_list.get(d_id)
-    if raw_doc is None:
-        return None
-
-    doc_info: DoctorEntry = raw_doc
-    return uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info
-
-
-async def _handle_untoggle_doctor(
-    bot: Bot,
-    call: CallbackQuery,
-    db: DatabaseManager,
-    uid: str,
-    p_id: str,
-    clinic_id: str,
-    d_id: str,
-    user_data: UserData,
-    doctors_list: dict[str, DoctorEntry],
-    p_info: PatientInfo,
-    d_name_display: str,
-) -> None:
-    """Обрабатывает снятие врача с мониторинга: очистка кэша, удаление сообщений,
-    перестроение клавиатуры.
-    """
-    user_data = await db.get_user_data(uid)
-    monitored = user_data["monitoring"].get(p_id, {})
-
-    # Удаляем связанное сообщение из чата
-    msg_key = f"{p_id}_{d_id}"
-    await _delete_cleanup_msg_entry(bot, uid, msg_key, user_data["last_messages"])
-    await db.update_user(uid, {"last_messages": user_data["last_messages"]})
-
-    cache_key = f"{uid}_{p_id}_{d_id}"
-    await delete_cache_keys_by_prefix(cache_key)
-
-    city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
-    clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-    nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
-
-    if isinstance(call.message, Message):
-        await _send_nav_photo(
-            bot,
-            call.message,
-            nav_type,
-            _("monitoring-disabled-for").format(name=d_name_display),
-            get_doctor_selection(
-                p_id,
-                clinic_id,
-                doctors_list,
-                monitored,
-                p_info.get("bday", ""),
-                city_idx,
-            ),
-            db=db,
-        )
-
-
-async def _handle_toggle_on_doctor(
-    api: ZdravClient,
-    bot: Bot,
-    call: CallbackQuery,
-    db: DatabaseManager,
-    uid: str,
-    p_id: str,
-    clinic_id: str,
-    d_id: str,
-    doc_info: DoctorEntry,
-    doctors_list: dict[str, DoctorEntry],
-    p_info: PatientInfo,
-    d_name_display: str,
-) -> None:
-    """Обрабатывает включение мониторинга врача: проверка слотов, отправка результата,
-    обновление клавиатуры.
-    """
-    message = call.message
-    if message is None:
-        return
-
-    patient_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
-    d_spec_display = shorten_specialty(doc_info.get("specialty", ""))
-    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
-
-    # Отправляем «загрузочное» сообщение
-    loading_msg = await message.answer(
-        f"{spec_text}🧑‍⚕️ {d_name_display}\n👤 {patient_label}\n{_('checking-slots')}"
-    )
-
-    await call.answer()
-    slots_result = await api.check_slots(d_id, p_id, clinic_id)
-
-    # Сохраняем в кэш мониторинга
-    if slots_result is not None:
-        cache_key = f"{uid}_{p_id}_{d_id}"
-        await swap_cache_key(
-            cache_key, slots_result.formatted if slots_result.formatted else "NONE"
-        )
-
-    slots = slots_result.formatted if slots_result else None
-    user_data = await db.get_user_data(uid)
-    monitored = user_data["monitoring"].get(p_id, {})
-
-    has_slots = bool(slots)
-    status_text = _("slots-available-status") if has_slots else _("slots-empty-status")
-
-    if has_slots and slots:
-        slot_lines = format_slots(
-            slots,
-            detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
-            compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
-        )
-        slots_display = "\n".join(slot_lines)
-    else:
-        slots_display = _("slots-will-notify")
-
-    # Текст уведомления (без ссылки SIGNUP_URL — заменена на инлайн-кнопки)
-    text = format_notification_text(
-        patient_label, d_name_display, spec_text, status_text, slots_display
-    )
-
-    # Удаляем загрузочное сообщение
-    with contextlib.suppress(Exception):
-        await loading_msg.delete()
-
-    # Клавиатура с кнопками «Записаться» для каждого слота
-    reply_markup = None
-    if has_slots and slots_result is not None:
-        reply_markup = build_slot_booking_keyboard(p_id, clinic_id, d_id, slots_result)
-
-    # Отправляем финальный результат
-    notify_type = "available" if has_slots else "empty"
-    photo_path = get_notify_image_path(notify_type)
-    try:
-        if photo_path is not None:
-            photo = FSInputFile(photo_path)
-            result_msg = await message.answer_photo(
-                photo, caption=text, reply_markup=reply_markup, parse_mode="Markdown"
-            )
-        else:
-            result_msg = await message.answer(text, reply_markup=reply_markup)
-    except Exception:
-        result_msg = await message.answer(text, reply_markup=reply_markup)
-
-    await db.set_last_message_id(uid, p_id, d_id, result_msg.message_id)
-
-    # Обновляем клавиатуру выбора врачей
-    city_idx = _user_clinic_city_idx.get(f"{uid}_{p_id}_{clinic_id}", "all")
-    clinic_type = await _get_clinic_type_from_db(db._db, clinic_id)
-    nav_type = _CLINIC_NAV_TYPE_MAP.get(clinic_type, "doctor_adult")
-
-    if isinstance(message, Message):
-        await _send_nav_photo(
-            bot,
-            message,
-            nav_type,
-            _("monitoring-enabled-for").format(name=d_name_display),
-            get_doctor_selection(
-                p_id,
-                clinic_id,
-                doctors_list,
-                monitored,
-                p_info.get("bday", ""),
-                city_idx,
-            ),
-            db=db,
-        )
-
-    await call.answer(_("done-toast"))
-
-
-@router.callback_query(create_callback_filter(ToggleDoctor))
-async def toggle_doctor(
-    call: CallbackQuery,
-    db: DatabaseManager,
-    api: ZdravClient,
-    bot: Bot,
-    callback_data: ToggleDoctor,
-) -> None:
-    """Переключает мониторинг врача: включает или выключает.
-
-    Декомпозирован на три этапа:
-    1. :func:`_guard_toggle_doctor` — проверка контекста и прав.
-    2. :func:`_handle_untoggle_doctor` — снятие с мониторинга.
-    3. :func:`_handle_toggle_on_doctor` — включение мониторинга.
-    """
-    # --- Этап 1: проверка прав и контекста ---
-    guard_result = await _guard_toggle_doctor(call, db, callback_data)
-    if guard_result is None:
-        return
-
-    uid, p_id, clinic_id, d_id, user_data, doctors_list, doc_info = guard_result
-    d_name = doc_info.get("name", _("doctor-fallback-name"))
-    doctor_specialty = doc_info.get("specialty", "")
-    d_name_display = shorten_fio(d_name)
-
-    already_monitored = d_id in user_data["monitoring"].get(p_id, {})
-
-    # --- Этап 2: работа с БД (toggle) ---
-    await db.toggle_monitoring(
-        uid, p_id, d_id, d_name, clinic_id, doctor_specialty, date=""
-    )
-
-    raw_p = user_data.get("patients", {}).get(p_id)
-    if raw_p is None:
-        return
-    p_info: PatientInfo = raw_p
-
-    # --- Этап 3: ответ пользователю (снятие или включение) ---
-    if already_monitored:
-        await _handle_untoggle_doctor(
-            bot,
-            call,
-            db,
-            uid,
-            p_id,
-            clinic_id,
-            d_id,
-            user_data,
-            doctors_list,
-            p_info,
-            d_name_display,
-        )
-    else:
-        await _handle_toggle_on_doctor(
-            api,
-            bot,
-            call,
-            db,
-            uid,
-            p_id,
-            clinic_id,
-            d_id,
-            doc_info,
-            doctors_list,
-            p_info,
-            d_name_display,
-        )
-
-
 @router.callback_query(create_callback_filter(StopPatientMonitoring))
 async def stop_patient_monitoring(
     call: CallbackQuery,
@@ -1325,275 +1054,6 @@ async def process_export(call: CallbackQuery, db: DatabaseManager, bot: Bot) -> 
         logger.debug("Не удалось удалить сообщение с выбором формата экспорта")
 
 
-# ── Хендлеры бронирования (Legacy — из уведомлений мониторинга) ──
-
-
-@router.callback_query(create_callback_filter(BookSlotLegacy))
-async def book_slot(
-    call: CallbackQuery,
-    db: DatabaseManager,
-    bot: Bot,
-    callback_data: BookSlotLegacy,
-) -> None:
-    """Обработка нажатия кнопки «Записаться» (старый flow — из уведомлений):
-    проверка безопасности, редактирование сообщения в подтверждение.
-    """
-    if not call.from_user or not call.message:
-        return
-
-    p_id = callback_data.p_id
-    clinic_id = callback_data.clinic_id
-    d_id = callback_data.d_id
-    appointment_id = callback_data.appointment_id
-    slot_date = callback_data.slot_date
-    slot_time = callback_data.slot_time
-    uid = str(call.from_user.id)
-
-    # --- Проверка безопасности ---
-    if await is_spam(uid):
-        await call.answer(_("rate-limit-toast"))
-        return
-
-    user_data = await db.get_user_data(uid)
-
-    # Пациент должен принадлежать пользователю
-    if p_id not in user_data.get("patients", {}):
-        logger.warning("book_slot: пациент %s не принадлежит uid=%s", p_id, uid)
-        await call.answer("⛔ Пациент не найден", show_alert=True)
-        return
-
-    # Врач должен быть в мониторинге пользователя
-    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
-    if d_id not in p_monitoring:
-        logger.warning("book_slot: врач %s не в мониторинге uid=%s", d_id, uid)
-        await call.answer("⛔ Врач не в мониторинге", show_alert=True)
-        return
-
-    # clinic_id должен совпадать с clinic_id в мониторинге врача
-    d_info = p_monitoring[d_id]
-    expected_clinic = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
-    if expected_clinic and expected_clinic != clinic_id:
-        logger.warning(
-            "book_slot: clinic_id не совпадает (callback=%s, monitoring=%s)",
-            clinic_id,
-            expected_clinic,
-        )
-        await call.answer("⛔ Неверная клиника", show_alert=True)
-        return
-
-    # --- Формирование подтверждения ---
-    d_name = ""
-    if isinstance(d_info, dict):
-        d_name = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
-
-    clinic_name = await db.get_clinic_name(clinic_id) or ""
-
-    confirm_text = format_booking_confirmation(
-        d_name, slot_date, slot_time, clinic_name
-    )
-    confirm_kb = get_booking_confirmation_keyboard(
-        p_id, clinic_id, d_id, appointment_id
-    )
-
-    # Редактируем сообщение со слотами → подтверждение
-    try:
-        msg = call.message
-        if isinstance(msg, Message):
-            try:
-                await msg.edit_caption(
-                    caption=confirm_text,
-                    reply_markup=confirm_kb,
-                    parse_mode="Markdown",
-                )
-            except Exception:
-                await msg.edit_text(
-                    confirm_text,
-                    reply_markup=confirm_kb,
-                    parse_mode="Markdown",
-                )
-    except Exception:
-        logger.debug("Не удалось отредактировать сообщение в book_slot")
-
-    await call.answer()
-
-
-@router.callback_query(create_callback_filter(BookConfirmLegacy))
-async def book_confirm(
-    call: CallbackQuery,
-    db: DatabaseManager,
-    api: ZdravClient,
-    bot: Bot,
-    callback_data: BookConfirmLegacy,
-) -> None:
-    """Подтверждение записи (старый flow): book_appointment() и показ результата."""
-    if not call.from_user or not call.message:
-        return
-
-    p_id = callback_data.p_id
-    clinic_id = callback_data.clinic_id
-    d_id = callback_data.d_id
-    appointment_id = callback_data.appointment_id
-    uid = str(call.from_user.id)
-
-    # --- Повторная проверка безопасности ---
-    if await is_spam(uid):
-        await call.answer(_("rate-limit-toast"))
-        return
-
-    user_data = await db.get_user_data(uid)
-    if p_id not in user_data.get("patients", {}):
-        await call.answer("⛔ Пациент не найден", show_alert=True)
-        return
-
-    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
-    if d_id not in p_monitoring:
-        await call.answer("⛔ Врач не в мониторинге", show_alert=True)
-        return
-
-    # --- Имя врача и клиника для отображения ---
-    d_info = p_monitoring[d_id]
-    d_name = (
-        shorten_fio(d_info.get("name", _("doctor-fallback-name")))
-        if isinstance(d_info, dict)
-        else d_id
-    )
-    clinic_name = await db.get_clinic_name(clinic_id) or ""
-
-    # --- Показываем статус «выполняется» ---
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_caption(
-                caption=_("booking-in-progress"),
-                parse_mode="Markdown",
-            )
-        else:
-            # aiogram-стабы не включают edit_text для InaccessibleMessage,
-            # но метод существует в Bot API (editMessageText) и работает
-            # для любых сообщений, доступных через callback_query.
-            await call.message.edit_text(  # type: ignore[attr-defined]
-                _("booking-in-progress"),
-                parse_mode="Markdown",
-            )
-    except Exception:
-        pass
-
-    await call.answer()
-
-    # --- Вызов API бронирования ---
-    result = await api.book_appointment(
-        clinic_id=clinic_id,
-        patient_id=p_id,
-        appointment_id=appointment_id,
-    )
-
-    # --- Формирование и показ результата ---
-    result_text = format_booking_result(
-        result,
-        d_name=d_name,
-        date="",  # Реальная дата неизвестна из ответа API
-        time="",
-        clinic_name=clinic_name,
-    )
-
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_caption(
-                caption=result_text,
-                parse_mode="Markdown",
-            )
-        else:
-            await call.message.edit_text(  # type: ignore[attr-defined]
-                result_text,
-                parse_mode="Markdown",
-            )
-    except Exception:
-        logger.debug("Не удалось отредактировать сообщение в book_confirm")
-
-
-@router.callback_query(create_callback_filter(BookCancel))
-async def book_cancel(
-    call: CallbackQuery,
-    db: DatabaseManager,
-    api: ZdravClient,
-    bot: Bot,
-    callback_data: BookCancel,
-) -> None:
-    """Отмена записи: re-query check_slots() и восстановление списка слотов."""
-    if not call.from_user or not call.message:
-        return
-
-    p_id = callback_data.p_id
-    clinic_id = callback_data.clinic_id
-    d_id = callback_data.d_id
-    uid = str(call.from_user.id)
-
-    # --- Re-query слотов ---
-    slots_result = await api.check_slots(d_id, p_id, clinic_id)
-
-    if slots_result is None:
-        await call.answer("⚠️ Не удалось проверить слоты", show_alert=True)
-        return
-
-    # --- Формирование обновлённого списка ---
-    user_data = await db.get_user_data(uid)
-    p_info = user_data.get("patients", {}).get(p_id)
-    patient_label = (p_info.get("alias") or p_info.get("fio", "")) if p_info else ""
-    d_name_display = ""
-
-    p_monitoring = user_data.get("monitoring", {}).get(p_id, {})
-    # TypedDict не является подтипом dict по мнению mypy, но в runtime это dict.
-    d_info: dict = p_monitoring.get(d_id, {})  # type: ignore[assignment]
-    if isinstance(d_info, dict):
-        d_name_display = shorten_fio(d_info.get("name", _("doctor-fallback-name")))
-
-    slots = slots_result.formatted
-    has_slots = bool(slots)
-    status_text = _("slots-available-status") if has_slots else _("slots-empty-status")
-
-    if has_slots and slots:
-        slot_lines = format_slots(
-            slots,
-            detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
-            compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
-        )
-        slots_display = "\n".join(slot_lines)
-    else:
-        slots_display = _("slots-will-notify")
-
-    # Спек-текст
-    d_spec = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
-    d_spec_display = shorten_specialty(d_spec)
-    spec_text = f"[{d_spec_display}]\n" if d_spec_display else ""
-
-    text = format_notification_text(
-        patient_label, d_name_display, spec_text, status_text, slots_display
-    )
-
-    # Клавиатура с кнопками «Записаться»
-    reply_markup = None
-    if has_slots:
-        reply_markup = build_slot_booking_keyboard(p_id, clinic_id, d_id, slots_result)
-
-    # Редактируем сообщение обратно в список слотов
-    try:
-        if isinstance(call.message, Message):
-            await call.message.edit_caption(
-                caption=text,
-                reply_markup=reply_markup,
-                parse_mode="Markdown",
-            )
-        else:
-            await call.message.edit_text(  # type: ignore[attr-defined]
-                text,
-                reply_markup=reply_markup,
-                parse_mode="Markdown",
-            )
-    except Exception:
-        logger.debug("Не удалось отредактировать сообщение в book_cancel")
-
-    await call.answer()
-
-
 # ═══════════════════════════════════════════════════════════════
 # ── Новые хендлеры PopupSection (Фаза 1 рефакторинга UX) ──────
 # ═══════════════════════════════════════════════════════════════
@@ -1763,14 +1223,94 @@ async def select_patient_for_booking(
     await doctor_section(call, db, api, fake_cb)
 
 
+async def _resolve_fresh_slot(
+    api: ZdravClient,
+    d_id: str,
+    p_id: str,
+    clinic_id: str,
+    appointment_id: str,
+) -> tuple[CheckSlotsResult | None, SlotDateTime | None]:
+    """Резолвит выбранный талон в свежем ответе check_slots() (§11.1.1, §11.1.5).
+
+    Дата и время не передаются через ``callback_data`` (§11.1.2): производные
+    значения берутся из того же ответа, по которому построена сетка слотов.
+    ``check_slots()`` самостоятельно обрабатывает сетевые сбои и ошибки API,
+    возвращая ``None``, поэтому повторная обработка ошибок не дублируется.
+
+    Args:
+        api: Клиент zdrav API.
+        d_id: ID врача.
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        appointment_id: Идентификатор слота из callback.
+
+    Returns:
+        Кортеж (свежий результат ``check_slots()`` либо ``None`` при сбое API,
+        нормализованные дата и время либо ``None``, если слот исчез).
+    """
+    slots_result = await api.check_slots(d_id, p_id, clinic_id)
+    slot_dt = (
+        resolve_slot_datetime(slots_result.slots, appointment_id)
+        if slots_result
+        else None
+    )
+    return slots_result, slot_dt
+
+
+async def _show_slot_unavailable(
+    call: CallbackQuery,
+    slots_result: CheckSlotsResult | None,
+    p_id: str,
+    clinic_id: str,
+    d_id: str,
+    is_monitored: bool,
+) -> None:
+    """Показывает «талон больше недоступен» с актуальной клавиатурой (§11.1.4).
+
+    Если в свежем ответе остались слоты — выводится их сетка; при пустом
+    ответе или сбое API — возврат в секцию врача. Карточка подтверждения
+    не показывается, запись не выполняется.
+
+    Args:
+        call: Callback кнопки слота или подтверждения.
+        slots_result: Свежий результат ``check_slots()`` либо ``None``.
+        p_id: ID пациента.
+        clinic_id: ID клиники.
+        d_id: ID врача.
+        is_monitored: Врач отслеживается (для кнопки секции врача).
+    """
+    if slots_result and slots_result.has_slots:
+        reply_markup = get_slot_grid_keyboard(slots_result, p_id, clinic_id, d_id)
+    else:
+        reply_markup = get_doctor_section_keyboard(p_id, clinic_id, d_id, is_monitored)
+
+    msg = call.message
+    if isinstance(msg, Message):
+        try:
+            await msg.edit_text(
+                _("booking-slot-unavailable"),
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+            )
+        except TelegramBadRequest as e:
+            logger.debug(f"Не удалось показать «талон недоступен»: {e}")
+
+    await call.answer()
+
+
 @router.callback_query(create_callback_filter(BookSlot))
 async def book_slot_section(
     call: CallbackQuery,
     db: DatabaseManager,
+    api: ZdravClient,
     callback_data: BookSlot,
 ) -> None:
     """Выбор слота для записи (новый flow — из PopupSection):
-    показывает сообщение подтверждения.
+    показывает карточку подтверждения.
+
+    Дата и время не приходят в callback (§11.1.2): слот резолвится по
+    ``appointment_id`` в свежем ответе ``check_slots()`` (§11.1.1).
+    Если слот исчез — карточка не показывается, запись не выполняется (§11.1.4).
     """
     if not call.from_user or not call.message:
         return
@@ -1779,8 +1319,6 @@ async def book_slot_section(
     clinic_id = callback_data.clinic_id
     d_id = callback_data.d_id
     appointment_id = callback_data.appointment_id
-    date = callback_data.date
-    time = callback_data.time
     uid = str(call.from_user.id)
 
     # --- Проверка безопасности ---
@@ -1789,39 +1327,61 @@ async def book_slot_section(
         return
 
     user_data = await db.get_user_data(uid)
-    if p_id not in user_data.get("patients", {}):
+    raw_patient = user_data.get("patients", {}).get(p_id)
+    if raw_patient is None:
         await call.answer("⛔ Пациент не найден", show_alert=True)
         return
 
-    # --- Получение данных врача ---
+    # --- Резолв слота в свежем ответе (§11.1.1, §11.1.4) ---
+    slots_result, slot_dt = await _resolve_fresh_slot(
+        api, d_id, p_id, clinic_id, appointment_id
+    )
+    if slot_dt is None:
+        is_monitored = d_id in user_data.get("monitoring", {}).get(p_id, {})
+        await _show_slot_unavailable(
+            call, slots_result, p_id, clinic_id, d_id, is_monitored
+        )
+        return
+
+    # --- Получение данных врача и специальности (§11.1.1) ---
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
     doc_raw = doctors_list.get(d_id)
     doctor_name = d_id
+    doctor_specialty = ""
     if doc_raw:
         doc_info: DoctorEntry = doc_raw
         doctor_name = shorten_fio(doc_info.get("name", _("doctor-fallback-name")))
+        doctor_specialty = shorten_specialty(doc_info.get("specialty", ""))
 
-    # --- Формирование подтверждения ---
-    confirm_text = (
-        f"📋 {_('booking-confirm-title')}\n\n"
-        f"{_('booking-confirm-text').format(doctor=doctor_name, date=date, time=time)}"
+    # --- Пациент и клиника для карточки (§11.1.1) ---
+    p_info: PatientInfo = raw_patient
+    patient_name = p_info.get("alias") or p_info.get("fio", "")
+    clinic_name = await db.get_clinic_name(clinic_id) or ""
+
+    # --- Формирование карточки подтверждения (§11.2) ---
+    confirm_text = format_booking_card(
+        doctor_name=doctor_name,
+        specialty=doctor_specialty,
+        date=slot_dt.date,
+        time=slot_dt.time,
+        patient_name=patient_name,
+        clinic_name=clinic_name,
     )
     confirm_kb = get_booking_section_confirm_keyboard(
-        p_id, clinic_id, d_id, appointment_id, date, time
+        p_id, clinic_id, d_id, appointment_id
     )
 
     # Редактируем сообщение → подтверждение
-    try:
-        msg = call.message
-        if isinstance(msg, Message):
-            with contextlib.suppress(Exception):
-                await msg.edit_text(
-                    confirm_text,
-                    reply_markup=confirm_kb,
-                    parse_mode="Markdown",
-                )
-    except Exception:
-        logger.debug("Не удалось отредактировать сообщение в book_slot_section")
+    msg = call.message
+    if isinstance(msg, Message):
+        try:
+            await msg.edit_text(
+                confirm_text,
+                reply_markup=confirm_kb,
+                parse_mode="Markdown",
+            )
+        except TelegramBadRequest as e:
+            logger.debug(f"Не удалось показать карточку записи: {e}")
 
     await call.answer()
 
@@ -1926,8 +1486,6 @@ async def book_confirm_section(
     clinic_id = callback_data.clinic_id
     d_id = callback_data.d_id
     appointment_id = callback_data.appointment_id
-    date = callback_data.date
-    time = callback_data.time
     uid = str(call.from_user.id)
 
     # --- Повторная проверка безопасности ---
@@ -1938,6 +1496,17 @@ async def book_confirm_section(
     user_data = await db.get_user_data(uid)
     if p_id not in user_data.get("patients", {}):
         await call.answer("⛔ Пациент не найден", show_alert=True)
+        return
+
+    # --- Резолв слота в свежем ответе (§11.1.5) ---
+    slots_result, slot_dt = await _resolve_fresh_slot(
+        api, d_id, p_id, clinic_id, appointment_id
+    )
+    if slot_dt is None:
+        is_monitored = d_id in user_data.get("monitoring", {}).get(p_id, {})
+        await _show_slot_unavailable(
+            call, slots_result, p_id, clinic_id, d_id, is_monitored
+        )
         return
 
     # --- Получение данных врача и пациента ---
@@ -1988,8 +1557,8 @@ async def book_confirm_section(
         d_name_display = shorten_fio(doctor_name)
         success_text = _("booking-success").format(
             doctor=d_name_display,
-            date=date,
-            time=time,
+            date=slot_dt.date,
+            time=slot_dt.time,
             clinic=clinic_name,
         )
 
@@ -2004,8 +1573,8 @@ async def book_confirm_section(
             specialty=doctor_specialty,
             clinic_id=clinic_id,
             clinic_name=clinic_name,
-            slot_date=date,
-            slot_time=time,
+            slot_date=slot_dt.date,
+            slot_time=slot_dt.time,
             appointment_id=appointment_id,
             created_at=time_module.time(),
             is_archived=0,

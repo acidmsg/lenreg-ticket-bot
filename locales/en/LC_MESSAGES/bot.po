@@ -56,14 +56,6 @@ msgstr "⚙️ Select doctors for monitoring:{clinic_line}"
 msgid "loading-doctors"
 msgstr "⏳ Loading doctor list..."
 
-#: src/handlers/common.py:750
-msgid "monitoring-disabled-for"
-msgstr "⚙️ Monitoring for {name} disabled."
-
-#: src/handlers/common.py:836
-msgid "monitoring-enabled-for"
-msgstr "⚙️ Monitoring for {name} enabled."
-
 #: src/handlers/common.py:770
 msgid "checking-slots"
 msgstr "⏳ Checking for available slots..."
@@ -440,10 +432,6 @@ msgid "export-no-data-error"
 msgstr "No data to export."
 
 #: src/handlers/common.py (booking)
-msgid "btn-book-slot"
-msgstr "📅 Book for {date} at {time}"
-
-#: src/handlers/common.py (booking)
 msgid "btn-booking-confirm"
 msgstr "✅ Confirm"
 
@@ -454,10 +442,6 @@ msgstr "↩ Back"
 #: src/handlers/common.py (booking)
 msgid "booking-in-progress"
 msgstr "⏳ Booking in progress..."
-
-#: src/handlers/common.py (booking)
-msgid "booking-slot-taken"
-msgstr "❌ This slot is already taken. Please choose another time."
 
 #: src/handlers/common.py (booking)
 msgid "booking-forbidden"
@@ -481,9 +465,33 @@ msgstr "Unexpected error. The administrator has been notified."
 msgid "booking-confirm-title"
 msgstr "Booking confirmation"
 
-#: src/handlers/common.py (doctor_section)
-msgid "booking-confirm-text"
-msgstr "Book with {doctor} on {date} at {time}?"
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-doctor"
+msgstr "🧑‍⚕️ {doctor}"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-specialty"
+msgstr "📋 {specialty}"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-clinic"
+msgstr "🏥 {clinic}"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-datetime"
+msgstr "📅 {date} at {time}"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-patient"
+msgstr "👤 Patient: {patient}"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-confirm-question"
+msgstr "❓ Book this appointment?"
+
+#: src/handlers/common.py (booking_card)
+msgid "booking-slot-unavailable"
+msgstr "❌ This slot is no longer available. Please choose another time."
 
 #: src/handlers/common.py (doctor_section)
 msgid "booking-success"
@@ -534,6 +542,38 @@ msgstr "✅ You have been booked successfully!"
 #: src/web/static/app/js/views/slots.js
 msgid "booking-toast-error"
 msgstr "❌ Booking error: {reason}"
+
+# Ключи-паритеты карточки подтверждения записи (§11.3, §11.5).
+# Строки заданы по-русски в src/web/static/app/js/views/slots.js;
+# ключи заведены для паритета RU/EN.
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-title"
+msgstr "Booking confirmation"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-doctor"
+msgstr "🧑‍⚕️ {doctor}"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-specialty"
+msgstr "📋 {specialty}"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-clinic"
+msgstr "🏥 {clinic}"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-datetime"
+msgstr "📅 {date} at {time}"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-patient"
+msgstr "👤 Patient: {patient}"
+
+#: src/web/static/app/js/views/slots.js
+msgid "booking-confirm-popup-question"
+msgstr "❓ Book this appointment?"
 
 # ── Фаза 3 рефакторинга UX (Мои записи) ──
 

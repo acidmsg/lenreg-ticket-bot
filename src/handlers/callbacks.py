@@ -60,14 +60,6 @@ class DeletePatientConfirm(CallbackData, prefix="del_p_yes"):
     p_id: str
 
 
-class ToggleDoctor(CallbackData, prefix="tgl"):
-    """Переключение мониторинга врача: tgl_{p_id}_{clinic_id}_{d_id}."""
-
-    p_id: str
-    clinic_id: str
-    d_id: str
-
-
 class BackToClinics(CallbackData, prefix="back_to_clinics"):
     """Возврат к списку клиник: back_to_clinics_{p_id}_{city_idx}."""
 
@@ -111,36 +103,6 @@ class StopPatientMonitoring(CallbackData, prefix="stop_patient"):
     city_idx: str = "all"
 
 
-class BookSlotLegacy(CallbackData, prefix="book"):
-    """Запись на слот (старый flow — из уведомлений мониторинга):
-    book_{p_id}_{clinic_id}_{d_id}_{appt_id}_{DD.MM}_{HH:MM}."""
-
-    p_id: str
-    clinic_id: str
-    d_id: str
-    appointment_id: str
-    slot_date: str  # "ДД.ММ"
-    slot_time: str  # "ЧЧ:ММ"
-
-
-class BookConfirmLegacy(CallbackData, prefix="book_yes"):
-    """Подтверждение записи (старый flow):
-    book_yes_{p_id}_{clinic_id}_{d_id}_{appointment_id}."""
-
-    p_id: str
-    clinic_id: str
-    d_id: str
-    appointment_id: str
-
-
-class BookCancel(CallbackData, prefix="book_no"):
-    """Отмена записи: book_no_{p_id}_{clinic_id}_{d_id}."""
-
-    p_id: str
-    clinic_id: str
-    d_id: str
-
-
 # ── Новые CallbackData для PopupSection (Фаза 1 рефакторинга UX) ──
 
 
@@ -176,26 +138,30 @@ class FilterSetup(CallbackData, prefix="filter"):
 
 class BookSlot(CallbackData, prefix="book_slot"):
     """Выбор слота для записи (новый flow — из PopupSection):
-    book_slot_{p_id}_{clinic_id}_{d_id}_{appointment_id}_{date}_{time}."""
+    book_slot_{p_id}_{clinic_id}_{d_id}_{appointment_id}.
+
+    Дата и время не передаются: это производные данные сервера,
+    содержащие «:» и недопустимые в CallbackData.pack() (§11.1.2).
+    Карточка резолвит слот повторным check_slots() по appointment_id.
+    """
 
     p_id: str
     clinic_id: str
     d_id: str
     appointment_id: str
-    date: str  # ДД.ММ.ГГГГ
-    time: str  # ЧЧ:ММ
 
 
 class BookConfirm(CallbackData, prefix="book_conf"):
     """Подтверждение записи (новый flow):
-    book_conf_{p_id}_{clinic_id}_{d_id}_{appointment_id}_{date}_{time}."""
+    book_conf_{p_id}_{clinic_id}_{d_id}_{appointment_id}.
+
+    Дата и время резолвятся заново из свежего check_slots() (§11.1.5).
+    """
 
     p_id: str
     clinic_id: str
     d_id: str
     appointment_id: str
-    date: str  # ДД.ММ.ГГГГ
-    time: str  # ЧЧ:ММ
 
 
 class SelectPatientForBooking(CallbackData, prefix="sel_pat_book"):

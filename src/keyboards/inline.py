@@ -17,11 +17,8 @@ from src.handlers.callbacks import (
     FILTER_WIZARD_SUMMARY_STEP,
     BackToCities,
     BackToClinics,
-    BookCancel,
     BookConfirm,
-    BookConfirmLegacy,
     BookSlot,
-    BookSlotLegacy,
     CitySelect,
     ClinicSelect,
     CloseSection,
@@ -36,7 +33,13 @@ from src.handlers.callbacks import (
     StopPatientMonitoring,
 )
 from src.i18n import _
-from src.utils.helpers import is_cabinet, is_child, shorten_fio, shorten_specialty
+from src.utils.helpers import (
+    format_slot_date,
+    is_cabinet,
+    is_child,
+    shorten_fio,
+    shorten_specialty,
+)
 
 
 def get_main_menu_keyboard(
@@ -397,78 +400,6 @@ def get_registration_keyboard(step: str):
     return builder.as_markup()
 
 
-def get_booking_confirmation_keyboard(
-    p_id: str,
-    clinic_id: str,
-    d_id: str,
-    appointment_id: str,
-):
-    """Клавиатура подтверждения записи: [✅ Подтвердить] [↩ Назад]."""
-
-    builder = InlineKeyboardBuilder()
-    builder.button(
-        text=_("btn-booking-confirm"),
-        callback_data=BookConfirmLegacy(
-            p_id=p_id,
-            clinic_id=clinic_id,
-            d_id=d_id,
-            appointment_id=appointment_id,
-        ).pack(),
-    )
-    builder.button(
-        text=_("btn-booking-back"),
-        callback_data=BookCancel(
-            p_id=p_id,
-            clinic_id=clinic_id,
-            d_id=d_id,
-        ).pack(),
-    )
-    builder.adjust(2)
-    return builder.as_markup()
-
-
-def build_slot_booking_keyboard(
-    p_id: str,
-    clinic_id: str,
-    d_id: str,
-    slots_result,
-):
-    """Клавиатура с кнопками «Записаться» для каждого слота (старый flow).
-
-    Args:
-        p_id: ID пациента.
-        clinic_id: ID клиники.
-        d_id: ID врача.
-        slots_result: CheckSlotsResult с полями .formatted и .slots.
-    """
-
-    builder = InlineKeyboardBuilder()
-
-    for slot in slots_result.slots:
-        # Извлекаем дату и время из AppointmentSlot
-        date_start = slot.date_start
-        # date_start.iso имеет формат "YYYY-MM-DD", берём "MM-DD" → "MM.DD"
-        iso_date = date_start.iso or ""
-        short_date = iso_date[5:].replace("-", ".") if len(iso_date) == 10 else iso_date
-        short_time = date_start.time or ""
-
-        label = _("btn-book-slot").format(date=short_date, time=short_time)
-        builder.button(
-            text=label,
-            callback_data=BookSlotLegacy(
-                p_id=p_id,
-                clinic_id=clinic_id,
-                d_id=d_id,
-                appointment_id=slot.id,
-                slot_date=short_date,
-                slot_time=short_time,
-            ).pack(),
-        )
-
-    builder.adjust(1)
-    return builder.as_markup()
-
-
 # ── Новые клавиатурные хелперы для PopupSection (Фаза 1 рефакторинга UX) ──
 
 
@@ -480,8 +411,9 @@ def get_slot_grid_keyboard(
 ):
     """Клавиатура-сетка слотов, сгруппированных по датам.
 
-    Для каждой даты — ряд кнопок с временем (по 3-4 в ряд).
-    Каждый слот — кнопка с callback BookSlot (новый flow, prefix="book_slot").
+    Для каждой даты — ряд кнопок с временем. Каждый слот — кнопка с callback
+    BookSlot (prefix="book_slot"): в callback передаются только идентификаторы
+    (§11.1.2), дата и время остаются в тексте кнопки и берутся из ``DateInfo``.
 
     Args:
         slots_result: CheckSlotsResult с полем .slots (список AppointmentSlot).
@@ -494,27 +426,18 @@ def get_slot_grid_keyboard(
     builder = InlineKeyboardBuilder()
 
     # Группируем слоты по дате
-    by_date: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-    # ключ = дата (ДД.ММ.ГГГГ), значение = список (время, appointment_id, iso_date)
+    by_date: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    # ключ = дата (ДД.ММ.ГГГГ), значение = список (время, appointment_id)
 
     for slot in slots_result.slots:
-        date_start = slot.date_start
-        iso_date = date_start.iso or ""
-        short_time = date_start.time or ""
-
-        # Конвертируем YYYY-MM-DD → ДД.ММ.ГГГГ
-        if len(iso_date) == 10:
-            date_display = f"{iso_date[8:10]}.{iso_date[5:7]}.{iso_date[0:4]}"
-        else:
-            date_display = iso_date
-
-        by_date[date_display].append((short_time, slot.id, iso_date))
+        date_display = format_slot_date(slot.date_start)
+        by_date[date_display].append((slot.date_start.time, slot.id))
 
     # Сортируем даты
     for date_display in sorted(by_date.keys()):
         time_slots = sorted(by_date[date_display], key=lambda x: x[0])
 
-        for time_str, appointment_id, _iso_date in time_slots:
+        for time_str, appointment_id in time_slots:
             label = f"📅 {date_display} в {time_str}"
             builder.button(
                 text=label,
@@ -523,8 +446,6 @@ def get_slot_grid_keyboard(
                     clinic_id=clinic_id,
                     d_id=d_id,
                     appointment_id=appointment_id,
-                    date=date_display,
-                    time=time_str,
                 ).pack(),
             )
 
@@ -627,21 +548,19 @@ def get_booking_section_confirm_keyboard(
     clinic_id: str,
     d_id: str,
     appointment_id: str,
-    date: str,
-    time: str,
 ):
     """Клавиатура подтверждения записи (новый flow — из PopupSection):
     [✅ Подтвердить] [↩ Назад].
 
     Кнопка «Назад» возвращает в DoctorSection (re-query слотов).
+    ``BookConfirm`` несёт только идентификаторы (§11.1.3); дата и время
+    на шаге подтверждения резолвятся заново из свежего ``check_slots()``.
 
     Args:
         p_id: ID пациента.
         clinic_id: ID клиники.
         d_id: ID врача.
         appointment_id: ID слота из API.
-        date: Дата в формате ДД.ММ.ГГГГ.
-        time: Время в формате ЧЧ:ММ.
     """
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -651,8 +570,6 @@ def get_booking_section_confirm_keyboard(
             clinic_id=clinic_id,
             d_id=d_id,
             appointment_id=appointment_id,
-            date=date,
-            time=time,
         ).pack(),
     )
     builder.button(
