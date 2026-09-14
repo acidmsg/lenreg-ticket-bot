@@ -398,3 +398,13 @@ class DatabaseManager:
     async def load(self) -> None:
         await self._db.connect()
         await self.refresh_cache()
+
+    async def close(self) -> None:
+        """Закрыть соединение с БД (делегирует в ``Database.close()``).
+
+        Явный публичный метод вместо неявного прокси через ``__getattr__``:
+        закрытие — часть жизненного цикла ресурса и должно быть видно как
+        контракт. Без него aiosqlite оставляет живым свой non-daemon
+        воркер-поток, и процесс не завершается после остановки loop'а.
+        """
+        await self._db.close()

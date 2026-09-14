@@ -181,8 +181,18 @@ async def _start_background_tasks(
 
 async def _start_metrics_server(
     db: DatabaseManager,
+    *,
+    host: str = "0.0.0.0",
+    port: int | None = None,
 ) -> tuple[web.AppRunner, web.TCPSite]:
-    """Запускает aiohttp-сервер с Prometheus /metrics endpoint."""
+    """Запускает aiohttp-сервер с Prometheus /metrics endpoint.
+
+    Args:
+        db: менеджер БД для генерации метрик.
+        host: адрес прослушивания; тесты передают loopback.
+        port: порт прослушивания; ``None`` — значение из настроек,
+            ``0`` — эфемерный порт (тесты).
+    """
 
     app = web.Application()
 
@@ -196,9 +206,10 @@ async def _start_metrics_server(
 
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", settings.METRICS_PORT, reuse_address=True)
+    metrics_port = settings.METRICS_PORT if port is None else port
+    site = web.TCPSite(runner, host, metrics_port, reuse_address=True)
     await site.start()
-    logger.info(f"Prometheus HTTP-сервер запущен на порту {settings.METRICS_PORT}")
+    logger.info(f"Prometheus HTTP-сервер запущен на порту {metrics_port}")
     return runner, site
 
 
@@ -318,20 +329,27 @@ async def _start_dashboard_on_port(
     web_app,
     port: int,
     logger,
+    host: str = "0.0.0.0",
 ) -> tuple[uvicorn.Server, asyncio.Task] | None:
     """Запускает uvicorn на конкретном порту в текущем event loop'е.
+
+    Args:
+        web_app: ASGI-приложение дашборда.
+        port: порт прослушивания; ``0`` — эфемерный порт (тесты).
+        logger: логгер вызывающего модуля.
+        host: адрес прослушивания; тесты передают loopback.
 
     Returns:
         (server, task) при успешном старте; ``None`` — если порт занять не удалось
         либо сервер не стал готов за ``_DASHBOARD_STARTUP_TIMEOUT``.
     """
     try:
-        sock = _create_dashboard_socket("0.0.0.0", port)
+        sock = _create_dashboard_socket(host, port)
     except OSError as exc:
         logger.warning(f"Не удалось занять порт {port}: {exc}")
         return None
 
-    config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="info")
+    config = uvicorn.Config(web_app, host=host, port=port, log_level="info")
     server = _DashboardServer(config)
     dashboard_task = asyncio.create_task(server.serve(sockets=[sock]), name="dashboard")
     dashboard_task.add_done_callback(_log_dashboard_task_result)
@@ -347,7 +365,7 @@ async def _start_dashboard_on_port(
         sock.close()  # освобождаем порт, если uvicorn не успел забрать сокет
         return None
 
-    logger.info(f"Веб-дашборд запущен на http://0.0.0.0:{port}")
+    logger.info(f"Веб-дашборд запущен на http://{host}:{port}")
     return server, dashboard_task
 
 
@@ -673,6 +691,73 @@ async def bootstrap_web(
     return dashboard_server, dashboard_task, metrics_runner
 
 
+async def shutdown_services(
+    *,
+    dashboard_server: uvicorn.Server | None,
+    dashboard_task: asyncio.Task | None,
+    manager: BackgroundTaskManager,
+    metrics_runner: web.AppRunner | None,
+    api: ZdravClient,
+    bot: Bot | None,
+    db: DatabaseManager,
+) -> None:
+    """Штатная остановка всех ресурсов процесса — тело ``finally`` в ``main()``.
+
+    Вынесено в отдельную корутину ради тестируемости: порядок остановки
+    проверяется регресс-тестами без запуска Telegram-поллинга. Наблюдаемое
+    поведение и сообщения логов при этом не меняются.
+
+    Порядок строго детерминирован:
+
+    1. веб-дашборд (дренаж in-flight HTTP-запросов);
+    2. фоновые задачи;
+    3. aiohttp-сервер метрик;
+    4. API-клиент и сессия бота;
+    5. соединение с БД;
+    6. Redis.
+
+    Args:
+        dashboard_server: uvicorn-сервер дашборда; ``None`` — дашборд отключён.
+        dashboard_task: задача ``Server.serve()``; ``None`` — дашборд отключён.
+        manager: реестр фоновых задач.
+        metrics_runner: aiohttp-сервер метрик; ``None`` — не запущен.
+        api: клиент zdrav API.
+        bot: бот aiogram; ``None`` — сессия отсутствует (например, в тестах).
+        db: менеджер БД — закрывается последним среди потребителей данных.
+    """
+    # Дашборд останавливается первым: in-flight веб-запросы должны завершиться
+    # до закрытия api и БД, иначе они обратятся к уже закрытым ресурсам.
+    if dashboard_server is not None and dashboard_task is not None:
+        logger.info("Остановка веб-дашборда...")
+        await _stop_dashboard_server(
+            dashboard_server, dashboard_task, _DASHBOARD_DRAIN_TIMEOUT
+        )
+        logger.info("Веб-дашборд остановлен")
+
+    logger.info("Остановка фоновых задач...")
+    await manager.stop_all(shutdown_timeout=30.0)
+
+    # Остановка Prometheus HTTP-сервера
+    if metrics_runner is not None:
+        await metrics_runner.cleanup()
+        logger.info("Prometheus HTTP-сервер остановлен")
+
+    await api.close()
+
+    if bot is not None and bot.session and not getattr(bot.session, "closed", False):
+        await bot.session.close()
+
+    # Закрытие БД — после остановки всех потребителей: дашборд и фоновые задачи
+    # к этому моменту не работают, поэтому к закрытому соединению никто не обратится.
+    # Вызов обязателен: aiosqlite удерживает non-daemon воркер-поток до close(),
+    # без него процесс не завершается на выходе из ``asyncio.run(main())``.
+    await db.close()
+    logger.info("Соединение с БД закрыто")
+
+    # Закрытие Redis
+    await RedisClient.shutdown()
+
+
 async def main() -> None:
     """Основная функция запуска бота — оркестрирует все bootstrap-этапы."""
     await bootstrap_logging()
@@ -698,30 +783,15 @@ async def main() -> None:
         logger.exception("Критическая ошибка в поллинге")
         await error_notifier.notify(e, context="polling_crash")
     finally:
-        # Дашборд останавливается первым: in-flight веб-запросы должны завершиться
-        # до закрытия api и БД, иначе они обратятся к уже закрытым ресурсам.
-        if dashboard_server is not None and dashboard_task is not None:
-            logger.info("Остановка веб-дашборда...")
-            await _stop_dashboard_server(
-                dashboard_server, dashboard_task, _DASHBOARD_DRAIN_TIMEOUT
-            )
-            logger.info("Веб-дашборд остановлен")
-
-        logger.info("Остановка фоновых задач...")
-        await manager.stop_all(shutdown_timeout=30.0)
-
-        # Остановка Prometheus HTTP-сервера
-        if metrics_runner is not None:
-            await metrics_runner.cleanup()
-            logger.info("Prometheus HTTP-сервер остановлен")
-
-        await api.close()
-
-        if bot.session and not getattr(bot.session, "closed", False):
-            await bot.session.close()
-
-        # Закрытие Redis
-        await RedisClient.shutdown()
+        await shutdown_services(
+            dashboard_server=dashboard_server,
+            dashboard_task=dashboard_task,
+            manager=manager,
+            metrics_runner=metrics_runner,
+            api=api,
+            bot=bot,
+            db=db,
+        )
 
         logger.info("Бот остановлен.")
 
