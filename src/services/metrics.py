@@ -17,6 +17,13 @@ from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
 from src.utils.redis import RedisClient
 
+# Content-Type экспозиции Prometheus без параметра charset.
+# aiohttp (3.13) запрещает charset внутри аргумента content_type
+# (ValueError: charset must not be in content_type argument), поэтому
+# charset отбрасывается здесь и передаётся отдельным аргументом
+# charset="utf-8" в web.Response (см. src/main.py).
+PROMETHEUS_CONTENT_TYPE = CONTENT_TYPE_LATEST.replace("; charset=utf-8", "")
+
 
 class PrometheusMetrics:
     """
@@ -187,9 +194,13 @@ class PrometheusMetrics:
         await self._sync_gauges(db)
 
     async def generate_response(self, db: DatabaseManager) -> tuple[bytes, str]:
-        """Генерирует тело ответа в формате Prometheus."""
+        """Генерирует тело ответа в формате Prometheus.
+
+        Возвращает Content-Type без charset — он пригоден для аргумента
+        ``content_type`` aiohttp-ответа; charset добавляется отдельно.
+        """
         await self.update(db)
-        return generate_latest(), CONTENT_TYPE_LATEST
+        return generate_latest(), PROMETHEUS_CONTENT_TYPE
 
     # ── Schema Change Detection (F8) ──────────────────────────────
 

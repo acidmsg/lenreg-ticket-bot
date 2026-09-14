@@ -188,7 +188,9 @@ async def _start_metrics_server(
 
     async def metrics_handler(request: web.Request) -> web.Response:
         body, content_type = await prometheus_metrics.generate_response(db)
-        return web.Response(body=body, content_type=content_type)
+        # charset — отдельный аргумент: aiohttp запрещает charset внутри
+        # content_type (ValueError: charset must not be in content_type argument).
+        return web.Response(body=body, content_type=content_type, charset="utf-8")
 
     app.router.add_get("/metrics", metrics_handler)
 
