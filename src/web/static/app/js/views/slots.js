@@ -487,8 +487,45 @@ function bindSlotChipClicks(container, params) {
   });
 }
 
+/** Формат времени слота, ожидаемый контрактом `POST /book` (ЧЧ:ММ). */
+const SLOT_TIME_PATTERN = /^\d{2}:\d{2}$/;
+
+/**
+ * Разбирает `monitoringId` вида `{p_id}_{d_id}` на компоненты.
+ *
+ * @param {string} monitoringId — ID мониторинга пары пациент + врач
+ * @returns {{patientId: string, doctorId: string}} `p_id` и `d_id` (пустые строки, если не найдены)
+ */
+function parseMonitoringId(monitoringId) {
+  const parts = String(monitoringId || "").split("_");
+  return {
+    patientId: parts[0] || "",
+    doctorId: parts[1] || "",
+  };
+}
+
+/**
+ * Переводит дату слота в ISO-формат `ГГГГ-ММ-ДД` (поле `slot_date` запроса).
+ *
+ * Слоты API приходят в формате `ДД.ММ.ГГГГ`, контракт `POST /book` ожидает
+ * `date`. Преобразование выполняется по строкам — без `Date` и timezone-сдвигов.
+ *
+ * @param {string} value — дата слота (`ДД.ММ.ГГГГ` или `ГГГГ-ММ-ДД`)
+ * @returns {string} дата в формате `ГГГГ-ММ-ДД`, пустая строка — если дата не распознана
+ */
+function toIsoSlotDate(value) {
+  const parts = String(value || "").split(".");
+  if (parts.length !== 3) return value || "";
+  if (!parts.every((part) => /^\d+$/.test(part))) return "";
+  const [day, month, year] = parts;
+  return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 /**
  * Обрабатывает клик по слоту: показывает подтверждение и выполняет бронирование.
+ *
+ * Врач определяется по `params.monitoringId` (`{p_id}_{d_id}`): `GET /api/user/slots`
+ * не возвращает `doctor_id`, поэтому слоты привязаны к паре пациент + врач.
  *
  * @param {HTMLElement} chip — кнопка слота
  * @param {object} params — параметры маршрута
@@ -506,12 +543,19 @@ async function handleSlotBooking(chip, params) {
     return;
   }
 
-  // Извлекаем patient_id из monitoringId
+  // patient_id и doctor_id — компоненты monitoringId; врач обязателен
+  // в контракте POST /book, иначе бэкенд подберёт «первого врача клиники».
   const monitoringId = params?.monitoringId || "";
-  const parts = monitoringId.split("_");
-  const patientId = parts.length >= 1 ? parts[0] : "";
+  const { patientId, doctorId } = parseMonitoringId(monitoringId);
+  const slotDate = toIsoSlotDate(date);
 
-  if (!patientId || !clinicId) {
+  if (
+    !patientId ||
+    !clinicId ||
+    !doctorId ||
+    !slotDate ||
+    !SLOT_TIME_PATTERN.test(time)
+  ) {
     if (window.showToast) {
       window.showToast("❌ Недостаточно данных для записи", "error");
     }
@@ -545,7 +589,10 @@ async function handleSlotBooking(chip, params) {
     const result = await apiPost("/book", {
       clinic_id: clinicId,
       patient_id: patientId,
+      doctor_id: doctorId,
       appointment_id: appointmentId,
+      slot_date: slotDate,
+      slot_time: time,
       history_id: "",
       referral_id: "",
     });

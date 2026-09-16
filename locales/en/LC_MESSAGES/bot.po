@@ -56,29 +56,9 @@ msgstr "⚙️ Select doctors for monitoring:{clinic_line}"
 msgid "loading-doctors"
 msgstr "⏳ Loading doctor list..."
 
-#: src/handlers/common.py:770
-msgid "checking-slots"
-msgstr "⏳ Checking for available slots..."
-
-#: src/handlers/common.py:785
-msgid "slots-available-status"
-msgstr "✅ slots available!"
-
-#: src/handlers/common.py:785
-msgid "slots-empty-status"
-msgstr "No slots yet 🤷‍♂️"
-
-#: src/handlers/common.py:795
-msgid "slots-will-notify"
-msgstr "I'll let you know as soon as they appear!"
-
 #: src/handlers/common.py:797
 msgid "signup-link-text"
 msgstr "\n\n🔗 [Sign up]({url})"
-
-#: src/handlers/common.py:848
-msgid "done-toast"
-msgstr "Done!"
 
 #: src/handlers/common.py:901, 921
 msgid "monitoring-reset-patient"
@@ -279,10 +259,6 @@ msgstr ""
 "Patient not found in the clinic database. "
 "Please check the entered data."
 
-#: src/api/zdrav_client.py:181-183
-msgid "api-blocked"
-msgstr "Portal temporarily unavailable (bot protection). Try again later."
-
 #: src/api/zdrav_client.py:184
 msgid "api-temp-unavailable"
 msgstr "Portal temporarily unavailable ({status})"
@@ -290,14 +266,6 @@ msgstr "Portal temporarily unavailable ({status})"
 #: src/api/zdrav_client.py:187, 197
 msgid "api-timeout"
 msgstr "Server zdrav.lenreg.ru is not responding (Timeout)"
-
-#: src/api/zdrav_client.py:190
-msgid "api-network-error"
-msgstr "Server zdrav.lenreg.ru is not responding (Network error)"
-
-#: src/api/zdrav_client.py:193
-msgid "api-parse-error"
-msgstr "Server zdrav.lenreg.ru is not responding (Parse error)"
 
 #: src/middleware/ratelimit.py:104
 msgid "rate-limit-toast"
@@ -443,22 +411,6 @@ msgstr "↩ Back"
 msgid "booking-in-progress"
 msgstr "⏳ Booking in progress..."
 
-#: src/handlers/common.py (booking)
-msgid "booking-forbidden"
-msgstr "Access denied. Please try again later."
-
-#: src/handlers/common.py (booking)
-msgid "booking-rate-limited"
-msgstr "Too many requests. Please wait a minute."
-
-#: src/handlers/common.py (booking)
-msgid "booking-network-error"
-msgstr "The server is not responding. Please try again later."
-
-#: src/handlers/common.py (booking)
-msgid "booking-unknown-error"
-msgstr "Unexpected error. The administrator has been notified."
-
 # ── Фаза 1 рефакторинга UX (PopupSection) ──────────────────
 
 #: src/handlers/common.py (doctor_section)
@@ -498,10 +450,6 @@ msgid "booking-success"
 msgstr "✅ You are booked!\n{doctor}\n{date} at {time}\n{clinic}"
 
 #: src/handlers/common.py (doctor_section)
-msgid "booking-failed"
-msgstr "❌ Failed to book: {reason}"
-
-#: src/handlers/common.py (doctor_section)
 msgid "no-slots-placeholder"
 msgstr "No appointments available at the moment."
 
@@ -512,10 +460,6 @@ msgstr "🔔 Track"
 #: src/handlers/common.py (doctor_section)
 msgid "btn-close-section"
 msgstr "✕"
-
-#: src/handlers/common.py (doctor_section)
-msgid "monitoring-added"
-msgstr "✅ Doctor added to tracking"
 
 #: src/handlers/common.py (doctor_section)
 msgid "select-patient-for-booking"
@@ -530,10 +474,6 @@ msgstr "Back to main"
 #: src/web/static/app/js/views/slots.js
 msgid "slots-booking-hint"
 msgstr "Choose a convenient time to book"
-
-#: src/web/static/app/js/views/slots.js
-msgid "booking-modal-title"
-msgstr "Booking confirmation"
 
 #: src/web/static/app/js/views/slots.js
 msgid "booking-toast-success"
@@ -577,26 +517,6 @@ msgstr "❓ Book this appointment?"
 
 # ── Фаза 3 рефакторинга UX (Мои записи) ──
 
-#: src/handlers/common.py (my_bookings)
-msgid "btn-my-bookings"
-msgstr "📋 My bookings"
-
-#: src/handlers/common.py (my_bookings)
-msgid "bookings-title"
-msgstr "My doctor appointments"
-
-#: src/handlers/common.py (my_bookings)
-msgid "bookings-empty"
-msgstr "You have no doctor appointments yet."
-
-#: src/handlers/common.py (my_bookings)
-msgid "archive-title"
-msgstr "Appointment archive"
-
-#: src/handlers/common.py (my_bookings)
-msgid "archive-empty"
-msgstr "No archived appointments yet."
-
 #: src/web/static/app/js/views/bookings.js
 msgid "btn-export-png"
 msgstr "📥 Save"
@@ -608,48 +528,6 @@ msgstr "📄 PDF"
 #: src/web/static/app/js/views/bookings.js
 msgid "btn-export-calendar"
 msgstr "📅 To calendar"
-
-# ── Фаза 4: обработка ошибок и локализация (T-20) ──
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "booking-error-slot-taken"
-msgstr "❌ The slot is already taken. Choose another one."
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "booking-error-api-unavailable"
-msgstr "❌ The booking service is temporarily unavailable. Try again later."
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "booking-error-api-timeout"
-msgstr "❌ The booking service is not responding. Try again later."
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "booking-error-forbidden"
-msgstr "❌ Session expired. Please start over."
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "booking-error-unknown"
-msgstr "❌ An unexpected error occurred."
-
-#: src/handlers/common.py (start_monitoring)
-msgid "monitoring-already-exists"
-msgstr "⚠️ This doctor is already being tracked."
-
-#: src/handlers/common.py (book_confirm_section)
-msgid "btn-back-to-slots"
-msgstr "↩ Back to slots"
-
-#: src/handlers/common.py (filter_setup)
-msgid "filter-setup-title"
-msgstr "Monitoring filter setup"
-
-#: src/web/routers/user_api.py (get_available_doctors)
-msgid "matching-slots-count"
-msgstr "Matching filter: {count}"
-
-#: src/web/routers/user_api.py (update_monitoring_filter)
-msgid "filter-updated"
-msgstr "✅ Filter updated"
 
 # ── Мастер настройки фильтра отслеживания (T-21, §9) ──
 

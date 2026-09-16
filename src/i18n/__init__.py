@@ -15,15 +15,76 @@
 
 import json
 import os
-from gettext import GNUTranslations, NullTranslations, translation
-from typing import cast
+import struct
+from gettext import GNUTranslations, NullTranslations, find, translation
+from typing import Final, cast
+
+from loguru import logger
+
+# Язык по умолчанию; он же fallback для остальных языков
+DEFAULT_LANGUAGE: Final = "ru"
+
+# Имя директории с каталогами локалей в корне проекта
+LOCALES_DIRNAME: Final = "locales"
 
 # Текущий язык (устанавливается при старте)
-_current_lang: str = "ru"
+_current_lang: str = DEFAULT_LANGUAGE
 
 # Gettext-обёртки (устанавливаются через setup_i18n)
 _translations_bot: "GNUTranslations | NullTranslations" = NullTranslations()
 _translations_data: "GNUTranslations | NullTranslations" = NullTranslations()
+
+
+def _locales_dir() -> str:
+    """Возвращает путь к директории локалей в корне проекта."""
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        LOCALES_DIRNAME,
+    )
+
+
+def _load_domain(
+    domain: str, lang: str, locales_dir: str
+) -> GNUTranslations | NullTranslations:
+    """
+    Загружает каталог домена и логирует результат загрузки.
+
+    Успешная загрузка фиксируется на уровне INFO, отсутствие каталога `.mo` —
+    на уровне WARNING (бот продолжает работу на msgid), нечитаемый `.mo` —
+    на уровне ERROR. Ошибки не замалчиваются.
+
+    Args:
+        domain: Имя домена каталога ('bot' или 'data').
+        lang: Код языка (например, 'ru').
+        locales_dir: Абсолютный путь к директории локалей.
+
+    Returns:
+        Загруженный каталог либо NullTranslations, если каталог недоступен.
+    """
+    mo_path = find(domain, locales_dir, languages=[lang])
+    if mo_path is None:
+        logger.warning(
+            f"i18n: каталог .mo не найден — домен={domain}, язык={lang}, "
+            f"localedir={locales_dir}; будет возвращён msgid"
+        )
+        return NullTranslations()
+
+    try:
+        catalog = translation(
+            domain,
+            localedir=locales_dir,
+            languages=[lang],
+            fallback=False,
+        )
+    except (OSError, struct.error) as exc:
+        logger.error(
+            f"i18n: каталог .mo повреждён — домен={domain}, язык={lang}, "
+            f"файл={mo_path}, ошибка={exc!r}; будет возвращён msgid"
+        )
+        return NullTranslations()
+
+    logger.info(f"i18n: домен={domain}, язык={lang}, каталог={mo_path}")
+    return catalog
 
 
 def setup_i18n(lang: str) -> None:
@@ -39,63 +100,24 @@ def setup_i18n(lang: str) -> None:
     global _current_lang, _translations_bot, _translations_data
     _current_lang = lang
 
-    # Определяем путь к директории locales
-    locales_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "locales"
-    )
+    locales_dir = _locales_dir()
+    if not os.path.isdir(locales_dir):
+        logger.warning(f"i18n: каталог локалей отсутствует — {locales_dir}")
 
-    # Домен bot
-    t_bot: GNUTranslations | NullTranslations
-    try:
-        t_bot = translation(
-            "bot",
-            localedir=locales_dir,
-            languages=[lang],
-            fallback=False,
+    t_bot = _load_domain("bot", lang, locales_dir)
+    if lang != DEFAULT_LANGUAGE:
+        t_bot.add_fallback(_load_domain("bot", DEFAULT_LANGUAGE, locales_dir))
+        logger.debug(
+            f"i18n: домен=bot, язык={lang} — подключён fallback {DEFAULT_LANGUAGE}"
         )
-    except FileNotFoundError:
-        t_bot = NullTranslations()
-
-    # Добавляем fallback на русский для домена bot
-    if lang != "ru":
-        try:
-            ru_bot = translation(
-                "bot",
-                localedir=locales_dir,
-                languages=["ru"],
-                fallback=True,
-            )
-            t_bot.add_fallback(ru_bot)
-        except FileNotFoundError:
-            pass
-
     _translations_bot = t_bot
 
-    # Домен data
-    t_data: GNUTranslations | NullTranslations
-    try:
-        t_data = translation(
-            "data",
-            localedir=locales_dir,
-            languages=[lang],
-            fallback=False,
+    t_data = _load_domain("data", lang, locales_dir)
+    if lang != DEFAULT_LANGUAGE:
+        t_data.add_fallback(_load_domain("data", DEFAULT_LANGUAGE, locales_dir))
+        logger.debug(
+            f"i18n: домен=data, язык={lang} — подключён fallback {DEFAULT_LANGUAGE}"
         )
-    except FileNotFoundError:
-        t_data = NullTranslations()
-
-    # Добавляем fallback на русский для домена data
-    if lang != "ru":
-        try:
-            ru_data = translation(
-                "data",
-                localedir=locales_dir,
-                languages=["ru"],
-                fallback=True,
-            )
-            t_data.add_fallback(ru_data)
-        except FileNotFoundError:
-            pass
-
     _translations_data = t_data
 
 
@@ -147,9 +169,7 @@ def load_json_data(filename: str, lang: str | None = None) -> dict[str, str]:
         dict: Загруженные данные или пустой dict при ошибке.
     """
     target_lang = lang or _current_lang
-    locales_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "locales"
-    )
+    locales_dir = _locales_dir()
 
     # Пробуем запрошенный язык
     path = os.path.join(locales_dir, target_lang, "data", filename)

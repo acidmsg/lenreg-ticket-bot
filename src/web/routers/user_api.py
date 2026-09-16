@@ -18,7 +18,7 @@ from typing import Any, cast
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.database.manager import DatabaseManager
 from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
@@ -93,11 +93,32 @@ class BookRequest(BaseModel):
 
     clinic_id: str = Field(..., description="ID клиники")
     patient_id: str = Field(..., description="ID пациента")
+    doctor_id: str = Field(
+        ..., description="ID врача, выбранного пользователем (d_id из monitoring_id)"
+    )
     appointment_id: str = Field(
         ..., description="ID слота (appointment_id из check_slots)"
     )
+    slot_date: str = Field(
+        ..., description="Дата выкупаемого слота в формате ГГГГ-ММ-ДД"
+    )
+    slot_time: str = Field(
+        ...,
+        pattern=r"^\d{2}:\d{2}$",
+        description="Время выкупаемого слота в формате ЧЧ:ММ",
+    )
     history_id: str = Field(default="", description="ID истории (опционально)")
     referral_id: str = Field(default="", description="ID направления (опционально)")
+
+    @field_validator("slot_date")
+    @classmethod
+    def validate_slot_date(cls, value: str) -> str:
+        """Проверяет соответствие даты слота формату ``ГГГГ-ММ-ДД``."""
+        try:
+            datetime.date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("Дата слота должна быть в формате ГГГГ-ММ-ДД.") from exc
+        return value
 
 
 class MonitoringFilterRequest(BaseModel):
@@ -175,6 +196,15 @@ def _monitoring_id_to_parts(monitoring_id: str) -> tuple[str, str]:
             "Ожидается формат '{patient_id}_{doctor_id}'."
         )
     return parts[0], parts[1]
+
+
+def _iso_date_to_display(value: str) -> str:
+    """Переводит дату слота из ISO-формата ``ГГГГ-ММ-ДД`` в ``ДД.ММ.ГГГГ``.
+
+    Формат ``ДД.ММ.ГГГГ`` — формат хранения ``bookings.slot_date``: он
+    зафиксирован автоархивацией прошедших записей и экспортом в ICS.
+    """
+    return datetime.date.fromisoformat(value).strftime("%d.%m.%Y")
 
 
 # ── Эндпоинты ────────────────────────────────────────────────
@@ -1228,8 +1258,10 @@ async def book_appointment(
     Выполняет бронирование через API zdrav.lenreg.ru и сохраняет
     запись в таблицу ``bookings``.
 
-    Тело запроса: ``BookRequest`` с полями clinic_id, patient_id,
-    appointment_id, history_id (опционально), referral_id (опционально).
+    Тело запроса: ``BookRequest`` с полями clinic_id, patient_id, doctor_id,
+    appointment_id, slot_date, slot_time, history_id (опционально),
+    referral_id (опционально). Врач валидируется по мониторингу пациента:
+    если ``doctor_id`` не отслеживается для ``patient_id`` — ответ 400.
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -1254,81 +1286,44 @@ async def book_appointment(
     patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
     patient_name = patient_info.get("fio", body.patient_id)
 
-    # Ищем данные врача в мониторинге пользователя
-    doctor_name = ""
-    doctor_specialty = ""
-    clinic_name = ""
-    d_id = ""
-
-    monitoring = user_data.get("monitoring", {})
-    for _p_id, monitored_doctors in monitoring.items():
-        for _m_d_id, m_d_info in monitored_doctors.items():
-            # Проверяем, что врач из мониторинга соответствует clinic_id из запроса
-            if m_d_info.get("clinic_id") == body.clinic_id:
-                # Ищем appointment_id — нам нужен doctor_id для записи в bookings
-                # В теле запроса нет doctor_id, поэтому ищем в мониторинге по clinic_id
-                # и предполагаем, что это тот самый врач.
-                # Более точный подход: получаем doctor_id из таблицы doctors.
-                pass
-
-    # Получаем doctor_id и doctor_name из таблицы doctors
-    try:
-        doctors_in_clinic = await db.get_doctors_for_clinic(body.clinic_id)
-        # Поскольку в запросе нет doctor_id, используем appointment_id для поиска
-        # Ищем слоты через API и сопоставляем
-    except Exception:
-        logger.exception("Ошибка получения врачей для clinic_id=%s", body.clinic_id)
-
-    # Поскольку в Mini App doctor_id доступен через monitoring_id из slots,
-    # но в body его нет — делаем живой запрос appointment_list для получения
-    # doctor_id и doctor_name.
-    # Альтернативно: получаем doctor_id из мониторинга пользователя
-    # по комбинации clinic_id + проверка слотов этого врача.
-    #
-    # Более простой путь: извлекаем doctor_id из мониторинга,
-    # где clinic_id совпадает с запросом.
-    # Если пользователь отслеживает нескольких врачей в одной клинике —
-    # берём первого подходящего (фронтенд должен передавать doctor_id,
-    # но в текущей спецификации его нет).
-
-    # Пробуем найти doctor_id в мониторинге по clinic_id
-    for _p_id, monitored_doctors in monitoring.items():
-        for m_d_id, m_d_info in monitored_doctors.items():
-            if m_d_info.get("clinic_id") == body.clinic_id:
-                d_id = m_d_id
-                doctor_name = m_d_info.get("name", m_d_id)
-                doctor_specialty = m_d_info.get("specialty", "")
-                clinic_name = await db.get_clinic_name(body.clinic_id) or body.clinic_id
-                break
-        if d_id:
-            break
-
-    # Если doctor_id не найден в мониторинге — пытаемся получить из БД врачей
-    if not d_id:
-        try:
-            doctors_in_clinic = await db.get_doctors_for_clinic(body.clinic_id)
-            if doctors_in_clinic:
-                # Берём первого врача (неточный fallback)
-                first_doc = next(iter(doctors_in_clinic.items()))
-                d_id = first_doc[0]
-                doctor_name = first_doc[1].get("name", d_id)
-                doctor_specialty = first_doc[1].get("specialty", "")
-        except Exception:
-            logger.exception("Ошибка получения врачей для clinic_id=%s", body.clinic_id)
-
-    if not d_id:
+    # Реквизиты врача берём из мониторинга указанного пациента строго по
+    # doctor_id из запроса: в одной клинике может отслеживаться несколько
+    # врачей, поэтому подбор по clinic_id записывал «чужого» врача.
+    monitored_doctors = user_data.get("monitoring", {}).get(body.patient_id, {})
+    doctor_info = monitored_doctors.get(body.doctor_id)
+    if doctor_info is None:
+        logger.warning(
+            "Врач d_id=%s не найден в мониторинге пациента p_id=%s (uid=%s)",
+            body.doctor_id,
+            body.patient_id,
+            telegram_id,
+        )
         return JSONResponse(
             status_code=400,
             content={
                 "success": False,
                 "error": "unknown",
-                "detail": "Не удалось определить врача для записи.",
+                "detail": (
+                    "Выбранный врач не найден в отслеживаемых для указанного пациента."
+                ),
             },
         )
 
-    clinic_name = (
-        clinic_name or await db.get_clinic_name(body.clinic_id) or body.clinic_id
-    )
+    doctor_name = doctor_info.get("name", "")
+    doctor_specialty = doctor_info.get("specialty", "")
+
+    # Добивка отсутствующих реквизитов из локального справочника врачей —
+    # строго по составному ключу (clinic_id, doctor_id).
+    if not doctor_name or not doctor_specialty:
+        clinic_doctors = await db.get_doctors_for_clinic(body.clinic_id)
+        clinic_doctor = clinic_doctors.get(body.doctor_id)
+        if clinic_doctor is not None:
+            doctor_name = doctor_name or clinic_doctor["name"]
+            doctor_specialty = doctor_specialty or clinic_doctor["specialty"]
+
+    d_id = body.doctor_id
+    doctor_name = doctor_name or d_id
+    clinic_name = await db.get_clinic_name(body.clinic_id) or body.clinic_id
 
     # 2. Выполняем бронирование через API
     try:
@@ -1377,13 +1372,11 @@ async def book_appointment(
         # Успех — сохраняем booking в БД
         booking_id = f"{body.patient_id}_{d_id}_{body.appointment_id}"
 
-        # Определяем дату и время из результата или из контекста
-        slot_date = ""
-        slot_time = ""
-        if result.response:
-            # Пытаемся извлечь дату/время из ответа API
-            slot_date = str(result.response.get("date", ""))
-            slot_time = str(result.response.get("time", ""))
+        # Дата и время слота — из тела запроса: ответ signup их не возвращает
+        # (specs/knowledge/signup.md). В БД храним дату в формате ДД.ММ.ГГГГ,
+        # он зафиксирован автоархивацией записей и экспортом в ICS.
+        slot_date = _iso_date_to_display(body.slot_date)
+        slot_time = body.slot_time
 
         try:
             booking = BookingEntry(
