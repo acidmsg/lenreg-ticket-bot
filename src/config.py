@@ -84,6 +84,17 @@ class Settings(BaseSettings):
     # пользователь всегда получал ответ (504/502) вместо обрыва соединения.
     WEB_SLOTS_TIMEOUT: float = 12.0
 
+    # Зафиксированный IP-адрес API-хоста (пиннинг имени через /etc/hosts
+    # контейнера: extra_hosts в docker-compose.yml). Единый источник истины для
+    # кода: фоновый детектор расхождения DNS (src/services/dns_watchdog.py)
+    # сравнивает с этим значением результат реального DNS-запроса.
+    api_pinned_ip: str = "185.65.149.54"
+
+    # Интервал фоновой проверки расхождения пиннинга и реального DNS (секунды).
+    # 1800 с = 30 минут. Не хардкодится в детекторе — передаётся через расписание
+    # BackgroundTaskManager.
+    dns_watchdog_interval_sec: float = 1800.0
+
     # Пороги для уведомлений об уменьшении номерков
     SLOT_THRESHOLD_ABSOLUTE: int = 5
     SLOT_THRESHOLD_PERCENTAGE: float = 0.25

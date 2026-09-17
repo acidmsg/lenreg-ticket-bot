@@ -109,6 +109,16 @@ class PrometheusMetrics:
             labelnames=["endpoint"],
         )
 
+        # -- DNS Watchdog (пиннинг IP API) Counter'ы --
+        self._dns_watchdog_drift_total: Any = Counter(
+            "lenreg_ticket_dns_watchdog_drift_total",
+            "Счётчик расхождений пиннинга API-хоста (/etc/hosts) и реального DNS",
+        )
+        self._dns_watchdog_zone_unreachable_total: Any = Counter(
+            "lenreg_ticket_dns_watchdog_zone_unreachable_total",
+            "Счётчик неудачных DNS-запросов (DNS-зона API недоступна)",
+        )
+
         # -- Хранение предыдущих значений для дельта-инкрементов --
         self._prev_healthcheck_errors: int = 0
         self._prev_slots_found: int = 0
@@ -222,6 +232,16 @@ class PrometheusMetrics:
             False — схемы совпадают.
         """
         return dict(self._schema_status)
+
+    # ── DNS Watchdog (пиннинг IP API) ─────────────────────────────
+
+    def inc_dns_watchdog_drift(self) -> None:
+        """Инкрементирует счётчик расхождения пиннинга API-хоста и DNS."""
+        self._dns_watchdog_drift_total.inc()
+
+    def inc_dns_watchdog_zone_unreachable(self) -> None:
+        """Инкрементирует счётчик недоступности DNS-зоны API."""
+        self._dns_watchdog_zone_unreachable_total.inc()
 
 
 # Глобальный экземпляр Prometheus-метрик

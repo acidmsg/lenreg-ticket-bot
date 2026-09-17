@@ -35,6 +35,7 @@ from src.services.background import (
     ScheduleConfig,
 )
 from src.services.cleanup import _cleanup_iteration
+from src.services.dns_watchdog import DnsWatchdogState, dns_watchdog_loop
 from src.services.doctor_discovery import (
     _discovery_iteration,
     sync_clinic_names,
@@ -166,6 +167,19 @@ async def _start_background_tasks(
         retry=RetryConfig(max_retries=3),
         bot=bot,
         db=db,
+    )
+
+    # ── Детектор расхождения DNS (пиннинг IP API) ─────────────────────
+    # Пиннинг имени через /etc/hosts (extra_hosts в docker-compose.yml) —
+    # основной путь разрешения имени; задача проверяет, не разошёлся ли пин
+    # с реальным DNS (минуя /etc/hosts), и уведомляет администраторов.
+    # Инфраструктуру детектор не изменяет.
+    manager.add(
+        dns_watchdog_loop,
+        name="dns_watchdog",
+        schedule=ScheduleConfig(interval=settings.dns_watchdog_interval_sec),
+        retry=RetryConfig(max_retries=3),
+        state=DnsWatchdogState(),
     )
 
     # Статическая валидация схем API выполняется через scripts/generate_api_schemas.py
