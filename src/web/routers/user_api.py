@@ -20,6 +20,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
+from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
 from src.utils.cache import get_cache_key
@@ -1038,6 +1039,23 @@ async def delete_patient(
     return {"status": "deleted", "patient_id": patient_id}
 
 
+def _build_service_error_response(status_code: int, error_code: str) -> JSONResponse:
+    """Структурированный ответ о недоступности внешнего API zdrav.lenreg.ru.
+
+    Args:
+        status_code: HTTP-статус (502 — API недоступен, 504 — превышен бюджет).
+        error_code: Код ошибки из словаря ``format_error_message()``
+            (``api_unavailable`` / ``api_timeout``).
+
+    Returns:
+        JSONResponse с полями ``error`` (код) и ``detail`` (текст для клиента).
+    """
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": error_code, "detail": format_error_message(error_code)},
+    )
+
+
 @router.get("/slots", response_model=None)
 async def get_slots(
     request: Request,
@@ -1078,32 +1096,28 @@ async def get_slots(
     specialty = doctor_info.get("specialty", "")
     clinic_name = await db.get_clinic_name(clinic_id) or clinic_id
 
-    # Живой запрос слотов
+    # Живой запрос слотов с жёстким серверным бюджетом времени
+    # (settings.WEB_SLOTS_TIMEOUT < клиентских 20 с): ответ приходит всегда.
+    # check_slots() сам поглощает сетевые ошибки и возвращает None, поэтому
+    # ветки на httpx-исключения здесь недостижимы — их заменяют обработка
+    # TimeoutError (бюджет) и None (внешний API недоступен).
     try:
-        slots_result = await api.check_slots(
-            doc_id=d_id,
-            patient_id=p_id,
-            clinic_id=clinic_id,
-            limiter=api.limiter,
+        slots_result = await asyncio.wait_for(
+            api.check_slots(
+                doc_id=d_id,
+                patient_id=p_id,
+                clinic_id=clinic_id,
+                limiter=api.limiter,
+            ),
+            timeout=settings.WEB_SLOTS_TIMEOUT,
         )
-    except httpx.TimeoutException:
-        logger.error(
-            "Таймаут API при получении слотов для monitoring_id=%s",
+    except TimeoutError:
+        logger.warning(
+            "Превышен бюджет времени (%.1f с) при получении слотов: monitoring_id=%s",
+            settings.WEB_SLOTS_TIMEOUT,
             monitoring_id,
         )
-        return JSONResponse(
-            status_code=504,
-            content={"detail": "Таймаут при запросе к API zdrav.lenreg.ru"},
-        )
-    except httpx.NetworkError:
-        logger.error(
-            "Сетевая ошибка API при получении слотов для monitoring_id=%s",
-            monitoring_id,
-        )
-        return JSONResponse(
-            status_code=502,
-            content={"detail": "API zdrav.lenreg.ru недоступно"},
-        )
+        return _build_service_error_response(504, "api_timeout")
     except Exception:
         logger.exception(
             "Ошибка при получении слотов для monitoring_id=%s",
@@ -1113,6 +1127,15 @@ async def get_slots(
             status_code=500,
             content={"detail": "Внутренняя ошибка сервера"},
         )
+
+    if slots_result is None:
+        # None от check_slots() — отказ внешнего API (таймаут/сеть/DNS-отказ,
+        # 403/429). Это не «нет слотов»: сообщаем о недоступности сервиса.
+        logger.warning(
+            "Внешний API недоступен при получении слотов: monitoring_id=%s",
+            monitoring_id,
+        )
+        return _build_service_error_response(502, "api_unavailable")
 
     # Форматирование слотов
     # Используем slots_result.slots параллельно с formatted для получения

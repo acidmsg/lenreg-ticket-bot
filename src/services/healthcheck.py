@@ -119,6 +119,56 @@ async def safe_set(attr: str, value) -> None:
         setattr(metrics, attr, value)
 
 
+async def _probe_api(api: ZdravClient) -> bool:
+    """Проверяет доступность API zdrav.lenreg.ru одним запросом.
+
+    Успехом считается любой ответ API, включая пустой список специальностей.
+    ``None`` от ``fetch_speciality_list()`` означает отказ (таймаут, сетевая
+    ошибка, ошибочный статус): инкрементируется ``api_errors_total``, время и
+    текст ошибки фиксируются — API помечается недоступным.
+
+    Args:
+        api: Клиент API zdrav.lenreg.ru.
+
+    Returns:
+        True — API ответил; False — API недоступен (включая ошибку запроса).
+    """
+    try:
+        specialties = await api.fetch_speciality_list(
+            settings.DISCOVERY_PATIENT_ID_ADULT,
+            settings.DEFAULT_CLINIC_ID,
+            limiter=api.limiter_healthcheck,
+        )
+    except Exception as e:
+        await safe_increment("api_checks_total")
+        await safe_increment("api_errors_total")
+        await safe_set("last_api_error_time", time.time())
+        await safe_set("last_api_error_message", str(e)[:200])
+        logger.warning(
+            "Healthcheck: ошибка API | Причина: {} | Действие: API недоступен, "
+            "lenreg_ticket_api_errors_total +1",
+            e,
+        )
+        return False
+
+    await safe_increment("api_checks_total")
+    if specialties is None:
+        await safe_increment("api_errors_total")
+        await safe_set("last_api_error_time", time.time())
+        await safe_set(
+            "last_api_error_message", "API недоступен (таймаут/сеть/ошибочный ответ)"
+        )
+        logger.warning(
+            "Healthcheck: API недоступен | Причина: запрос списка специальностей "
+            "не выполнен | Действие: API помечен недоступным, "
+            "lenreg_ticket_healthcheck_errors_total +1"
+        )
+        return False
+
+    await safe_increment("api_success_total")
+    return True
+
+
 async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> None:
     """
     Фоновый цикл проверки здоровья.
@@ -134,29 +184,8 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
     while True:
         try:
             # Один запрос — любая клиника/пациент, API общий
-            ok = False
             check_start = time.time()
-            try:
-                specialties = await api.fetch_speciality_list(
-                    settings.DISCOVERY_PATIENT_ID_ADULT,
-                    settings.DEFAULT_CLINIC_ID,
-                    limiter=api.limiter_healthcheck,
-                )
-                if specialties is not None:
-                    ok = True
-                    await safe_increment("api_success_total")
-                    await safe_increment("api_checks_total")
-                else:
-                    await safe_increment("api_checks_total")
-                    await safe_increment("api_errors_total")
-                    await safe_set("last_api_error_time", time.time())
-                    await safe_set("last_api_error_message", "API вернул None")
-            except Exception as e:
-                await safe_increment("api_checks_total")
-                await safe_increment("api_errors_total")
-                await safe_set("last_api_error_time", time.time())
-                await safe_set("last_api_error_message", str(e)[:200])
-                logger.error(f"Healthcheck: ошибка API: {e}")
+            ok = await _probe_api(api)
 
             # Проверка доступности Redis (активная, через ping)
             redis_ok = False
@@ -241,29 +270,8 @@ async def _healthcheck_iteration(
     _ = health_metrics  # Явно принимаем, но используем модульный metrics
 
     # Один запрос — любая клиника/пациент, API общий
-    ok = False
     check_start = time.time()
-    try:
-        specialties = await api.fetch_speciality_list(
-            settings.DISCOVERY_PATIENT_ID_ADULT,
-            settings.DEFAULT_CLINIC_ID,
-            limiter=api.limiter_healthcheck,
-        )
-        if specialties is not None:
-            ok = True
-            await safe_increment("api_success_total")
-            await safe_increment("api_checks_total")
-        else:
-            await safe_increment("api_checks_total")
-            await safe_increment("api_errors_total")
-            await safe_set("last_api_error_time", time.time())
-            await safe_set("last_api_error_message", "API вернул None")
-    except Exception as e:
-        await safe_increment("api_checks_total")
-        await safe_increment("api_errors_total")
-        await safe_set("last_api_error_time", time.time())
-        await safe_set("last_api_error_message", str(e)[:200])
-        logger.error(f"Healthcheck: ошибка API: {e}")
+    ok = await _probe_api(api)
 
     # Проверка доступности Redis (активная, через ping)
     redis_ok = False

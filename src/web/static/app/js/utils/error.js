@@ -14,6 +14,23 @@ import { lucideIcon } from "../components/icon.js";
  *
  * @type {Record<string, string>}
  */
+/** Единый текст при недоступности внешнего сервиса записи (HTTP 502/504). */
+export const SERVICE_UNAVAILABLE_MESSAGE =
+  "Сервис клиники временно недоступен, попробуйте позже.";
+
+/** HTTP-статусы недоступности внешнего сервиса записи: 502 и 504. */
+export const SERVICE_UNAVAILABLE_STATUSES = [502, 504];
+
+/**
+ * Проверяет, что ошибка означает недоступность внешнего сервиса записи.
+ *
+ * @param {{status?: number}|null} error - ошибка запроса либо ответ fetch
+ * @returns {boolean} true для HTTP 502/504
+ */
+export function isServiceUnavailableError(error) {
+  return SERVICE_UNAVAILABLE_STATUSES.includes(error?.status);
+}
+
 export const ERROR_MESSAGES = {
   slot_taken: "Слот уже занят. Выберите другой.",
   api_unavailable: "Сервис записи временно недоступен. Попробуйте позже.",

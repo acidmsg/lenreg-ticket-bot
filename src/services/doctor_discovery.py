@@ -77,6 +77,13 @@ async def fetch_specialties(
         response = await api.fetch_speciality_list(
             patient_id, clinic_id, limiter=limiter
         )
+        # None — отказ API (таймаут/сеть/ошибочный статус); это не «пустой список»
+        if response is None:
+            logger.warning(
+                "API недоступен при получении специальностей для clinic_id={}",
+                clinic_id,
+            )
+            return []
         # Конвертируем сырые dict-ы в SpecialityItem для атрибутного доступа
         return [
             SpecialityItem(**item)

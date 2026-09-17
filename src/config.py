@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # Таймаут запросов к API
     API_TIMEOUT: float = 10.0
 
+    # Жёсткий бюджет времени на веб-путь GET /api/user/slots (секунды).
+    # Гарантированно меньше клиентского таймаута Mini App (20 с), чтобы
+    # пользователь всегда получал ответ (504/502) вместо обрыва соединения.
+    WEB_SLOTS_TIMEOUT: float = 12.0
+
     # Пороги для уведомлений об уменьшении номерков
     SLOT_THRESHOLD_ABSOLUTE: int = 5
     SLOT_THRESHOLD_PERCENTAGE: float = 0.25

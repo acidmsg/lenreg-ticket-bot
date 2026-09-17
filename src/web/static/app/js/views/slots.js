@@ -11,7 +11,11 @@ import { isInTelegram } from "../auth.js";
 import { createSlotsCalendar } from "../components/calendar.js";
 import { createSlotCard } from "../components/card.js";
 import { escapeHtml } from "../utils/escape.js";
-import { renderError } from "../utils/error.js";
+import {
+  isServiceUnavailableError,
+  renderError,
+  SERVICE_UNAVAILABLE_MESSAGE,
+} from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
@@ -83,7 +87,12 @@ export async function renderSlots(container, params) {
       }
     }
   } catch (error) {
-    renderError(container, error.message, "Повторить", () =>
+    // 502/504 — внешний сервис клиники недоступен: показываем единое понятное
+    // сообщение вместо «нет номерков» и вместо технических деталей ответа.
+    const message = isServiceUnavailableError(error)
+      ? SERVICE_UNAVAILABLE_MESSAGE
+      : error.message;
+    renderError(container, message, "Повторить", () =>
       renderSlots(container, params),
     );
   }

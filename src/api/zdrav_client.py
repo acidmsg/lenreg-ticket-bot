@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import random
+import socket
 from typing import Any, TypeVar, cast
 
 import aiolimiter
@@ -143,8 +144,17 @@ class ZdravClient:
         """Выполняет HTTP POST с rate limiting и retry-логикой.
 
         Rate limiting — через переданный limiter или self.limiter по умолчанию.
-        Retry (до max_retries попыток) — при 5xx, сетевых ошибках, таймаутах.
-        При 403/429/4xx (кроме таймаутов) — не retry, возвращает ответ как есть.
+        Слот лимитера выдаётся только на время HTTP-запроса и не удерживается
+        во время паузы между попытками: иначе один неуспешный вызов держит
+        лимитер занятым весь retry-цикл и блокирует пользовательские запросы.
+
+        Retry (до ``max_retries`` попыток, пауза 2 с) — при 5xx, таймаутах и
+        прочих сетевых ошибках. Ошибки уровня соединения (DNS-резолв
+        ``socket.gaierror``, ``httpx.ConnectError``/``httpx.ConnectTimeout``)
+        не повторяются: выполняется ровно одна попытка без паузы (fail-fast),
+        иначе недоступный DNS растягивает латентность до
+        ``max_retries × API_TIMEOUT + паузы``. При 403/429/4xx — не retry,
+        ответ возвращается как есть.
 
         Args:
             url: Полный URL эндпоинта.
@@ -157,85 +167,105 @@ class ZdravClient:
 
         Raises:
             httpx.TimeoutException: Если все попытки исчерпаны по таймауту.
-            httpx.NetworkError: Если все попытки исчерпаны по сетевой ошибке.
+            httpx.NetworkError: Если соединение/DNS недоступны (одна попытка)
+                или все попытки исчерпаны по сетевой ошибке.
         """
         endpoint_name = url.split("/")[-2] if url.endswith("/") else url.split("/")[-1]
         last_exception: Exception | None = None
+        http_limiter = limiter or self.limiter
+        client = await self._get_client()
 
-        async with limiter or self.limiter:
-            client = await self._get_client()
-            for i in range(max_retries):
-                try:
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Слот лимитера охватывает только фактический HTTP-запрос.
+                async with http_limiter:
                     res = await client.post(
                         url,
                         data=data,
                         headers=self._get_headers(),
                     )
-                    # 5xx — retry с задержкой
-                    if res.status_code >= 500:
-                        logger.warning(
-                            "API 5xx (%s), попытка %d/%d: статус %d",
-                            endpoint_name,
-                            i + 1,
-                            max_retries,
-                            res.status_code,
-                        )
-                        if i < max_retries - 1:
-                            await asyncio.sleep(2)
-                        continue
-                    return res
 
-                except httpx.TimeoutException as e:
-                    logger.error(
-                        "Таймаут API (%s), попытка %d/%d: %r",
+                # 5xx — retry с задержкой
+                if res.status_code >= 500:
+                    logger.warning(
+                        "API 5xx ({}) — попытка {}/{}: статус {}",
                         endpoint_name,
-                        i + 1,
+                        attempt,
                         max_retries,
-                        e,
+                        res.status_code,
                     )
-                    last_exception = e
-                    if i < max_retries - 1:
-                        await asyncio.sleep(2)
-
-                except httpx.NetworkError as e:
-                    logger.error(
-                        "Сетевая ошибка API (%s), попытка %d/%d: %r",
-                        endpoint_name,
-                        i + 1,
-                        max_retries,
-                        e,
+                    last_exception = RuntimeError(
+                        f"API вернул 5xx: статус {res.status_code}"
                     )
-                    last_exception = e
-                    if i < max_retries - 1:
+                    if attempt < max_retries:
                         await asyncio.sleep(2)
+                    continue
+                return res
 
-                except (json.JSONDecodeError, ValidationError) as e:
-                    logger.error(
-                        "Ошибка парсинга API (%s), попытка %d/%d: %r",
-                        endpoint_name,
-                        i + 1,
-                        max_retries,
-                        e,
-                    )
-                    last_exception = e
-                    if i < max_retries - 1:
-                        await asyncio.sleep(2)
+            except (httpx.ConnectError, httpx.ConnectTimeout, socket.gaierror) as e:
+                # DNS не резолвится или соединение отклонено — повтор бесполезен.
+                logger.error(
+                    "Соединение недоступно ({}) — попытка {}/{}: {}: {}",
+                    endpoint_name,
+                    attempt,
+                    max_retries,
+                    type(e).__name__,
+                    e,
+                )
+                last_exception = e
+                break
 
-                except asyncio.CancelledError:
-                    raise
+            except httpx.TimeoutException as e:
+                logger.error(
+                    "Таймаут API ({}) — попытка {}/{}: {}",
+                    endpoint_name,
+                    attempt,
+                    max_retries,
+                    e,
+                )
+                last_exception = e
+                if attempt < max_retries:
+                    await asyncio.sleep(2)
 
-                except Exception as e:
-                    exc_repr = repr(e) if not str(e) else str(e)
-                    logger.error(
-                        "Неожиданная ошибка API (%s), попытка %d/%d: %s",
-                        endpoint_name,
-                        i + 1,
-                        max_retries,
-                        exc_repr,
-                    )
-                    last_exception = e
-                    if i < max_retries - 1:
-                        await asyncio.sleep(2)
+            except httpx.NetworkError as e:
+                logger.error(
+                    "Сетевая ошибка API ({}) — попытка {}/{}: {}",
+                    endpoint_name,
+                    attempt,
+                    max_retries,
+                    e,
+                )
+                last_exception = e
+                if attempt < max_retries:
+                    await asyncio.sleep(2)
+
+            except (json.JSONDecodeError, ValidationError) as e:
+                logger.error(
+                    "Ошибка парсинга API ({}) — попытка {}/{}: {}",
+                    endpoint_name,
+                    attempt,
+                    max_retries,
+                    e,
+                )
+                last_exception = e
+                if attempt < max_retries:
+                    await asyncio.sleep(2)
+
+            except asyncio.CancelledError:
+                raise
+
+            except Exception as e:
+                exc_repr = repr(e) if not str(e) else str(e)
+                logger.error(
+                    "Неожиданная ошибка API ({}) — попытка {}/{}: {}",
+                    endpoint_name,
+                    attempt,
+                    max_retries,
+                    exc_repr,
+                )
+                last_exception = e
+                if attempt < max_retries:
+                    await asyncio.sleep(2)
 
         # Все попытки исчерпаны — пробрасываем последнюю ошибку
         if isinstance(last_exception, (httpx.TimeoutException, httpx.NetworkError)):
@@ -325,7 +355,18 @@ class ZdravClient:
         patient_id: str,
         clinic_id: str,
         limiter: aiolimiter.AsyncLimiter | None = None,
-    ) -> list[dict]:
+    ) -> list[dict] | None:
+        """Получает список специальностей клиники для указанного пациента.
+
+        Returns:
+            Список специальностей при успешном ответе API (допустимо пустой,
+            если API ответил без данных).
+            None — если API недоступен: таймаут, сетевая ошибка, отказ
+            соединения/DNS, ошибочный статус (403/429 и прочие) или
+            неожиданное исключение. None отличает «API недоступен» от «успех
+            с пустым списком» — это существенно для healthcheck.
+        """
+        url = f"{self.base_url}/speciality_list/"
         payload = SpecialityListRequest.model_validate(
             {
                 "clinic_form-clinic_id": clinic_id,
@@ -335,44 +376,43 @@ class ZdravClient:
         ).model_dump(by_alias=True)
 
         try:
-            res = await self._request_with_retry(
-                f"{self.base_url}/speciality_list/",
-                payload,
-                limiter=limiter,
-            )
+            res = await self._request_with_retry(url, payload, limiter=limiter)
         except asyncio.CancelledError:
             raise
-        except (httpx.TimeoutException, httpx.NetworkError):
-            return []
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning(
+                "API недоступен (speciality_list) | Причина: {}: {} | "
+                "Действие: возвращаем None — отказ",
+                type(e).__name__,
+                e,
+            )
+            return None
         except Exception as e:
             logger.error(
-                "Критическая ошибка в fetch_speciality_list: %r",
+                "Критическая ошибка в fetch_speciality_list: {}",
                 e,
                 exc_info=True,
             )
-            return []
+            return None
 
         if res.status_code == 200:
             model = self._validate_response(
                 res.json(),
                 SpecialityListResponse,
                 "speciality_list",
-                f"{self.base_url}/speciality_list/",
+                url,
             )
             if model.success:
                 return [item.model_dump(by_alias=True) for item in model.response]
-        elif res.status_code == 403:
-            logger.error(
-                "Доступ запрещён (fetch_speciality_list): статус 403, "
-                "возможно истекла сессия/CSRF",
-                exc_info=True,
-            )
-        elif res.status_code == 429:
-            logger.warning(
-                "Превышен лимит запросов (fetch_speciality_list): статус 429",
-                exc_info=True,
-            )
-        return []
+            # API ответил, но без данных — это успешная проверка доступности.
+            return []
+
+        logger.warning(
+            "Ошибочный ответ API (speciality_list) | Причина: статус {} | "
+            "Действие: возвращаем None — отказ",
+            res.status_code,
+        )
+        return None
 
     async def check_slots(
         self,

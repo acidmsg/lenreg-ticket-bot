@@ -12,6 +12,10 @@
  */
 
 import { getInitData, getInitDataError } from "./auth.js";
+import {
+  isServiceUnavailableError,
+  SERVICE_UNAVAILABLE_MESSAGE,
+} from "./utils/error.js";
 
 const BASE_PATH = "/api/user";
 const FETCH_TIMEOUT_MS = 20000; // 20 секунд
@@ -200,7 +204,7 @@ export async function handleResponse(response) {
     // Ответ не является JSON (например, HTML-ошибка)
     if (!response.ok) {
       throw createApiError(
-        `Ошибка сервера: ${response.status} ${response.statusText}`,
+        resolveErrorMessage(response, null),
         response.status,
       );
     }
@@ -208,18 +212,44 @@ export async function handleResponse(response) {
   }
 
   if (!response.ok) {
-    // Извлекаем читаемое сообщение из поля detail (FastAPI формат) или message
-    let message = `Ошибка ${response.status}`;
-    if (Array.isArray(data.detail)) {
-      // FastAPI validation errors: массив объектов [{msg, ...}, ...]
-      message = data.detail.map((e) => e.msg || JSON.stringify(e)).join("; ");
-    } else if (typeof data.detail === "string") {
-      message = data.detail;
-    } else if (data.message) {
-      message = data.message;
-    }
-    throw createApiError(message, response.status);
+    throw createApiError(resolveErrorMessage(response, data), response.status);
   }
 
   return data;
+}
+
+/**
+ * Определяет текст ошибки по ответу сервера.
+ *
+ * Недоступность внешнего сервиса записи (502/504) отдаётся единым понятным
+ * текстом — технические детали FastAPI пользователю не показываются. Код 504
+ * приходит от серверного бюджета времени (`WEB_SLOTS_TIMEOUT`), 502 — при
+ * недоступности внешнего API (таймаут, сеть, DNS-отказ).
+ *
+ * @param {Response} response — ответ fetch
+ * @param {any} data — распарсенный JSON или null, если тело не JSON
+ * @returns {string} текст ошибки для отображения пользователю
+ */
+function resolveErrorMessage(response, data) {
+  if (isServiceUnavailableError(response)) {
+    return SERVICE_UNAVAILABLE_MESSAGE;
+  }
+
+  if (data === null || data === undefined) {
+    return `Ошибка сервера: ${response.status} ${response.statusText}`;
+  }
+
+  // Извлекаем читаемое сообщение из поля detail (FastAPI формат) или message
+  if (Array.isArray(data.detail)) {
+    // FastAPI validation errors: массив объектов [{msg, ...}, ...]
+    return data.detail.map((e) => e.msg || JSON.stringify(e)).join("; ");
+  }
+  if (typeof data.detail === "string") {
+    return data.detail;
+  }
+  if (data.message) {
+    return data.message;
+  }
+
+  return `Ошибка ${response.status}`;
 }
