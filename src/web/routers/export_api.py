@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, Response
 
 from src.config import settings
 from src.database.manager import DatabaseManager
-from src.services.export import render_export
+from src.services.export import ExportUnavailableError, render_export
 from src.web.export_token import verify_export
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,8 @@ async def download_booking_export(
 
     try:
         content, media_type, ext = render_export(booking, fmt)
+    except ExportUnavailableError as exc:
+        return JSONResponse(status_code=501, content={"detail": str(exc)})
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 

@@ -1586,10 +1586,12 @@ async def export_booking(
             content={"detail": "Доступ запрещён."},
         )
 
-    from src.services.export import render_export
+    from src.services.export import ExportUnavailableError, render_export
 
     try:
         content, media_type, ext = render_export(booking, format.lower().strip())
+    except ExportUnavailableError as exc:
+        return JSONResponse(status_code=501, content={"detail": str(exc)})
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 

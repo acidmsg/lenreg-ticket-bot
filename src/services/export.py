@@ -607,6 +607,14 @@ EXPORT_MEDIA_TYPES: dict[str, tuple[str, str]] = {
 }
 
 
+class ExportUnavailableError(Exception):
+    """Формат корректен, но серверная зависимость недоступна (нет Pillow).
+
+    Отделено от ``ValueError`` (неверный формат): вызывающие эндпоинты обязаны
+    отвечать 501, а не 400 — такова прежняя контрактная семантика.
+    """
+
+
 def render_export(booking: BookingEntry, fmt: str) -> tuple[bytes, str, str]:
     """Готовит файл экспорта записи в запрошенном формате.
 
@@ -622,7 +630,8 @@ def render_export(booking: BookingEntry, fmt: str) -> tuple[bytes, str, str]:
         Кортеж ``(содержимое, media_type, расширение)``.
 
     Raises:
-        ValueError: Неизвестный формат или отсутствует Pillow.
+        ValueError: Неизвестный формат.
+        ExportUnavailableError: Формат поддержан, но нет Pillow (нужен ответ 501).
     """
     if fmt not in EXPORT_MEDIA_TYPES:
         raise ValueError("Неверный формат. Допустимые: png, pdf, ics.")
@@ -630,7 +639,9 @@ def render_export(booking: BookingEntry, fmt: str) -> tuple[bytes, str, str]:
         try:
             content = export_booking_png(booking)
         except ImportError as exc:
-            raise ValueError("Экспорт в PNG недоступен: Pillow не установлен.") from exc
+            raise ExportUnavailableError(
+                "Экспорт в PNG недоступен: Pillow не установлен."
+            ) from exc
     elif fmt == "pdf":
         content = export_booking_pdf(booking)
     else:
