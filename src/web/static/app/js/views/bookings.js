@@ -6,7 +6,7 @@
 
 import { createBookingCard } from "../components/card.js";
 import { lucideIcon } from "../components/icon.js";
-import { apiGet } from "../api.js";
+import { apiGet, buildAuthHeaders } from "../api.js";
 
 /**
  * Рендерит список активных записей пользователя.
@@ -123,14 +123,12 @@ function bindExportButtons(container) {
       if (!bookingId || !format) return;
 
       try {
-        // Скачиваем файл через API
+        // Скачиваем файл через API. Заголовки берём из общего хелпера:
+        // имя X-Telegram-InitData должно совпадать с тем, что читает
+        // middleware (src/web/auth_initdata.py), иначе экспорт отдаёт 400.
         const response = await fetch(
           `/api/user/bookings/${encodeURIComponent(bookingId)}/export?format=${format}`,
-          {
-            headers: {
-              "X-Telegram-Init-Data": window.Telegram?.WebApp?.initData || "",
-            },
-          },
+          { headers: buildAuthHeaders() },
         );
 
         if (!response.ok) {
