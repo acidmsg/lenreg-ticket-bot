@@ -388,13 +388,13 @@ def _wrap_card_line(draw: Any, line: str, font: Any, max_width: float) -> list[s
         if draw.textlength(candidate, font=font) <= max_width:
             current = candidate
             continue
+        # Слово не влезает вместе с текущей строкой — начинаем новую.
         if current:
             result.append(current)
-        # Слово шире строки (например, разделитель из «=») — подрезаем.
+        # Слово шире строки целиком (например, разделитель из «=») — подрезаем.
         while word and draw.textlength(word, font=font) > max_width:
             word = word[:-1]
-        result.append(word)
-        current = ""
+        current = word
     if current:
         result.append(current)
     return result
