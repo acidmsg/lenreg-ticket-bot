@@ -202,6 +202,7 @@ function bindCalendarButtons(container) {
         clinic_name: btn.dataset.clinic,
         patient_name: btn.dataset.patient,
         specialty: btn.dataset.specialty,
+        specialty_short: btn.dataset.specialtyShort,
       });
       if (!url) {
         if (window.showToast) {

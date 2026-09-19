@@ -385,26 +385,37 @@ class Database:
         await c.commit()
 
     async def seed_specialty_aliases_from_fallback(self) -> None:
-        """
-        Заполняет таблицу specialty_aliases из SPECIALTY_ALIASES, если она пуста.
+        """Синхронизирует таблицу specialty_aliases со словарём SPECIALTY_ALIASES.
+
+        Источник истины — словарь (``locales/*/data/specialty_aliases.json``):
+        недостающие записи добавляются, изменённые обновляются. Раньше таблица
+        заполнялась только один раз, поэтому правка названий (например
+        «Окулист» → «Офтальмолог») до базы не доходила.
         """
         c = self._conn.conn
         if c is None:
             return
         try:
-            cursor = await c.execute("SELECT COUNT(*) as cnt FROM specialty_aliases")
-            row = await cursor.fetchone()
-            if row and row["cnt"] > 0:
-                return  # уже есть данные
-
             from src.utils.helpers import SPECIALTY_ALIASES
 
+            existing = await self.get_all_specialty_aliases()
+            added = updated = 0
             for full_name, short_name in SPECIALTY_ALIASES.items():
+                current = existing.get(full_name)
+                if current == short_name:
+                    continue
                 await self.upsert_specialty_alias(full_name, short_name)
-            logger.info(
-                "Таблица specialty_aliases заполнена из SPECIALTY_ALIASES ({} записей)",
-                len(SPECIALTY_ALIASES),
-            )
+                if current is None:
+                    added += 1
+                else:
+                    updated += 1
+            if added or updated:
+                logger.info(
+                    "specialty_aliases синхронизированы со словарём: "
+                    "+{} новых, {} обновлено",
+                    added,
+                    updated,
+                )
         except Exception as e:
             logger.error(
                 "Не удалось заполнить specialty_aliases из fallback: {}",
@@ -483,7 +494,7 @@ class Database:
             (uid,),
         )
         rows = await cursor.fetchall()
-        return [
+        bookings = [
             BookingEntry(
                 booking_id=row["booking_id"],
                 uid=row["uid"],
@@ -502,6 +513,8 @@ class Database:
             )
             for row in rows
         ]
+        # Ближайшие приёмы — сверху; записи без расписания уходят в конец.
+        return _sorted_by_appointment(bookings)
 
     async def get_user_bookings_archive(self, uid: str) -> list[BookingEntry]:
         """Возвращает архивные записи пользователя (сортировка по created_at DESC)."""
@@ -517,7 +530,7 @@ class Database:
             (uid,),
         )
         rows = await cursor.fetchall()
-        return [
+        bookings = [
             BookingEntry(
                 booking_id=row["booking_id"],
                 uid=row["uid"],
@@ -536,6 +549,8 @@ class Database:
             )
             for row in rows
         ]
+        # Свежие приёмы — сверху; записи без расписания уходят в конец.
+        return _sorted_by_appointment(bookings, newest_first=True)
 
     async def archive_booking(self, booking_id: str) -> None:
         """Устанавливает флаг is_archived = 1 для указанной записи."""
@@ -605,3 +620,37 @@ class Database:
             created_at=row["created_at"],
             is_archived=row["is_archived"],
         )
+
+
+def _appointment_key(booking: BookingEntry) -> tuple[int, str]:
+    """Ключ сортировки по времени приёма.
+
+    Дата хранится строкой ``ДД.ММ.ГГГГ``, поэтому в ключ идёт ``ГГГГММДД`` +
+    время: обычное сравнение строк дало бы неверный порядок. Записи без
+    расписания получают первый элемент 1 и уходят в конец списка.
+    """
+    date = str(booking.get("slot_date") or "").strip()
+    time = str(booking.get("slot_time") or "").strip()
+    parts = date.split(".")
+    if len(parts) != 3 or not all(parts):
+        return (1, "")
+    day, month, year = parts
+    return (0, f"{year}{month}{day}{time}")
+
+
+def _sorted_by_appointment(
+    bookings: list[BookingEntry], *, newest_first: bool = False
+) -> list[BookingEntry]:
+    """Сортирует записи по времени приёма.
+
+    Args:
+        bookings: Записи пользователя.
+        newest_first: ``True`` — свежие приёмы сверху (для архива).
+
+    Returns:
+        Список записей; записи без расписания всегда в конце.
+    """
+    known = [b for b in bookings if _appointment_key(b)[0] == 0]
+    unknown = [b for b in bookings if _appointment_key(b)[0] != 0]
+    known.sort(key=_appointment_key, reverse=newest_first)
+    return known + unknown

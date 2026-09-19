@@ -207,7 +207,7 @@ export function createBookingCard(booking) {
         <button class="btn btn--sm btn--primary booking-export-btn" data-booking-id="${bookingId}" data-format="png" title="Сохранить карточку">
           <span class="lucide-icon">${lucideIcon("download", 14)}</span> Сохранить
         </button>
-        <button class="btn btn--sm btn--outline booking-calendar-btn" data-booking-id="${escapeAttr(booking.booking_id || "")}" data-date="${escapeAttr(booking.date || "")}" data-time="${escapeAttr(booking.time || "")}" data-doctor="${escapeAttr(booking.doctor_name || "")}" data-clinic="${escapeAttr(booking.clinic_name || "")}" data-patient="${escapeAttr(booking.patient_name || "")}" data-specialty="${escapeAttr(booking.specialty || "")}" title="${calendarTitle}"${calendarDisabled}>
+        <button class="btn btn--sm btn--outline booking-calendar-btn" data-booking-id="${escapeAttr(booking.booking_id || "")}" data-date="${escapeAttr(booking.date || "")}" data-time="${escapeAttr(booking.time || "")}" data-doctor="${escapeAttr(booking.doctor_name || "")}" data-clinic="${escapeAttr(booking.clinic_name || "")}" data-patient="${escapeAttr(booking.patient_name || "")}" data-specialty="${escapeAttr(booking.specialty || "")}" data-specialty-short="${escapeAttr(booking.specialty_short || "")}" title="${calendarTitle}"${calendarDisabled}>
           <span class="lucide-icon">${lucideIcon("calendar-plus", 14)}</span> В календарь
         </button>
       </div>

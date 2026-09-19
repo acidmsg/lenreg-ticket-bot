@@ -24,7 +24,11 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
 from src.utils.cache import get_cache_key
-from src.utils.helpers import format_error_message, safe_name
+from src.utils.helpers import (
+    format_error_message,
+    safe_name,
+    shorten_specialty,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1511,6 +1515,9 @@ def _serialize_booking(booking: BookingEntry) -> dict[str, Any]:
         "booking_id": booking["booking_id"],
         "doctor_name": booking["doctor_name"],
         "specialty": booking["specialty"],
+        # Короткое название специальности для заголовка события в календаре
+        # («Офтальмология» → «Офтальмолог»). Источник — словарь проекта.
+        "specialty_short": shorten_specialty(booking["specialty"]),
         "clinic_name": booking["clinic_name"],
         "date": booking["slot_date"],
         "time": booking["slot_time"],

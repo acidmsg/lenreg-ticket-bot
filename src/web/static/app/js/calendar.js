@@ -87,11 +87,12 @@ export function shortenDoctorName(fullName) {
  * Собирает название события: специальность в нижнем регистре и «Фамилия И.О.».
  *
  * @param {string} specialty — специальность врача («Офтальмология»)
+ * @param {string} [specialtyShort] — короткое название («Офтальмолог»)
  * @param {string} doctorName — полное ФИО врача
- * @returns {string} например «Приём: офтальмология Заворотний О.И.»
+ * @returns {string} например «Приём: офтальмолог Заворотний О.И.»
  */
-function buildEventTitle(specialty, doctorName) {
-  const profile = String(specialty || "")
+function buildEventTitle(specialty, specialtyShort, doctorName) {
+  const profile = String(specialtyShort || specialty || "")
     .trim()
     .toLowerCase();
   const doctor = shortenDoctorName(doctorName);
@@ -109,6 +110,7 @@ function buildEventTitle(specialty, doctorName) {
  * @param {string} [booking.clinic_name] — клиника
  * @param {string} [booking.patient_name] — пациент
  * @param {string} [booking.specialty] — специальность
+ * @param {string} [booking.specialty_short] — короткое название специальности
  * @param {string} [booking.booking_id] — идентификатор записи
  * @returns {string|null} ссылка или `null`, если расписание не сохранено
  */
@@ -118,7 +120,11 @@ export function buildGoogleCalendarUrl(booking = {}) {
 
   const end = new Date(start.getTime() + EVENT_DURATION_MINUTES * 60 * 1000);
   const doctor = booking.doctor_name || "";
-  const title = buildEventTitle(booking.specialty, doctor);
+  const title = buildEventTitle(
+    booking.specialty,
+    booking.specialty_short,
+    doctor,
+  );
   const details = [
     booking.patient_name ? `Пациент: ${booking.patient_name}` : "",
     booking.clinic_name ? `Клиника: ${booking.clinic_name}` : "",
