@@ -118,6 +118,11 @@ class PrometheusMetrics:
             "lenreg_ticket_dns_watchdog_zone_unreachable_total",
             "Счётчик неудачных DNS-запросов (DNS-зона API недоступна)",
         )
+        self._dns_fallback_switch_total: Any = Counter(
+            "lenreg_ticket_dns_fallback_switch_total",
+            "Счётчик переключений транспорта API на адрес из DNS-ответа "
+            "(когда соединение по пиннингу не установлено)",
+        )
 
         # -- Хранение предыдущих значений для дельта-инкрементов --
         self._prev_healthcheck_errors: int = 0
@@ -242,6 +247,10 @@ class PrometheusMetrics:
     def inc_dns_watchdog_zone_unreachable(self) -> None:
         """Инкрементирует счётчик недоступности DNS-зоны API."""
         self._dns_watchdog_zone_unreachable_total.inc()
+
+    def inc_dns_fallback_switch(self) -> None:
+        """Инкрементирует счётчик переключений транспорта на актуальный IP."""
+        self._dns_fallback_switch_total.inc()
 
 
 # Глобальный экземпляр Prometheus-метрик

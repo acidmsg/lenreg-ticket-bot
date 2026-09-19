@@ -112,7 +112,7 @@ async def _send_telegram_safe(
             return True
         except tg_exceptions.TelegramRetryAfter as e:
             logger.warning(
-                "Telegram 429: retry after %.1fs for chat %d",
+                "Telegram 429: retry after {:.1f}s for chat {}",
                 e.retry_after,
                 chat_id,
             )
@@ -130,7 +130,7 @@ async def _send_telegram_safe(
                 return True
             except Exception as e2:
                 logger.error(
-                    "Telegram retry failed for chat %d: %s",
+                    "Telegram retry failed for chat {}: {}",
                     chat_id,
                     e2,
                     exc_info=True,
@@ -138,7 +138,7 @@ async def _send_telegram_safe(
                 return False
         except Exception as e:
             logger.error(
-                "Telegram send failed for chat %d: %s",
+                "Telegram send failed for chat {}: {}",
                 chat_id,
                 e,
                 exc_info=True,
@@ -635,7 +635,7 @@ async def _check_single_doctor(
         if not filtered_slots:
             # После фильтрации слотов не осталось — пропускаем уведомление
             logger.info(
-                "Все слоты отфильтрованы для d_id=%s p_id=%s (настройки пользователя)",
+                "Все слоты отфильтрованы для d_id={} p_id={} (настройки пользователя)",
                 d_id,
                 p_id,
             )
@@ -738,7 +738,7 @@ async def _run_patient_doctor_tasks(
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
             logger.error(
-                "Doctor task %d failed: %s",
+                "Doctor task {} failed: {}",
                 i,
                 result,
                 exc_info=True,

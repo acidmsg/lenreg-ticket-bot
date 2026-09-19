@@ -168,7 +168,7 @@ async def migrate_v9_add_monitoring_filters(db) -> None:
         added.append(column_name)
 
     await c.commit()
-    logger.info("Миграция v9: колонки фильтра user_monitoring (добавлено: %s)", added)
+    logger.info("Миграция v9: колонки фильтра user_monitoring (добавлено: {})", added)
 
 
 # Упорядоченный список миграций: (version, async_callable)

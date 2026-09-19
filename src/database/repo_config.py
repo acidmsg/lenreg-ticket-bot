@@ -82,7 +82,7 @@ class ConfigRepository(BaseRepository):
             for key, value in defaults.items():
                 await self.set_config(key, value)
             logger.info(
-                "Таблица config заполнена дефолтными значениями (%s записей)",
+                "Таблица config заполнена дефолтными значениями ({} записей)",
                 len(defaults),
             )
         except Exception as e:

@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     # Referer для HTTP-заголовков
     REFERER_URL: str = "https://zdrav.lenreg.ru/signup/free/"
 
+    # Путь к кэшу последнего успешного IP API-хоста (fallback при отказе DNS, TD-025)
+    API_IP_CACHE_PATH: str = "data/api_ip_cache.json"
+
     # CSRF-токен (технический, всегда одинаковый)
     # Default — пустая строка (будет WARNING в логах, если не задан).
     # Переопределяется через .env (значение NOTPROVIDED — корректное).
@@ -253,7 +256,7 @@ class Settings(BaseSettings):
 
         if "://" not in self.REDIS_URL:
             logger.error(
-                "REDIS_URL имеет нестандартный формат (нет '://'): %s — "
+                "REDIS_URL имеет нестандартный формат (нет '://'): {} — "
                 "пропускаем встраивание пароля",
                 self.REDIS_URL,
             )
@@ -263,7 +266,7 @@ class Settings(BaseSettings):
 
         if "@" in rest:
             logger.debug(
-                "REDIS_URL уже содержит пароль или имя пользователя (@): %s — "
+                "REDIS_URL уже содержит пароль или имя пользователя (@): {} — "
                 "пропускаем встраивание",
                 self.REDIS_URL,
             )
@@ -271,7 +274,7 @@ class Settings(BaseSettings):
 
         self.REDIS_URL = f"{scheme}://:{self.REDIS_PASSWORD}@{rest}"
         logger.info(
-            "Пароль Redis встроен в REDIS_URL (схема: %s, хост сокрыт)",
+            "Пароль Redis встроен в REDIS_URL (схема: {}, хост сокрыт)",
             scheme,
         )
 
@@ -368,7 +371,7 @@ async def load_config_from_db(database) -> None:
                 # Дополнительная валидация для критичных ключей
                 if key in _validators and not _validators[key](value):
                     logger.error(
-                        "config[%s] содержит мусорное значение '%s' — "
+                        "config[{}] содержит мусорное значение '{}' — "
                         "используется дефолтное значение из .env",
                         key,
                         value,
@@ -380,7 +383,7 @@ async def load_config_from_db(database) -> None:
                     loaded += 1
                 except (ValueError, TypeError):
                     logger.warning(
-                        "Не удалось преобразовать config[%s]='%s' в %s",
+                        "Не удалось преобразовать config[{}]='{}' в {}",
                         key,
                         value,
                         cast_type.__name__,

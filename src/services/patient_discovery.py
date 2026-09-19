@@ -68,7 +68,7 @@ async def find_patient_across_clinics(
             p_id, err = await api.fetch_patient_id(fio, bday_date, clinic_id)
         except Exception:
             logger.exception(
-                "Неожиданная ошибка при поиске пациента '%s' в clinic_id=%s",
+                "Неожиданная ошибка при поиске пациента '{}' в clinic_id={}",
                 fio,
                 clinic_id,
             )

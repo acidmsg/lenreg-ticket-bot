@@ -4,12 +4,14 @@ import json
 import random
 import socket
 from typing import Any, TypeVar, cast
+from urllib.parse import urlparse
 
 import aiolimiter
 import httpx
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
+from src.api.dns_fallback import DnsFallbackTransport
 from src.api.models import (
     AppointmentListRequest,
     AppointmentListResponse,
@@ -76,6 +78,22 @@ class ZdravClient:
             "User-Agent": random.choice(self.user_agents),
         }
 
+    def _build_transport(self) -> httpx.AsyncBaseTransport:
+        """Создаёт транспорт с fallback на кэшированный IP API-хоста (TD-025).
+
+        Fallback включается только при отказе DNS и наличии кэша; при штатном
+        резолве поведение не меняется. Rate limiting остаётся в лимитерах
+        класса и транспортом не затрагивается.
+        """
+        parsed = urlparse(self.base_url)
+        if not parsed.hostname:
+            return httpx.AsyncHTTPTransport()
+        return DnsFallbackTransport(
+            host=parsed.hostname,
+            port=parsed.port or 443,
+            cache_path=settings.API_IP_CACHE_PATH,
+        )
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Возвращает переиспользуемый httpx-клиент (создает при первом вызове).
         trust_env=False отключает чтение HTTP_PROXY/HTTPS_PROXY из переменных
@@ -84,7 +102,9 @@ class ZdravClient:
         """
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                timeout=settings.API_TIMEOUT, trust_env=False
+                timeout=settings.API_TIMEOUT,
+                trust_env=False,
+                transport=self._build_transport(),
             )
         return self._client
 
@@ -116,8 +136,8 @@ class ZdravClient:
             for error in e.errors():
                 field_path = ".".join(str(loc) for loc in error["loc"])
                 logger.error(
-                    "Несоответствие схемы API | Эндпоинт: %s | "
-                    "Поле: %s | Ожидаемый тип: %s | Получено: %s | URL: %s",
+                    "Несоответствие схемы API | Эндпоинт: {} | "
+                    "Поле: {} | Ожидаемый тип: {} | Получено: {} | URL: {}",
                     endpoint_name,
                     field_path,
                     error.get("type", "?"),
@@ -128,7 +148,7 @@ class ZdravClient:
                 raise
             logger.warning(
                 "Валидация ответа API отключена, продолжаю с сырыми данными "
-                "(эндпоинт: %s, URL: %s)",
+                "(эндпоинт: {}, URL: {})",
                 endpoint_name,
                 request_url,
             )
@@ -315,7 +335,7 @@ class ZdravClient:
             return None, _("api-timeout")
         except Exception as e:
             logger.error(
-                "Критическая ошибка в fetch_patient_id: %r",
+                "Критическая ошибка в fetch_patient_id: {!r}",
                 e,
                 exc_info=True,
             )
@@ -459,7 +479,7 @@ class ZdravClient:
             return None
         except Exception as e:
             logger.error(
-                "Критическая ошибка в check_slots: %r",
+                "Критическая ошибка в check_slots: {!r}",
                 e,
                 exc_info=True,
             )
@@ -539,7 +559,7 @@ class ZdravClient:
             raise
         except (httpx.TimeoutException, httpx.NetworkError) as e:
             logger.error(
-                "Сеть/таймаут book_appointment: clinic=%s patient=%s slot=%s — %r",
+                "Сеть/таймаут book_appointment: clinic={} patient={} slot={} — {!r}",
                 clinic_id,
                 patient_id,
                 appointment_id,
@@ -551,7 +571,7 @@ class ZdravClient:
             )
         except Exception as e:
             logger.error(
-                "Критическая ошибка в book_appointment: %r",
+                "Критическая ошибка в book_appointment: {!r}",
                 e,
                 exc_info=True,
             )
@@ -572,7 +592,7 @@ class ZdravClient:
                 f"{self.base_url}/signup/",
             )
             logger.info(
-                "Бронирование: clinic=%s patient=%s slot=%s success=%s",
+                "Бронирование: clinic={} patient={} slot={} success={}",
                 clinic_id,
                 patient_id,
                 appointment_id,
@@ -580,7 +600,7 @@ class ZdravClient:
             )
             return model
         elif res.status_code in [403, 429]:
-            logger.warning("Заблокировано API (book_appointment): %d", res.status_code)
+            logger.warning("Заблокировано API (book_appointment): {}", res.status_code)
             return SignupResponse(
                 success=False,
                 error=SignupError(
@@ -588,7 +608,7 @@ class ZdravClient:
                 ),
             )
         else:
-            logger.error("Неожиданный статус бронирования: %d", res.status_code)
+            logger.error("Неожиданный статус бронирования: {}", res.status_code)
             return SignupResponse(
                 success=False,
                 error=SignupError(detail=f"HTTP {res.status_code}"),
@@ -635,7 +655,7 @@ class ZdravClient:
             return []
         except Exception as e:
             logger.error(
-                "Критическая ошибка в fetch_all_doctors: %r",
+                "Критическая ошибка в fetch_all_doctors: {!r}",
                 e,
                 exc_info=True,
             )
@@ -698,7 +718,7 @@ class ZdravClient:
         if not specialties_raw:
             logger.warning(
                 "fetch_all_doctors_for_clinic: специальности не найдены "
-                "для clinic_id=%s, patient_id=%s",
+                "для clinic_id={}, patient_id={}",
                 clinic_id,
                 patient_id,
             )
@@ -725,14 +745,14 @@ class ZdravClient:
         if not doc_specialties:
             logger.warning(
                 "fetch_all_doctors_for_clinic: нет врачебных специальностей "
-                "для clinic_id=%s",
+                "для clinic_id={}",
                 clinic_id,
             )
             return []
 
         logger.info(
-            "fetch_all_doctors_for_clinic: загружаем врачей по %d специальностям "
-            "для clinic_id=%s",
+            "fetch_all_doctors_for_clinic: загружаем врачей по {} специальностям "
+            "для clinic_id={}",
             len(doc_specialties),
             clinic_id,
         )
@@ -766,7 +786,7 @@ class ZdravClient:
             if isinstance(result, BaseException):
                 spec_name = doc_specialties[i].get("NameSpesiality", "?")
                 logger.error(
-                    "Ошибка загрузки врачей для специальности '%s': %s",
+                    "Ошибка загрузки врачей для специальности '{}': {}",
                     spec_name,
                     result,
                 )
@@ -774,7 +794,7 @@ class ZdravClient:
             all_doctors.extend(cast(list[dict], result))
 
         logger.info(
-            "fetch_all_doctors_for_clinic: загружено %d врачей для clinic_id=%s",
+            "fetch_all_doctors_for_clinic: загружено {} врачей для clinic_id={}",
             len(all_doctors),
             clinic_id,
         )
@@ -805,7 +825,7 @@ class ZdravClient:
             return []
         except Exception as e:
             logger.error(
-                "Критическая ошибка в fetch_clinic_list: %r",
+                "Критическая ошибка в fetch_clinic_list: {!r}",
                 e,
                 exc_info=True,
             )

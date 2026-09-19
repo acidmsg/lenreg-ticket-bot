@@ -156,7 +156,8 @@ export function createSlotCard({ date, slots, clinicId = "" }) {
  * @param {string} booking.doctor_name — ФИО врача
  * @param {string} booking.specialty — специальность
  * @param {string} booking.clinic_name — название клиники
- * @param {string} booking.date — дата приёма (ДД.ММ.ГГГГ)
+ * @param {string} booking.date — дата приёма (ДД.ММ.ГГГГ); пустая, если запись создана до
+ *   появления полей расписания — тогда выводится явная пометка
  * @param {string} booking.time — время приёма (ЧЧ:ММ)
  * @param {string} booking.patient_name — имя пациента
  * @param {boolean} booking.is_archived — признак архива
@@ -169,15 +170,24 @@ export function createBookingCard(booking) {
   const clinicName = escapeHtml(booking.clinic_name || "—");
   const date = escapeHtml(booking.date || "");
   const time = escapeHtml(booking.time || "");
+  const hasSchedule = Boolean(date && time);
   const patientName = escapeHtml(booking.patient_name || "");
 
   const specialtyLine = specialty
     ? `<div class="booking-card__specialty"><span class="lucide-icon">${lucideIcon("stethoscope", 14)}</span> ${specialty}</div>`
     : "";
 
-  const dateTimeLine = date
+  // Записи до релиза 2.4.0 хранятся без расписания: молчаливое отсутствие строки
+  // читалось как дефект отображения, поэтому случай помечается явно.
+  const dateTimeLine = hasSchedule
     ? `<div class="booking-card__datetime"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> ${date} в ${time}</div>`
-    : "";
+    : `<div class="booking-card__datetime booking-card__datetime--unknown"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> Дата и время не сохранены</div>`;
+
+  // Без даты событие в календаре не построить — кнопка неактивна.
+  const calendarTitle = hasSchedule
+    ? "Добавить в календарь"
+    : "Дата приёма не сохранена";
+  const calendarDisabled = hasSchedule ? "" : " disabled";
 
   const patientLine = patientName
     ? `<div class="booking-card__patient"><span class="lucide-icon">${lucideIcon("user", 14)}</span> Пациент: ${patientName}</div>`
@@ -197,7 +207,7 @@ export function createBookingCard(booking) {
         <button class="btn btn--sm btn--primary booking-export-btn" data-booking-id="${bookingId}" data-format="png" title="Сохранить карточку">
           <span class="lucide-icon">${lucideIcon("download", 14)}</span> Сохранить
         </button>
-        <button class="btn btn--sm btn--outline booking-export-btn" data-booking-id="${bookingId}" data-format="ics" title="Добавить в календарь">
+        <button class="btn btn--sm btn--outline booking-export-btn" data-booking-id="${bookingId}" data-format="ics" title="${calendarTitle}"${calendarDisabled}>
           <span class="lucide-icon">${lucideIcon("calendar-plus", 14)}</span> В календарь
         </button>
       </div>

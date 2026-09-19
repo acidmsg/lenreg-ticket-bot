@@ -9,7 +9,9 @@
 
 import asyncio
 import time
+import weakref
 from dataclasses import dataclass, field
+from types import TracebackType
 
 from aiogram import Bot
 from loguru import logger
@@ -101,9 +103,58 @@ class HealthMetrics:
         return f"{self.last_error_message} ({delta}с назад)"
 
 
+class _PerLoopLock:
+    """Прокси ``asyncio.Lock``: примитив создаётся лениво для текущего loop'а.
+
+    Модульная область не имеет running loop'а, поэтому ``asyncio.Lock`` не
+    создаётся при импорте — правило 2
+    [`event-loop-ownership.md`](../../specs/design/event-loop-ownership.md:530).
+    Внутри — per-loop реестр примитивов, образец ``RedisClient._instances``
+    ([`redis.py:45`](../../src/utils/redis.py:45)): ``Lock`` создаётся в
+    ``for_current_loop()`` от ``asyncio.get_running_loop()`` и переиспользуется
+    внутри своего loop'а. Ключ реестра — сам loop, а не
+    ``id(loop)``: идентификаторы переиспользуются после сборки мусора и вернули
+    бы примитив уже закрытого loop'а. Реестр — ``WeakKeyDictionary``: обычный
+    ``dict`` удерживал бы сильную ссылку на loop и не давал ему собраться.
+
+    Интерфейс совпадает с ``asyncio.Lock`` в части ``async with``, поэтому
+    контракт ``metrics_lock`` для потребителей (сам healthcheck,
+    ``src/services/metrics.py``, веб-роутеры) не меняется.
+    """
+
+    __slots__ = ("_locks",)
+
+    def __init__(self) -> None:
+        self._locks: weakref.WeakKeyDictionary[
+            asyncio.AbstractEventLoop, asyncio.Lock
+        ] = weakref.WeakKeyDictionary()
+
+    def for_current_loop(self) -> asyncio.Lock:
+        """``asyncio.Lock`` текущего running loop'а (создаётся при первом обращении)."""
+        loop = asyncio.get_running_loop()
+        lock = self._locks.get(loop)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._locks[loop] = lock
+        return lock
+
+    async def __aenter__(self) -> None:
+        await self.for_current_loop().acquire()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.for_current_loop().release()
+
+
 # Глобальный экземпляр метрик
 metrics = HealthMetrics()
-metrics_lock = asyncio.Lock()
+
+# Единая точка входа к per-loop блокировке метрик
+metrics_lock = _PerLoopLock()
 
 
 async def safe_increment(attr: str, delta: int = 1) -> None:
@@ -194,13 +245,13 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 redis_ok = await redis_client.health_check()
             except (RedisConnectionError, RedisTimeoutError, RedisError) as e:
                 logger.warning(
-                    "Healthcheck: Redis недоступен | Причина: %s | "
+                    "Healthcheck: Redis недоступен | Причина: {} | "
                     "Действие: продолжаем без кэша и rate limiting",
                     e,
                 )
             except Exception as e:
                 logger.warning(
-                    "Healthcheck: ошибка проверки Redis | Причина: %s | "
+                    "Healthcheck: ошибка проверки Redis | Причина: {} | "
                     "Действие: считаем Redis недоступным",
                     e,
                 )
@@ -280,13 +331,13 @@ async def _healthcheck_iteration(
         redis_ok = await redis_client.health_check()
     except (RedisConnectionError, RedisTimeoutError, RedisError) as e:
         logger.warning(
-            "Healthcheck: Redis недоступен | Причина: %s | "
+            "Healthcheck: Redis недоступен | Причина: {} | "
             "Действие: продолжаем без кэша и rate limiting",
             e,
         )
     except Exception as e:
         logger.warning(
-            "Healthcheck: ошибка проверки Redis | Причина: %s | "
+            "Healthcheck: ошибка проверки Redis | Причина: {} | "
             "Действие: считаем Redis недоступным",
             e,
         )

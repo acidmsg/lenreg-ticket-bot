@@ -402,7 +402,7 @@ class Database:
             for full_name, short_name in SPECIALTY_ALIASES.items():
                 await self.upsert_specialty_alias(full_name, short_name)
             logger.info(
-                "Таблица specialty_aliases заполнена из SPECIALTY_ALIASES (%s записей)",
+                "Таблица specialty_aliases заполнена из SPECIALTY_ALIASES ({} записей)",
                 len(SPECIALTY_ALIASES),
             )
         except Exception as e:

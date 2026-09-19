@@ -93,7 +93,7 @@ COPY scripts/ scripts/
 COPY locales/ locales/
 COPY src/ src/
 
-RUN chmod +x /app/scripts/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/docker-healthcheck.sh
 
 # Директории для runtime-данных (монтируются извне через docker-compose volumes)
 RUN mkdir -p /app/data /app/logs && \
@@ -104,8 +104,12 @@ USER appuser
 EXPOSE 9090
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pgrep -f "python -m src.main" > /dev/null 2>&1 && redis-cli -h redis ping > /dev/null 2>&1 || exit 1
+# TD-014: healthcheck проверяет не только живость процесса и Redis, но и
+# HTTP-эндпоинты (/metrics всегда, /login — при WEB_DASHBOARD_ENABLED).
+# Скрипт общий с docker-compose.yml, чтобы проверки не расходились.
+# start-period увеличен до 90s: дашборд поднимается после старта бота.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD /app/scripts/docker-healthcheck.sh
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["python", "-m", "src.main"]

@@ -86,14 +86,12 @@ services:
       # Для dev-итерации можно временно раскомментировать:
       # - ./scripts:/app/scripts:ro
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pgrep -f 'python -m src.main' > /dev/null 2>&1 && redis-cli -h redis -a $${REDIS_PASSWORD} ping > /dev/null 2>&1 || exit 1",
-        ]
+      # TD-014: единая проверка (процесс + Redis + HTTP-эндпоинты /metrics и
+      # /login). REDIS_PASSWORD и WEB_DASHBOARD_* берутся из env_file .env.
+      test: ["CMD", "/app/scripts/docker-healthcheck.sh"]
       interval: 30s
       timeout: 10s
-      start_period: 60s
+      start_period: 90s
       retries: 3
     ports:
       - "127.0.0.1:9090:9090"

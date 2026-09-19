@@ -1588,7 +1588,7 @@ body {
 
 :where(.calendar--patient, .calendar--slots) .vanilla-calendar-day__btn_prev,
 :where(.calendar--patient, .calendar--slots) .vanilla-calendar-day__btn_next {
-  color: #4a5568;
+  color: var(--color-text-muted);
   background: transparent;
 }
 
@@ -2108,6 +2108,12 @@ body {
   line-height: var(--line-height-normal);
 }
 
+/* Запись без сохранённого расписания: явная пометка вместо пустой строки. */
+.booking-card__datetime--unknown {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
 .booking-card__actions {
   display: flex;
   gap: var(--space-sm);
@@ -2136,7 +2142,7 @@ body {
 
 .empty-state__hint {
   font-size: var(--font-sm);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
 }
 
 /* === Модальное окно Mini App ===

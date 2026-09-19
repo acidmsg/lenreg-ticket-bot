@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+import weakref
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
@@ -13,21 +14,57 @@ from src.services.metrics import prometheus_metrics
 
 # ── Управление плановым сканированием ─────────────────────────────────
 
-_force_scan_event = asyncio.Event()
-"""Событие, сигнализирующее о запросе принудительного сканирования."""
+_force_scan_events: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, asyncio.Event
+] = weakref.WeakKeyDictionary()
+"""Per-loop реестр событий принудительного сканирования.
+
+Примитив не создаётся на уровне модуля (правило 2
+[`event-loop-ownership.md`](../../specs/design/event-loop-ownership.md:530)):
+``asyncio.Event`` появляется лениво в ``_force_scan_event_for()`` — образец
+``RedisClient._instances`` ([`redis.py:45`](../../src/utils/redis.py:45)). Ключ —
+сам loop, а не ``id(loop)``: идентификаторы переиспользуются после сборки мусора
+и вернули бы событие уже закрытого loop'а. Реестр — ``WeakKeyDictionary``: обычный
+``dict`` удерживал бы сильную ссылку на loop и не давал ему собраться.
+"""
 
 _force_scan_loop: asyncio.AbstractEventLoop | None = None
-"""Event loop, в котором работает цикл discovery — владелец ``_force_scan_event``."""
+"""Event loop, в котором работает цикл discovery — владелец события force-скана."""
+
+
+def _force_scan_event_for(loop: asyncio.AbstractEventLoop) -> asyncio.Event:
+    """Возвращает ``asyncio.Event`` указанного loop'а.
+
+    Событие создаётся при первом обращении. Running loop не требуется: событие
+    запрашивается и для владельца из ``trigger_force_scan()``, вызванного из
+    потока веб-роутера.
+    """
+    event = _force_scan_events.get(loop)
+    if event is None:
+        event = asyncio.Event()
+        _force_scan_events[loop] = event
+    return event
+
+
+def _get_force_scan_event() -> asyncio.Event:
+    """``asyncio.Event`` текущего running loop'а — рабочее событие цикла discovery."""
+    return _force_scan_event_for(asyncio.get_running_loop())
 
 
 def _bind_force_scan_loop() -> None:
-    """Запоминает текущий event loop как владельца ``_force_scan_event``.
+    """Запоминает текущий event loop как владельца события force-скана.
 
     Вызывается при старте цикла discovery, чтобы ``trigger_force_scan()`` из
-    другого потока (веб-роутер uvicorn) знал, в какой loop планировать ``set()``.
+    другого потока (веб-роутер uvicorn) знал, в какой loop планировать ``set()``
+    и какое событие этому loop'у принадлежит.
     """
     global _force_scan_loop
-    _force_scan_loop = asyncio.get_running_loop()
+    loop = asyncio.get_running_loop()
+    # Событие создаётся до публикации loop'а: иначе ``trigger_force_scan()`` из
+    # другого потока успел бы создать второе событие тому же loop'у, и сигнал
+    # force-скана потерялся бы.
+    _force_scan_event_for(loop)
+    _force_scan_loop = loop
 
 
 def trigger_force_scan() -> bool:
@@ -52,15 +89,17 @@ def trigger_force_scan() -> bool:
         )
         return False
 
+    event = _force_scan_event_for(loop)
+
     try:
         current_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
     except RuntimeError:
         current_loop = None
 
     if current_loop is loop:
-        _force_scan_event.set()
+        event.set()
     else:
-        loop.call_soon_threadsafe(_force_scan_event.set)
+        loop.call_soon_threadsafe(event.set)
 
     logger.info("Принудительное сканирование врачей запрошено через API")
     return True
@@ -118,23 +157,24 @@ async def discovery_loop(
 
     logger.info("Цикл Discovery врачей запущен (агрегированный)")
     _bind_force_scan_loop()
+    force_scan_event = _get_force_scan_event()
 
     while True:
         # Проверка: включено ли плановое сканирование и/или запрошен force-скан
         scan_enabled = await database.config.get_config("doctor_scan_enabled", "1")
-        force_requested = _force_scan_event.is_set()
+        force_requested = force_scan_event.is_set()
 
         if scan_enabled != "1" and not force_requested:
             # Плановое сканирование выключено — ждём force-сигнала или интервала
             try:
                 await asyncio.wait_for(
-                    _force_scan_event.wait(),
+                    force_scan_event.wait(),
                     timeout=settings.DISCOVERY_INTERVAL,
                 )
             except TimeoutError:
                 continue
 
-        _force_scan_event.clear()
+        force_scan_event.clear()
 
         if force_requested:
             logger.info("Принудительное сканирование врачей запущено")
@@ -254,16 +294,17 @@ async def _discovery_iteration(
     и force-скан не запрошен — итерация завершается без действий (no-op).
     """
     _bind_force_scan_loop()
+    force_scan_event = _get_force_scan_event()
 
     # Проверка: включено ли плановое сканирование и/или запрошен force-скан
     scan_enabled = await database.config.get_config("doctor_scan_enabled", "1")
-    force_requested = _force_scan_event.is_set()
+    force_requested = force_scan_event.is_set()
 
     if scan_enabled != "1" and not force_requested:
         # Плановое сканирование выключено — ничего не делаем в этой итерации
         return
 
-    _force_scan_event.clear()
+    force_scan_event.clear()
 
     if force_requested:
         logger.info("Принудительное сканирование врачей запущено")
