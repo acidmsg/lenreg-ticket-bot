@@ -207,7 +207,7 @@ export function createBookingCard(booking) {
         <button class="btn btn--sm btn--primary booking-export-btn" data-booking-id="${bookingId}" data-format="png" title="Сохранить карточку">
           <span class="lucide-icon">${lucideIcon("download", 14)}</span> Сохранить
         </button>
-        <button class="btn btn--sm btn--outline booking-export-btn" data-booking-id="${bookingId}" data-format="ics" title="${calendarTitle}"${calendarDisabled}>
+        <button class="btn btn--sm btn--outline booking-calendar-btn" data-booking-id="${bookingId}" data-date="${date}" data-time="${time}" data-doctor="${doctorName}" data-clinic="${clinicName}" data-patient="${patientName}" data-specialty="${specialty}" title="${calendarTitle}"${calendarDisabled}>
           <span class="lucide-icon">${lucideIcon("calendar-plus", 14)}</span> В календарь
         </button>
       </div>

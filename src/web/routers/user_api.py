@@ -1586,36 +1586,12 @@ async def export_booking(
             content={"detail": "Доступ запрещён."},
         )
 
-    from src.services.export import (
-        export_booking_ics,
-        export_booking_pdf,
-        export_booking_png,
-    )
+    from src.services.export import render_export
 
-    fmt = format.lower().strip()
-    if fmt == "png":
-        try:
-            content = export_booking_png(booking)
-        except ImportError:
-            return JSONResponse(
-                status_code=501,
-                content={"detail": "Экспорт в PNG недоступен: Pillow не установлен."},
-            )
-        media_type = "image/png"
-        ext = "png"
-    elif fmt == "pdf":
-        content = export_booking_pdf(booking)
-        media_type = "application/pdf"
-        ext = "pdf"
-    elif fmt == "ics":
-        content = export_booking_ics(booking)
-        media_type = "text/calendar"
-        ext = "ics"
-    else:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Неверный формат. Допустимые: png, pdf, ics."},
-        )
+    try:
+        content, media_type, ext = render_export(booking, format.lower().strip())
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
 
     return Response(
         content=content,
@@ -1626,3 +1602,58 @@ async def export_booking(
             ),
         },
     )
+
+
+@router.get("/bookings/{booking_id}/export-link")
+async def export_booking_link(
+    request: Request,
+    booking_id: str,
+    format: str = Query("png", description="Формат экспорта: png, pdf, ics"),
+) -> Any:
+    """Возвращает подписанную ссылку на скачивание файла экспорта.
+
+    Скачивание через ``fetch`` + blob в WebView Telegram не срабатывает, а
+    обычная ссылка не может приложить заголовок initData: путь ``/api/user/*``
+    закрыт middleware. Поэтому клиент берёт короткоживущую подписанную ссылку
+    и открывает её (``Telegram.WebApp.downloadFile`` / ``openLink``), а файл
+    отдаёт публичный ``/api/export/bookings/{id}`` по подписи.
+
+    Args:
+        booking_id: Составной ID записи.
+        format: ``png``, ``pdf`` или ``ics``.
+
+    Returns:
+        ``{"url": …, "file_name": …}`` либо JSONResponse с ошибкой.
+    """
+
+    from src.web.export_token import EXPORT_FORMATS, sign_export
+
+    db = _get_db(request)
+    telegram_id = _get_telegram_id(request)
+
+    booking = await db.get_booking_by_id(booking_id)
+    if booking is None:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Запись не найдена."},
+        )
+
+    if booking["uid"] != telegram_id:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Доступ запрещён."},
+        )
+
+    fmt = format.lower().strip()
+    if fmt not in EXPORT_FORMATS:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Неверный формат. Допустимые: png, pdf, ics."},
+        )
+
+    query = sign_export(booking_id, fmt, telegram_id, bot_token=settings.BOT_TOKEN)
+    base = str(request.base_url).rstrip("/")
+    return {
+        "url": f"{base}/api/export/bookings/{booking_id}?{query}",
+        "file_name": f"booking_{booking_id}.{fmt}",
+    }

@@ -597,3 +597,43 @@ def export_booking_ics(
         "END:VCALENDAR\r\n"
     )
     return ics.encode("utf-8")
+
+
+#: Соответствие формата экспорта его media type и расширению файла.
+EXPORT_MEDIA_TYPES: dict[str, tuple[str, str]] = {
+    "png": ("image/png", "png"),
+    "pdf": ("application/pdf", "pdf"),
+    "ics": ("text/calendar", "ics"),
+}
+
+
+def render_export(booking: BookingEntry, fmt: str) -> tuple[bytes, str, str]:
+    """Готовит файл экспорта записи в запрошенном формате.
+
+    Общая точка входа для обоих эндпоинтов: скачивание по заголовку initData
+    (``/api/user/bookings/{id}/export``) и по подписанной ссылке
+    (``/api/export/bookings/{id}``).
+
+    Args:
+        booking: Запись из БД.
+        fmt: Формат файла — ``png``, ``pdf`` или ``ics``.
+
+    Returns:
+        Кортеж ``(содержимое, media_type, расширение)``.
+
+    Raises:
+        ValueError: Неизвестный формат или отсутствует Pillow.
+    """
+    if fmt not in EXPORT_MEDIA_TYPES:
+        raise ValueError("Неверный формат. Допустимые: png, pdf, ics.")
+    if fmt == "png":
+        try:
+            content = export_booking_png(booking)
+        except ImportError as exc:
+            raise ValueError("Экспорт в PNG недоступен: Pillow не установлен.") from exc
+    elif fmt == "pdf":
+        content = export_booking_pdf(booking)
+    else:
+        content = export_booking_ics(booking)
+    media_type, ext = EXPORT_MEDIA_TYPES[fmt]
+    return content, media_type, ext

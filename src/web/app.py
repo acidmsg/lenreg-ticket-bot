@@ -178,9 +178,12 @@ def create_app(
 
     # Роутер Mini App API (/api/user/*)
     if config.MINI_APP_ENABLED:
-        from src.web.routers import user_api
+        from src.web.routers import export_api, user_api
 
         app.include_router(user_api.router)
+        # Скачивание файлов экспорта по подписанной ссылке (/api/export/*):
+        # путь вне /api/user/*, поэтому middleware initData его не трогает.
+        app.include_router(export_api.router)
 
     # Mount статики Mini App (/app/) — после роутеров, чтобы StaticFiles
     # не перехватывал запросы к /api/user/*

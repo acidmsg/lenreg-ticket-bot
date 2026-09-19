@@ -6,7 +6,8 @@
 
 import { createBookingCard } from "../components/card.js";
 import { lucideIcon } from "../components/icon.js";
-import { apiGet, buildAuthHeaders } from "../api.js";
+import { apiGet } from "../api.js";
+import { buildGoogleCalendarUrl } from "../calendar.js";
 
 /**
  * Рендерит список активных записей пользователя.
@@ -45,6 +46,8 @@ export async function renderBookingsList(container) {
 
     // Привязываем обработчики экспорта
     bindExportButtons(container);
+    // Привязываем добавление в календарь
+    bindCalendarButtons(container);
     // Привязываем переход в архив
     bindArchiveButton(container);
   } catch (err) {
@@ -95,6 +98,7 @@ export async function renderArchiveList(container) {
     }
 
     bindExportButtons(container);
+    bindCalendarButtons(container);
     bindActiveButton(container);
   } catch (err) {
     container.innerHTML = `
@@ -123,43 +127,94 @@ function bindExportButtons(container) {
       if (!bookingId || !format) return;
 
       try {
-        // Скачиваем файл через API. Заголовки берём из общего хелпера:
-        // имя X-Telegram-InitData должно совпадать с тем, что читает
-        // middleware (src/web/auth_initdata.py), иначе экспорт отдаёт 400.
-        const response = await fetch(
-          `/api/user/bookings/${encodeURIComponent(bookingId)}/export?format=${format}`,
-          { headers: buildAuthHeaders() },
+        // Файл отдаёт публичный /api/export/* по короткоживущей подписанной
+        // ссылке: скачивание через blob в WebView Telegram не срабатывает,
+        // а к обычной ссылке нельзя приложить заголовок initData.
+        const link = await apiGet(
+          `/bookings/${encodeURIComponent(bookingId)}/export-link`,
+          { format },
         );
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          const detail = errData.detail || "Не удалось скачать файл.";
+        if (!link || !link.url) {
           if (window.showToast) {
-            window.showToast(`❌ ${detail}`, "error");
+            window.showToast("❌ Не удалось получить ссылку на файл", "error");
           }
           return;
         }
-
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        const ext = format === "ics" ? "ics" : "png";
-        a.download = `booking_${bookingId}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
+        openDownload(
+          link.url,
+          link.file_name || `booking_${bookingId}.${format}`,
+        );
         if (window.showToast) {
-          window.showToast("✅ Файл сохранён", "success");
+          window.showToast("✅ Файл сохраняется", "success");
         }
       } catch (err) {
         console.error("Ошибка экспорта:", err);
         if (window.showToast) {
-          window.showToast("❌ Ошибка при скачивании", "error");
+          window.showToast(
+            `❌ ${(err && err.message) || "Ошибка при скачивании"}`,
+            "error",
+          );
         }
       }
+    });
+  });
+}
+
+/**
+ * Отдаёт файл на устройство: сначала нативное скачивание Telegram, затем
+ * внешний браузер (в WebView скачивание blob не работает).
+ *
+ * @param {string} url — подписанная ссылка на файл
+ * @param {string} fileName — предлагаемое имя файла
+ */
+function openDownload(url, fileName) {
+  const webApp = window.Telegram && window.Telegram.WebApp;
+  if (webApp && typeof webApp.downloadFile === "function") {
+    try {
+      webApp.downloadFile({ url, file_name: fileName });
+      return;
+    } catch (err) {
+      console.error("downloadFile недоступен, открываю ссылку:", err);
+    }
+  }
+  if (webApp && typeof webApp.openLink === "function") {
+    webApp.openLink(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
+
+/**
+ * Открывает форму добавления записи во внешнем календаре (Google Calendar).
+ *
+ * @param {HTMLElement} container — DOM-элемент контейнера
+ */
+function bindCalendarButtons(container) {
+  const buttons = container.querySelectorAll(".booking-calendar-btn");
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const url = buildGoogleCalendarUrl({
+        booking_id: btn.dataset.bookingId,
+        date: btn.dataset.date,
+        time: btn.dataset.time,
+        doctor_name: btn.dataset.doctor,
+        clinic_name: btn.dataset.clinic,
+        patient_name: btn.dataset.patient,
+        specialty: btn.dataset.specialty,
+      });
+      if (!url) {
+        if (window.showToast) {
+          window.showToast("❌ Дата приёма не сохранена", "error");
+        }
+        return;
+      }
+      const webApp = window.Telegram && window.Telegram.WebApp;
+      if (webApp && typeof webApp.openLink === "function") {
+        webApp.openLink(url);
+        return;
+      }
+      window.open(url, "_blank", "noopener");
     });
   });
 }
