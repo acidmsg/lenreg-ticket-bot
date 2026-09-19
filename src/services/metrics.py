@@ -13,6 +13,7 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 
 from src.database.manager import DatabaseManager
+from src.services.background import describe_background_tasks, is_task_alive
 from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
 from src.utils.redis import RedisClient
@@ -74,16 +75,6 @@ class PrometheusMetrics:
             "Статус соединения с Redis (1 = подключен, 0 = отключен)",
         )
 
-        # -- Schema Change Detection (F8) Gauge --
-        self._schema_drift: Any = Gauge(
-            "lenreg_ticket_api_schema_drift",
-            "Расхождение схемы API (1 = расхождение, 0 = совпадение)",
-            labelnames=["endpoint"],
-        )
-
-        # -- Хранение текущего состояния схем для веб-дашборда --
-        self._schema_status: dict[str, bool] = {}
-
         # -- Counter'ы (монотонно возрастающие) --
         self._healthcheck_errors_total: Any = Counter(
             "lenreg_ticket_healthcheck_errors_total",
@@ -100,13 +91,6 @@ class PrometheusMetrics:
         self._api_errors_total: Any = Counter(
             "lenreg_ticket_api_errors_total",
             "Счётчик ошибок API",
-        )
-
-        # -- Schema Change Detection (F8) Counter --
-        self._schema_changes_total: Any = Counter(
-            "lenreg_ticket_api_schema_changes_total",
-            "Общее количество обнаруженных изменений схемы API",
-            labelnames=["endpoint"],
         )
 
         # -- DNS Watchdog (пиннинг IP API) Counter'ы --
@@ -184,8 +168,12 @@ class PrometheusMetrics:
     async def _sync_gauges(self, db: DatabaseManager) -> None:
         """Синхронизирует Gauge'и с текущим состоянием."""
         async with metrics_lock:
-            # Статус мониторинга
-            self._monitor_status.set(1.0 if health_metrics.monitor_loop_alive else 0.0)
+            # Статус мониторинга — из менеджера фоновых задач
+            tasks_health = {
+                task["name"]: task["health"] for task in describe_background_tasks()
+            }
+            monitor_ok = is_task_alive(tasks_health.get("monitor", ""))
+            self._monitor_status.set(1.0 if monitor_ok else 0.0)
 
             # Таймстемп последнего успешного healthcheck
             if health_metrics.last_api_ok and health_metrics.last_api_check_time > 0:
@@ -216,27 +204,6 @@ class PrometheusMetrics:
         """
         await self.update(db)
         return generate_latest(), PROMETHEUS_CONTENT_TYPE
-
-    # ── Schema Change Detection (F8) ──────────────────────────────
-
-    def set_schema_drift(self, endpoint: str, has_drift: bool) -> None:
-        """Устанавливает Gauge расхождения схемы для эндпоинта."""
-        self._schema_drift.labels(endpoint=endpoint).set(1.0 if has_drift else 0.0)
-        # Сохраняем в dict для веб-дашборда
-        self._schema_status[endpoint] = has_drift
-
-    def inc_schema_changes(self, endpoint: str, count: int = 1) -> None:
-        """Инкрементирует счётчик изменений схемы."""
-        self._schema_changes_total.labels(endpoint=endpoint).inc(count)
-
-    def get_schema_status(self) -> dict[str, bool]:
-        """Возвращает текущее состояние схем API.
-
-        Returns:
-            Словарь {endpoint: has_drift}, где True — расхождение,
-            False — схемы совпадают.
-        """
-        return dict(self._schema_status)
 
     # ── DNS Watchdog (пиннинг IP API) ─────────────────────────────
 

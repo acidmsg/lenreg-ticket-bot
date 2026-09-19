@@ -16,7 +16,6 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
 from src.i18n import _
-from src.services.healthcheck import safe_set
 from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
     format_notification_text,
@@ -812,7 +811,6 @@ async def monitor_loop(
             уведомлений.  Используется для подавления ложных уведомлений
             после перезапуска бота.
     """
-    await safe_set("monitor_loop_alive", True)
     logger.info("Цикл мониторинга запущен")
 
     empty_counts: dict[str, int] = {}

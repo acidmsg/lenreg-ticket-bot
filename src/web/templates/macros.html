@@ -440,13 +440,19 @@ stroke="currentColor" (либо fill="currentColor" для монохромны�
 <span class="badge badge-warn">{{ status }}</span>
 {% else %}
 <span class="badge">{{ status }}</span>
-{% endif %} {%- endmacro %} {% macro background_task_item(name, alive) -%}
-<div class="info-label">{{ name }}</div>
+{% endif %} {%- endmacro %} {% macro background_task_row(task) -%}
+<div class="info-label">
+  {{ task.name }} <span class="text-muted">({{ task.state }})</span>
+</div>
 <div class="info-value">
-  {% if alive %}
-  <span class="badge badge-ok">{{ icon('check')|safe }} alive</span>
+  {% if task.alive %}
+  <span class="badge badge-ok">{{ icon('check')|safe }} {{ task.health }}</span>
   {% else %}
-  <span class="badge badge-err">{{ icon('cross')|safe }} dead</span>
+  <span class="badge badge-err">{{ icon('cross')|safe }} {{ task.health }}</span>
   {% endif %}
+  <span class="text-muted"> итераций: {{ task.iterations }} · ошибок подряд: {{
+    task.consecutive_errors }} · перезапусков: {{ task.restarts }}{% if
+    task.last_run_ago is not none %} · последняя {{ task.last_run_ago }} с назад{%
+    endif %} </span>
 </div>
 {%- endmacro %}

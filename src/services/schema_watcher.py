@@ -1,12 +1,17 @@
 """
 Статические утилиты сравнения JSON Schema для API zdrav.lenreg.ru.
 
-Сравнивает эталонные JSON Schema из artifacts/schemas/ с текущими Pydantic-моделями.
-Рантайм-проверка через HTTP-запросы отключена (Задача 2.8 ROADMAP) —
-валидация выполняется статически через scripts/generate_api_schemas.py.
+Сравнивает эталонные JSON Schema из specs/schemas/ (коммитятся в Git) с текущими
+Pydantic-моделями. Рантайм-проверка через HTTP-запросы отключена (Задача 2.8 ROADMAP) —
+валидация выполняется статически; автопроверка — tests/api/test_schema_drift.py.
 
 Использование:
-    from src.services.schema_watcher import compare_schemas, load_reference_schemas
+    from src.services.schema_watcher import (
+        collect_schema_status,
+        compare_schemas,
+        discover_api_models,
+        load_reference_schemas,
+    )
 
     ref = load_reference_schemas()
     current = MyModel.model_json_schema()
@@ -15,6 +20,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -22,8 +28,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Директория эталонных схем по умолчанию
-_DEFAULT_SCHEMAS_DIR = Path("artifacts/schemas")
+# Директория эталонных схем по умолчанию (коммитится в Git)
+_DEFAULT_SCHEMAS_DIR = Path("specs/schemas")
 
 
 # ── Вспомогательные функции для сравнения схем ───────────────────
@@ -61,7 +67,7 @@ def compare_schemas(
 
     Args:
         current: Текущая JSON Schema (из model_json_schema()).
-        reference: Эталонная JSON Schema (из artifacts/schemas/).
+        reference: Эталонная JSON Schema (из specs/schemas/).
         path: Путь в дереве схемы для сообщений об ошибках.
 
     Returns:
@@ -145,11 +151,11 @@ def compare_schemas(
 def load_reference_schemas(
     schemas_dir: Path | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Загружает эталонные JSON Schema из директории artifacts/schemas/.
+    """Загружает эталонные JSON Schema из директории specs/schemas/.
 
     Args:
         schemas_dir: Путь к директории со схемами.
-                     По умолчанию Path("artifacts/schemas").
+                     По умолчанию Path("specs/schemas").
 
     Returns:
         Словарь {ModelName: schema_dict}.
@@ -174,3 +180,47 @@ def load_reference_schemas(
 
     logger.info("Загружено {} эталонных схем из {}", len(schemas), schemas_dir)
     return schemas
+
+
+# ── Инвентаризация моделей и сводный статус ─────────────────────
+
+
+def discover_api_models() -> dict[str, type[Any]]:
+    """Находит все Pydantic-модели API в ``src/api/models.py``.
+
+    Returns:
+        Словарь {ИмяМодели: класс} по алфавиту.
+    """
+    from pydantic import BaseModel
+
+    from src.api import models as api_models
+
+    return {
+        name: obj
+        for name, obj in inspect.getmembers(api_models, inspect.isclass)
+        if issubclass(obj, BaseModel)
+        and obj is not BaseModel
+        and obj.__module__ == api_models.__name__
+    }
+
+
+def collect_schema_status(schemas_dir: Path | None = None) -> dict[str, bool]:
+    """Сверяет все модели API с эталонными схемами.
+
+    Args:
+        schemas_dir: Путь к директории с эталонами (по умолчанию specs/schemas/).
+
+    Returns:
+        Словарь {ИмяМодели: has_drift}, где True — расхождение с эталоном либо
+        отсутствие эталона, False — схемы совпадают.
+    """
+    references = load_reference_schemas(schemas_dir)
+
+    status: dict[str, bool] = {}
+    for name, model in discover_api_models().items():
+        reference = references.get(name)
+        if reference is None:
+            status[name] = True
+            continue
+        status[name] = bool(compare_schemas(model.model_json_schema(), reference))
+    return status

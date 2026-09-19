@@ -59,11 +59,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
             "availability_pct": data["availability"],
         },
         "background_tasks": {
-            "monitor_loop": "alive" if data["monitor_loop_alive"] else "dead",
-            "discovery_tasks": data["discovery_tasks_alive"],
-            "healthcheck_loop": ("alive" if data["healthcheck_loop_alive"] else "dead"),
-            "cleanup_loop": "alive",  # нет отдельного флага, подразумевается
-            "schema_check_loop": "alive",
+            task["name"]: task["health"] for task in data["background_tasks"]
         },
         "recent_alerts": alerts,
     }

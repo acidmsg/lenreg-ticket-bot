@@ -8,6 +8,7 @@
 import time
 from typing import Any
 
+from src.services.background import describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics_module
 from src.services.healthcheck import metrics_lock
 
@@ -34,9 +35,6 @@ async def get_summary_data(
         last_check = health_metrics_module.last_api_check_time
         checks_total = health_metrics_module.api_checks_total
         errors_total = health_metrics_module.api_errors_total
-        monitor_loop_alive = health_metrics_module.monitor_loop_alive
-        discovery_tasks_alive = health_metrics_module.discovery_tasks_alive
-        healthcheck_loop_alive = health_metrics_module.healthcheck_loop_alive
         notifications_sent = health_metrics_module.monitoring_notifications_sent
 
     seconds_ago = int(time.time() - last_check) if last_check else 0
@@ -57,9 +55,7 @@ async def get_summary_data(
         "last_check": last_check,
         "checks_total": checks_total,
         "errors_total": errors_total,
-        "monitor_loop_alive": monitor_loop_alive,
-        "discovery_tasks_alive": discovery_tasks_alive,
-        "healthcheck_loop_alive": healthcheck_loop_alive,
+        "background_tasks": describe_background_tasks(),
         "notifications_sent": notifications_sent,
         "seconds_ago": seconds_ago,
         "availability": availability,

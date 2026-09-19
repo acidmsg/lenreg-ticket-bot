@@ -47,18 +47,18 @@
   </div>
 
   <div class="card">
-    <h2>Схемы API (schema_watcher)</h2>
+    <h2>Схемы API (статические эталоны)</h2>
     {% if schema_status %}
     <div class="dg-table dg-table--schemas" role="table" aria-label="Схемы API">
       <div class="dg-header" role="rowgroup">
-        <div class="dg-cell" role="columnheader">Endpoint</div>
+        <div class="dg-cell" role="columnheader">Модель</div>
         <div class="dg-cell" role="columnheader">Статус</div>
       </div>
       <div class="dg-tbody" role="rowgroup">
-        {% for endpoint, has_drift in schema_status.items() %}
+        {% for model_name, has_drift in schema_status.items() %}
         <div class="dg-row" role="row">
-          <div class="dg-cell" role="cell" data-label="Endpoint">
-            <code>{{ endpoint }}</code>
+          <div class="dg-cell" role="cell" data-label="Модель">
+            <code>{{ model_name }}</code>
           </div>
           <div class="dg-cell" role="cell" data-label="Статус">
             {% if has_drift %}
@@ -77,8 +77,8 @@
     </div>
     {% else %}
     <p class="text-muted">
-      Проверка схем API ещё не выполнялась (ожидание первого цикла
-      schema_watcher)
+      Сверка схем API выполняется статически: эталон — <code>specs/schemas/</code>,
+      проверка — <code>tests/api/test_schema_drift.py</code> (рантайм-цикл отключён).
     </p>
     {% endif %}
   </div>

@@ -333,7 +333,7 @@ msgstr "├ Monitor: {status}"
 
 #: src/services/healthcheck.py:249
 msgid "status-task-discovery"
-msgstr "└ Discovery: {n} tasks"
+msgstr "└ Discovery: {status}"
 
 #: src/services/healthcheck.py:251
 msgid "status-config-header"

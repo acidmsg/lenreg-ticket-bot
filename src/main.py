@@ -33,6 +33,7 @@ from src.services.background import (
     BackgroundTaskManager,
     RetryConfig,
     ScheduleConfig,
+    publish_active_manager,
 )
 from src.services.cleanup import _cleanup_iteration
 from src.services.dns_watchdog import DnsWatchdogState, dns_watchdog_loop
@@ -41,7 +42,7 @@ from src.services.doctor_discovery import (
     sync_clinic_names,
 )
 from src.services.error_notifier import error_notifier
-from src.services.healthcheck import _healthcheck_iteration, safe_set
+from src.services.healthcheck import _healthcheck_iteration
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import _monitor_iteration
@@ -115,6 +116,8 @@ async def _start_background_tasks(
     с прокси-соединением.
     """
     manager = BackgroundTaskManager()
+    # Публикуем менеджер: дашборд, /status и Prometheus берут статус задач только отсюда
+    publish_active_manager(manager)
 
     # ── Мониторинг слотов ────────────────────────────────────────────
     monitor_state: dict = {
@@ -145,7 +148,6 @@ async def _start_background_tasks(
         patient_id_adult=settings.DISCOVERY_PATIENT_ID_ADULT,
         patient_id_child=settings.DISCOVERY_PATIENT_ID_CHILD,
     )
-    await safe_set("discovery_tasks_alive", 1)
 
     # ── Healthcheck ──────────────────────────────────────────────────
     manager.add(
@@ -750,6 +752,7 @@ async def shutdown_services(
 
     logger.info("Остановка фоновых задач...")
     await manager.stop_all(shutdown_timeout=30.0)
+    publish_active_manager(None)
 
     # Остановка Prometheus HTTP-сервера
     if metrics_runner is not None:

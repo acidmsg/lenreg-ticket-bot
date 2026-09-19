@@ -123,6 +123,8 @@ class TaskStatus:
     last_run_start: float | None
     last_run_duration: float | None
     created_at: float
+    interval: float = 0.0
+    jitter_max: float = 0.0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -293,6 +295,8 @@ class BackgroundTask:
             last_run_start=self._last_run_start,
             last_run_duration=self._last_run_duration,
             created_at=self._created_at,
+            interval=self.schedule.interval,
+            jitter_max=self.schedule.jitter[1] if self.schedule.jitter else 0.0,
         )
 
 
@@ -624,10 +628,138 @@ class BackgroundTaskManager:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Честный статус задач для дашборда, отчётов и метрик
+# ══════════════════════════════════════════════════════════════════════════════
+
+HEALTH_RUNNING = "running"
+HEALTH_ALIVE = "alive"
+HEALTH_RETRYING = "retrying"
+HEALTH_STARTING = "starting"
+HEALTH_STALE = "stale"
+HEALTH_DEAD = "dead"
+HEALTH_STOPPED = "stopped"
+
+# Задача считается живой, если последняя итерация была не позже
+# max(3 * период, период + _OVERDUE_GRACE_SEC) назад.
+_OVERDUE_GRACE_SEC = 300.0
+# Сколько ждём первую итерацию после регистрации задачи.
+_START_GRACE_SEC = 120.0
+
+
+def describe_task_health(
+    status: TaskStatus,
+    *,
+    now_monotonic: float,
+    now_wall: float,
+) -> str:
+    """Определяет здоровье задачи по её фактическому состоянию.
+
+    Args:
+        status: Снапшот статуса из :meth:`BackgroundTaskManager.status`.
+        now_monotonic: Текущее монотонное время (``time.monotonic()``).
+        now_wall: Текущее календарное время (``time.time()``).
+
+    Returns:
+        Одно из значений: ``running``, ``alive``, ``retrying``, ``starting``,
+        ``stale``, ``dead``, ``stopped``.
+    """
+    if status.state is TaskState.CRASHED:
+        return HEALTH_DEAD
+    if status.state in (TaskState.STOPPED, TaskState.STOPPING):
+        return HEALTH_STOPPED
+    if status.state is TaskState.IDLE:
+        # Зарегистрирована, но ни разу не стартовала
+        if now_wall - status.created_at <= _START_GRACE_SEC:
+            return HEALTH_STARTING
+        return HEALTH_DEAD
+    if status.last_run_start is None:
+        return HEALTH_STARTING
+
+    period = max(status.interval + status.jitter_max, 1.0)
+    overdue = now_monotonic - status.last_run_start
+    if overdue > max(3.0 * period, period + _OVERDUE_GRACE_SEC):
+        return HEALTH_STALE
+    if status.state is TaskState.RETRYING:
+        return HEALTH_RETRYING
+    if status.state is TaskState.RUNNING:
+        return HEALTH_RUNNING
+    return HEALTH_ALIVE
+
+
+def is_task_alive(health: str) -> bool:
+    """Считается ли задача живой для индикатора дашборда."""
+    return health in (HEALTH_RUNNING, HEALTH_ALIVE, HEALTH_RETRYING, HEALTH_STARTING)
+
+
+# Активный менеджер задач процесса — единственный источник правды о фоновых
+# задачах для дашборда, отчёта /status и Prometheus-метрик.
+_active_manager: BackgroundTaskManager | None = None
+
+
+def publish_active_manager(manager: BackgroundTaskManager | None) -> None:
+    """Публикует активный менеджер задач для дашборда и отчётов."""
+    global _active_manager
+    _active_manager = manager
+
+
+def get_active_manager() -> BackgroundTaskManager | None:
+    """Возвращает активный менеджер задач процесса (или ``None``)."""
+    return _active_manager
+
+
+def describe_background_tasks() -> list[dict[str, Any]]:
+    """Собирает честный статус всех зарегистрированных фоновых задач.
+
+    Returns:
+        Список словарей с ключами ``name``, ``state``, ``health``, ``alive``,
+        ``iterations``, ``failures``, ``consecutive_errors``, ``restarts``,
+        ``last_run_ago`` (секунды; ``None`` — итераций ещё не было).
+        Пустой список, если менеджер не опубликован.
+    """
+    manager = get_active_manager()
+    if manager is None:
+        return []
+
+    now_monotonic = time.monotonic()
+    now_wall = time.time()
+
+    tasks: list[dict[str, Any]] = []
+    for name, status in manager.status().items():
+        health = describe_task_health(
+            status, now_monotonic=now_monotonic, now_wall=now_wall
+        )
+        tasks.append(
+            {
+                "name": name,
+                "state": status.state.value,
+                "health": health,
+                "alive": is_task_alive(health),
+                "iterations": status.iterations,
+                "failures": status.failures,
+                "consecutive_errors": status.consecutive_errors,
+                "restarts": status.restarts,
+                "last_run_ago": (
+                    int(now_monotonic - status.last_run_start)
+                    if status.last_run_start is not None
+                    else None
+                ),
+            }
+        )
+    return tasks
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Публичный API
 # ══════════════════════════════════════════════════════════════════════════════
 
 __all__ = [
+    "HEALTH_ALIVE",
+    "HEALTH_DEAD",
+    "HEALTH_RETRYING",
+    "HEALTH_RUNNING",
+    "HEALTH_STALE",
+    "HEALTH_STARTING",
+    "HEALTH_STOPPED",
     "BackgroundTask",
     "BackgroundTaskManager",
     "RetryConfig",
@@ -635,4 +767,9 @@ __all__ = [
     "TaskState",
     "TaskStatus",
     "WatchdogConfig",
+    "describe_background_tasks",
+    "describe_task_health",
+    "get_active_manager",
+    "is_task_alive",
+    "publish_active_manager",
 ]

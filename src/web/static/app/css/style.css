@@ -114,7 +114,10 @@
   --status-unknown: #789;
 }
 
-/* === Сброс и базовые стили === */
+/* === Сброс и базовые стили ===
+   Общий reset сознательно не вынесен в отдельный reset.css (Фаза 6.2 плана
+   copy-paste): дублируемая часть — три объявления box-sizing/margin/padding,
+   а отдельный файл добавил бы запрос в критическом пути рендера Mini App. */
 *,
 *::before,
 *::after {
@@ -131,6 +134,9 @@ html {
   overflow: hidden;
 }
 
+/* Body-стили сознательно не объединяются с ../dashboard.css (Фаза 6.3):
+   layout различается принципиально — flex-колонка в Telegram WebView
+   против grid с сайдбаром; общие свойства уже заданы через токены. */
 body {
   font-family: var(--font-family);
   background-color: var(--color-bg-primary);

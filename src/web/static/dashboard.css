@@ -124,7 +124,10 @@
   --color-warn: #d97706;
 }
 
-/* ── Сброс и база ─────────────────────────────────────────────── */
+/* ── Сброс и база ───────────────────────────────────────────────
+   Общий reset сознательно не вынесен в отдельный reset.css (Фаза 6.2 плана
+   copy-paste): дублируемая часть — три объявления box-sizing/margin/padding,
+   а отдельный файл добавил бы запрос в критическом пути рендера Mini App. */
 *,
 *::before,
 *::after {
@@ -146,9 +149,12 @@ button {
   line-height: inherit;
 }
 
+/* Body-стили сознательно не объединяются с app/css/style.css (Фаза 6.3):
+   layout различается принципиально — grid с сайдбаром против flex-колонки
+   в Telegram WebView; общие свойства уже заданы через токены. */
 body {
   font-family: var(--font-family);
-  background: var(--color-bg-primary);
+  background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   line-height: var(--line-height-normal);
   min-height: 100vh;

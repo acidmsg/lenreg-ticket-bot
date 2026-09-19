@@ -23,6 +23,7 @@ from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.i18n import _
+from src.services.background import describe_background_tasks, is_task_alive
 from src.utils.redis import get_redis
 
 
@@ -51,11 +52,6 @@ class HealthMetrics:
     monitoring_slots_checked: int = 0
     monitoring_notifications_sent: int = 0
     last_monitoring_cycle_time: float | None = None
-
-    # Состояние фоновых задач
-    discovery_tasks_alive: int = 0
-    monitor_loop_alive: bool = False
-    healthcheck_loop_alive: bool = False
 
     # Состояние Redis
     last_redis_check_time: float = 0.0
@@ -87,7 +83,7 @@ class HealthMetrics:
     def api_health_str(self) -> str:
         """Состояние API — текстовая строка: Доступен / Недоступен."""
         if self.last_api_check_time == 0.0:
-            if self.healthcheck_loop_alive:
+            if self.api_checks_total > 0:
                 return "Выполняется первый цикл проверки..."
             return "Healthcheck ещё не запущен"
         delta = int(time.time() - self.last_api_check_time)
@@ -229,7 +225,6 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
     2. Фиксирует бинарный результат: доступен / недоступен
     3. Логирует состояние
     """
-    await safe_set("healthcheck_loop_alive", True)
     logger.info("Healthcheck-цикл запущен")
 
     while True:
@@ -285,7 +280,6 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
             await asyncio.sleep(settings.CHECK_INTERVAL)
 
         except asyncio.CancelledError:
-            await safe_set("healthcheck_loop_alive", False)
             logger.info("Healthcheck-цикл остановлен (cancelled)")
             break
         except Exception as e:
@@ -379,12 +373,18 @@ async def format_status_report(db: DatabaseManager) -> str:
         api_ok = metrics.last_api_ok
         redis_ok = metrics.redis_ok
         last_error = metrics.last_error_str()
-        healthcheck_alive = metrics.healthcheck_loop_alive
-        monitor_alive = metrics.monitor_loop_alive
-        discovery_tasks = metrics.discovery_tasks_alive
 
-    healthcheck_status = "✅" if healthcheck_alive else "❌"
-    monitor_status = "✅" if monitor_alive else "❌"
+    # Статус фоновых задач — из менеджера задач (единственный источник правды)
+    tasks_health = {
+        task["name"]: task["health"] for task in describe_background_tasks()
+    }
+    healthcheck_status = (
+        "✅" if is_task_alive(tasks_health.get("healthcheck", "")) else "❌"
+    )
+    monitor_status = "✅" if is_task_alive(tasks_health.get("monitor", "")) else "❌"
+    discovery_status = (
+        "✅" if is_task_alive(tasks_health.get("discovery", "")) else "❌"
+    )
 
     redis_status = "✅ Доступен" if redis_ok else "❌ Недоступен"
 
@@ -406,7 +406,7 @@ async def format_status_report(db: DatabaseManager) -> str:
         _("status-tasks-header"),
         _("status-task-healthcheck").format(status=healthcheck_status),
         _("status-task-monitor").format(status=monitor_status),
-        _("status-task-discovery").format(n=discovery_tasks),
+        _("status-task-discovery").format(status=discovery_status),
         "",
         _("status-config-header"),
         _("status-config-check-interval").format(n=settings.CHECK_INTERVAL),
