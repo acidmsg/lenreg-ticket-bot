@@ -55,14 +55,12 @@ services:
   # Bot — Telegram-бот (aiogram polling)
   # ===========================================================================
   bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      cache_from:
-        - lenreg-ticket-bot:latest
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: lenreg-ticket-bot:latest
+    # Образ собирается в CI (release.yml → GHCR) и деплоится как готовый артефакт:
+    # локальная сборка на сервере отключена, чтобы прод получал ровно тот образ,
+    # который прошёл проверки. Тег версии фиксируется в untracked .env
+    # (BOT_IMAGE_TAG), откат — сменой тега. Локальная сборка при необходимости -
+    # через docker-compose.dev.yml.
+    image: ghcr.io/acidmsg/lenreg-ticket-bot:${BOT_IMAGE_TAG:-latest}
     container_name: lenreg_ticket_bot
     restart: unless-stopped
     user: "1000:1000"
