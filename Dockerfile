@@ -71,6 +71,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         procps \
         redis-tools \
         sqlite3 \
+        fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Непривилегированный пользователь для рантайма

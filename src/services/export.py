@@ -300,6 +300,106 @@ def _format_booking_card_text(
     return "\n".join(line for line in lines if line)
 
 
+def _cyrillic_font_paths() -> list[str]:
+    """Возвращает кандидатов на шрифт с поддержкой кириллицы.
+
+    В рантайм-образе может не быть системных шрифтов, тогда выручает
+    ``DejaVuSansMono.ttf`` из пакета ``python-barcode`` (он стоит всегда).
+    """
+    import importlib.util
+    import os
+
+    paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    ]
+    spec = importlib.util.find_spec("barcode")
+    if spec is not None and spec.origin:
+        paths.append(
+            os.path.join(os.path.dirname(spec.origin), "fonts", "DejaVuSansMono.ttf")
+        )
+    return paths
+
+
+def _load_card_font(size: int) -> Any:
+    """Загружает шрифт с кириллицей для PNG-карточки записи.
+
+    Без него Pillow уходит на ``load_default()`` — растровый шрифт без
+    кириллицы, из-за чего вместо букв получались прямоугольники.
+
+    Args:
+        size: Размер шрифта в пунктах.
+
+    Returns:
+        Объект шрифта Pillow.
+    """
+    from PIL import ImageFont
+
+    for path in _cyrillic_font_paths():
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    logger.warning("Экспорт PNG: шрифт с кириллицей не найден, текст будет нечитаем")
+    return ImageFont.load_default()
+
+
+def _pdf_font_name() -> str:
+    """Регистрирует в reportlab шрифт с кириллицей и отдаёт его имя.
+
+    Стандартная ``Helvetica`` кириллицу не содержит — вместо букв выходили
+    прямоугольники. Если TTF найти не удалось, остаётся ``Helvetica``.
+    """
+    import os
+
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    for path in _cyrillic_font_paths():
+        if not os.path.exists(path):
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont("BookingFont", path))
+            return "BookingFont"
+        except Exception:
+            continue
+    return "Helvetica"
+
+
+def _wrap_card_line(draw: Any, line: str, font: Any, max_width: float) -> list[str]:
+    """Переносит строку карточки по словам под ширину изображения.
+
+    Args:
+        draw: Объект ``ImageDraw`` для измерения текста.
+        line: Исходная строка карточки.
+        font: Шрифт, которым будет нарисован текст.
+        max_width: Доступная ширина текста в пикселях.
+
+    Returns:
+        Список строк, каждая из которых влезает в ``max_width``.
+    """
+    if draw.textlength(line, font=font) <= max_width:
+        return [line]
+
+    result: list[str] = []
+    current = ""
+    for word in line.split(" "):
+        candidate = f"{current} {word}" if current else word
+        if draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+            continue
+        if current:
+            result.append(current)
+        # Слово шире строки (например, разделитель из «=») — подрезаем.
+        while word and draw.textlength(word, font=font) > max_width:
+            word = word[:-1]
+        result.append(word)
+        current = ""
+    if current:
+        result.append(current)
+    return result
+
+
 def export_booking_png(
     booking: "BookingEntry",
 ) -> bytes:
@@ -314,10 +414,9 @@ def export_booking_png(
     Raises:
         ImportError: Если Pillow не установлен.
     """
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 
     card_text = _format_booking_card_text(booking)
-    lines = card_text.split("\n")
 
     # Параметры изображения
     font_size = 16
@@ -325,21 +424,23 @@ def export_booking_png(
     padding_x = 24
     padding_y = 20
     width = 480
+    max_text_width = width - padding_x * 2
+
+    # Шрифт нужен до переноса строк: им же измеряется ширина текста.
+    font = _load_card_font(font_size)
+    measurer = ImageDraw.Draw(Image.new("RGB", (width, line_height)))
+
+    # Переносим длинные строки: фиксированная ширина карточки обрезала
+    # «Клиника: …» с полным названием.
+    lines: list[str] = []
+    for raw_line in card_text.split("\n"):
+        lines.extend(_wrap_card_line(measurer, raw_line, font, max_text_width))
+
     height = padding_y * 2 + line_height * len(lines) + 20
 
     # Создаём изображение (белый фон)
     img = Image.new("RGB", (width, height), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
-
-    # Пытаемся использовать встроенный шрифт; fallback — default
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-    except OSError:
-        try:
-            font = ImageFont.truetype("DejaVuSans.ttf", font_size)
-        except OSError:
-            font = ImageFont.load_default()
 
     # Рисуем текст
     y = padding_y
@@ -434,7 +535,7 @@ def _export_booking_pdf_reportlab(booking: "BookingEntry") -> bytes:
     font_size = 10
     line_height = 14
 
-    c.setFont("Helvetica", font_size)
+    c.setFont(_pdf_font_name(), font_size)
     for line in lines:
         c.drawString(20, y, line)
         y -= line_height

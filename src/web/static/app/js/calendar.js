@@ -64,6 +64,42 @@ function formatGoogleDate(value) {
 }
 
 /**
+ * Сокращает ФИО врача до «Фамилия И.О.».
+ *
+ * @param {string} fullName — полное ФИО («Заворотний Олег Иванович»)
+ * @returns {string} «Заворотний О.И.»; пустая строка, если имени нет
+ */
+export function shortenDoctorName(fullName) {
+  const parts = String(fullName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+
+  const [surname, ...rest] = parts;
+  const initials = rest
+    .map((part) => `${part.charAt(0).toUpperCase()}.`)
+    .join("");
+  return initials ? `${surname} ${initials}` : surname;
+}
+
+/**
+ * Собирает название события: специальность в нижнем регистре и «Фамилия И.О.».
+ *
+ * @param {string} specialty — специальность врача («Офтальмология»)
+ * @param {string} doctorName — полное ФИО врача
+ * @returns {string} например «Приём: офтальмология Заворотний О.И.»
+ */
+function buildEventTitle(specialty, doctorName) {
+  const profile = String(specialty || "")
+    .trim()
+    .toLowerCase();
+  const doctor = shortenDoctorName(doctorName);
+  const parts = [profile, doctor].filter(Boolean);
+  return parts.length > 0 ? `Приём: ${parts.join(" ")}` : "Приём у врача";
+}
+
+/**
  * Собирает ссылку на создание события в Google Calendar.
  *
  * @param {object} booking — данные записи
@@ -82,12 +118,11 @@ export function buildGoogleCalendarUrl(booking = {}) {
 
   const end = new Date(start.getTime() + EVENT_DURATION_MINUTES * 60 * 1000);
   const doctor = booking.doctor_name || "";
-  const title = doctor ? `Приём: ${doctor}` : "Приём у врача";
+  const title = buildEventTitle(booking.specialty, doctor);
   const details = [
     booking.patient_name ? `Пациент: ${booking.patient_name}` : "",
     booking.clinic_name ? `Клиника: ${booking.clinic_name}` : "",
     booking.specialty ? `Специальность: ${booking.specialty}` : "",
-    booking.booking_id ? `Номерок: ${booking.booking_id}` : "",
   ]
     .filter(Boolean)
     .join("\n");
