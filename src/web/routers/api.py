@@ -20,6 +20,9 @@ from src.services.params import (
     collect_params,
     set_param,
 )
+from src.services.search import search_all
+from src.services.tools import TOOLS, run_tool, tool_view
+from src.services.user_actions import ACTIONS, action_view, run_action
 from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
 
 router = APIRouter()
@@ -250,6 +253,30 @@ MAX_ALERT_IDS = 500
 _CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
+# Потолок выгрузки журнала: больше отдавать одним файлом небезопасно.
+LOGS_EXPORT_LIMIT = 5000
+
+
+def _csv_response(filename: str, rows: list[list[str]]) -> Response:
+    """Собирает CSV-ответ с BOM (Excel корректно читает кириллицу).
+
+    Args:
+        filename: Имя файла в Content-Disposition.
+        rows: Строки таблицы, первая — заголовок.
+
+    Returns:
+        Ответ с телом CSV.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerows(rows)
+    return Response(
+        content="\ufeff" + buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _csv_safe(value: Any) -> str:
     """Обезвреживает значение для CSV: формулы не должны исполняться."""
     text = "" if value is None else str(value)
@@ -389,6 +416,202 @@ async def export_alerts_csv(
             "Content-Disposition": 'attachment; filename="alerts.csv"',
         },
     )
+
+
+# ── Поиск и экспорт (DASH-9) ────────────────────────────────
+
+
+@router.get("/dashboard/search")
+async def api_search(request: Request) -> dict[str, Any]:
+    """Глобальный поиск: uid, пациент, врач, клиника."""
+    query = request.query_params.get("q", "")
+    return await search_all(request.app.state.db, query)
+
+
+@router.get("/dashboard/export/users.csv")
+async def api_export_users(request: Request) -> Response:
+    """Выгрузка пользователей с числом пациентов и цепочек мониторинга."""
+    db = request.app.state.db
+    users = get_users_data(db)
+    rows = [["uid", "пациентов", "цепочек мониторинга"]]
+    for user in users:
+        rows.append(
+            [
+                _csv_safe(user.get("uid", "")),
+                _csv_safe(user.get("patients_count", 0)),
+                _csv_safe(user.get("monitoring_count", 0)),
+            ]
+        )
+    await log_action(
+        db,
+        actor_from_request(request),
+        "export_users",
+        target=f"rows={len(rows) - 1}",
+    )
+    return _csv_response("users.csv", rows)
+
+
+@router.get("/dashboard/export/logs.csv")
+async def api_export_logs(request: Request) -> Response:
+    """Выгрузка журнала мониторинга: последние LOGS_EXPORT_LIMIT записей."""
+    db = request.app.state.db
+    entries = await db.get_all_monitoring_logs(limit=LOGS_EXPORT_LIMIT, offset=0)
+    rows = [["время", "uid", "пациент", "врач", "специальность", "клиника", "событие"]]
+    for entry in entries:
+        rows.append(
+            [
+                _csv_safe(entry.get("ts", "")),
+                _csv_safe(entry.get("uid", "")),
+                _csv_safe(entry.get("patient_name", "")),
+                _csv_safe(entry.get("doctor_name", "")),
+                _csv_safe(entry.get("specialty", "")),
+                _csv_safe(entry.get("clinic_name", "")),
+                _csv_safe(entry.get("status", "")),
+            ]
+        )
+    await log_action(
+        db,
+        actor_from_request(request),
+        "export_logs",
+        target=f"rows={len(rows) - 1}",
+    )
+    return _csv_response("logs.csv", rows)
+
+
+@router.get("/dashboard/export/clinics.csv")
+async def api_export_clinics(request: Request) -> Response:
+    """Выгрузка клиник с городом и типом."""
+    db = request.app.state.db
+    # Пустой шаблон LIKE (``%%``) возвращает все клиники: тот же репозиторий,
+    # что и у поиска, без дублирования SQL.
+    clinics = await db.search_clinics("", limit=5000)
+    rows = [["clinic_id", "название", "город", "тип"]]
+    for clinic in clinics:
+        rows.append(
+            [
+                _csv_safe(clinic["clinic_id"]),
+                _csv_safe(clinic["name"]),
+                _csv_safe(clinic["city"]),
+                _csv_safe(clinic["type"]),
+            ]
+        )
+    await log_action(
+        db,
+        actor_from_request(request),
+        "export_clinics",
+        target=f"rows={len(rows) - 1}",
+    )
+    return _csv_response("clinics.csv", rows)
+
+
+# ── Действия над пользователем (DASH-8) ─────────────────────
+
+
+@router.get("/dashboard/user-actions/{uid}")
+async def api_user_actions(request: Request, uid: str) -> dict[str, Any]:
+    """Список доступных действий над пользователем."""
+    return {
+        "uid": uid,
+        "actions": [action_view(action) for action in ACTIONS.values()],
+    }
+
+
+@router.post("/dashboard/user-actions/{uid}/{action}")
+async def api_user_action(request: Request, uid: str, action: str) -> dict[str, Any]:
+    """Выполняет действие над пользователем; без confirm — не выполняет.
+
+    Тело: ``{"params": {...}, "confirm": bool}``.
+    """
+    if action not in ACTIONS:
+        return JSONResponse(status_code=404, content={"detail": "Действие не найдено."})
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Неверный JSON."})
+    if not isinstance(body, dict):
+        return JSONResponse(status_code=400, content={"detail": "Ожидался объект."})
+
+    raw_params = body.get("params") or {}
+    if not isinstance(raw_params, dict):
+        return JSONResponse(
+            status_code=400, content={"detail": "params должен быть объектом."}
+        )
+    params = {str(key): str(value) for key, value in raw_params.items()}
+
+    db = request.app.state.db
+    try:
+        result = await run_action(
+            db,
+            uid,
+            action,
+            params,
+            confirm=bool(body.get("confirm")),
+            actor=actor_from_request(request),
+        )
+    except KeyError:
+        return JSONResponse(status_code=404, content={"detail": "Действие не найдено."})
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    return JSONResponse(status_code=200, content=result)
+
+
+# ── Инструменты обслуживания (DASH-7) ───────────────────────
+
+
+@router.get("/tools")
+async def api_tools(request: Request) -> dict[str, Any]:
+    """Список инструментов: имя, вид, параметры."""
+    return {"tools": [tool_view(spec) for spec in TOOLS.values()]}
+
+
+@router.post("/tools/{name}/run")
+async def api_tool_run(request: Request, name: str) -> dict[str, Any]:
+    """Запускает инструмент; мутирующие — только с подтверждением.
+
+    Тело: ``{"params": {...}, "apply": bool, "confirm": bool}``.
+    """
+    if name not in TOOLS:
+        return JSONResponse(
+            status_code=404, content={"detail": "Инструмент не найден."}
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Неверный JSON."})
+    if not isinstance(body, dict):
+        return JSONResponse(status_code=400, content={"detail": "Ожидался объект."})
+
+    raw_params = body.get("params") or {}
+    if not isinstance(raw_params, dict):
+        return JSONResponse(
+            status_code=400, content={"detail": "params должен быть объектом."}
+        )
+    params = {str(key): str(value) for key, value in raw_params.items()}
+
+    db = request.app.state.db
+    db_path = getattr(db, "db_path", "data/bot.db")
+    try:
+        result = await run_tool(
+            db,
+            name,
+            params,
+            apply=bool(body.get("apply")),
+            confirm=bool(body.get("confirm")),
+            actor=actor_from_request(request),
+            db_path=db_path,
+        )
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"detail": "Инструмент не найден."}
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    status_code = 200 if result["status"] in {"ok", "confirm_required"} else 502
+    return JSONResponse(status_code=status_code, content=result)
 
 
 @router.get("/health")

@@ -13,6 +13,39 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
 </p>
 {% else %}
 
+<div class="card" data-user="{{ uid }}">
+  <h2>
+    Действия {% if paused %}<span class="badge badge-warn">мониторинг на паузе</span>
+    {% else %}<span class="badge badge-ok">мониторинг активен</span>{% endif %}
+  </h2>
+  <p class="text-muted">
+    Изменения применяются только с подтверждением и попадают в журнал действий.
+  </p>
+
+  {% for action in actions %}
+  <div class="user-action" data-user-action="{{ action.name }}">
+    <div class="user-action__head">
+      <strong>{{ action.title }}</strong>
+      <span class="text-muted">{{ action.description }}</span>
+    </div>
+    {% for param in action.params %}
+    <label class="tool-field">
+      {{ param.label }}
+      <input type="text" name="{{ param.name }}" />
+    </label>
+    {% endfor %}
+    <div class="tool-actions">
+      <label class="tool-confirm">
+        <input type="checkbox" class="confirm-box" />
+        подтверждаю
+      </label>
+      <button type="button" class="btn action-run" disabled>Выполнить</button>
+      <span class="page-info action-status"></span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 <div class="card">
   <h2>Пациенты ({{ patients|length }})</h2>
   {% if patients %}
@@ -82,4 +115,5 @@ Ticket Bot Dashboard{% endblock %} {% block content %}
   {% endif %}
 </div>
 
-{% endif %} {% endblock %}
+{% endif %} <script src="/static/user_actions.js"></script>
+{% endblock %}

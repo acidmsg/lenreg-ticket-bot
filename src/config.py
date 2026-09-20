@@ -210,6 +210,11 @@ class Settings(BaseSettings):
     # Секретный ключ для подписи сессионных cookie
     WEB_DASHBOARD_SECRET_KEY: str = ""
 
+    # Доверять ли X-Forwarded-For при учёте попыток входа (DASH-10).
+    # По умолчанию False: заголовку можно верить только за своим прокси,
+    # иначе клиент подставит любой адрес и обойдёт ограничение перебора.
+    WEB_TRUST_FORWARDED_FOR: bool = False
+
     # === Mini App (F10) ===
     MINI_APP_ENABLED: bool = True
     MINI_APP_URL: str = ""  # Полный URL Mini App (например, https://example.com/app/)

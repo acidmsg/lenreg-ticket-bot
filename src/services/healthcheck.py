@@ -48,6 +48,10 @@ class HealthMetrics:
     # Длительность последней проверки (для Prometheus)
     last_check_duration: float = 0.0
 
+    # Накопительная длительность проверок: по ней считаются средние
+    # значения в почасовых трендах (DASH-6).
+    api_latency_sum: float = 0.0
+
     # Статистика мониторинга
     monitoring_slots_checked: int = 0
     monitoring_notifications_sent: int = 0
@@ -257,6 +261,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 metrics.last_api_check_time = now
                 metrics.last_api_ok = ok
                 metrics.last_check_duration = now - check_start
+                metrics.api_latency_sum += now - check_start
                 metrics.last_redis_check_time = now
                 metrics.redis_ok = redis_ok
                 uptime = metrics.uptime_str()

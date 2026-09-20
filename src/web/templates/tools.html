@@ -1,0 +1,58 @@
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}Инструменты — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
+<h1>Инструменты</h1>
+<p class="text-muted">
+  Только чтение запускается сразу. Мутирующие инструменты по умолчанию идут в
+  режиме dry-run; применение требует отдельного подтверждения. Каждый запуск
+  попадает в журнал действий.
+</p>
+
+{% for tool in tools %}
+<div class="card" data-tool="{{ tool.name }}">
+  <h2>
+    {{ tool.title }} {% if tool.mutating %}
+    <span class="badge badge-warn">меняет данные</span>
+    {% else %}
+    <span class="badge badge-ok">только чтение</span>
+    {% endif %}
+  </h2>
+  <p class="text-muted">{{ tool.description }}</p>
+
+  {% if tool.params %}
+  <div class="tool-params">
+    {% for param in tool.params %}
+    <label class="tool-field">
+      {{ param.label }}{% if param.required %} *{% endif %}
+      <input
+        type="text"
+        name="{{ param.name }}"
+        value="{{ param.default }}"
+        {% if param.required %}required{% endif %}
+      />
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="tool-actions">
+    <button type="button" class="btn tool-run" data-apply="false">
+      {% if tool.mutating %}Dry-run{% else %}Запустить{% endif %}
+    </button>
+    {% if tool.mutating %}
+    <label class="tool-confirm">
+      <input type="checkbox" class="tool-confirm-box" />
+      подтверждаю применение
+    </label>
+    <button type="button" class="btn tool-run" data-apply="true" disabled>
+      Применить
+    </button>
+    {% endif %}
+    <span class="page-info tool-status"></span>
+  </div>
+
+  <pre class="tool-output" hidden></pre>
+</div>
+{% endfor %}
+
+<script src="/static/tools.js"></script>
+{% endblock %}

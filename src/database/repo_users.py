@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from loguru import logger
 
@@ -195,3 +196,34 @@ class UserRepository(BaseRepository):
             }
             result[p_id][row["d_id"]] = entry
         return result
+
+    # ── Состояние пользователя (DASH-8) ─────────────────────
+
+    async def set_user_paused(self, uid: str, paused: bool) -> None:
+        """Ставит или снимает паузу мониторинга для пользователя.
+
+        Args:
+            uid: Идентификатор пользователя.
+            paused: ``True`` — мониторинг приостановлен.
+        """
+        await self._c.execute(
+            "INSERT INTO user_state (uid, paused, updated_ts) VALUES (?, ?, ?) "
+            "ON CONFLICT(uid) DO UPDATE SET "
+            "paused = excluded.paused, updated_ts = excluded.updated_ts",
+            (uid, 1 if paused else 0, time.time()),
+        )
+        await self._c.commit()
+
+    async def is_user_paused(self, uid: str) -> bool:
+        """Приостановлен ли мониторинг пользователя."""
+        cursor = await self._c.execute(
+            "SELECT paused FROM user_state WHERE uid = ?", (uid,)
+        )
+        row = await cursor.fetchone()
+        return bool(row["paused"]) if row else False
+
+    async def get_paused_uids(self) -> set[str]:
+        """Идентификаторы пользователей с приостановленным мониторингом."""
+        cursor = await self._c.execute("SELECT uid FROM user_state WHERE paused = 1")
+        rows = await cursor.fetchall()
+        return {row["uid"] for row in rows}

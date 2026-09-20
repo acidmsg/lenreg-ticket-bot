@@ -24,6 +24,7 @@ from src.web.auth_session import (
     get_session_middleware,
     hash_password,
 )
+from src.web.login_ratelimit import client_address, login_limiter
 
 router = APIRouter()
 
@@ -79,6 +80,25 @@ async def api_login(request: Request) -> JSONResponse:
             content={"detail": "Аутентификация отключена"},
         )
 
+    # Ограничение перебора (DASH-10): блокировка считается по адресу клиента.
+    client = client_address(request)
+    locked = login_limiter.lockout_left(client)
+    if locked:
+        await log_action(
+            request.app.state.db,
+            actor="system",
+            action="login_blocked",
+            target=f"{client} retry={locked}s",
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": (
+                    f"Слишком много неудачных попыток. Повторите через {locked} с."
+                )
+            },
+        )
+
     try:
         body = await request.json()
     except Exception:
@@ -98,11 +118,23 @@ async def api_login(request: Request) -> JSONResponse:
 
     if not mw.validate_credentials(username, password):
         logger.warning("Неудачная попытка входа в дашборд: {}", username)
+        lock_seconds = login_limiter.record_failure(client)
         await log_action(
             request.app.state.db,
             actor=str(username)[:128],
             action="login_failed",
+            target=f"{client} lock={lock_seconds}s",
         )
+        if lock_seconds:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": (
+                        "Слишком много неудачных попыток. "
+                        f"Вход заблокирован на {lock_seconds} с."
+                    )
+                },
+            )
         return JSONResponse(
             status_code=401,
             content={"detail": "Неверный логин или пароль"},
@@ -122,6 +154,7 @@ async def api_login(request: Request) -> JSONResponse:
         samesite="lax",
         secure=True,
     )
+    login_limiter.reset(client)
     logger.info("Успешный вход в дашборд: {}", username)
     await log_action(request.app.state.db, actor=sanitized_username, action="login")
     return response

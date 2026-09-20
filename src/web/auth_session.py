@@ -12,9 +12,17 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import Request, status
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from src.config import settings
+from src.web.csrf import (
+    make_csrf_token,
+    needs_csrf,
+    token_from_request,
+    verify_csrf_token,
+)
 
 # Пути, доступные без аутентификации
 _PUBLIC_PATHS = (
@@ -169,6 +177,25 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
 
         # Сохраняем username в request.state для использования в шаблонах
         request.state.dashboard_user = username
+
+        # CSRF (DASH-10): токен привязан к сессии и уходит в шаблоны, а
+        # небезопасные методы без него отклоняются.
+        csrf_secret = settings.CSRF_TOKEN or self._secret
+        request.state.csrf_token = make_csrf_token(session, csrf_secret)
+
+        if needs_csrf(request.url.path, request.method):
+            provided = await token_from_request(request)
+            if not verify_csrf_token(provided, session, csrf_secret):
+                logger.warning(
+                    "CSRF: отклонён {} {} без валидного токена",
+                    request.method,
+                    request.url.path,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "Отсутствует или неверен CSRF-токен."},
+                )
+
         return await call_next(request)
 
     def _redirect_to_login(self, request: Request) -> RedirectResponse:

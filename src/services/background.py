@@ -743,6 +743,9 @@ def describe_background_tasks() -> list[dict[str, Any]]:
                     if status.last_run_start is not None
                     else None
                 ),
+                # Период = интервал + максимальный джиттер: по нему считается
+                # «время до следующего скана» на сводке (DASH-9).
+                "period": int(max(status.interval + status.jitter_max, 1.0)),
             }
         )
     return tasks

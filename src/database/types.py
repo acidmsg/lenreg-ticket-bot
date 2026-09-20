@@ -221,3 +221,31 @@ class AuditLogEntry(TypedDict):
 
     payload_json: str
     """Дополнительные данные в виде JSON-строки."""
+
+
+class MetricsHourlyEntry(TypedDict):
+    """Почасовой агрегат метрик (``metrics_hourly``)."""
+
+    bucket_ts: int
+    """Начало часа (Unix-время)."""
+
+    api_checks: int
+    """Проверок API за час."""
+
+    api_errors: int
+    """Ошибок API за час."""
+
+    latency_sum: float
+    """Сумма длительностей проверок (для среднего)."""
+
+    latency_max: float
+    """Максимальная длительность проверки за час."""
+
+    latency_count: int
+    """Сколько проверок дали длительность."""
+
+    slots_found: int
+    """Событий появления слотов за час."""
+
+    notifications: int
+    """Отправленных уведомлений за час."""

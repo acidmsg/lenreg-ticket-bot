@@ -341,7 +341,12 @@ class DatabaseManager:
                 self._data_cache[uid]["monitoring"] = {}
             await self._db.clear_all_monitoring(uid)
 
-    async def delete_patient(self, uid: str, p_id: str) -> None:
+    async def delete_patient(self, uid: str, p_id: str) -> int:
+        """Удаляет пациента и обновляет кеш данных.
+
+        Returns:
+            Сколько записей пациента удалено в БД.
+        """
         uid = str(uid)
         async with self._lock:
             user_data = self._get_user_data_nolock(uid)
@@ -349,10 +354,11 @@ class DatabaseManager:
                 del user_data["patients"][p_id]
             if p_id in user_data["monitoring"]:
                 del user_data["monitoring"][p_id]
-            await self._db.delete_patient(uid, p_id)
+            deleted = await self._db.delete_patient(uid, p_id)
             updated = await self._db.get_user(uid)
             if updated:
                 self._data_cache[uid] = updated
+        return deleted
 
     # ── Врачи (метод с отличающимся именем) ──────────────────
 

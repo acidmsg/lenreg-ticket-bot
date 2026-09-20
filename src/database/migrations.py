@@ -243,6 +243,55 @@ async def migrate_v12_monitoring_log_ack(db) -> None:
     logger.info("Миграция v12: подтверждение алертов (добавлено: {})", added)
 
 
+async def migrate_v13_metrics_hourly(db) -> None:
+    """Почасовые агрегаты метрик для трендов на сводке (DASH-6).
+
+    Счётчики процесса (проверки API, ошибки, латентность, найденные слоты,
+    уведомления) накапливаются по часам: спарклайны строятся по истории,
+    а не по мгновенным значениям, и переживают перезапуск дашборда.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS metrics_hourly (
+    bucket_ts     INTEGER PRIMARY KEY,
+    api_checks    INTEGER NOT NULL DEFAULT 0,
+    api_errors    INTEGER NOT NULL DEFAULT 0,
+    latency_sum   REAL NOT NULL DEFAULT 0,
+    latency_max   REAL NOT NULL DEFAULT 0,
+    latency_count INTEGER NOT NULL DEFAULT 0,
+    slots_found   INTEGER NOT NULL DEFAULT 0,
+    notifications INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_metrics_hourly_bucket ON metrics_hourly(bucket_ts);
+""")
+    await c.commit()
+    logger.info("Миграция v13: создана таблица metrics_hourly")
+
+
+async def migrate_v14_user_state(db) -> None:
+    """Состояние пользователя: пауза мониторинга (DASH-8).
+
+    Пауза — это состояние, а не удаление мониторинга: при возобновлении
+    цепочки пациент-врач остаются на месте.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS user_state (
+    uid        TEXT PRIMARY KEY,
+    paused     INTEGER NOT NULL DEFAULT 0,
+    updated_ts REAL NOT NULL DEFAULT 0
+);
+""")
+    await c.commit()
+    logger.info("Миграция v14: состояние пользователя (пауза мониторинга)")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -253,4 +302,6 @@ MIGRATIONS = [
     (10, migrate_v10_create_audit_log),
     (11, migrate_v11_audit_actor_index),
     (12, migrate_v12_monitoring_log_ack),
+    (13, migrate_v13_metrics_hourly),
+    (14, migrate_v14_user_state),
 ]

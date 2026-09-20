@@ -120,4 +120,9 @@
 </div>
 {% else %}
 <p class="text-muted">Нет записей в логе мониторинга</p>
-{% endif %} {% endblock %}
+{% endif %} 
+<div class="links-bar">
+  <strong>Выгрузка:</strong>
+  <a href="/api/dashboard/export/logs.csv">CSV — Журнал</a>
+</div>
+{% endblock %}

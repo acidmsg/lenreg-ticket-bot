@@ -34,4 +34,9 @@ Dashboard{% endblock %} {% block content %}
 </div>
 {% else %}
 <p class="text-muted">Нет зарегистрированных пользователей</p>
-{% endif %} {% endblock %}
+{% endif %} 
+<div class="links-bar">
+  <strong>Выгрузка:</strong>
+  <a href="/api/dashboard/export/users.csv">CSV — Пользователи</a>
+</div>
+{% endblock %}

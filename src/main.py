@@ -12,7 +12,7 @@ import os
 import socket
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiofiles.os
 import uvicorn
@@ -46,6 +46,7 @@ from src.services.healthcheck import _healthcheck_iteration
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import _monitor_iteration
+from src.services.trends import snapshot_hourly
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
     _parse_proxy_host_port,
@@ -106,6 +107,20 @@ async def _bot_me_with_retry(
         raise last_error
 
 
+# Предыдущие значения счётчиков для почасовых агрегатов (DASH-6):
+# в БД уходят только приращения, поэтому состояние живёт в памяти процесса.
+_trend_counters: dict[str, float] = {}
+
+
+async def _metrics_snapshot_iteration(
+    db: DatabaseManager,
+    health_metrics: Any,
+    prometheus_metrics: Any,
+) -> None:
+    """Одна итерация: приращения счётчиков в почасовой агрегат (DASH-6)."""
+    await snapshot_hourly(db, health_metrics, prometheus_metrics, _trend_counters)
+
+
 async def _start_background_tasks(
     bot: Bot, api: ZdravClient, db: DatabaseManager, database: Database
 ) -> BackgroundTaskManager:
@@ -159,6 +174,17 @@ async def _start_background_tasks(
         api=api,
         db=db,
         health_metrics=health_metrics,
+    )
+
+    # ── Почасовые агрегаты метрик (тренды на сводке) ─────────────────
+    manager.add(
+        _metrics_snapshot_iteration,
+        name="metrics_hourly",
+        schedule=ScheduleConfig(interval=300, jitter=(5, 25)),
+        retry=RetryConfig(max_retries=3, backoff_min=5.0),
+        db=db,
+        health_metrics=health_metrics,
+        prometheus_metrics=prometheus_metrics,
     )
 
     # ── Очистка сообщений ────────────────────────────────────────────

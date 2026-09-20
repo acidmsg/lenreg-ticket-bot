@@ -46,4 +46,9 @@ Dashboard{% endblock %} {% block content %}
 </div>
 {% else %}
 <p class="text-muted">Нет активных клиник</p>
-{% endif %} {% endblock %}
+{% endif %} 
+<div class="links-bar">
+  <strong>Выгрузка:</strong>
+  <a href="/api/dashboard/export/clinics.csv">CSV — Клиники</a>
+</div>
+{% endblock %}

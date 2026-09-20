@@ -20,7 +20,16 @@ from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
 from src.services.params import RESOLUTION_ORDER, collect_params
 from src.services.schema_watcher import collect_schema_status
+from src.services.search import search_all
 from src.services.system_info import collect_system_snapshot
+from src.services.tools import TOOLS, tool_view
+from src.services.trends import (
+    TREND_HOURS_DAY,
+    TREND_HOURS_WEEK,
+    build_cards,
+    collect_trends,
+)
+from src.services.user_actions import ACTIONS, action_view
 from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
 
 router = APIRouter()
@@ -42,6 +51,27 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         # Состояние переключателя планового сканирования врачей
         doctor_scan_enabled = await db.config.get_config("doctor_scan_enabled", "1")
 
+        # Время до следующего скана (DASH-9): период задачи монитора минус
+        # время, прошедшее с прошлого запуска. None — если задача ещё не
+        # запускалась или менеджер не опубликован.
+        monitor_task = next(
+            (
+                task
+                for task in (data.get("background_tasks") or [])
+                if task.get("name") == "monitor"
+            ),
+            None,
+        )
+        next_scan_in = None
+        if monitor_task and monitor_task.get("last_run_ago") is not None:
+            period = int(monitor_task.get("period") or 0)
+            next_scan_in = max(0, period - int(monitor_task["last_run_ago"]))
+
+        # Тренды за сутки и неделю (DASH-6): ряды из журнала и агрегатов,
+        # спарклайны рисует сервер (без внешних библиотек).
+        trends_day = await collect_trends(db, TREND_HOURS_DAY)
+        trends_week = await collect_trends(db, TREND_HOURS_WEEK)
+
         templates = cast(Jinja2Templates, request.app.state.templates)
         return templates.TemplateResponse(
             request,
@@ -60,6 +90,11 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "doctors_discovered": data["doctors_discovered"],
                 "doctors_last_scan": data["doctors_last_scan"],
                 "doctor_scan_enabled": doctor_scan_enabled == "1",
+                "next_scan_in": next_scan_in,
+                "trend_cards_day": build_cards(trends_day),
+                "trend_cards_week": build_cards(trends_week),
+                "trend_day_has_data": trends_day["has_data"],
+                "trend_week_has_data": trends_week["has_data"],
             },
         )
     except Exception:
@@ -102,6 +137,8 @@ async def user_detail(request: Request, uid: str) -> HTMLResponse:
                 "patients": {},
                 "monitoring": {},
                 "last_messages": {},
+                "actions": [action_view(action) for action in ACTIONS.values()],
+                "paused": False,
             },
         )
 
@@ -114,6 +151,8 @@ async def user_detail(request: Request, uid: str) -> HTMLResponse:
             "patients": user_info.get("patients", {}),
             "monitoring": user_info.get("monitoring", {}),
             "last_messages": user_info.get("last_messages", {}),
+            "actions": [action_view(action) for action in ACTIONS.values()],
+            "paused": await db.is_user_paused(uid),
         },
     )
 
@@ -280,6 +319,27 @@ async def backups_page(request: Request) -> HTMLResponse:
 
 # Корень проекта: src/web/routers/pages.py → четыре уровня вверх.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+@router.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, q: str = "") -> HTMLResponse:
+    """Глобальный поиск: uid, пациент, врач, клиника."""
+    db = request.app.state.db
+    results = await search_all(db, q)
+
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(request, "search.html", {"results": results})
+
+
+@router.get("/tools", response_class=HTMLResponse)
+async def tools_page(request: Request) -> HTMLResponse:
+    """Инструменты обслуживания: read-only запуск и dry-run мутаций."""
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
+        request,
+        "tools.html",
+        {"tools": [tool_view(spec) for spec in TOOLS.values()]},
+    )
 
 
 @router.get("/alerts", response_class=HTMLResponse)

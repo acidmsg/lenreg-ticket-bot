@@ -1,0 +1,85 @@
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}Поиск — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
+<h1>Поиск</h1>
+
+<form class="search-form" action="/search" method="get" role="search">
+  <input
+    type="search"
+    name="q"
+    value="{{ results.query }}"
+    placeholder="uid, ФИО пациента, врач, клиника"
+    aria-label="Строка поиска"
+    autofocus
+  />
+  <button type="submit" class="btn">Найти</button>
+</form>
+
+{% if results.too_short %}
+<p class="text-muted">
+  Введите минимум два символа — короткий запрос даёт слишком шумную выдачу.
+</p>
+{% elif results.total == 0 %}
+{{ macros.empty_state("Ничего не найдено по запросу «" ~ results.query ~ "».") }}
+{% else %}
+<p class="text-muted">Найдено: {{ results.total }}</p>
+
+{% if results.users %}
+<div class="card">
+  <h2>Пользователи ({{ results.users|length }})</h2>
+  <ul class="search-list">
+    {% for uid in results.users %}
+    <li><a href="/users/{{ uid }}"><code>{{ uid }}</code></a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %} {% if results.patients %}
+<div class="card">
+  <h2>Пациенты ({{ results.patients|length }})</h2>
+  <ul class="search-list">
+    {% for patient in results.patients %}
+    <li>
+      <a href="/users/{{ patient.uid }}">{{ patient.fio or patient.p_id }}</a>
+      <span class="text-muted">
+        uid <code>{{ patient.uid }}</code>, p_id
+        <code>{{ patient.p_id }}</code>{% if patient.alias %}, псевдоним {{ patient.alias }}{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %} {% if results.doctors %}
+<div class="card">
+  <h2>Врачи ({{ results.doctors|length }})</h2>
+  <ul class="search-list">
+    {% for doctor in results.doctors %}
+    <li>
+      {{ doctor.name }}
+      <span class="text-muted">
+        {% if doctor.specialty %}{{ doctor.specialty }}, {% endif %}клиника
+        <code>{{ doctor.clinic_id }}</code>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %} {% if results.clinics %}
+<div class="card">
+  <h2>Клиники ({{ results.clinics|length }})</h2>
+  <ul class="search-list">
+    {% for clinic in results.clinics %}
+    <li>
+      {{ clinic.name }}
+      <span class="text-muted">
+        <code>{{ clinic.clinic_id }}</code>{% if clinic.city %}, {{ clinic.city }}{% endif %},
+        {{ clinic.type }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %} {% endif %}
+
+<script>
+  // Страница поиска не требует скриптов действий: форма уходит обычным GET.
+</script>
+{% endblock %}

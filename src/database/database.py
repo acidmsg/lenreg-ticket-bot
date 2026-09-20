@@ -22,13 +22,16 @@ from src.database.repo_clinics import (
 from src.database.repo_config import ConfigRepository
 from src.database.repo_doctors import DoctorRepository
 from src.database.repo_logs import LogRepository
+from src.database.repo_metrics import MetricsRepository
 from src.database.repo_monitoring import MonitoringRepository
+from src.database.repo_search import SearchRepository
 from src.database.repo_users import UserRepository
 from src.database.types import (
     BookingEntry,
     ClinicInfo,
     DoctorEntry,
     LastMessageEntry,
+    MetricsHourlyEntry,
     MonitoringEntry,
     MonitoringLogEntry,
     PatientInfo,
@@ -59,6 +62,8 @@ class Database:
         self.config = ConfigRepository(self._conn)
         self.logs = LogRepository(self._conn)
         self.audit = AuditRepository(self._conn)
+        self.metrics = MetricsRepository(self._conn)
+        self.search = SearchRepository(self._conn)
 
     @property
     def conn(self) -> aiosqlite.Connection | None:
@@ -171,8 +176,12 @@ class Database:
         """Удаляет все записи мониторинга пользователя."""
         return await self.monitoring.clear_all_monitoring(uid)
 
-    async def delete_patient(self, uid: str, p_id: str) -> None:
-        """Удаляет пациента и все связанные данные в одной транзакции."""
+    async def delete_patient(self, uid: str, p_id: str) -> int:
+        """Удаляет пациента и все связанные данные в одной транзакции.
+
+        Returns:
+            Сколько записей пациента удалено.
+        """
         return await self.monitoring.delete_patient(uid, p_id)
 
     # ── Врачи ───────────────────────────────────────────────
@@ -340,6 +349,58 @@ class Database:
     ) -> int:
         """Возвращает количество записей лога мониторинга (с фильтрами)."""
         return await self.logs.get_all_monitoring_logs_count(uid, status)
+
+    # ── Почасовые агрегаты метрик (DASH-6) ──────────────────
+
+    async def record_metrics_bucket(
+        self, bucket_ts: int, deltas: dict[str, float]
+    ) -> None:
+        """Прибавляет дельты метрик к часу ``bucket_ts``."""
+        await self.metrics.upsert_bucket(bucket_ts, deltas)
+
+    async def get_metrics_series(self, since_ts: int) -> list[MetricsHourlyEntry]:
+        """Часовые агрегаты метрик начиная с ``since_ts``."""
+        return await self.metrics.get_series(since_ts)
+
+    async def get_slot_events_per_hour(
+        self, since_ts: float
+    ) -> dict[int, dict[str, int]]:
+        """События слотов по часам (из ``monitoring_log``)."""
+        return await self.logs.get_slot_events_per_hour(since_ts)
+
+    # ── Поиск (DASH-9) ──────────────────────────────────────
+
+    async def search_users(self, query: str, limit: int = 20) -> list[str]:
+        """Поиск пользователей по подстроке uid."""
+        return await self.search.search_users(query, limit)
+
+    async def search_patients(
+        self, query: str, limit: int = 20
+    ) -> list[dict[str, str]]:
+        """Поиск пациентов по ФИО, псевдониму или p_id."""
+        return await self.search.search_patients(query, limit)
+
+    async def search_clinics(self, query: str, limit: int = 20) -> list[dict[str, str]]:
+        """Поиск клиник по названию или городу."""
+        return await self.search.search_clinics(query, limit)
+
+    # ── Состояние пользователя (DASH-8) ─────────────────────
+
+    async def set_user_paused(self, uid: str, paused: bool) -> None:
+        """Ставит/снимает паузу мониторинга пользователя."""
+        await self.users.set_user_paused(uid, paused)
+
+    async def is_user_paused(self, uid: str) -> bool:
+        """Приостановлен ли мониторинг пользователя."""
+        return await self.users.is_user_paused(uid)
+
+    async def get_paused_uids(self) -> set[str]:
+        """Пользователи с приостановленным мониторингом."""
+        return await self.users.get_paused_uids()
+
+    async def delete_doctor(self, uid: str, d_id: str) -> int:
+        """Удаляет врача из мониторинга пользователя."""
+        return await self.monitoring.delete_doctor(uid, d_id)
 
     # ── Алерты (DASH-5) ─────────────────────────────────────
 

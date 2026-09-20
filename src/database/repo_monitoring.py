@@ -118,26 +118,48 @@ class MonitoringRepository(BaseRepository):
         )
         await self._c.commit()
 
-    async def delete_patient(self, uid: str, p_id: str) -> None:
+    async def delete_patient(self, uid: str, p_id: str) -> int:
         """Удаляет пациента и все связанные данные в одной транзакции.
 
         Удаляет записи из user_patients, user_monitoring и user_last_messages.
+
+        Returns:
+            Сколько записей пациента удалено (0, если его не было).
         """
         await self._c.execute("BEGIN")
         try:
-            await self._c.execute(
+            cursor = await self._c.execute(
                 "DELETE FROM user_patients WHERE uid = ? AND p_id = ?",
                 (uid, p_id),
             )
-            await self._c.execute(
+            monitoring_cursor = await self._c.execute(
                 "DELETE FROM user_monitoring WHERE uid = ? AND p_id = ?",
                 (uid, p_id),
             )
-            await self._c.execute(
+            messages_cursor = await self._c.execute(
                 "DELETE FROM user_last_messages WHERE uid = ? AND p_id = ?",
                 (uid, p_id),
             )
             await self._c.execute("COMMIT")
+            # Возвращаем сумму всех удалённых записей: пациент мог существовать
+            # только в мониторинге, без строки в user_patients.
+            return (
+                int(cursor.rowcount or 0)
+                + int(monitoring_cursor.rowcount or 0)
+                + int(messages_cursor.rowcount or 0)
+            )
         except Exception:
             await self._c.execute("ROLLBACK")
             raise
+
+    async def delete_doctor(self, uid: str, d_id: str) -> int:
+        """Удаляет врача из мониторинга пользователя по всем пациентам.
+
+        Returns:
+            Сколько цепочек пациент-врач удалено.
+        """
+        cursor = await self._c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ? AND d_id = ?", (uid, d_id)
+        )
+        await self._c.commit()
+        return int(cursor.rowcount or 0)

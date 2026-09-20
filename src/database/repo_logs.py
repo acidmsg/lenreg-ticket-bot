@@ -285,3 +285,30 @@ class LogRepository(BaseRepository):
             params.append(until)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         return where, params
+
+    async def get_slot_events_per_hour(
+        self, since_ts: float
+    ) -> dict[int, dict[str, int]]:
+        """События слотов по часам: ``{bucket_ts: {статус: количество}}``.
+
+        Часы считаются от ``ts`` записи (Unix-время), поэтому тренды не
+        зависят от часового пояса сервера.
+        """
+        c = self._db_conn.conn
+        if c is None:
+            return {}
+
+        cursor = await c.execute(
+            "SELECT CAST(ts / 3600 AS INTEGER) * 3600 AS bucket, "
+            "status, COUNT(*) AS cnt "
+            "FROM monitoring_log WHERE ts >= ? "
+            "GROUP BY bucket, status",
+            (since_ts,),
+        )
+        rows = await cursor.fetchall()
+
+        result: dict[int, dict[str, int]] = {}
+        for row in rows:
+            bucket = int(row["bucket"])
+            result.setdefault(bucket, {})[row["status"]] = int(row["cnt"])
+        return result

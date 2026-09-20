@@ -456,3 +456,7 @@ stroke="currentColor" (либо fill="currentColor" для монохромны�
     endif %} </span>
 </div>
 {%- endmacro %}
+
+{% macro empty_state(text) %}
+<div class="empty-state">{{ text }}</div>
+{% endmacro %}

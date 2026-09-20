@@ -761,11 +761,17 @@ async def _run_monitoring_iteration(
     """
     users_data = db.data
 
+    # Пользователи на паузе (DASH-8) пропускаются целиком: мониторинг
+    # приостановлен, но цепочки пациент-врач сохранены.
+    paused_uids = await db.get_paused_uids()
+
     # Очистка empty_counts от ключей, которых больше нет в активном мониторинге
     async with empty_counts_lock:
         _cleanup_stale_empty_counts(users_data, empty_counts, empty_counts_lock)
 
     for uid, u_info in users_data.items():
+        if uid in paused_uids:
+            continue
         monitoring = u_info.get("monitoring", {})
         for p_id, doctors in monitoring.items():
             p_info = u_info["patients"].get(p_id)

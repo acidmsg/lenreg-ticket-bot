@@ -45,6 +45,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       if (status) status.textContent = "Обновлено: " + data.changed;
+      if (window.showToast)
+        window.showToast("Обновлено: " + data.changed, "ok");
       window.location.reload();
     } catch (error) {
       if (status) status.textContent = "Сеть недоступна";

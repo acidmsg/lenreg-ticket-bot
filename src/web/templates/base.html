@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{% block title %}LenReg Ticket Bot Dashboard{% endblock %}</title>
     <link rel="stylesheet" href="/static/dashboard.css" />
+    <script src="/static/theme.js"></script>
+    <meta name="csrf-token" content="{{ request.state.csrf_token | default('', true) }}" />
     <script defer src="/static/dashboard.js"></script>
     <script defer src="/static/dashboard-live.js"></script>
   </head>
@@ -32,6 +34,14 @@
       </div>
 
       <nav class="sidebar__nav">
+        <form class="sidebar__search" action="/search" method="get" role="search">
+          <input
+            type="search"
+            name="q"
+            placeholder="Поиск: uid, пациент, врач"
+            aria-label="Глобальный поиск"
+          />
+        </form>
         <a
           href="/"
           class="sidebar__link {% if request.url.path == '/' %}active{% endif %}"
@@ -266,6 +276,20 @@
           <span class="sidebar__link-text">Система</span>
         </a>
         <a
+          href="/tools"
+          class="sidebar__link {% if request.url.path == '/tools' %}active{% endif %}"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M10.5 2.5a3 3 0 0 0-3.9 3.9L3 10v3h3l3.6-3.6a3 3 0 0 0 3.9-3.9l-2 2-1.9-1.9 2-2Z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="sidebar__link-text">Инструменты</span>
+        </a>
+        <a
           href="/api-status"
           class="sidebar__link {% if request.url.path == '/api-status' %}active{% endif %}"
         >
@@ -339,6 +363,15 @@
       <span>
         Prometheus:
         <a href="/metrics">:9090</a>
+
+        <button
+          type="button"
+          id="theme-toggle"
+          class="sidebar__theme"
+          aria-label="Переключить тему"
+        >
+          ☀️
+        </button>
       </span>
       <span>|</span>
       <span>
@@ -346,5 +379,7 @@
         <span class="badge badge-ok">alive</span>
       </span>
     </footer>
+      <script src="/static/csrf.js"></script>
+    <script src="/static/toast.js"></script>
   </body>
 </html>
