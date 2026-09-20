@@ -538,8 +538,17 @@ h2 {
   grid-template-columns: var(--dg-columns);
 }
 
+/* Подробный вид журнала событий (/logs): чекбокс, дата и время, пациент,
+   врач, специальность, событие, состояние — 7 колонок. Колонка времени
+   расширена под полную дату (раньше влезало только ЧЧ:ММ:СС). */
+.dg-table--events {
+  --dg-columns: 40px 165px 1fr 1fr 130px 110px 110px;
+
+  grid-template-columns: var(--dg-columns);
+}
+
 .dg-table--logs {
-  --dg-columns: 80px 1fr 1fr 120px 1fr 100px 100px 120px;
+  --dg-columns: 165px 120px 130px 1fr 1fr;
 
   grid-template-columns: var(--dg-columns);
 }

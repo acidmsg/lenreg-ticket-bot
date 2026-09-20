@@ -463,18 +463,18 @@ stroke="currentColor" (либо fill="currentColor" для монохромны�
 
 {# Макрос alerts_table(rows, detailed, empty_text) — таблица алертов.
    Один источник разметки: компактный вид для сводки и SSE (detailed=false),
-   расширенный с выбором и состоянием — для страницы /alerts. #} {% macro
+   расширенный с выбором и состоянием — для журнала событий (/logs). #} {% macro
 alerts_table(rows, detailed=false, empty_text="Нет записей") %} {% if rows %}
 <div
-  class="dg-table dg-table--alerts"
+  class="dg-table {% if detailed %}dg-table--events{% else %}dg-table--alerts{% endif %}"
   role="table"
-  aria-label="{% if detailed %}Алерты{% else %}Последние алерты{% endif %}"
+  aria-label="{% if detailed %}Журнал событий{% else %}Последние алерты{% endif %}"
 >
   <div class="dg-header" role="rowgroup">
     {% if detailed %}
     <div class="dg-cell" role="columnheader">✓</div>
     {% endif %}
-    <div class="dg-cell" role="columnheader">Время</div>
+    <div class="dg-cell" role="columnheader">Дата и время</div>
     <div class="dg-cell" role="columnheader">Пациент</div>
     <div class="dg-cell" role="columnheader">Врач</div>
     {% if detailed %}
@@ -495,8 +495,8 @@ alerts_table(rows, detailed=false, empty_text="Нет записей") %} {% if 
         <input type="checkbox" class="alert-check" value="{{ log.id }}" />
       </div>
       {% endif %}
-      <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
-        {{ log.ts|int|strftime }}
+      <div class="dg-cell cell-nowrap" role="cell" data-label="Дата и время">
+        {% if detailed %}{{ log.ts|int|strftime }}{% else %}{{ log.ts|int|strftime('%d.%m %H:%M') }}{% endif %}
       </div>
       <div class="dg-cell" role="cell" data-label="Пациент">
         {{ log.patient_name }}

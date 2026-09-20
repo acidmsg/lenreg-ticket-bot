@@ -147,11 +147,16 @@ def create_app(
     templates = Jinja2Templates(directory=_templates_dir)
 
     # Кастомные фильтры Jinja2
-    def _strftime_filter(ts: float) -> str:
-        """Преобразует Unix timestamp в строку ЧЧ:ММ:СС."""
+    def _strftime_filter(ts: float, fmt: str = "%d.%m.%Y %H:%M:%S") -> str:
+        """Преобразует Unix timestamp в строку по формату.
+
+        По умолчанию — дата и время: журналы и история живут неделями, и одно
+        время в строке не отвечает на вопрос «когда это было». Компактные
+        блоки передают свой формат явно (``{{ ts|strftime('%d.%m %H:%M') }}``).
+        """
         try:
-            return time_module.strftime("%H:%M:%S", time_module.localtime(ts))
-        except (OSError, ValueError, OverflowError):
+            return time_module.strftime(fmt, time_module.localtime(ts))
+        except (OSError, ValueError, OverflowError, TypeError):
             return str(ts)
 
     templates.env.filters["strftime"] = _strftime_filter

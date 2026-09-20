@@ -208,11 +208,15 @@ def parse_positive_int(value: str | None, *, maximum: int = 365) -> int | None:
     return number
 
 
-def _format_ts_hms(ts: int) -> str:
-    """Форматирует Unix-время в ЧЧ:ММ:СС (пустая строка для отсутствующего)."""
+def _format_ts_dt(ts: int) -> str:
+    """Форматирует Unix-время в ДД.ММ.ГГГГ ЧЧ:ММ:СС (нулевая метка — «не было»).
+
+    Формат совпадает с фильтром ``strftime`` шаблонов: одно и то же значение не
+    должно выглядеть по-разному до и после живого обновления.
+    """
     if not ts:
         return "не было"
-    return time.strftime("%H:%M:%S", time.localtime(ts))
+    return time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(ts))
 
 
 async def build_live_payload(
@@ -243,7 +247,7 @@ async def build_live_payload(
             "total_monitored_doctors": str(stats["total_monitored_doctors"]),
             "active_monitorings": str(data["active_monitorings"]),
             "doctors_discovered": str(data["doctors_discovered"]),
-            "doctors_last_scan": _format_ts_hms(data["doctors_last_scan"]),
+            "doctors_last_scan": _format_ts_dt(data["doctors_last_scan"]),
             "api_health": api_health,
             "api_last_check": (
                 f"{data['seconds_ago']} с назад" if data["last_check"] else "—"

@@ -60,7 +60,7 @@
 {% if events %}
 <div class="dg-table dg-table--logs" role="table" aria-label="Журнал действий">
   <div class="dg-header" role="rowgroup">
-    <div class="dg-cell" role="columnheader">Время</div>
+    <div class="dg-cell" role="columnheader">Дата и время</div>
     <div class="dg-cell" role="columnheader">Кто</div>
     <div class="dg-cell" role="columnheader">Действие</div>
     <div class="dg-cell" role="columnheader">Объект</div>
@@ -69,7 +69,7 @@
   <div class="dg-tbody" role="rowgroup">
     {% for event in events %}
     <div class="dg-row" role="row">
-      <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
+      <div class="dg-cell cell-nowrap" role="cell" data-label="Дата и время">
         {{ event.ts|int|strftime }}
       </div>
       <div class="dg-cell" role="cell" data-label="Кто">{{ event.actor }}</div>
