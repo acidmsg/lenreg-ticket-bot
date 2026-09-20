@@ -130,7 +130,16 @@ class InterceptHandler(logging.Handler):
             current = current.f_back
             depth -= 1
 
-        logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
+        try:
+            message = record.getMessage()
+        except (TypeError, ValueError) as exc:
+            # Кривой формат сообщения (например, {} у stdlib-логгера) не должен
+            # ронять обработчик и пробрасываться в вызывающий код.
+            message = (
+                f"{record.msg} | args={record.args} | "
+                f"ошибка форматирования сообщения: {exc}"
+            )
+        logger.opt(depth=6, exception=record.exc_info).log(level, message)
 
 
 def setup_logging(

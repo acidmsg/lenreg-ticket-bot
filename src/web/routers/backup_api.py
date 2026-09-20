@@ -16,7 +16,9 @@ import asyncio
 import json
 import logging
 import os
+import sqlite3
 import subprocess
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +28,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.config import settings
+from src.services.audit import actor_from_request, log_action
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,61 @@ def _check_integrity(backup_path: Path) -> str:
     if fail_marker.is_file():
         return "fail"
     return "unchecked"
+
+
+def _make_safety_snapshot() -> str:
+    """Копирует текущую БД в manual/ перед восстановлением (страховка).
+
+    Использует SQLite backup API, а не копирование файла: копия консистентна
+    и включает данные из WAL (при копировании ``bot.db`` они теряются).
+
+    Returns:
+        Путь к снапшоту или пустая строка, если БД нет или копия не удалась.
+    """
+    db_path = _PROJECT_ROOT / "data" / "bot.db"
+    if not db_path.is_file():
+        return ""
+    target_dir = _resolve_backup_dir() / "manual"
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y-%m-%d_%H%M%S")
+        target = target_dir / f"bot_safety_{stamp}.db"
+        source = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
+        try:
+            dest = sqlite3.connect(str(target))
+            try:
+                source.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            source.close()
+        os.chmod(target, 0o600)
+        return str(target)
+    except (OSError, sqlite3.Error):
+        logger.exception("Не удалось создать автоснапшот БД перед restore")
+        return ""
+
+
+def _sqlite_integrity_check(db_path: str) -> str:
+    """Пост-проверка целостности БД: ``PRAGMA integrity_check``.
+
+    Returns:
+        ``"ok"`` при успехе, ``"fail: <детали>"`` при повреждении,
+        ``"unavailable"`` если файл недоступен.
+    """
+    path = Path(db_path)
+    if not path.is_file():
+        return "unavailable"
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=10)
+        try:
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        return f"fail: {exc}"
+    result = str(row[0]) if row else "unknown"
+    return "ok" if result == "ok" else f"fail: {result}"
 
 
 def _safe_backup_path(backup_dir: Path, filename: str, category: str) -> Path:
@@ -418,6 +476,13 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
                 if match:
                     filename = match.group(1)
                     break
+        await log_action(
+            request.app.state.db,
+            actor_from_request(request),
+            "backup_run",
+            target=filename,
+            status="ok",
+        )
         return {
             "status": "ok",
             "output": output,
@@ -428,6 +493,13 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
             "Ручной бэкап завершился с ошибкой (rc=%d): %s",
             result.returncode,
             result.stderr.strip() or result.stdout.strip(),
+        )
+        await log_action(
+            request.app.state.db,
+            actor_from_request(request),
+            "backup_run",
+            status="error",
+            returncode=result.returncode,
         )
         return {
             "status": "error",
@@ -500,6 +572,13 @@ async def restore_backup(
 
         await _save_tokens(tokens)
 
+        await log_action(
+            request.app.state.db,
+            actor_from_request(request),
+            "backup_restore_requested",
+            target=filename,
+        )
+
         logger.warning(
             "Запрошен токен подтверждения восстановления: filename=%s, token=%s",
             filename,
@@ -541,102 +620,229 @@ async def restore_backup(
     del tokens[token]
     await _save_tokens(tokens)
 
-    # Запускаем restore
-    restore_script = str(_PROJECT_ROOT / "scripts" / "restore.sh")
+    # ── Предохранители восстановления (DASH-2) ────────────────
+    db = request.app.state.db
+    audit_actor = actor_from_request(request)
 
-    if not await loop.run_in_executor(None, os.path.isfile, restore_script):
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": (f"Скрипт восстановления не найден: {restore_script}"),
-            },
-        )
-
-    script_env = os.environ.copy()
-    script_env["SQLITE_DB_PATH"] = str(_PROJECT_ROOT / "data" / "bot.db")
-    script_env["BACKUP_DIR"] = str(_resolve_backup_dir())
-    script_env["RESTORE_IN_CONTAINER"] = str(settings.restore_in_container).lower()
-    if settings.ntfy_backup_topic:
-        script_env["NTFY_BACKUP_TOPIC"] = settings.ntfy_backup_topic
-
-    logger.critical(
-        "Запуск восстановления из бэкапа: filename=%s, full_path=%s, "
-        "restore_in_container=%s",
-        filename,
-        full_path,
-        settings.restore_in_container,
+    # 1. Останавливаем плановое сканирование врачей на время restore
+    prev_scan_enabled = await db.config.get_config("doctor_scan_enabled", "1")
+    await db.config.set_config("doctor_scan_enabled", "0")
+    await log_action(
+        db,
+        audit_actor,
+        "doctor_scan_paused_for_restore",
+        target=filename,
+        previous=prev_scan_enabled,
     )
 
+    # 2. Автоснапшот текущей БД — страховка перед перезаписью
+    safety_snapshot = await loop.run_in_executor(None, _make_safety_snapshot)
+    if safety_snapshot:
+        logger.critical("Автоснапшот текущей БД: %s", safety_snapshot)
+
+    # 3. Запуск скрипта восстановления; флаг сканирования возвращается
+    #    в finally при любом исходе (успех, ошибка, таймаут, исключение).
+    restore_script = str(_PROJECT_ROOT / "scripts" / "restore.sh")
+
     try:
-        result = await loop.run_in_executor(
-            None,
-            _run_subprocess_sync,
-            ["bash", restore_script, str(full_path)],
-            script_env,
-            _SCRIPT_TIMEOUT,
-            str(_PROJECT_ROOT),
-        )
-    except subprocess.TimeoutExpired:
+        if not await loop.run_in_executor(None, os.path.isfile, restore_script):
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="error",
+                reason="restore_script_missing",
+                safety_snapshot=safety_snapshot,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "message": (f"Скрипт восстановления не найден: {restore_script}"),
+                },
+            )
+
+        script_env = os.environ.copy()
+        script_env["SQLITE_DB_PATH"] = str(_PROJECT_ROOT / "data" / "bot.db")
+        script_env["BACKUP_DIR"] = str(_resolve_backup_dir())
+        script_env["RESTORE_IN_CONTAINER"] = str(settings.restore_in_container).lower()
+        if settings.ntfy_backup_topic:
+            script_env["NTFY_BACKUP_TOPIC"] = settings.ntfy_backup_topic
+
         logger.critical(
-            "Таймаут (%dс) при восстановлении из %s",
-            _SCRIPT_TIMEOUT,
+            "Запуск восстановления из бэкапа: filename=%s, full_path=%s, "
+            "restore_in_container=%s",
             filename,
+            full_path,
+            settings.restore_in_container,
         )
-        return JSONResponse(
-            status_code=504,
-            content={
+
+        try:
+            result = await loop.run_in_executor(
+                None,
+                _run_subprocess_sync,
+                ["bash", restore_script, str(full_path)],
+                script_env,
+                _SCRIPT_TIMEOUT,
+                str(_PROJECT_ROOT),
+            )
+        except subprocess.TimeoutExpired:
+            logger.critical(
+                "Таймаут (%dс) при восстановлении из %s",
+                _SCRIPT_TIMEOUT,
+                filename,
+            )
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="timeout",
+                safety_snapshot=safety_snapshot,
+            )
+            return JSONResponse(
+                status_code=504,
+                content={
+                    "status": "error",
+                    "message": (
+                        f"Восстановление не завершилось за {_SCRIPT_TIMEOUT} секунд."
+                    ),
+                },
+            )
+        except FileNotFoundError:
+            logger.critical("bash не найден при попытке restore")
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="error",
+                reason="bash_not_found",
+                safety_snapshot=safety_snapshot,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "message": "Интерпретатор bash не найден в системе.",
+                },
+            )
+        except Exception:
+            logger.exception("Неожиданная ошибка при восстановлении из %s", filename)
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="error",
+                reason="exception",
+                safety_snapshot=safety_snapshot,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "message": "Внутренняя ошибка при восстановлении.",
+                },
+            )
+
+        # 4. Пост-проверка целостности восстановленной БД
+        integrity = await loop.run_in_executor(
+            None, _sqlite_integrity_check, str(_PROJECT_ROOT / "data" / "bot.db")
+        )
+        output = result.stdout.strip()
+
+        if result.returncode == 0 and integrity == "ok":
+            logger.critical(
+                "Восстановление из %s успешно завершено (rc=%d), integrity=%s",
+                filename,
+                result.returncode,
+                integrity,
+            )
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="ok",
+                safety_snapshot=safety_snapshot,
+                integrity=integrity,
+            )
+            return {
+                "status": "ok",
+                "output": output,
+                "filename": filename,
+                "safety_snapshot": safety_snapshot,
+                "integrity": integrity,
+                "doctor_scan_restored": prev_scan_enabled == "1",
+            }
+
+        if result.returncode == 0:
+            # Скрипт отработал, но целостность не подтверждена — это не «ok».
+            logger.critical(
+                "Восстановление из %s: rc=0, но проверка целостности: %s",
+                filename,
+                integrity,
+            )
+            await log_action(
+                db,
+                audit_actor,
+                "backup_restore",
+                target=filename,
+                status="integrity_failed",
+                safety_snapshot=safety_snapshot,
+                integrity=integrity,
+            )
+            return {
                 "status": "error",
                 "message": (
-                    f"Восстановление не завершилось за {_SCRIPT_TIMEOUT} секунд."
+                    "БД восстановлена, но проверка целостности не пройдена: "
+                    f"{integrity}. При необходимости откатитесь из "
+                    "страховочного снапшота."
                 ),
-            },
-        )
-    except FileNotFoundError:
-        logger.critical("bash не найден при попытке restore")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": "Интерпретатор bash не найден в системе.",
-            },
-        )
-    except Exception:
-        logger.exception("Неожиданная ошибка при восстановлении из %s", filename)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": "Внутренняя ошибка при восстановлении.",
-            },
-        )
+                "output": output,
+                "filename": filename,
+                "safety_snapshot": safety_snapshot,
+                "integrity": integrity,
+                "doctor_scan_restored": prev_scan_enabled == "1",
+            }
 
-    output = result.stdout.strip()
-
-    if result.returncode == 0:
-        logger.critical(
-            "Восстановление из %s успешно завершено (rc=%d)",
-            filename,
-            result.returncode,
-        )
-        return {
-            "status": "ok",
-            "output": output,
-            "filename": filename,
-        }
-    else:
         logger.critical(
             "Восстановление из %s завершилось с ошибкой (rc=%d): %s",
             filename,
             result.returncode,
             result.stderr.strip() or output,
         )
+        await log_action(
+            db,
+            audit_actor,
+            "backup_restore",
+            target=filename,
+            status="error",
+            returncode=result.returncode,
+            safety_snapshot=safety_snapshot,
+            integrity=integrity,
+        )
         return {
             "status": "error",
             "message": (f"Восстановление завершилось с кодом {result.returncode}."),
             "output": output,
             "stderr": result.stderr.strip(),
+            "safety_snapshot": safety_snapshot,
+            "integrity": integrity,
         }
+    finally:
+        # Флаг сканирования возвращается при любом исходе, включая таймаут и
+        # исключения: иначе автопоиск врачей останется выключенным. Ошибка
+        # возврата не должна перекрывать структурированный ответ restore.
+        try:
+            await db.config.set_config("doctor_scan_enabled", prev_scan_enabled)
+        except Exception:
+            logger.exception(
+                "Не удалось вернуть флаг doctor_scan_enabled=%s после restore",
+                prev_scan_enabled,
+            )
 
 
 @router.delete("/{filename:path}", response_model=None)
@@ -737,6 +943,15 @@ async def delete_backup(
         filename,
         category,
         len(removed_files),
+    )
+
+    await log_action(
+        request.app.state.db,
+        actor_from_request(request),
+        "backup_delete",
+        target=filename,
+        category=category,
+        removed=len(removed_files),
     )
 
     return {

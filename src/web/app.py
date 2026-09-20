@@ -138,6 +138,12 @@ def create_app(
         app.add_middleware(TelegramInitDataMiddleware)
         logger.debug("TelegramInitDataMiddleware: включен (MINI_APP_ENABLED=True)")
 
+    # Бейдж неподтверждённых алертов для сайдбара (DASH-5)
+    from src.web.alerts_badge import AlertsBadgeMiddleware
+
+    app.add_middleware(AlertsBadgeMiddleware, db=db)
+    logger.debug("AlertsBadgeMiddleware: включен (счётчик неподтверждённых)")
+
     # Статика и шаблоны
     import os
     import time as time_module
@@ -161,12 +167,13 @@ def create_app(
     app.state.templates = templates
 
     # Роутеры
-    from src.web.routers import api, auth_pages, backup_api, pages
+    from src.web.routers import api, auth_pages, backup_api, pages, stream
 
     # auth_pages — до pages, чтобы /login не перехватывался
     app.include_router(auth_pages.router)
     app.include_router(pages.router)  # HTML-страницы
     app.include_router(api.router, prefix="/api")  # JSON API дашборда
+    app.include_router(stream.router, prefix="/api")  # SSE-поток сводки (DASH-1)
     app.include_router(backup_api.router)  # JSON API бэкапов (/api/backups/*)
 
     # Отключаем кэширование ВСЕХ ответов сервера на уровне HTTP-заголовков.

@@ -7,10 +7,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import aiosqlite
 from loguru import logger
 
 from src.database.connection import DatabaseConnection
+from src.database.repo_audit import AuditRepository
 from src.database.repo_clinics import (
     ClinicRepository,
     detect_clinic_city,  # реэкспорт
@@ -55,6 +58,7 @@ class Database:
         self.monitoring = MonitoringRepository(self._conn)
         self.config = ConfigRepository(self._conn)
         self.logs = LogRepository(self._conn)
+        self.audit = AuditRepository(self._conn)
 
     @property
     def conn(self) -> aiosqlite.Connection | None:
@@ -336,6 +340,26 @@ class Database:
     ) -> int:
         """Возвращает количество записей лога мониторинга (с фильтрами)."""
         return await self.logs.get_all_monitoring_logs_count(uid, status)
+
+    # ── Алерты (DASH-5) ─────────────────────────────────────
+
+    async def list_alerts(self, **filters: Any) -> list[MonitoringLogEntry]:
+        """Алерты с фильтрами (см. ``LogRepository.list_alerts``)."""
+        return await self.logs.list_alerts(**filters)
+
+    async def count_alerts(self, **filters: Any) -> int:
+        """Количество алертов под фильтрами."""
+        return await self.logs.count_alerts(**filters)
+
+    async def unacked_alerts_count(self) -> int:
+        """Количество неподтверждённых алертов (бейдж в сайдбаре)."""
+        return await self.logs.unacked_alerts_count()
+
+    async def set_alerts_state(
+        self, alert_ids: list[int], state: str, actor: str
+    ) -> int:
+        """Подтверждение/снятие алертов; возвращает число изменённых строк."""
+        return await self.logs.set_alerts_state(alert_ids, state, actor)
 
     # ── Статистика (агрегация) ──────────────────────────────
 

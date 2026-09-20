@@ -22,11 +22,10 @@ from __future__ import annotations
 
 import inspect
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 # Директория эталонных схем по умолчанию (коммитится в Git)
 _DEFAULT_SCHEMAS_DIR = Path("specs/schemas")
@@ -215,6 +214,11 @@ def collect_schema_status(schemas_dir: Path | None = None) -> dict[str, bool]:
         отсутствие эталона, False — схемы совпадают.
     """
     references = load_reference_schemas(schemas_dir)
+    if not references:
+        # Эталон недоступен (например, в собранном образе нет specs/) —
+        # это не дрейф, а отсутствие данных: отдаём пустой результат,
+        # чтобы UI показал пояснение, а не «расхождение» у всех моделей.
+        return {}
 
     status: dict[str, bool] = {}
     for name, model in discover_api_models().items():

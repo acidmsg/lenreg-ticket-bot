@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
+from src.services.audit import actor_from_request, log_action
 from src.web.auth_session import (
     COOKIE_NAME,
     SESSION_TTL,
@@ -97,6 +98,11 @@ async def api_login(request: Request) -> JSONResponse:
 
     if not mw.validate_credentials(username, password):
         logger.warning("Неудачная попытка входа в дашборд: {}", username)
+        await log_action(
+            request.app.state.db,
+            actor=str(username)[:128],
+            action="login_failed",
+        )
         return JSONResponse(
             status_code=401,
             content={"detail": "Неверный логин или пароль"},
@@ -117,12 +123,16 @@ async def api_login(request: Request) -> JSONResponse:
         secure=True,
     )
     logger.info("Успешный вход в дашборд: {}", username)
+    await log_action(request.app.state.db, actor=sanitized_username, action="login")
     return response
 
 
 @router.post("/api/logout")
-async def api_logout() -> JSONResponse:
+async def api_logout(request: Request) -> JSONResponse:
     """Удаляет сессионный cookie (выход из дашборда)."""
+    await log_action(
+        request.app.state.db, actor=actor_from_request(request), action="logout"
+    )
     response = JSONResponse(content={"success": True})
     response.delete_cookie(COOKIE_NAME)
     return response
@@ -205,6 +215,13 @@ async def change_password(request: Request) -> JSONResponse:
     # username санитизирован _sanitize_username():
     # удалены \r\n, ;, |, обрезано до 128 символов.
     sanitized_username = _sanitize_username(final_username)
+    await log_action(
+        request.app.state.db,
+        actor=current_username,
+        action="password_change",
+        target=sanitized_username,
+        username_changed=final_username != current_username,
+    )
     session_value = mw.make_session_cookie(sanitized_username)
     response = JSONResponse(content={"success": True})
     response.set_cookie(

@@ -1,0 +1,103 @@
+{% extends "base.html" %} {% block title %}Параметры — LenReg Ticket Bot
+Dashboard{% endblock %} {% block content %}
+<h1>Параметры</h1>
+
+<p class="text-muted">
+  Всего параметров: {{ params_total }}. Приоритет источников:
+  <strong>{{ resolution_order }}</strong> — значение из БД перекрывает
+  <code>.env</code>, runtime перечитывает его в своём цикле. Изменения
+  записываются в журнал действий.
+</p>
+
+{% for group, params in groups.items() %}
+<div class="card">
+  <h2>{{ group }}</h2>
+
+  <div class="dg-table" role="table" aria-label="Параметры: {{ group }}">
+    <div class="dg-header" role="rowgroup">
+      <div class="dg-cell" role="columnheader">Параметр</div>
+      <div class="dg-cell" role="columnheader">Значение</div>
+      <div class="dg-cell" role="columnheader">Источник</div>
+      <div class="dg-cell" role="columnheader">Применение</div>
+      <div class="dg-cell" role="columnheader">Изменить</div>
+    </div>
+    <div class="dg-tbody" role="rowgroup">
+      {% for param in params %}
+      <div class="dg-row" role="row" data-param-row="{{ param.key }}">
+        <div class="dg-cell" role="cell" data-label="Параметр">
+          <strong>{{ param.title }}</strong>
+          {% if param.danger %}
+          <span class="badge badge-err" title="Опасный параметр">опасный</span>
+          {% endif %}
+          <div class="text-muted">{{ param.description }}</div>
+          <div class="text-muted"><code>{{ param.key }}</code></div>
+        </div>
+        <div class="dg-cell" role="cell" data-label="Значение">
+          <code data-param-value="{{ param.key }}">{{ param.value }}</code>
+          {% if param.kind in ('int', 'float') and param.min_value is not none %}
+          <div class="text-muted">
+            диапазон: {{ param.min_value }}…{{ param.max_value }}
+          </div>
+          {% endif %}
+          {% if param.choices %}
+          <div class="text-muted">
+            варианты: {{ param.choices|join(', ') }}
+          </div>
+          {% endif %}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Источник">
+          <span
+            class="badge {% if param.source == 'БД' %}badge-ok{% endif %}"
+            data-param-source="{{ param.key }}"
+          >
+            {{ param.source }}
+          </span>
+          {% if param.overridden %}
+          <div class="text-muted">переопределено в БД</div>
+          {% endif %}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Применение">
+          {{ param.apply_label }}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Изменить">
+          <form class="param-form" data-param-key="{{ param.key }}">
+            {% if param.secret %}
+            <input
+              type="password"
+              name="value"
+              value=""
+              placeholder="новое значение секрета"
+              autocomplete="new-password"
+              aria-label="Новое значение {{ param.key }}"
+            />
+            {% else %}
+            <input
+              type="text"
+              name="value"
+              value="{{ param.value }}"
+              aria-label="Новое значение {{ param.key }}"
+            />
+            {% endif %}
+            <button type="submit" class="btn">Сохранить</button>
+          </form>
+          <div class="text-muted" data-param-status="{{ param.key }}"></div>
+        </div>
+      </div>
+      {% if param.warnings %}
+      <div class="dg-row" role="row">
+        <div class="dg-cell" role="cell" data-label="Предупреждения">
+          <ul class="param-warnings">
+            {% for warning in param.warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endif %} {% endfor %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script src="/static/params.js"></script>
+{% endblock %}

@@ -4,7 +4,9 @@ HTML-страницы веб-дашборда.
 Все эндпоинты — read-only, рендерят Jinja2-шаблоны.
 """
 
+import json
 import time
+from pathlib import Path
 from typing import cast
 
 from fastapi import APIRouter, Query, Request
@@ -12,10 +14,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
+from src.config import settings
 from src.services.background import describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
+from src.services.params import RESOLUTION_ORDER, collect_params
 from src.services.schema_watcher import collect_schema_status
+from src.services.system_info import collect_system_snapshot
 from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
 
 router = APIRouter()
@@ -143,6 +148,106 @@ async def monitoring_logs(
     )
 
 
+# Человекочитаемые подписи действий администратора (журнал /audit-log).
+AUDIT_ACTION_LABELS: dict[str, str] = {
+    "login": "Вход",
+    "login_failed": "Неудачный вход",
+    "logout": "Выход",
+    "password_change": "Смена пароля",
+    "doctor_scan_toggle": "Сканирование: вкл/выкл",
+    "doctor_scan_force": "Ручное сканирование",
+    "doctor_scan_paused_for_restore": "Сканирование остановлено (restore)",
+    "backup_run": "Ручной бэкап",
+    "backup_restore_requested": "Запрошено подтверждение restore",
+    "backup_restore_started": "Восстановление запущено",
+    "backup_restore": "Восстановление БД",
+    "backup_delete": "Удаление бэкапа",
+}
+
+
+def _format_audit_payload(payload_json: str) -> str:
+    """Превращает payload_json записи журнала в строку «ключ=значение»."""
+    try:
+        data = json.loads(payload_json or "{}")
+    except (TypeError, ValueError):
+        return payload_json or ""
+    if not isinstance(data, dict):
+        return str(data)
+    return ", ".join(f"{key}={value}" for key, value in data.items())
+
+
+@router.get("/audit-log", response_class=HTMLResponse)
+async def audit_log_page(
+    request: Request,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    actor: str | None = Query(None),
+    action: str | None = Query(None),
+    search: str | None = Query(None),
+    days: int | None = Query(None, ge=1, le=365),
+) -> HTMLResponse:
+    """Журнал действий администратора: фильтры, пагинация, детали событий."""
+    db = request.app.state.db
+    since = time.time() - days * 86400 if days else None
+
+    events = await db.audit.list_events(
+        limit=limit,
+        offset=offset,
+        actor=actor,
+        action=action,
+        since=since,
+        search=search,
+    )
+    total = await db.audit.count_events(
+        actor=actor, action=action, since=since, search=search
+    )
+
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
+        request,
+        "audit_log.html",
+        {
+            "events": events,
+            "details": {
+                event["id"]: _format_audit_payload(event["payload_json"])
+                for event in events
+            },
+            "actors": await db.audit.distinct_actors(),
+            "actions": await db.audit.distinct_actions(),
+            "action_labels": AUDIT_ACTION_LABELS,
+            "offset": offset,
+            "limit": limit,
+            "total": total,
+            "actor_filter": actor or "",
+            "action_filter": action or "",
+            "search_filter": search or "",
+            "days_filter": days or "",
+        },
+    )
+
+
+@router.get("/settings/params", response_class=HTMLResponse)
+async def params_page(request: Request) -> HTMLResponse:
+    """Страница «Параметры»: редактор конфигурации из БД с предупреждениями."""
+    db = request.app.state.db
+    params = await collect_params(db)
+
+    groups: dict[str, list[dict[str, object]]] = {}
+    for param in params:
+        groups.setdefault(str(param["group"]), []).append(param)
+
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
+        request,
+        "params.html",
+        {
+            "groups": groups,
+            "params_total": len(params),
+            "resolution_order": " → ".join(RESOLUTION_ORDER),
+        },
+    )
+
+
 @router.get("/clinics", response_class=HTMLResponse)
 async def clinics_list(request: Request) -> HTMLResponse:
     """Список клиник."""
@@ -171,6 +276,76 @@ async def backups_page(request: Request) -> HTMLResponse:
             "api_key": request.app.state.config.WEB_DASHBOARD_API_KEY,
         },
     )
+
+
+# Корень проекта: src/web/routers/pages.py → четыре уровня вверх.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+@router.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(
+    request: Request,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    uid: str | None = Query(None),
+    status: str | None = Query(None),
+    ack_status: str | None = Query(None),
+    days: int | None = Query(None, ge=1, le=365),
+) -> HTMLResponse:
+    """Алерты: фильтры по типу/дате/пользователю, пагинация, подтверждение."""
+    db = request.app.state.db
+    since = time.time() - days * 86400 if days else None
+
+    alerts = await db.list_alerts(
+        limit=limit,
+        offset=offset,
+        uid=uid,
+        status=status,
+        ack_status=ack_status,
+        since=since,
+    )
+    total = await db.count_alerts(
+        uid=uid, status=status, ack_status=ack_status, since=since
+    )
+
+    # Счётчик уже посчитан middleware для бейджа: 0 — это значение, а не
+    # «нет данных», поэтому проверяем именно None, без лишнего запроса в БД.
+    unacked_total = getattr(request.state, "unacked_alerts", None)
+    if unacked_total is None:
+        unacked_total = await db.unacked_alerts_count()
+
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(
+        request,
+        "alerts.html",
+        {
+            "alerts": alerts,
+            "offset": offset,
+            "limit": limit,
+            "total": total,
+            "uid_filter": uid or "",
+            "status_filter": status or "",
+            "ack_filter": ack_status or "",
+            "days_filter": days or "",
+            "unacked_total": unacked_total,
+        },
+    )
+
+
+@router.get("/system", response_class=HTMLResponse)
+async def system_page(request: Request) -> HTMLResponse:
+    """Системная страница: диск, БД/WAL, бэкапы, Redis, версии, расписания."""
+    db = request.app.state.db
+    db_path = getattr(db, "db_path", _PROJECT_ROOT / "data" / "bot.db")
+    snapshot = await collect_system_snapshot(
+        db,
+        db_path=db_path,
+        backup_dir=_PROJECT_ROOT / settings.backup_dir,
+        project_root=_PROJECT_ROOT,
+        uptime_seconds=health_metrics.uptime_seconds(),
+    )
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    return templates.TemplateResponse(request, "system.html", {"system": snapshot})
 
 
 @router.get("/api-status", response_class=HTMLResponse)

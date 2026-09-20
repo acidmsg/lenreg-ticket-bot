@@ -199,6 +199,8 @@ class Settings(BaseSettings):
     WEB_DASHBOARD_ENABLED: bool = True
     WEB_DASHBOARD_PORT: int = 8080
     WEB_DASHBOARD_API_KEY: str = ""
+    # Интервал обновления живых данных дашборда (SSE), секунды
+    DASHBOARD_STREAM_INTERVAL: int = 10
 
     # === Web Dashboard Auth (F5) ===
     # Логин для входа в дашборд (session-based auth)

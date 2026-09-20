@@ -2,27 +2,44 @@
 %}Сводка — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
 <h1>Сводка</h1>
 
-<div class="grid-2col">
+<div class="live-indicator" id="live-indicator" data-state="connecting">
+  <span class="live-indicator__dot" aria-hidden="true"></span>
+  <span class="live-indicator__text" id="live-indicator-text"
+    >подключение…</span
+  >
+</div>
+
+<div class="grid-2col" data-live-root="summary">
   <div class="card">
     <h2>Статус бота</h2>
     <div class="info-grid">
       <div class="info-label">Uptime</div>
-      <div class="info-value">{{ uptime }}</div>
+      <div class="info-value" data-live="uptime">{{ uptime }}</div>
       <div class="info-label">Пользователей</div>
-      <div class="info-value">{{ stats.total_users }}</div>
+      <div class="info-value" data-live="total_users">
+        {{ stats.total_users }}
+      </div>
       <div class="info-label">Пациентов</div>
-      <div class="info-value">{{ stats.total_patients }}</div>
+      <div class="info-value" data-live="total_patients">
+        {{ stats.total_patients }}
+      </div>
       <div class="info-label">Отслеж. врачей</div>
-      <div class="info-value">{{ stats.total_monitored_doctors }}</div>
+      <div class="info-value" data-live="total_monitored_doctors">
+        {{ stats.total_monitored_doctors }}
+      </div>
       <div class="info-label">Новых за скан</div>
-      <div class="info-value">{{ doctors_discovered }}</div>
+      <div class="info-value" data-live="doctors_discovered">
+        {{ doctors_discovered }}
+      </div>
       <div class="info-label">Последний скан</div>
-      <div class="info-value">
+      <div class="info-value" data-live="doctors_last_scan">
         {% if doctors_last_scan > 0 %}{{ doctors_last_scan|strftime }}{% else
         %}не было{% endif %}
       </div>
       <div class="info-label">Активных мониторингов</div>
-      <div class="info-value">{{ active_monitorings }}</div>
+      <div class="info-value" data-live="active_monitorings">
+        {{ active_monitorings }}
+      </div>
     </div>
 
     <div class="scan-controls" style="margin-top: 16px">
@@ -57,7 +74,7 @@
 
   <div class="card">
     <h2>Фоновые задачи</h2>
-    {% include "_background_tasks.html" %}
+    <div id="live-tasks">{% include "_background_tasks.html" %}</div>
   </div>
 
   <div class="card">
@@ -65,57 +82,30 @@
     <div class="info-grid">
       <div class="info-label">Статус</div>
       <div class="info-value">
-        {% if api_ok %}
-        <span class="badge badge-ok">{{ api_health }}</span>
-        {% else %}
-        <span class="badge badge-err">{{ api_health }}</span>
-        {% endif %}
+        <span
+          id="live-api-badge"
+          class="badge {% if api_ok %}badge-ok{% else %}badge-err{% endif %}"
+          >{{ api_health }}</span
+        >
       </div>
+      <div class="info-label">Последняя проверка</div>
+      <div class="info-value" data-live="api_last_check">—</div>
+      <div class="info-label">Доступность</div>
+      <div class="info-value" data-live="api_availability">—</div>
       <div class="info-label">Успешных проверок</div>
-      <div class="info-value">{{ api_checks }}</div>
+      <div class="info-value" data-live="api_checks">{{ api_checks }}</div>
       <div class="info-label">Ошибок</div>
-      <div class="info-value">{{ api_errors }}</div>
+      <div class="info-value" data-live="api_errors">{{ api_errors }}</div>
       <div class="info-label">Уведомлений отправлено</div>
-      <div class="info-value">{{ notifications }}</div>
+      <div class="info-value" data-live="notifications">
+        {{ notifications }}
+      </div>
     </div>
   </div>
 
   <div class="card">
     <h2>Последние алерты (10)</h2>
-    {% if recent_alerts %}
-    <div
-      class="dg-table dg-table--alerts"
-      role="table"
-      aria-label="Последние алерты"
-    >
-      <div class="dg-header" role="rowgroup">
-        <div class="dg-cell" role="columnheader">Время</div>
-        <div class="dg-cell" role="columnheader">Пациент</div>
-        <div class="dg-cell" role="columnheader">Врач</div>
-        <div class="dg-cell" role="columnheader">Статус</div>
-      </div>
-      <div class="dg-tbody" role="rowgroup">
-        {% for log in recent_alerts %}
-        <div class="dg-row" role="row">
-          <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
-            {{ log.ts|int|strftime }}
-          </div>
-          <div class="dg-cell" role="cell" data-label="Пациент">
-            {{ log.patient_name }}
-          </div>
-          <div class="dg-cell" role="cell" data-label="Врач">
-            {{ log.doctor_name }}
-          </div>
-          <div class="dg-cell" role="cell" data-label="Статус">
-            {{ macros.status_badge(log.status) }}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% else %}
-    <p class="text-muted">Нет записей в логе</p>
-    {% endif %}
+    <div id="live-alerts">{% include "_alerts.html" %}</div>
   </div>
 </div>
 

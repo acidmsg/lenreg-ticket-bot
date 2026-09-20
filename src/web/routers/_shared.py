@@ -8,6 +8,7 @@
 import time
 from typing import Any
 
+from src.config import settings
 from src.services.background import describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics_module
 from src.services.healthcheck import metrics_lock
@@ -117,6 +118,82 @@ def get_users_data(
         users = users[:limit]
 
     return users
+
+
+def render_partial(templates: Any, name: str, **context: Any) -> str:
+    """Рендерит Jinja2-партиал в строку.
+
+    Используется SSE-потоком: блоки сводки отдаются уже готовым HTML, чтобы
+    разметка жила в шаблонах (один источник правды), а не дублировалась в JS.
+
+    Args:
+        templates: Объект ``Jinja2Templates`` из ``app.state.templates``.
+        name: Имя шаблона-партиала.
+        **context: Контекст рендера.
+
+    Returns:
+        HTML-строка партиала.
+    """
+    env = templates.env
+    ctx: dict[str, Any] = {"macros": env.get_template("macros.html").module}
+    ctx.update(context)
+    return env.get_template(name).render(**ctx)
+
+
+def _format_ts_hms(ts: int) -> str:
+    """Форматирует Unix-время в ЧЧ:ММ:СС (пустая строка для отсутствующего)."""
+    if not ts:
+        return "не было"
+    return time.strftime("%H:%M:%S", time.localtime(ts))
+
+
+async def build_live_payload(
+    db: Any,
+    prometheus_metrics: Any,
+    templates: Any,
+) -> dict[str, Any]:
+    """Собирает снапшот для SSE-обновления страниц дашборда.
+
+    Returns:
+        Словарь с готовыми к вставке строками (``display``), флагами для
+        бейджей (``flags``) и перерендеренными HTML-блоками задач и алертов.
+    """
+    data = await get_summary_data(db, prometheus_metrics)
+    stats = data["stats"]
+
+    async with metrics_lock:
+        api_health = health_metrics_module.api_health_str()
+
+    return {
+        "ts": int(time.time()),
+        "interval": max(2, int(settings.DASHBOARD_STREAM_INTERVAL)),
+        "display": {
+            "uptime": data["uptime_str"],
+            "total_users": str(stats["total_users"]),
+            "total_patients": str(stats["total_patients"]),
+            "total_monitored_doctors": str(stats["total_monitored_doctors"]),
+            "active_monitorings": str(data["active_monitorings"]),
+            "doctors_discovered": str(data["doctors_discovered"]),
+            "doctors_last_scan": _format_ts_hms(data["doctors_last_scan"]),
+            "api_health": api_health,
+            "api_last_check": (
+                f"{data['seconds_ago']} с назад" if data["last_check"] else "—"
+            ),
+            "api_checks": str(data["checks_total"]),
+            "api_errors": str(data["errors_total"]),
+            "api_availability": f"{data['availability']} %",
+            "notifications": str(data["notifications_sent"]),
+        },
+        "flags": {"api_ok": bool(data["api_ok"])},
+        "tasks_html": render_partial(
+            templates,
+            "_background_tasks.html",
+            background_tasks=data["background_tasks"],
+        ),
+        "alerts_html": render_partial(
+            templates, "_alerts.html", recent_alerts=data["recent_alerts"]
+        ),
+    }
 
 
 async def get_clinics_data(db: Any) -> list[dict[str, Any]]:

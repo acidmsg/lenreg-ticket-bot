@@ -145,6 +145,15 @@ class MonitoringLogEntry(TypedDict):
     status: str  # 'появился' | 'исчез' | 'уменьшился'
     ts: float
 
+    ack_status: NotRequired[str]
+    """Состояние алерта: ``new`` | ``acked`` | ``resolved``."""
+
+    acked_by: NotRequired[str]
+    """Кто подтвердил (логин администратора или ``bot``)."""
+
+    acked_ts: NotRequired[float]
+    """Когда подтвердили (Unix-время)."""
+
 
 class BookingEntry(TypedDict):
     """Запись из таблицы ``bookings``."""
@@ -190,3 +199,25 @@ class BookingEntry(TypedDict):
 
     is_archived: int
     """0 = активная, 1 = архивная."""
+
+
+class AuditLogEntry(TypedDict):
+    """Запись журнала действий администратора (таблица audit_log)."""
+
+    id: int
+    """Идентификатор записи."""
+
+    ts: float
+    """Время события (Unix-время)."""
+
+    actor: str
+    """Кто выполнил действие (логин дашборда, system, bot)."""
+
+    action: str
+    """Машиночитаемый код действия."""
+
+    target: str
+    """Объект действия (файл, uid, ключ настройки)."""
+
+    payload_json: str
+    """Дополнительные данные в виде JSON-строки."""

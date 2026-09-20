@@ -1,0 +1,115 @@
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}Журнал действий — LenReg Ticket Bot Dashboard{% endblock %} {% block content
+%}
+<h1>Журнал действий администратора</h1>
+
+<div class="card">
+  <form method="GET" action="/audit-log" class="filter-form">
+    <label>
+      Кто:
+      <select name="actor">
+        <option value="">все</option>
+        {% for a in actors %}
+        <option value="{{ a }}" {% if a == actor_filter %}selected{% endif %}>
+          {{ a }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Действие:
+      <select name="action">
+        <option value="">все</option>
+        {% for code in actions %}
+        <option
+          value="{{ code }}"
+          {% if code == action_filter %}selected{% endif %}
+        >
+          {{ action_labels.get(code, code) }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Период:
+      <select name="days">
+        <option value="">весь</option>
+        {% for value, label in [(1, 'сутки'), (7, 'неделя'), (30, 'месяц')] %}
+        <option value="{{ value }}" {% if days_filter == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Поиск:
+      <input
+        type="text"
+        name="search"
+        value="{{ search_filter }}"
+        placeholder="файл, значение"
+      />
+    </label>
+    <button type="submit" class="btn">Показать</button>
+    {% if actor_filter or action_filter or search_filter or days_filter %}
+    <a href="/audit-log" class="btn-link">Сбросить</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if events %}
+<div class="dg-table dg-table--logs" role="table" aria-label="Журнал действий">
+  <div class="dg-header" role="rowgroup">
+    <div class="dg-cell" role="columnheader">Время</div>
+    <div class="dg-cell" role="columnheader">Кто</div>
+    <div class="dg-cell" role="columnheader">Действие</div>
+    <div class="dg-cell" role="columnheader">Объект</div>
+    <div class="dg-cell" role="columnheader">Детали</div>
+  </div>
+  <div class="dg-tbody" role="rowgroup">
+    {% for event in events %}
+    <div class="dg-row" role="row">
+      <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
+        {{ event.ts|int|strftime }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Кто">{{ event.actor }}</div>
+      <div class="dg-cell" role="cell" data-label="Действие">
+        {{ action_labels.get(event.action, event.action) }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Объект">
+        {{ event.target }}
+      </div>
+      <div class="dg-cell" role="cell" data-label="Детали">
+        {{ details.get(event.id, "") }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="pagination">
+  {% if offset > 0 %} {% set prev_offset = offset - limit if offset >= limit
+  else 0 %}
+  <a
+    href="?offset={{ prev_offset }}&limit={{ limit }}{% if actor_filter %}&actor={{ actor_filter }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if search_filter %}&search={{ search_filter }}{% endif %}{% if days_filter %}&days={{ days_filter }}{% endif %}"
+    class="btn-link"
+  >
+    {{ macros.icon('arrow-left')|safe }} Предыдущая
+  </a>
+  {% endif %} {% set total_pages = ((total + limit - 1) // limit) if total > 0
+  else 1 %}
+  <span class="page-info">
+    Стр. {{ (offset // limit) + 1 }}/{{ total_pages }} ({{ total }} записей)
+  </span>
+  {% if offset + limit < total %}
+  <a
+    href="?offset={{ offset + limit }}&limit={{ limit }}{% if actor_filter %}&actor={{ actor_filter }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if search_filter %}&search={{ search_filter }}{% endif %}{% if days_filter %}&days={{ days_filter }}{% endif %}"
+    class="btn-link"
+  >
+    Следующая {{ macros.icon('arrow-right')|safe }}
+  </a>
+  {% endif %}
+</div>
+{% else %}
+<p class="text-muted">Записей нет</p>
+{% endif %} {% endblock %}

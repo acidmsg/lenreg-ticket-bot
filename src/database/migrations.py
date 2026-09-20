@@ -171,6 +171,78 @@ async def migrate_v9_add_monitoring_filters(db) -> None:
     logger.info("Миграция v9: колонки фильтра user_monitoring (добавлено: {})", added)
 
 
+async def migrate_v10_create_audit_log(db) -> None:
+    """Создание журнала действий администратора (DASH-2)."""
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts REAL NOT NULL,
+    actor TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    target TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log (ts DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log (action, ts DESC);
+""")
+    await c.commit()
+    logger.info("Миграция v10: создана таблица audit_log")
+
+
+async def migrate_v11_audit_actor_index(db) -> None:
+    """Индекс по автору действий в журнале (DASH-2).
+
+    Страница /audit-log фильтрует по actor и строит список авторов
+    (``distinct_actors``) — без индекса это full table scan.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log (actor, ts DESC)"
+    )
+    await c.commit()
+    logger.info("Миграция v11: индекс idx_audit_log_actor")
+
+
+async def migrate_v12_monitoring_log_ack(db) -> None:
+    """Статус подтверждения алертов в monitoring_log (DASH-5).
+
+    Шум отделяется от нового: каждая запись получает состояние
+    ``new`` / ``acked`` / ``resolved`` плюс кто и когда подтвердил.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(monitoring_log)")
+    existing_columns = {row[1] for row in await cursor.fetchall()}
+
+    new_columns = {
+        "ack_status": "TEXT NOT NULL DEFAULT 'new'",
+        "acked_by": "TEXT NOT NULL DEFAULT ''",
+        "acked_ts": "REAL NOT NULL DEFAULT 0",
+    }
+    added: list[str] = []
+    for column_name, definition in new_columns.items():
+        if column_name in existing_columns:
+            continue
+        await c.execute(
+            f"ALTER TABLE monitoring_log ADD COLUMN {column_name} {definition}"
+        )
+        added.append(column_name)
+
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_monitoring_log_ack "
+        "ON monitoring_log (ack_status, ts DESC)"
+    )
+    await c.commit()
+    logger.info("Миграция v12: подтверждение алертов (добавлено: {})", added)
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -178,4 +250,7 @@ MIGRATIONS = [
     (7, migrate_v7_add_date_column),
     (8, migrate_v8_create_bookings),
     (9, migrate_v9_add_monitoring_filters),
+    (10, migrate_v10_create_audit_log),
+    (11, migrate_v11_audit_actor_index),
+    (12, migrate_v12_monitoring_log_ack),
 ]

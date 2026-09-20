@@ -6,6 +6,7 @@
     <title>{% block title %}LenReg Ticket Bot Dashboard{% endblock %}</title>
     <link rel="stylesheet" href="/static/dashboard.css" />
     <script defer src="/static/dashboard.js"></script>
+    <script defer src="/static/dashboard-live.js"></script>
   </head>
 
   <body>
@@ -65,6 +66,30 @@
           </svg>
           <span class="sidebar__link-text">Пользователи</span>
         </a>
+        <a
+          href="/alerts"
+          class="sidebar__link {% if request.url.path == '/alerts' %}active{% endif %}"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M8 2a4 4 0 0 0-4 4v3l-1.5 2h11L12 9V6a4 4 0 0 0-4-4Z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M6.5 13a1.5 1.5 0 0 0 3 0"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="sidebar__link-text">
+            Алерты {% if request.state.unacked_alerts %}
+            <span class="badge badge-warn">{{ request.state.unacked_alerts }}</span>
+            {% endif %}
+          </span>
+        </a>
         <a href="/logs" class="sidebar__link {% if request.url.path == '/logs' %}active{% endif %}">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
             <line
@@ -99,6 +124,25 @@
             <circle cx="2.5" cy="12" r="1" fill="currentColor" />
           </svg>
           <span class="sidebar__link-text">Логи</span>
+        </a>
+        <a
+          href="/audit-log"
+          class="sidebar__link {% if request.url.path == '/audit-log' %}active{% endif %}"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <path
+              d="M5.5 6h5M5.5 8.5h5M5.5 11h3"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="sidebar__link-text">Журнал действий</span>
         </a>
         <a
           href="/clinics"
@@ -181,6 +225,45 @@
             />
           </svg>
           <span class="sidebar__link-text">Настройки</span>
+        </a>
+        <a
+          href="/settings/params"
+          class="sidebar__link {% if request.url.path == '/settings/params' %}active{% endif %}"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M2 4h12M2 8h12M2 12h12"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <circle cx="5.5" cy="4" r="1.6" fill="currentColor" />
+            <circle cx="10.5" cy="8" r="1.6" fill="currentColor" />
+            <circle cx="7" cy="12" r="1.6" fill="currentColor" />
+          </svg>
+          <span class="sidebar__link-text">Параметры</span>
+        </a>
+        <a
+          href="/system"
+          class="sidebar__link {% if request.url.path == '/system' %}active{% endif %}"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <rect
+              x="2"
+              y="2"
+              width="12"
+              height="12"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <path
+              d="M2 8h12M8 2v12"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+          </svg>
+          <span class="sidebar__link-text">Система</span>
         </a>
         <a
           href="/api-status"

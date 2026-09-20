@@ -4,12 +4,22 @@ JSON API веб-дашборда.
 Эндпоинты возвращают JSON-ответы для дашборда и Mini App.
 """
 
+import csv
+import io
+import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
+from src.services.audit import actor_from_request, log_action
 from src.services.doctor_discovery import trigger_force_scan
+from src.services.params import (
+    RESOLUTION_ORDER,
+    ParamError,
+    collect_params,
+    set_param,
+)
 from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
 
 router = APIRouter()
@@ -122,8 +132,6 @@ async def api_clinics(request: Request) -> dict[str, Any]:
 @router.get("/dashboard/health")
 async def api_dashboard_health(request: Request) -> dict[str, Any]:
     """JSON-статус здоровья API."""
-    import time
-
     from src.services.healthcheck import metrics as health_metrics
     from src.services.healthcheck import metrics_lock
 
@@ -151,6 +159,53 @@ async def api_dashboard_health(request: Request) -> dict[str, Any]:
     }
 
 
+@router.get("/config", response_model=None)
+async def api_config_list(request: Request) -> dict[str, Any]:
+    """Список параметров конфигурации с источником значения и предупреждениями."""
+    db = request.app.state.db
+    return {
+        "params": await collect_params(db),
+        "resolution_order": list(RESOLUTION_ORDER),
+    }
+
+
+@router.post("/config/{key}", response_model=None)
+async def api_config_set(request: Request, key: str) -> dict[str, Any] | JSONResponse:
+    """Меняет параметр конфигурации из реестра (валидация обязательна).
+
+    Ошибки: ``400`` — значение не прошло проверку, ``404`` — неизвестный ключ.
+    Изменение всегда попадает в журнал действий (``config_change``).
+    """
+    db = request.app.state.db
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400, content={"detail": "Неверный формат запроса"}
+        )
+
+    if not isinstance(body, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Ожидается объект с полем value"},
+        )
+
+    raw = body.get("value")
+    if raw is None:
+        return JSONResponse(
+            status_code=400, content={"detail": "Поле value обязательно"}
+        )
+
+    try:
+        return await set_param(db, key, str(raw), actor=actor_from_request(request))
+    except KeyError:
+        return JSONResponse(
+            status_code=404, content={"detail": f"Неизвестный параметр: {key}"}
+        )
+    except ParamError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @router.post("/dashboard/doctor-scan/toggle")
 async def toggle_doctor_scan(request: Request) -> dict[str, Any]:
     """Включить/выключить плановое сканирование врачей."""
@@ -158,6 +213,12 @@ async def toggle_doctor_scan(request: Request) -> dict[str, Any]:
     current = await db.config.get_config("doctor_scan_enabled", "1")
     new_value = "0" if current == "1" else "1"
     await db.config.set_config("doctor_scan_enabled", new_value)
+    await log_action(
+        db,
+        actor=actor_from_request(request),
+        action="doctor_scan_toggle",
+        enabled=new_value == "1",
+    )
     return {"doctor_scan_enabled": new_value == "1"}
 
 
@@ -170,7 +231,164 @@ async def force_doctor_scan(request: Request) -> dict[str, Any]:
     в ответе возвращается статус ``unavailable`` вместо ложного ``started``.
     """
     started = trigger_force_scan()
+    await log_action(
+        request.app.state.db,
+        actor=actor_from_request(request),
+        action="doctor_scan_force",
+        status="started" if started else "unavailable",
+    )
     return {"status": "started" if started else "unavailable"}
+
+
+# ── Алерты (DASH-5) ─────────────────────────────────────────
+
+# Максимум идентификаторов в одном подтверждении: ограничивает число
+# параметров SQL-запроса (SQLITE_MAX_VARIABLE_NUMBER).
+MAX_ALERT_IDS = 500
+
+# Префиксы, с которых табличные процессоры начинают формулу (CWE-1236).
+_CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: Any) -> str:
+    """Обезвреживает значение для CSV: формулы не должны исполняться."""
+    text = "" if value is None else str(value)
+    if text.startswith(_CSV_INJECTION_PREFIXES):
+        return "'" + text
+    return text
+
+
+@router.post("/alerts/ack")
+async def ack_alerts(request: Request) -> dict[str, Any]:
+    """Подтверждает или снимает алерты; изменение пишется в журнал.
+
+    Тело запроса: ``{"ids": [1, 2], "state": "acked" | "resolved"}``.
+    ``state`` по умолчанию — ``acked``.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Неверный JSON."})
+
+    if not isinstance(body, dict):
+        return JSONResponse(status_code=400, content={"detail": "Ожидался объект."})
+
+    raw_ids = body.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return JSONResponse(
+            status_code=400, content={"detail": "Нужен непустой список ids."}
+        )
+    try:
+        alert_ids = [int(value) for value in raw_ids]
+    except (TypeError, ValueError):
+        return JSONResponse(
+            status_code=400, content={"detail": "Идентификаторы должны быть числами."}
+        )
+
+    if len(alert_ids) > MAX_ALERT_IDS:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": f"Слишком много идентификаторов (максимум {MAX_ALERT_IDS})."
+            },
+        )
+
+    state = str(body.get("state", "acked"))
+    if state not in ("acked", "resolved", "new"):
+        return JSONResponse(
+            status_code=400, content={"detail": f"Недопустимое состояние: {state}"}
+        )
+
+    db = request.app.state.db
+    actor = actor_from_request(request)
+    changed = await db.set_alerts_state(alert_ids, state, actor)
+    await log_action(
+        db,
+        actor,
+        "alert_state",
+        target=",".join(str(value) for value in alert_ids[:20]),
+        state=state,
+        changed=changed,
+    )
+    return {
+        "status": "ok",
+        "changed": changed,
+        "state": state,
+        "unacked": await db.unacked_alerts_count(),
+    }
+
+
+@router.get("/alerts/export.csv")
+async def export_alerts_csv(
+    request: Request,
+    uid: str | None = None,
+    status: str | None = None,
+    ack_status: str | None = None,
+    days: int | None = Query(None, ge=1, le=365),
+) -> Response:
+    """Выгружает алерты в CSV с теми же фильтрами, что и страница."""
+    db = request.app.state.db
+    now = time.time()
+    since = now - days * 86400 if days else None
+
+    alerts = await db.list_alerts(
+        limit=10000,
+        offset=0,
+        uid=uid,
+        status=status,
+        ack_status=ack_status,
+        since=since,
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "id",
+            "время",
+            "uid",
+            "пациент",
+            "врач",
+            "специальность",
+            "клиника",
+            "дата слота",
+            "событие",
+            "состояние",
+            "подтвердил",
+        ]
+    )
+    for alert in alerts:
+        writer.writerow(
+            [
+                alert["id"],
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(alert["ts"])),
+                _csv_safe(alert["uid"]),
+                _csv_safe(alert["patient_name"]),
+                _csv_safe(alert["doctor_name"]),
+                _csv_safe(alert["specialty"]),
+                _csv_safe(alert["clinic_name"]),
+                _csv_safe(alert["slot_date"]),
+                _csv_safe(alert["status"]),
+                _csv_safe(alert.get("ack_status", "new")),
+                _csv_safe(alert.get("acked_by", "")),
+            ]
+        )
+
+    # BOM: без него Excel на Windows читает кириллицу в неверной кодировке.
+    csv_body = "\ufeff" + buffer.getvalue()
+    await log_action(
+        db,
+        actor_from_request(request),
+        "alerts_export",
+        target=f"rows={len(alerts)}",
+    )
+    return Response(
+        content=csv_body,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="alerts.csv"',
+        },
+    )
 
 
 @router.get("/health")

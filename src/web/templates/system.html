@@ -1,0 +1,193 @@
+{% extends "base.html" %} {% import "macros.html" as macros %} {% block title
+%}Система — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
+<h1>Система</h1>
+
+<div class="grid-2col">
+  <div class="card">
+    <h2>Диск</h2>
+    {% if system.disk.status == "ok" %}
+    <div class="info-grid">
+      <div class="info-label">Точка</div>
+      <div class="info-value">{{ system.disk.display }}</div>
+      <div class="info-label">Всего</div>
+      <div class="info-value">{{ system.disk.total_mb }} МБ</div>
+      <div class="info-label">Свободно</div>
+      <div class="info-value">
+        {{ system.disk.free_mb }} МБ ({{ system.disk.free_percent }}%)
+      </div>
+      <div class="info-label">Состояние</div>
+      <div class="info-value">
+        {% if system.disk.level == "ok" %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} норма</span
+        >
+        {% elif system.disk.level == "warn" %}
+        <span class="badge badge-warn">мало места</span>
+        {% else %}
+        <span class="badge badge-err">критично мало места</span>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-muted">Данные о диске недоступны.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>База данных</h2>
+    {% if system.db.status == "ok" %}
+    <div class="info-grid">
+      <div class="info-label">Файл</div>
+      <div class="info-value">{{ system.db.display }}</div>
+      <div class="info-label">Основной файл</div>
+      <div class="info-value">{{ system.db.main_mb }} МБ</div>
+      <div class="info-label">WAL</div>
+      <div class="info-value">
+        {% if system.db.wal_present %}{{ system.db.wal_mb }} МБ{% else %}нет
+        (схлопнут){% endif %}
+      </div>
+      <div class="info-label">Итого с WAL/SHM</div>
+      <div class="info-value">{{ system.db.total_mb }} МБ</div>
+      <div class="info-label">Состояние</div>
+      <div class="info-value">
+        {% if system.db.level == "ok" %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} норма</span
+        >
+        {% elif system.db.level == "warn" %}
+        <span class="badge badge-warn">растёт</span>
+        {% else %}
+        <span class="badge badge-err">большой объём</span>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-muted">Файл БД недоступен из процесса.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Бэкапы</h2>
+    {% if system.backups.status == "ok" %}
+    <div class="info-grid">
+      <div class="info-label">Каталог</div>
+      <div class="info-value">{{ system.backups.display }}</div>
+      <div class="info-label">Всего файлов</div>
+      <div class="info-value">{{ system.backups.count }}</div>
+      <div class="info-label">Суммарный объём</div>
+      <div class="info-value">{{ system.backups.total_mb }} МБ</div>
+      <div class="info-label">Свежий бэкап</div>
+      <div class="info-value">
+        {% if system.backups.newest_age_hours is not none %} {{
+        system.backups.newest_age_hours }} ч назад {% else %} файлов нет {%
+        endif %}
+      </div>
+      <div class="info-label">Состояние</div>
+      <div class="info-value">
+        {% if system.backups.level == "ok" %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} норма</span
+        >
+        {% elif system.backups.level == "crit" %}
+        <span class="badge badge-err">бэкапов нет</span>
+        {% else %}
+        <span class="badge badge-warn">проверить объём/свежесть</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="info-grid">
+      {% for name, data in system.backups.categories.items() %}
+      <div class="info-label">{{ name }}</div>
+      <div class="info-value">{{ data.count }} шт · {{ data.size_mb }} МБ</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">Каталог бэкапов недоступен.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Redis</h2>
+    {% if system.redis.connected %}
+    <div class="info-grid">
+      <div class="info-label">Подключение</div>
+      <div class="info-value">
+        {% if system.redis.level == "warn" %}
+        <span class="badge badge-warn">память близка к лимиту</span>
+        {% else %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} активно</span
+        >
+        {% endif %}
+      </div>
+      <div class="info-label">Версия</div>
+      <div class="info-value">{{ system.redis.version or '—' }}</div>
+      <div class="info-label">Память</div>
+      <div class="info-value">
+        {{ system.redis.used_memory_human or (system.redis.used_memory_mb ~ ' МБ')
+        }} {% if system.redis.maxmemory_mb %} из {{ system.redis.maxmemory_mb }}
+        МБ{% endif %}
+      </div>
+      <div class="info-label">Клиентов</div>
+      <div class="info-value">{{ system.redis.connected_clients }}</div>
+    </div>
+    {% else %}
+    <div class="info-grid">
+      <div class="info-label">Подключение</div>
+      <div class="info-value">
+        <span class="badge badge-warn">нет связи (fallback-режим)</span>
+      </div>
+    </div>
+    <p class="text-muted">
+      Цифры не показываются: бот работает без Redis, значения были бы
+      выдуманными.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Версии</h2>
+    <div class="info-grid">
+      <div class="info-label">Приложение</div>
+      <div class="info-value">{{ system.versions.app }}</div>
+      <div class="info-label">Python</div>
+      <div class="info-value">{{ system.versions.python }}</div>
+      <div class="info-label">SQLite</div>
+      <div class="info-value">{{ system.versions.sqlite }}</div>
+      <div class="info-label">Образ</div>
+      <div class="info-value">{{ system.versions.image or '—' }}</div>
+      <div class="info-label">Ревизия</div>
+      <div class="info-value">{{ system.versions.revision or '—' }}</div>
+      <div class="info-label">Uptime процесса</div>
+      <div class="info-value">{{ system.uptime_seconds|int }}с</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Расписания</h2>
+    <div class="info-grid">
+      <div class="info-label">Сканирование врачей</div>
+      <div class="info-value">
+        {% if system.schedule.scan_enabled %}включено{% else %}выключено{% endif %}
+        · каждые {{ system.schedule.scan_interval_seconds }}с
+      </div>
+      <div class="info-label">Проверка слотов</div>
+      <div class="info-value">
+        каждые {{ system.schedule.check_interval_seconds }}с
+      </div>
+      <div class="info-label">Хранение бэкапов</div>
+      <div class="info-value">
+        daily {{ system.schedule.retention.daily }} · weekly {{
+        system.schedule.retention.weekly }} · monthly {{
+        system.schedule.retention.monthly }} · manual {{
+        system.schedule.retention.manual }}
+      </div>
+    </div>
+    <p class="text-muted">
+      Запуск бэкапов задаётся внешним расписанием на хосте; страница не
+      показывает «время до следующего запуска», потому что оно не читается из
+      процесса.
+    </p>
+  </div>
+</div>
+{% endblock %}
