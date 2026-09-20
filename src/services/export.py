@@ -719,9 +719,9 @@ class ExportUnavailableError(Exception):
 def render_export(booking: BookingEntry, fmt: str) -> tuple[bytes, str, str]:
     """Готовит файл экспорта записи в запрошенном формате.
 
-    Общая точка входа для обоих эндпоинтов: скачивание по заголовку initData
-    (``/api/user/bookings/{id}/export``) и по подписанной ссылке
-    (``/api/export/bookings/{id}``).
+    Единая точка входа для отдачи файла: публичный маршрут
+    ``/api/export/bookings/{id}``, который открывается по короткоживущей
+    подписанной ссылке (её выдаёт ``/api/user/bookings/{id}/export-link``).
 
     Args:
         booking: Запись из БД.

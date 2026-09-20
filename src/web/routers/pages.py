@@ -7,10 +7,11 @@ HTML-страницы веб-дашборда.
 import json
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
@@ -21,7 +22,7 @@ from src.services.healthcheck import metrics_lock
 from src.services.params import RESOLUTION_ORDER, collect_params
 from src.services.schema_watcher import collect_schema_status
 from src.services.search import search_all
-from src.services.system_info import collect_system_snapshot
+from src.services.system_info import backups_reason, collect_system_snapshot
 from src.services.tools import TOOLS, tool_view
 from src.services.trends import (
     TREND_HOURS_DAY,
@@ -30,7 +31,14 @@ from src.services.trends import (
     collect_trends,
 )
 from src.services.user_actions import ACTIONS, action_view
-from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
+from src.web.routers._shared import (
+    get_clinics_data,
+    get_summary_data,
+    get_users_data,
+    next_scan_seconds,
+    parse_positive_int,
+    planner_status,
+)
 
 router = APIRouter()
 
@@ -51,21 +59,10 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         # Состояние переключателя планового сканирования врачей
         doctor_scan_enabled = await db.config.get_config("doctor_scan_enabled", "1")
 
-        # Время до следующего скана (DASH-9): период задачи монитора минус
-        # время, прошедшее с прошлого запуска. None — если задача ещё не
-        # запускалась или менеджер не опубликован.
-        monitor_task = next(
-            (
-                task
-                for task in (data.get("background_tasks") or [])
-                if task.get("name") == "monitor"
-            ),
-            None,
-        )
-        next_scan_in = None
-        if monitor_task and monitor_task.get("last_run_ago") is not None:
-            period = int(monitor_task.get("period") or 0)
-            next_scan_in = max(0, period - int(monitor_task["last_run_ago"]))
+        # Планировщик (UX-3): полный виджет живёт на «Системе», сводка
+        # показывает срок до следующего скана строкой.
+        background_tasks = data.get("background_tasks") or []
+        next_scan_in = next_scan_seconds(background_tasks)
 
         # Тренды за сутки и неделю (DASH-6): ряды из журнала и агрегатов,
         # спарклайны рисует сервер (без внешних библиотек).
@@ -82,7 +79,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "uptime": data["uptime_str"],
                 "api_health": api_health,
                 "api_ok": data["api_ok"],
-                "background_tasks": data["background_tasks"],
+                "planner_status": planner_status(background_tasks),
                 "api_checks": data["checks_total"],
                 "api_errors": data["errors_total"],
                 "notifications": data["notifications_sent"],
@@ -95,6 +92,7 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "trend_cards_week": build_cards(trends_week),
                 "trend_day_has_data": trends_day["has_data"],
                 "trend_week_has_data": trends_week["has_data"],
+                "telegram": data["telegram"],
             },
         )
     except Exception:
@@ -157,6 +155,10 @@ async def user_detail(request: Request, uid: str) -> HTMLResponse:
     )
 
 
+# Состояния журнала событий: табы страницы и значения фильтра.
+JOURNAL_STATES = ("all", "new", "acked", "resolved")
+
+
 @router.get("/logs", response_class=HTMLResponse)
 async def monitoring_logs(
     request: Request,
@@ -164,13 +166,39 @@ async def monitoring_logs(
     limit: int = Query(50, ge=1, le=500),
     uid: str | None = Query(None),
     status: str | None = Query(None),
+    state: str = Query("all"),
+    days: str | None = Query(None),
 ) -> HTMLResponse:
-    """Лог мониторинга с пагинацией и фильтрацией."""
+    """Журнал событий: один экран для записей мониторинга и инцидентов.
+
+    Табы «Все события / Новые / Подтверждённые / Разобранные» — фильтр по
+    состоянию подтверждения. Выгрузка CSV учитывает те же фильтры, поэтому
+    отдельная страница алертов больше не нужна.
+    """
     db = request.app.state.db
-    logs = await db.get_all_monitoring_logs(
-        limit=limit, offset=offset, uid=uid, status=status
+    if state not in JOURNAL_STATES:
+        state = "all"
+    ack_status = None if state == "all" else state
+    days_value = parse_positive_int(days)
+    since = time.time() - days_value * 86400 if days_value else None
+
+    logs = await db.list_alerts(
+        limit=limit,
+        offset=offset,
+        uid=uid,
+        status=status,
+        ack_status=ack_status,
+        since=since,
     )
-    total = await db.get_all_monitoring_logs_count(uid=uid, status=status)
+    total = await db.count_alerts(
+        uid=uid, status=status, ack_status=ack_status, since=since
+    )
+
+    # Счётчик уже посчитан middleware для бейджа: 0 — это значение, а не
+    # «нет данных», поэтому проверяем именно None, без лишнего запроса в БД.
+    unacked_total = getattr(request.state, "unacked_alerts", None)
+    if unacked_total is None:
+        unacked_total = await db.unacked_alerts_count()
 
     templates = cast(Jinja2Templates, request.app.state.templates)
     return templates.TemplateResponse(
@@ -183,6 +211,9 @@ async def monitoring_logs(
             "total": total,
             "uid_filter": uid or "",
             "status_filter": status or "",
+            "state": state,
+            "days_filter": days_value or "",
+            "unacked_total": unacked_total,
         },
     )
 
@@ -265,26 +296,49 @@ async def audit_log_page(
     )
 
 
-@router.get("/settings/params", response_class=HTMLResponse)
-async def params_page(request: Request) -> HTMLResponse:
-    """Страница «Параметры»: редактор конфигурации из БД с предупреждениями."""
-    db = request.app.state.db
-    params = await collect_params(db)
+# Вкладки единого экрана настроек: смена пароля и параметры конфигурации.
+SETTINGS_TABS = ("account", "params")
 
+
+async def _params_context(db: Any) -> dict[str, Any]:
+    """Контекст вкладки «Параметры»: группы, счётчик и порядок источников."""
+    params = await collect_params(db)
     groups: dict[str, list[dict[str, object]]] = {}
     for param in params:
         groups.setdefault(str(param["group"]), []).append(param)
+    return {
+        "groups": groups,
+        "params_total": len(params),
+        "resolution_order": " → ".join(RESOLUTION_ORDER),
+    }
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, tab: str = Query("account")) -> HTMLResponse:
+    """Единый экран «Настройки»: вкладки «Аккаунт» и «Параметры».
+
+    «Аккаунт» — смена пароля администратора, «Параметры» — редактор
+    конфигурации из БД. Старый адрес ``/settings/params`` редиректит сюда.
+    """
+    active_tab = tab if tab in SETTINGS_TABS else SETTINGS_TABS[0]
+    context: dict[str, Any] = {
+        "username": getattr(request.state, "dashboard_user", None),
+        "active_tab": active_tab,
+    }
+    if active_tab == "params":
+        context.update(await _params_context(request.app.state.db))
 
     templates = cast(Jinja2Templates, request.app.state.templates)
-    return templates.TemplateResponse(
-        request,
-        "params.html",
-        {
-            "groups": groups,
-            "params_total": len(params),
-            "resolution_order": " → ".join(RESOLUTION_ORDER),
-        },
-    )
+    return templates.TemplateResponse(request, "settings.html", context)
+
+
+@router.get("/settings/params", response_class=RedirectResponse)
+async def params_page(request: Request) -> RedirectResponse:
+    """Старый адрес «Параметров»: вкладка единого экрана ``/settings``.
+
+    Редирект сохраняет рабочими ссылки из закладок.
+    """
+    return RedirectResponse(url="/settings?tab=params", status_code=302)
 
 
 @router.get("/clinics", response_class=HTMLResponse)
@@ -311,9 +365,6 @@ async def backups_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "backups.html",
-        {
-            "api_key": request.app.state.config.WEB_DASHBOARD_API_KEY,
-        },
     )
 
 
@@ -342,54 +393,19 @@ async def tools_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/alerts", response_class=HTMLResponse)
-async def alerts_page(
-    request: Request,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    uid: str | None = Query(None),
-    status: str | None = Query(None),
-    ack_status: str | None = Query(None),
-    days: int | None = Query(None, ge=1, le=365),
-) -> HTMLResponse:
-    """Алерты: фильтры по типу/дате/пользователю, пагинация, подтверждение."""
-    db = request.app.state.db
-    since = time.time() - days * 86400 if days else None
+@router.get("/alerts", response_class=RedirectResponse)
+async def alerts_page(request: Request) -> RedirectResponse:
+    """Старый адрес алертов: журнал событий переехал на общий экран ``/logs``.
 
-    alerts = await db.list_alerts(
-        limit=limit,
-        offset=offset,
-        uid=uid,
-        status=status,
-        ack_status=ack_status,
-        since=since,
-    )
-    total = await db.count_alerts(
-        uid=uid, status=status, ack_status=ack_status, since=since
-    )
-
-    # Счётчик уже посчитан middleware для бейджа: 0 — это значение, а не
-    # «нет данных», поэтому проверяем именно None, без лишнего запроса в БД.
-    unacked_total = getattr(request.state, "unacked_alerts", None)
-    if unacked_total is None:
-        unacked_total = await db.unacked_alerts_count()
-
-    templates = cast(Jinja2Templates, request.app.state.templates)
-    return templates.TemplateResponse(
-        request,
-        "alerts.html",
-        {
-            "alerts": alerts,
-            "offset": offset,
-            "limit": limit,
-            "total": total,
-            "uid_filter": uid or "",
-            "status_filter": status or "",
-            "ack_filter": ack_status or "",
-            "days_filter": days or "",
-            "unacked_total": unacked_total,
-        },
-    )
+    Параметры фильтров переносятся, ``ack_status`` превращается в таб
+    ``state`` — ссылки из закладок продолжают работать.
+    """
+    params = dict(request.query_params)
+    ack = params.pop("ack_status", None)
+    if ack:
+        params.setdefault("state", ack)
+    query = urlencode(params)
+    return RedirectResponse(url=f"/logs?{query}" if query else "/logs", status_code=302)
 
 
 @router.get("/system", response_class=HTMLResponse)
@@ -404,15 +420,10 @@ async def system_page(request: Request) -> HTMLResponse:
         project_root=_PROJECT_ROOT,
         uptime_seconds=health_metrics.uptime_seconds(),
     )
-    templates = cast(Jinja2Templates, request.app.state.templates)
-    return templates.TemplateResponse(request, "system.html", {"system": snapshot})
 
-
-@router.get("/api-status", response_class=HTMLResponse)
-async def api_status(request: Request) -> HTMLResponse:
-    """Состояние внешнего API."""
+    # Телеметрия внешнего API переехала сюда со страницы /api-status (UX-2):
+    # отдельный экран дублировал те же метрики, что уже есть на сводке.
     async with metrics_lock:
-        uptime = health_metrics.uptime_str()
         api_ok = health_metrics.last_api_ok
         last_check = health_metrics.last_api_check_time
         check_duration = health_metrics.last_check_duration
@@ -424,29 +435,40 @@ async def api_status(request: Request) -> HTMLResponse:
     if checks_total > 0:
         availability = round((checks_total - errors_total) / checks_total * 100, 2)
 
-    # Текущее состояние схем API — статическая сверка моделей с эталоном specs/schemas/
-    schema_status: dict[str, bool] = {}
-    schema_drift_details: dict = {}
+    # Планировщик (UX-3): фоновые задачи и срок до следующего скана.
+    background_tasks = describe_background_tasks()
+
+    # Статус статических эталонов схем: сверка моделей с specs/schemas/.
     try:
         schema_status = collect_schema_status()
     except Exception:
         logger.exception("Ошибка получения статуса схем API")
+        schema_status = {}
 
     templates = cast(Jinja2Templates, request.app.state.templates)
     return templates.TemplateResponse(
         request,
-        "api_status.html",
+        "system.html",
         {
-            "uptime": uptime,
-            "api_ok": api_ok,
-            "seconds_ago": seconds_ago,
-            "check_duration": check_duration,
-            "checks_total": checks_total,
-            "errors_total": errors_total,
-            "availability": availability,
-            "last_error": last_error,
-            "background_tasks": describe_background_tasks(),
+            "system": snapshot,
+            "api": {
+                "ok": api_ok,
+                "seconds_ago": seconds_ago,
+                "duration": check_duration,
+                "checks_total": checks_total,
+                "errors_total": errors_total,
+                "availability": availability,
+                "last_error": last_error,
+            },
             "schema_status": schema_status,
-            "schema_drift_details": schema_drift_details,
+            "background_tasks": background_tasks,
+            "next_scan_in": next_scan_seconds(background_tasks),
+            "backups_reason": backups_reason(snapshot["backups"]),
         },
     )
+
+
+@router.get("/api-status", response_class=RedirectResponse)
+async def api_status(request: Request) -> RedirectResponse:
+    """Старый адрес состояния API: телеметрия переехала на страницу «Система»."""
+    return RedirectResponse(url="/system", status_code=302)

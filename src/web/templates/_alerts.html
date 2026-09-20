@@ -1,30 +1,4 @@
-{# Таблица последних алертов. Используется на сводке и в SSE-обновлении,
-   поэтому живёт отдельным партиалом (один источник правды для разметки). #}
-{% if recent_alerts %}
-<div class="dg-table dg-table--alerts" role="table" aria-label="Последние алерты">
-  <div class="dg-header" role="rowgroup">
-    <div class="dg-cell" role="columnheader">Время</div>
-    <div class="dg-cell" role="columnheader">Пациент</div>
-    <div class="dg-cell" role="columnheader">Врач</div>
-    <div class="dg-cell" role="columnheader">Статус</div>
-  </div>
-  <div class="dg-tbody" role="rowgroup">
-    {% for log in recent_alerts %}
-    <div class="dg-row" role="row">
-      <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
-        {{ log.ts|int|strftime }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Пациент">
-        {{ log.patient_name }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Врач">{{ log.doctor_name }}</div>
-      <div class="dg-cell" role="cell" data-label="Статус">
-        {{ macros.status_badge(log.status) }}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% else %}
-<p class="text-muted">Нет записей в логе</p>
-{% endif %}
+{# Таблица последних алертов для сводки и SSE-обновления.
+   Разметка живёт в макросе ``alerts_table`` — один источник правды. #} {% import
+"macros.html" as macros %} {{ macros.alerts_table(recent_alerts,
+empty_text="Нет записей в логе") }}

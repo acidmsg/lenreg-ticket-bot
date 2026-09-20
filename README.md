@@ -37,7 +37,6 @@ bash <(curl -Ls https://raw.githubusercontent.com/acidmsg/lenreg-ticket-bot/main
 | Переменная                  | Назначение                                                 | По умолчанию          |
 | --------------------------- | ---------------------------------------------------------- | --------------------- |
 | `WEB_DASHBOARD_PORT`        | Порт веб-дашборда                                          | `8080`                |
-| `WEB_DASHBOARD_API_KEY`     | API-ключ для дашборда                                      | генерируется          |
 | `REDIS_PASSWORD`            | Пароль Redis                                               | генерируется          |
 | `SENTRY_DSN`                | Sentry DSN для отслеживания ошибок                         | _(пусто — отключено)_ |
 | `NTFY_TOPIC_URL`            | NTFY-топик для push-уведомлений                            | _(пусто — отключено)_ |

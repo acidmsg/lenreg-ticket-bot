@@ -289,6 +289,33 @@ svg.icon {
   max-width: 0;
 }
 
+/* ── Sidebar: группы навигации (UX-6) ───────────────────────── */
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0.75rem;
+  flex-shrink: 0;
+}
+
+.sidebar__group-title {
+  padding: 0 0.75rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  opacity: 0.65;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Свёрнутый сайдбар: подписи групп и чипа скрыты, остаются только иконки */
+.sidebar--collapsed .sidebar__group-title,
+.sidebar--collapsed .sidebar__chip-text {
+  display: none;
+}
+
 /* ── Sidebar Toggle (кнопка сворачивания) ────────────────────── */
 .sidebar__toggle {
   display: flex;
@@ -317,6 +344,46 @@ svg.icon {
 
 .sidebar--collapsed .sidebar__toggle-icon {
   transform: rotate(180deg);
+}
+
+/* ── Sidebar: футер с внешней ссылкой (UX-6) ─────────────────── */
+.sidebar__footer {
+  flex-shrink: 0;
+  padding: 0.5rem;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.sidebar__chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.sidebar__chip svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar__chip:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+  text-decoration: none;
+}
+
+.sidebar__chip-text {
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 /* ── Hamburger (мобильная кнопка меню) ───────────────────────── */
@@ -897,6 +964,12 @@ h2 {
     display: flex;
   }
 
+  /* Мобильный сайдбар всегда развёрнут: подписи групп и чипа на месте */
+  .sidebar--collapsed .sidebar__group-title,
+  .sidebar--collapsed .sidebar__chip-text {
+    display: block;
+  }
+
   /* Футер на полную ширину */
   .footer {
     grid-column: 1;
@@ -1127,4 +1200,61 @@ h2 {
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-size: 13px;
+}
+
+/* Табы журнала событий (UX-1) */
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.tab {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.tab--active {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+/* Предупреждение рядом с индикатором (UX-4) */
+.inline-alert {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-border-strong);
+  font-size: 13px;
+}
+
+.inline-alert--warn {
+  border-left-color: #b8860b;
+}
+
+.inline-alert--err {
+  border-left-color: #b22222;
+}
+
+/* Бейдж неподтверждённых событий: виден и в свёрнутом сайдбаре (UX-6) */
+.sidebar__badge {
+  margin-left: 6px;
+  flex: 0 0 auto;
+}
+
+.sidebar--collapsed .sidebar__badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  margin: 0;
+}
+
+/* Статичный чип (ссылка недоступна снаружи) */
+.sidebar__chip--static {
+  cursor: default;
 }

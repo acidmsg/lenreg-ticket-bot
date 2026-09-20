@@ -1,14 +1,7 @@
-{% extends "base.html" %} {% block title %}Настройки безопасности — LenReg Ticket Bot{% endblock %}
+{% extends "base.html" %} {% block title %}Настройки — LenReg Ticket Bot{% endblock %}
 {% block content %}
 <style>
-  /* ── Страница настроек — центрированная карточка ── */
-  .auth-page {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 10rem);
-  }
-
+  /* ── Вкладка «Аккаунт» — центрированная карточка ── */
   .auth-card {
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border-strong);
@@ -16,6 +9,7 @@
     padding: var(--space-3xl);
     width: 100%;
     max-width: 440px;
+    margin: 0 auto;
   }
 
   .auth-card__title {
@@ -100,61 +94,68 @@
   }
 
   @media (width <= 768px) {
-    .auth-page {
-      min-height: calc(100vh - 14rem);
-      padding: var(--space-md);
-    }
-
     .auth-card {
       padding: var(--space-xl);
     }
   }
 </style>
 
-<div class="auth-page">
-  <div class="auth-card">
-    <h1 class="auth-card__title">Настройки безопасности</h1>
-    <form id="settings-form" class="auth-form">
-      <div class="auth-form__field">
-        <label for="current-username">Текущий логин</label>
-        <input type="text" id="current-username" value="{{ username }}" readonly />
-      </div>
-      <div class="auth-form__field">
-        <label for="new-username">Новый логин</label>
-        <input
-          type="text"
-          id="new-username"
-          name="new_username"
-          placeholder="Оставьте пустым, чтобы не менять"
-          autocomplete="username"
-        />
-      </div>
-      <div class="auth-form__field">
-        <label for="old-password">Текущий пароль</label>
-        <input
-          type="password"
-          id="old-password"
-          name="old_password"
-          required
-          autocomplete="current-password"
-        />
-      </div>
-      <div class="auth-form__field">
-        <label for="new-password">Новый пароль</label>
-        <input
-          type="password"
-          id="new-password"
-          name="new_password"
-          required
-          autocomplete="new-password"
-        />
-      </div>
-      <div id="settings-msg" class="auth-form__msg hidden"></div>
-      <button type="submit" class="btn btn--primary auth-form__submit">Сохранить</button>
-    </form>
-    <div class="auth-form__links">
-      <a href="/">← Назад к дашборду</a>
+<h1>Настройки</h1>
+
+<nav class="tabs" aria-label="Разделы настроек">
+  {% for value, label in [("account", "Аккаунт"), ("params", "Параметры")] %}
+  <a
+    href="?tab={{ value }}"
+    class="tab {% if active_tab == value %}tab--active{% endif %}"
+    {% if active_tab == value %}aria-current="page"{% endif %}
+    >{{ label }}</a
+  >
+  {% endfor %}
+</nav>
+
+{% if active_tab == 'account' %}
+<div class="auth-card">
+  <h2 class="auth-card__title">Настройки безопасности</h2>
+  <form id="settings-form" class="auth-form">
+    <div class="auth-form__field">
+      <label for="current-username">Текущий логин</label>
+      <input type="text" id="current-username" value="{{ username or '' }}" readonly />
     </div>
+    <div class="auth-form__field">
+      <label for="new-username">Новый логин</label>
+      <input
+        type="text"
+        id="new-username"
+        name="new_username"
+        placeholder="Оставьте пустым, чтобы не менять"
+        autocomplete="username"
+      />
+    </div>
+    <div class="auth-form__field">
+      <label for="old-password">Текущий пароль</label>
+      <input
+        type="password"
+        id="old-password"
+        name="old_password"
+        required
+        autocomplete="current-password"
+      />
+    </div>
+    <div class="auth-form__field">
+      <label for="new-password">Новый пароль</label>
+      <input
+        type="password"
+        id="new-password"
+        name="new_password"
+        required
+        autocomplete="new-password"
+      />
+    </div>
+    <div id="settings-msg" class="auth-form__msg hidden"></div>
+    <button type="submit" class="btn btn--primary auth-form__submit">Сохранить</button>
+  </form>
+  <div class="auth-form__links">
+    <a href="/">← Назад к дашборду</a>
   </div>
 </div>
 
@@ -194,4 +195,103 @@
     }
   });
 </script>
-{% endblock %}
+{% endif %} {% if active_tab == 'params' %}
+<p class="text-muted">
+  Всего параметров: {{ params_total }}. Приоритет источников:
+  <strong>{{ resolution_order }}</strong> — значение из БД перекрывает
+  <code>.env</code>, runtime перечитывает его в своём цикле. Изменения
+  записываются в журнал действий.
+</p>
+
+{% for group, params in groups.items() %}
+<div class="card">
+  <h2>{{ group }}</h2>
+
+  <div class="dg-table" role="table" aria-label="Параметры: {{ group }}">
+    <div class="dg-header" role="rowgroup">
+      <div class="dg-cell" role="columnheader">Параметр</div>
+      <div class="dg-cell" role="columnheader">Значение</div>
+      <div class="dg-cell" role="columnheader">Источник</div>
+      <div class="dg-cell" role="columnheader">Применение</div>
+      <div class="dg-cell" role="columnheader">Изменить</div>
+    </div>
+    <div class="dg-tbody" role="rowgroup">
+      {% for param in params %}
+      <div class="dg-row" role="row" data-param-row="{{ param.key }}">
+        <div class="dg-cell" role="cell" data-label="Параметр">
+          <strong>{{ param.title }}</strong>
+          {% if param.danger %}
+          <span class="badge badge-err" title="Опасный параметр">опасный</span>
+          {% endif %}
+          <div class="text-muted">{{ param.description }}</div>
+          <div class="text-muted"><code>{{ param.key }}</code></div>
+        </div>
+        <div class="dg-cell" role="cell" data-label="Значение">
+          <code data-param-value="{{ param.key }}">{{ param.value }}</code>
+          {% if param.kind in ('int', 'float') and param.min_value is not none %}
+          <div class="text-muted">
+            диапазон: {{ param.min_value }}…{{ param.max_value }}
+          </div>
+          {% endif %}
+          {% if param.choices %}
+          <div class="text-muted">
+            варианты: {{ param.choices|join(', ') }}
+          </div>
+          {% endif %}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Источник">
+          <span
+            class="badge {% if param.source == 'БД' %}badge-ok{% endif %}"
+            data-param-source="{{ param.key }}"
+          >
+            {{ param.source }}
+          </span>
+          {% if param.overridden %}
+          <div class="text-muted">переопределено в БД</div>
+          {% endif %}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Применение">
+          {{ param.apply_label }}
+        </div>
+        <div class="dg-cell" role="cell" data-label="Изменить">
+          <form class="param-form" data-param-key="{{ param.key }}">
+            {% if param.secret %}
+            <input
+              type="password"
+              name="value"
+              value=""
+              placeholder="новое значение секрета"
+              autocomplete="new-password"
+              aria-label="Новое значение {{ param.key }}"
+            />
+            {% else %}
+            <input
+              type="text"
+              name="value"
+              value="{{ param.value }}"
+              aria-label="Новое значение {{ param.key }}"
+            />
+            {% endif %}
+            <button type="submit" class="btn">Сохранить</button>
+          </form>
+          <div class="text-muted" data-param-status="{{ param.key }}"></div>
+        </div>
+      </div>
+      {% if param.warnings %}
+      <div class="dg-row" role="row">
+        <div class="dg-cell" role="cell" data-label="Предупреждения">
+          <ul class="param-warnings">
+            {% for warning in param.warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endif %} {% endfor %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script src="/static/params.js"></script>
+{% endif %} {% endblock %}

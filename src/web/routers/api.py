@@ -8,9 +8,10 @@ import csv
 import io
 import time
 from typing import Any
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from src.services.audit import actor_from_request, log_action
 from src.services.doctor_discovery import trigger_force_scan
@@ -23,7 +24,11 @@ from src.services.params import (
 from src.services.search import search_all
 from src.services.tools import TOOLS, run_tool, tool_view
 from src.services.user_actions import ACTIONS, action_view, run_action
-from src.web.routers._shared import get_clinics_data, get_summary_data, get_users_data
+from src.web.routers._shared import (
+    get_summary_data,
+    get_users_data,
+    parse_positive_int,
+)
 
 router = APIRouter()
 
@@ -37,6 +42,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
     data = await get_summary_data(db, pm)
     stats = data["stats"]
     recent_alerts = data["recent_alerts"]
+    telegram = data["telegram"]
 
     # Форматируем алерты
     alerts = []
@@ -71,94 +77,31 @@ async def api_summary(request: Request) -> dict[str, Any]:
             "total_errors": data["errors_total"],
             "availability_pct": data["availability"],
         },
+        "telegram_status": {
+            "accessible": telegram["api_ok"],
+            "mode": telegram["mode"],
+            "mode_label": telegram["mode_label"],
+            "last_check_seconds_ago": telegram["last_check_seconds_ago"],
+            "latency_ms": telegram["latency_ms"],
+            "queue_depth": telegram["queue_depth"],
+            "queue_peak": telegram["queue_peak"],
+            "rate_limit": telegram["rate_limit"],
+            "sends_total": telegram["sends_total"],
+            "send_errors_total": telegram["send_errors_total"],
+            "retry_after_total": telegram["retry_after_total"],
+            # Готовые строки для фолбэка живого обновления: форматирование живёт
+            # в telegram_health, а не дублируется в JS (как mode_label выше).
+            "api_health": telegram["api_health"],
+            "last_check": telegram["last_check"],
+            "latency": telegram["latency"],
+            "queue": telegram["queue"],
+            "sends": telegram["sends"],
+            "retry_after": telegram["retry_after"],
+        },
         "background_tasks": {
             task["name"]: task["health"] for task in data["background_tasks"]
         },
         "recent_alerts": alerts,
-    }
-
-
-@router.get("/dashboard/users")
-async def api_users(request: Request) -> dict[str, Any]:
-    """JSON-список пользователей."""
-    db = request.app.state.db
-    users = get_users_data(db)
-    return {"users": users, "total": len(users)}
-
-
-@router.get("/dashboard/users/{uid}", response_model=None)
-async def api_user_detail(request: Request, uid: str) -> dict[str, Any] | JSONResponse:
-    """JSON-детали пользователя."""
-    db = request.app.state.db
-    db_data = db.data
-
-    user_info = db_data.get(uid)
-    if user_info is None:
-        return JSONResponse(
-            status_code=404,
-            content={"detail": f"Пользователь {uid} не найден"},
-        )
-
-    return {
-        "uid": uid,
-        "patients": user_info.get("patients", {}),
-        "monitoring": user_info.get("monitoring", {}),
-        "last_messages": user_info.get("last_messages", {}),
-    }
-
-
-@router.get("/dashboard/logs")
-async def api_logs(
-    request: Request,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    uid: str | None = Query(None),
-    status: str | None = Query(None),
-) -> dict[str, Any]:
-    """JSON-лог мониторинга с пагинацией."""
-    db = request.app.state.db
-    logs = await db.get_all_monitoring_logs(
-        limit=limit, offset=offset, uid=uid, status=status
-    )
-    total = await db.get_all_monitoring_logs_count(uid=uid, status=status)
-    return {"logs": logs, "total": total, "offset": offset, "limit": limit}
-
-
-@router.get("/dashboard/clinics")
-async def api_clinics(request: Request) -> dict[str, Any]:
-    """JSON-список клиник."""
-    db = request.app.state.db
-    clinics = await get_clinics_data(db)
-    return {"clinics": clinics, "total": len(clinics)}
-
-
-@router.get("/dashboard/health")
-async def api_dashboard_health(request: Request) -> dict[str, Any]:
-    """JSON-статус здоровья API."""
-    from src.services.healthcheck import metrics as health_metrics
-    from src.services.healthcheck import metrics_lock
-
-    async with metrics_lock:
-        api_ok = health_metrics.last_api_ok
-        last_check = health_metrics.last_api_check_time
-        check_duration = health_metrics.last_check_duration
-        checks_total = health_metrics.api_checks_total
-        errors_total = health_metrics.api_errors_total
-
-    seconds_ago = int(time.time() - last_check) if last_check else 0
-    availability = 0.0
-    if checks_total > 0:
-        availability = round((checks_total - errors_total) / checks_total * 100, 2)
-
-    return {
-        "api_accessible": api_ok,
-        "last_check_seconds_ago": seconds_ago,
-        "last_check_duration": check_duration,
-        "total_checks": checks_total,
-        "total_errors": errors_total,
-        "availability_pct": availability,
-        "schema_status": {},
-        "schema_drift_details": {},
     }
 
 
@@ -346,79 +289,21 @@ async def ack_alerts(request: Request) -> dict[str, Any]:
 
 
 @router.get("/alerts/export.csv")
-async def export_alerts_csv(
-    request: Request,
-    uid: str | None = None,
-    status: str | None = None,
-    ack_status: str | None = None,
-    days: int | None = Query(None, ge=1, le=365),
-) -> Response:
-    """Выгружает алерты в CSV с теми же фильтрами, что и страница."""
-    db = request.app.state.db
-    now = time.time()
-    since = now - days * 86400 if days else None
+async def alerts_export_redirect(request: Request) -> RedirectResponse:
+    """Старый адрес выгрузки алертов: журнал событий теперь выгружается целиком.
 
-    alerts = await db.list_alerts(
-        limit=10000,
-        offset=0,
-        uid=uid,
-        status=status,
-        ack_status=ack_status,
-        since=since,
+    Держим 302, чтобы внешние выгрузки не падали на 404: фильтр ``ack_status``
+    переносится в параметр ``state`` нового адреса.
+    """
+    params = dict(request.query_params)
+    ack = params.pop("ack_status", None)
+    if ack:
+        params.setdefault("state", ack)
+    query = urlencode(params)
+    target = "/api/dashboard/export/logs.csv"
+    return RedirectResponse(
+        url=f"{target}?{query}" if query else target, status_code=302
     )
-
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(
-        [
-            "id",
-            "время",
-            "uid",
-            "пациент",
-            "врач",
-            "специальность",
-            "клиника",
-            "дата слота",
-            "событие",
-            "состояние",
-            "подтвердил",
-        ]
-    )
-    for alert in alerts:
-        writer.writerow(
-            [
-                alert["id"],
-                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(alert["ts"])),
-                _csv_safe(alert["uid"]),
-                _csv_safe(alert["patient_name"]),
-                _csv_safe(alert["doctor_name"]),
-                _csv_safe(alert["specialty"]),
-                _csv_safe(alert["clinic_name"]),
-                _csv_safe(alert["slot_date"]),
-                _csv_safe(alert["status"]),
-                _csv_safe(alert.get("ack_status", "new")),
-                _csv_safe(alert.get("acked_by", "")),
-            ]
-        )
-
-    # BOM: без него Excel на Windows читает кириллицу в неверной кодировке.
-    csv_body = "\ufeff" + buffer.getvalue()
-    await log_action(
-        db,
-        actor_from_request(request),
-        "alerts_export",
-        target=f"rows={len(alerts)}",
-    )
-    return Response(
-        content=csv_body,
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": 'attachment; filename="alerts.csv"',
-        },
-    )
-
-
-# ── Поиск и экспорт (DASH-9) ────────────────────────────────
 
 
 @router.get("/dashboard/search")
@@ -452,23 +337,64 @@ async def api_export_users(request: Request) -> Response:
 
 
 @router.get("/dashboard/export/logs.csv")
-async def api_export_logs(request: Request) -> Response:
-    """Выгрузка журнала мониторинга: последние LOGS_EXPORT_LIMIT записей."""
+async def api_export_logs(
+    request: Request,
+    uid: str | None = None,
+    status: str | None = None,
+    state: str = "all",
+    days: str | None = None,
+) -> Response:
+    """Выгрузка журнала событий: последние LOGS_EXPORT_LIMIT записей.
+
+    Фильтры совпадают со страницей журнала: пользователь, тип события, таб
+    состояния и период. Отдельная выгрузка алертов больше не нужна — это тот
+    же журнал, только под другим фильтром.
+    """
     db = request.app.state.db
-    entries = await db.get_all_monitoring_logs(limit=LOGS_EXPORT_LIMIT, offset=0)
-    rows = [["время", "uid", "пациент", "врач", "специальность", "клиника", "событие"]]
+    ack_status = state if state in ("new", "acked", "resolved") else None
+    days_value = parse_positive_int(days)
+    since = time.time() - days_value * 86400 if days_value else None
+
+    entries = await db.list_alerts(
+        limit=LOGS_EXPORT_LIMIT,
+        offset=0,
+        uid=uid,
+        status=status,
+        ack_status=ack_status,
+        since=since,
+    )
+    rows: list[list[str]] = [
+        [
+            "id",
+            "время",
+            "uid",
+            "пациент",
+            "врач",
+            "специальность",
+            "клиника",
+            "дата слота",
+            "событие",
+            "состояние",
+            "подтвердил",
+        ]
+    ]
     for entry in entries:
         rows.append(
             [
-                _csv_safe(entry.get("ts", "")),
-                _csv_safe(entry.get("uid", "")),
-                _csv_safe(entry.get("patient_name", "")),
-                _csv_safe(entry.get("doctor_name", "")),
-                _csv_safe(entry.get("specialty", "")),
-                _csv_safe(entry.get("clinic_name", "")),
-                _csv_safe(entry.get("status", "")),
+                _csv_safe(entry["id"]),
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry["ts"])),
+                _csv_safe(entry["uid"]),
+                _csv_safe(entry["patient_name"]),
+                _csv_safe(entry["doctor_name"]),
+                _csv_safe(entry["specialty"]),
+                _csv_safe(entry["clinic_name"]),
+                _csv_safe(entry["slot_date"]),
+                _csv_safe(entry["status"]),
+                _csv_safe(entry.get("ack_status", "new")),
+                _csv_safe(entry.get("acked_by", "")),
             ]
         )
+
     await log_action(
         db,
         actor_from_request(request),

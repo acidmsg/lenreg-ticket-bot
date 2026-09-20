@@ -95,7 +95,7 @@ def create_app(
     app = FastAPI(
         title="LenReg Ticket Bot Dashboard",
         description="Веб-дашборд мониторинга zdrav.lenreg.ru",
-        version="1.0.0",
+        version="1.4.0",
         lifespan=lifespan,
     )
 
@@ -121,15 +121,6 @@ def create_app(
         password_hash=password_hash,
         secret=config.WEB_DASHBOARD_SECRET_KEY,
     )
-
-    # APIKeyMiddleware (старая защита по ключу) — закомментирован,
-    # т.к. теперь все API-эндпоинты защищены SessionAuthMiddleware.
-    # from src.web.auth import APIKeyMiddleware
-    # if config.WEB_DASHBOARD_API_KEY:
-    #     logger.info("APIKeyMiddleware: включен (API-ключ задан)")
-    #     app.add_middleware(APIKeyMiddleware, api_key=config.WEB_DASHBOARD_API_KEY)
-    # else:
-    #     logger.debug("APIKeyMiddleware: отключен (API-ключ не задан)")
 
     # Middleware аутентификации Mini App (initData) — только для /api/user/*
     if config.MINI_APP_ENABLED:

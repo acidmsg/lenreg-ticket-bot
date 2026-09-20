@@ -72,10 +72,6 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>Фоновые задачи</h2>
-    <div id="live-tasks">{% include "_background_tasks.html" %}</div>
-  </div>
 
   <div class="card">
     <h2>API zdrav.lenreg.ru</h2>
@@ -104,17 +100,48 @@
   </div>
 
   <div class="card">
-    <h2>Следующий скан</h2>
-    {% if next_scan_in is not none %}
-    <p class="info-value" data-live="next-scan">
-      примерно через {{ next_scan_in }} с
-    </p>
-    <p class="text-muted">Оценка по интервалу задачи мониторинга с джиттером.</p>
-    {% else %}
+    <h2>Telegram-бот</h2>
+    <div class="info-grid">
+      <div class="info-label">Получение обновлений</div>
+      <div class="info-value" data-live="tg_mode">{{ telegram.mode_label }}</div>
+      <div class="info-label">Bot API</div>
+      <div class="info-value">
+        <span
+          id="live-tg-badge"
+          class="badge {% if telegram.api_ok %}badge-ok{% else %}badge-err{% endif %}"
+          >{{ telegram.api_health }}</span
+        >
+      </div>
+      <div class="info-label">Последняя проверка</div>
+      <div class="info-value" data-live="tg_api_last_check">
+        {{ telegram.last_check }}
+      </div>
+      <div class="info-label">Задержка ответа</div>
+      <div class="info-value" data-live="tg_api_latency">
+        {{ telegram.latency }}
+      </div>
+      <div class="info-label">Очередь отправки</div>
+      <div class="info-value" data-live="tg_queue">{{ telegram.queue }}</div>
+      <div class="info-label">Лимит отправки</div>
+      <div class="info-value">{{ telegram.rate }}</div>
+      <div class="info-label">Отправлено / ошибок</div>
+      <div class="info-value" data-live="tg_sends">{{ telegram.sends }}</div>
+      <div class="info-label">Пауз по лимиту (429)</div>
+      <div class="info-value" data-live="tg_retry_after">
+        {{ telegram.retry_after }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Планировщик</h2>
+    <p class="info-value" data-live="planner">{{ planner_status }}</p>
     <p class="text-muted">
-      Задача мониторинга ещё не запускалась — время до скана неизвестно.
+      {% if next_scan_in is not none %}Следующий скан примерно через
+      {{ next_scan_in }} с.{% else %}Скан ещё не запускался — время
+      неизвестно.{% endif %} Расписания и состояние задач —
+      на странице <a href="/system">«Система»</a>.
     </p>
-    {% endif %}
   </div>
 
   <div class="card">
@@ -195,11 +222,6 @@
     <h2>Последние алерты (10)</h2>
     <div id="live-alerts">{% include "_alerts.html" %}</div>
   </div>
-</div>
-
-<div class="card links-bar">
-  <strong>Ссылки:</strong>
-  <a href="/metrics">/metrics (Prometheus)</a>
 </div>
 
 <script>

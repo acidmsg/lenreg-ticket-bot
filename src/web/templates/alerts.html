@@ -70,50 +70,7 @@
   <span class="page-info" id="ack-status"></span>
 </div>
 
-<div class="dg-table dg-table--alerts" role="table" aria-label="Алерты">
-  <div class="dg-header" role="rowgroup">
-    <div class="dg-cell" role="columnheader">✓</div>
-    <div class="dg-cell" role="columnheader">Время</div>
-    <div class="dg-cell" role="columnheader">Пациент</div>
-    <div class="dg-cell" role="columnheader">Врач</div>
-    <div class="dg-cell" role="columnheader">Специальность</div>
-    <div class="dg-cell" role="columnheader">Событие</div>
-    <div class="dg-cell" role="columnheader">Состояние</div>
-  </div>
-  <div class="dg-tbody" role="rowgroup">
-    {% for alert in alerts %}
-    <div class="dg-row" role="row">
-      <div class="dg-cell" role="cell" data-label="Выбор">
-        <input type="checkbox" class="alert-check" value="{{ alert.id }}" />
-      </div>
-      <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
-        {{ alert.ts|int|strftime }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Пациент">
-        {{ alert.patient_name }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Врач">
-        {{ alert.doctor_name }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Специальность">
-        {{ alert.specialty }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Событие">
-        {{ macros.status_badge(alert.status) }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Состояние">
-        {% if alert.ack_status == 'new' %}
-        <span class="badge badge-warn">новый</span>
-        {% elif alert.ack_status == 'resolved' %}
-        <span class="badge badge-info">разобран</span>
-        {% else %}
-        <span class="badge badge-ok">подтверждён</span>
-        {% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
+{{ macros.alerts_table(alerts, true, "Алертов нет") }}
 
 <div class="pagination">
   {% if offset > 0 %} {% set prev_offset = offset - limit if offset >= limit

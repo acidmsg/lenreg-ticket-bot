@@ -27,19 +27,9 @@ let restoreFilename = null;
 /**
  * API-клиент дашборда (страница /backups).
  *
- * Аутентификация: через заголовок X-API-Key.
+ * Аутентификация: сессионная cookie дашборда (тот же origin).
  * Отдельная реализация от api.js (Mini App), т.к. механизм аутентификации разный.
  */
-
-/**
- * Читает API-ключ из meta-тега, установленного сервером.
- *
- * @returns {string|null}
- */
-function getApiKey() {
-  const meta = document.querySelector('meta[name="x-api-key"]');
-  return meta ? meta.getAttribute("content") : null;
-}
 
 /**
  * Таймаут для fetch-запросов (мс). Предотвращает бесконечное зависание
@@ -60,11 +50,6 @@ async function apiFetch(path, options = {}) {
     "X-Requested-With": "XMLHttpRequest",
     ...(options.headers || {}),
   };
-
-  const apiKey = getApiKey();
-  if (apiKey) {
-    headers["X-API-Key"] = apiKey;
-  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

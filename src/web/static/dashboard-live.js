@@ -48,6 +48,18 @@
     badge.classList.toggle("badge-err", !ok);
   }
 
+  // Бейдж здоровья Telegram-шлюза (UX-7): тот же приём, что у API.
+  function patchTgBadge(flags, display) {
+    const badge = document.getElementById("live-tg-badge");
+    if (!badge) return;
+    if (display && display.tg_api_health) {
+      badge.textContent = display.tg_api_health;
+    }
+    const ok = !!(flags && flags.tg_api_ok);
+    badge.classList.toggle("badge-ok", ok);
+    badge.classList.toggle("badge-err", !ok);
+  }
+
   // Форматирует значение с суффиксом; null/undefined — не трогаем DOM.
   function withSuffix(value, suffix) {
     if (value === undefined || value === null) return null;
@@ -65,7 +77,7 @@
     if (payload.interval) interval = payload.interval;
     patchDisplay(payload.display);
     patchApiBadge(payload.flags, payload.display);
-    patchHtml("live-tasks", payload.tasks_html);
+    patchTgBadge(payload.flags, payload.display);
     patchHtml("live-alerts", payload.alerts_html);
     setState("live", "live");
   }
@@ -78,6 +90,7 @@
       if (!resp.ok) throw new Error(String(resp.status));
       const data = await resp.json();
       const api = data.api_status || {};
+      const tg = data.telegram_status || {};
       // JSON API отдаёт числа и секунды — приводим к тем же строкам, что в SSE.
       patchDisplay({
         uptime: data.uptime,
@@ -90,10 +103,20 @@
         api_errors: api.total_errors,
         api_availability: withSuffix(api.availability_pct, " %"),
         api_last_check: withSuffix(api.last_check_seconds_ago, " с назад"),
+        tg_mode: tg.mode_label,
+        tg_api_last_check: tg.last_check,
+        tg_api_latency: tg.latency,
+        tg_queue: tg.queue,
+        tg_sends: tg.sends,
+        tg_retry_after: tg.retry_after,
       });
       patchApiBadge(
         { api_ok: !!api.accessible },
         { api_health: api.accessible ? "Доступен" : "Недоступен" },
+      );
+      patchTgBadge(
+        { tg_api_ok: !!tg.accessible },
+        { tg_api_health: tg.api_health },
       );
       lastTs = Date.now();
       setState("polling", "опрос (SSE недоступен)");

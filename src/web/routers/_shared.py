@@ -12,6 +12,7 @@ from src.config import settings
 from src.services.background import describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics_module
 from src.services.healthcheck import metrics_lock
+from src.services.telegram_health import telegram_health
 
 
 async def get_summary_data(
@@ -62,6 +63,7 @@ async def get_summary_data(
         "availability": availability,
         "doctors_discovered": doctors_discovered,
         "doctors_last_scan": doctors_last_scan,
+        "telegram": telegram_health.snapshot(),
     }
 
 
@@ -140,6 +142,72 @@ def render_partial(templates: Any, name: str, **context: Any) -> str:
     return env.get_template(name).render(**ctx)
 
 
+def next_scan_seconds(
+    background_tasks: list[dict[str, Any]] | None,
+) -> int | None:
+    """Сколько секунд до следующего скана врачей.
+
+    Считается по периоду задачи мониторинга (интервал плюс джиттер) минус
+    время с прошлого запуска. ``None`` — задача ещё не запускалась.
+
+    Args:
+        background_tasks: Статусы задач из ``describe_background_tasks``.
+
+    Returns:
+        Секунды до следующего скана либо ``None``.
+    """
+    if not background_tasks:
+        return None
+    monitor = next(
+        (task for task in background_tasks if task.get("name") == "monitor"), None
+    )
+    if not monitor or monitor.get("last_run_ago") is None:
+        return None
+    period = int(monitor.get("period") or 0)
+    if period <= 0:
+        return None
+    return max(0, period - int(monitor["last_run_ago"]))
+
+
+def planner_status(background_tasks: list[dict[str, Any]]) -> str:
+    """Короткая строка о фоновых задачах для сводки.
+
+    Полный виджет живёт на странице «Система»; сводка показывает одну строку,
+    чтобы не дублировать таблицу задач.
+    """
+    if not background_tasks:
+        return "задачи не зарегистрированы"
+    broken = [
+        task
+        for task in background_tasks
+        if not task.get("alive") or task.get("health") not in (None, "ok")
+    ]
+    if broken:
+        return f"задач: {len(background_tasks)}, проблемных: {len(broken)}"
+    return f"задач: {len(background_tasks)}, всё в порядке"
+
+
+def parse_positive_int(value: str | None, *, maximum: int = 365) -> int | None:
+    """Разбирает числовой параметр формы.
+
+    Селект «весь период» отправляет пустую строку, а не отсутствие параметра,
+    поэтому пустое и мусорное значение приводим к ``None`` — иначе FastAPI
+    отвечает 422 на обычную отправку формы.
+
+    Returns:
+        Положительное число в пределах ``maximum`` либо ``None``.
+    """
+    if not value:
+        return None
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    if number < 1 or number > maximum:
+        return None
+    return number
+
+
 def _format_ts_hms(ts: int) -> str:
     """Форматирует Unix-время в ЧЧ:ММ:СС (пустая строка для отсутствующего)."""
     if not ts:
@@ -160,6 +228,7 @@ async def build_live_payload(
     """
     data = await get_summary_data(db, prometheus_metrics)
     stats = data["stats"]
+    telegram = data["telegram"]
 
     async with metrics_lock:
         api_health = health_metrics_module.api_health_str()
@@ -183,13 +252,16 @@ async def build_live_payload(
             "api_errors": str(data["errors_total"]),
             "api_availability": f"{data['availability']} %",
             "notifications": str(data["notifications_sent"]),
+            "planner": planner_status(data.get("background_tasks") or []),
+            "tg_mode": telegram["mode_label"],
+            "tg_api_health": telegram["api_health"],
+            "tg_api_last_check": telegram["last_check"],
+            "tg_api_latency": telegram["latency"],
+            "tg_queue": telegram["queue"],
+            "tg_sends": telegram["sends"],
+            "tg_retry_after": telegram["retry_after"],
         },
-        "flags": {"api_ok": bool(data["api_ok"])},
-        "tasks_html": render_partial(
-            templates,
-            "_background_tasks.html",
-            background_tasks=data["background_tasks"],
-        ),
+        "flags": {"api_ok": bool(data["api_ok"]), "tg_api_ok": telegram["api_ok"]},
         "alerts_html": render_partial(
             templates, "_alerts.html", recent_alerts=data["recent_alerts"]
         ),

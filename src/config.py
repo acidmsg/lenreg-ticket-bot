@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     CHECK_INTERVAL: int = 300
     DISCOVERY_INTERVAL: int = 1800  # 30 минут
 
+    # Интервал проверки здоровья Telegram-шлюза (UX-7): пинг Bot API
+    # дешёвым getWebhookInfo, минуты. 60 с — состояние на сводке свежее
+    # пятиминутного healthcheck внешнего API.
+    TELEGRAM_HEALTH_INTERVAL: int = 60
+
     # Таймаут запросов к API
     API_TIMEOUT: float = 10.0
 
@@ -198,7 +203,6 @@ class Settings(BaseSettings):
     # === Web Dashboard (F5) ===
     WEB_DASHBOARD_ENABLED: bool = True
     WEB_DASHBOARD_PORT: int = 8080
-    WEB_DASHBOARD_API_KEY: str = ""
     # Интервал обновления живых данных дашборда (SSE), секунды
     DASHBOARD_STREAM_INTERVAL: int = 10
 

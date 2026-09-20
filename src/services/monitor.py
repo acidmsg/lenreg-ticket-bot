@@ -16,6 +16,11 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
 from src.i18n import _
+from src.services.telegram_health import (
+    TELEGRAM_SEND_RATE_LIMIT,
+    TELEGRAM_SEND_RATE_PERIOD,
+    telegram_health,
+)
 from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
     format_notification_text,
@@ -27,8 +32,8 @@ from src.utils.telegram_utils import send_or_update_message
 
 # ── Rate limiter уведомлений Telegram (per-loop) ──────────────────────
 # Telegram Bot API: ≤ 25 сообщений/сек суммарно — параметры лимита сохраняются.
-_TELEGRAM_MAX_RATE = 25.0
-_TELEGRAM_TIME_PERIOD = 1.0
+_TELEGRAM_MAX_RATE = TELEGRAM_SEND_RATE_LIMIT
+_TELEGRAM_TIME_PERIOD = TELEGRAM_SEND_RATE_PERIOD
 
 # Реестр лимитеров по event loop'у. Ключ — сам loop (не id): id переиспользуется
 # после сборки мусора, что привело бы к ложному попаданию в чужой лимитер.
@@ -93,29 +98,15 @@ async def _send_telegram_safe(
     - Перехватывает ``TelegramRetryAfter`` (429), ждёт ``retry_after``
       и повторяет отправку один раз.
     - Логирует все ошибки отправки.
+    - Пишет результат в :data:`~src.services.telegram_health.telegram_health`:
+      глубина очереди, успешные/неудачные отправки, паузы по 429 (UX-7).
 
     Returns:
         True если отправка успешна, False при ошибке.
     """
-    async with _get_telegram_limiter():
-        try:
-            await send_or_update_message(
-                bot,
-                chat_id,
-                db,
-                p_id,
-                d_id,
-                text,
-                photo_path=photo_path,
-            )
-            return True
-        except tg_exceptions.TelegramRetryAfter as e:
-            logger.warning(
-                "Telegram 429: retry after {:.1f}s for chat {}",
-                e.retry_after,
-                chat_id,
-            )
-            await asyncio.sleep(e.retry_after)
+    telegram_health.queue_enter()
+    try:
+        async with _get_telegram_limiter():
             try:
                 await send_or_update_message(
                     bot,
@@ -126,23 +117,47 @@ async def _send_telegram_safe(
                     text,
                     photo_path=photo_path,
                 )
-                return True
-            except Exception as e2:
-                logger.error(
-                    "Telegram retry failed for chat {}: {}",
+            except tg_exceptions.TelegramRetryAfter as e:
+                logger.warning(
+                    "Telegram 429: retry after {:.1f}s for chat {}",
+                    e.retry_after,
                     chat_id,
-                    e2,
+                )
+                telegram_health.record_retry_after(e.retry_after)
+                await asyncio.sleep(e.retry_after)
+                try:
+                    await send_or_update_message(
+                        bot,
+                        chat_id,
+                        db,
+                        p_id,
+                        d_id,
+                        text,
+                        photo_path=photo_path,
+                    )
+                except Exception as e2:
+                    logger.error(
+                        "Telegram retry failed for chat {}: {}",
+                        chat_id,
+                        e2,
+                        exc_info=True,
+                    )
+                    telegram_health.record_send_error()
+                    return False
+            except Exception as e:
+                logger.error(
+                    "Telegram send failed for chat {}: {}",
+                    chat_id,
+                    e,
                     exc_info=True,
                 )
+                telegram_health.record_send_error()
                 return False
-        except Exception as e:
-            logger.error(
-                "Telegram send failed for chat {}: {}",
-                chat_id,
-                e,
-                exc_info=True,
-            )
-            return False
+
+        telegram_health.record_send_ok()
+        return True
+    finally:
+        telegram_health.queue_exit()
 
 
 def _parse_specific_dates(monitoring_entry: MonitoringEntry) -> list[str]:

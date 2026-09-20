@@ -1,6 +1,6 @@
 <!-- htmlhint-disable doctype-first -->
-{# Секция фоновых задач — переиспользуется в summary.html и api_status.html.
-   Статус берётся из BackgroundTaskManager (единственный источник правды). #}
+{# Секция фоновых задач — каноническое место на странице «Система»
+   (блок «Планировщик», UX-3). Статус берётся из BackgroundTaskManager. #}
 <div class="info-grid">
   {% if background_tasks %} {% for task in background_tasks %} {{
   macros.background_task_row(task) }} {% endfor %} {% else %}

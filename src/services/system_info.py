@@ -194,6 +194,28 @@ def backups_snapshot(backup_dir: str | Path) -> dict[str, Any]:
     }
 
 
+def backups_reason(backups: dict[str, Any]) -> str | None:
+    """Причина нештатного состояния бэкапов — одна строка для «Системы».
+
+    Подробности живут на странице «Бэкапы»; здесь нужно, чтобы индикатор не
+    оставался без объяснения.
+
+    Returns:
+        Текст причины либо ``None``, если состояние в норме.
+    """
+    if backups.get("status") != "ok":
+        return "Каталог бэкапов недоступен — проверьте путь и права."
+    if not backups.get("count"):
+        return "Файлов бэкапов нет: у данных нет свежей копии."
+    age = backups.get("newest_age_hours")
+    if age is not None and age > BACKUP_STALE_HOURS:
+        limit = int(BACKUP_STALE_HOURS)
+        return f"Свежий бэкап старше {limit} ч ({age} ч) — проверьте расписание."
+    if (backups.get("total_bytes") or 0) >= BACKUPS_WARN_BYTES:
+        return "Объём бэкапов выше порога — проверьте хранение и ротацию."
+    return None
+
+
 async def redis_snapshot() -> dict[str, Any]:
     """Состояние Redis: подключение и память.
 

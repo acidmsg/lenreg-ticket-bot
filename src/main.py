@@ -46,6 +46,7 @@ from src.services.healthcheck import _healthcheck_iteration
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import _monitor_iteration
+from src.services.telegram_health import check_bot_api
 from src.services.trends import snapshot_hourly
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
@@ -121,6 +122,17 @@ async def _metrics_snapshot_iteration(
     await snapshot_hourly(db, health_metrics, prometheus_metrics, _trend_counters)
 
 
+async def _telegram_health_iteration(bot: Bot) -> None:
+    """Одна итерация: доступность Bot API и режим обновлений (UX-7).
+
+    Недоступность Bot API — наблюдение, а не отказ задачи: итерация не
+    возбуждает исключений, состояние уходит в телеметрию. Поэтому retry-политика
+    здесь не срабатывает — при отказе задача продолжает опрашивать API по
+    расписанию, а не умирает после исчерпания попыток.
+    """
+    await check_bot_api(bot)
+
+
 async def _start_background_tasks(
     bot: Bot, api: ZdravClient, db: DatabaseManager, database: Database
 ) -> BackgroundTaskManager:
@@ -185,6 +197,17 @@ async def _start_background_tasks(
         db=db,
         health_metrics=health_metrics,
         prometheus_metrics=prometheus_metrics,
+    )
+
+    # ── Здоровье Telegram-шлюза (UX-7) ──────────────────────────────
+    # Дешёвый getWebhookInfo: доступность Bot API, задержка и фактический
+    # режим получения обновлений для блока на «Сводке».
+    manager.add(
+        _telegram_health_iteration,
+        name="telegram_health",
+        schedule=ScheduleConfig(interval=settings.TELEGRAM_HEALTH_INTERVAL),
+        retry=RetryConfig(max_retries=3, backoff_min=10.0),
+        bot=bot,
     )
 
     # ── Очистка сообщений ────────────────────────────────────────────

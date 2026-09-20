@@ -68,20 +68,7 @@
 
   <div class="card">
     <h2>Бэкапы</h2>
-    {% if system.backups.status == "ok" %}
     <div class="info-grid">
-      <div class="info-label">Каталог</div>
-      <div class="info-value">{{ system.backups.display }}</div>
-      <div class="info-label">Всего файлов</div>
-      <div class="info-value">{{ system.backups.count }}</div>
-      <div class="info-label">Суммарный объём</div>
-      <div class="info-value">{{ system.backups.total_mb }} МБ</div>
-      <div class="info-label">Свежий бэкап</div>
-      <div class="info-value">
-        {% if system.backups.newest_age_hours is not none %} {{
-        system.backups.newest_age_hours }} ч назад {% else %} файлов нет {%
-        endif %}
-      </div>
       <div class="info-label">Состояние</div>
       <div class="info-value">
         {% if system.backups.level == "ok" %}
@@ -89,20 +76,36 @@
           >{{ macros.icon('check')|safe }} норма</span
         >
         {% elif system.backups.level == "crit" %}
-        <span class="badge badge-err">бэкапов нет</span>
+        <span class="badge badge-err"
+          >{{ macros.icon('cross')|safe }} критично</span
+        >
+        {% elif system.backups.level == "warn" %}
+        <span class="badge badge-warn"
+          >{{ macros.icon('warn')|safe }} внимание</span
+        >
         {% else %}
-        <span class="badge badge-warn">проверить объём/свежесть</span>
+        <span class="badge badge-warn">нет данных</span>
         {% endif %}
       </div>
+      <div class="info-label">Последний бэкап</div>
+      <div class="info-value">
+        {% if system.backups.status != "ok" %}неизвестно {% elif
+        system.backups.newest_age_hours is not none %}{{
+        system.backups.newest_age_hours }} ч назад{% else %}файлов нет{% endif
+        %}
+      </div>
+      <div class="info-label">Подробности</div>
+      <div class="info-value">
+        <a class="btn-link" href="/backups">Все бэкапы и восстановление →</a>
+      </div>
     </div>
-    <div class="info-grid">
-      {% for name, data in system.backups.categories.items() %}
-      <div class="info-label">{{ name }}</div>
-      <div class="info-value">{{ data.count }} шт · {{ data.size_mb }} МБ</div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-muted">Каталог бэкапов недоступен.</p>
+    {% if backups_reason %}
+    <p
+      class="inline-alert{% if system.backups.level == 'crit' or system.backups.status != 'ok' %} inline-alert--err{% else %} inline-alert--warn{% endif %}"
+      role="alert"
+    >
+      {{ backups_reason }}
+    </p>
     {% endif %}
   </div>
 
@@ -164,7 +167,7 @@
   </div>
 
   <div class="card">
-    <h2>Расписания</h2>
+    <h2>Планировщик</h2>
     <div class="info-grid">
       <div class="info-label">Сканирование врачей</div>
       <div class="info-value">
@@ -182,12 +185,87 @@
         system.schedule.retention.monthly }} · manual {{
         system.schedule.retention.manual }}
       </div>
+      <div class="info-label">Следующий скан</div>
+      <div class="info-value">
+        {% if next_scan_in is not none %}примерно через {{ next_scan_in }} с{%
+        else %}задача ещё не запускалась{% endif %}
+      </div>
     </div>
+    <h3>Фоновые задачи</h3>
+    <div class="planner-tasks">{% include "_background_tasks.html" %}</div>
     <p class="text-muted">
       Запуск бэкапов задаётся внешним расписанием на хосте; страница не
       показывает «время до следующего запуска», потому что оно не читается из
       процесса.
     </p>
+  </div>
+  <div class="card">
+    <h2>Внешний API zdrav.lenreg.ru</h2>
+    <div class="info-grid">
+      <div class="info-label">Последняя проверка</div>
+      <div class="info-value">{{ api.seconds_ago }}с назад</div>
+      <div class="info-label">Статус</div>
+      <div class="info-value">
+        {% if api.ok %}
+        <span class="badge badge-ok"
+          >{{ macros.icon('check')|safe }} Доступен</span
+        >
+        {% else %}
+        <span class="badge badge-err"
+          >{{ macros.icon('cross')|safe }} Недоступен</span
+        >
+        {% endif %}
+      </div>
+      <div class="info-label">Длительность</div>
+      <div class="info-value">{{ "%.2f"|format(api.duration) }}с</div>
+      <div class="info-label">Всего проверок</div>
+      <div class="info-value">{{ api.checks_total }}</div>
+      <div class="info-label">Успешных</div>
+      <div class="info-value">{{ api.checks_total - api.errors_total }}</div>
+      <div class="info-label">Ошибок</div>
+      <div class="info-value">{{ api.errors_total }}</div>
+      <div class="info-label">Доступность</div>
+      <div class="info-value">{{ "%.2f"|format(api.availability) }}%</div>
+      <div class="info-label">Последняя ошибка</div>
+      <div class="info-value">{{ api.last_error or '—' }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Схемы API (статические эталоны)</h2>
+    {% if schema_status %}
+    <div class="dg-table dg-table--schemas" role="table" aria-label="Схемы API">
+      <div class="dg-header" role="rowgroup">
+        <div class="dg-cell" role="columnheader">Модель</div>
+        <div class="dg-cell" role="columnheader">Статус</div>
+      </div>
+      <div class="dg-tbody" role="rowgroup">
+        {% for model_name, has_drift in schema_status.items() %}
+        <div class="dg-row" role="row">
+          <div class="dg-cell" role="cell" data-label="Модель">
+            <code>{{ model_name }}</code>
+          </div>
+          <div class="dg-cell" role="cell" data-label="Статус">
+            {% if has_drift %}
+            <span class="badge badge-err"
+              >{{ macros.icon('warn')|safe }} Расхождение</span
+            >
+            {% else %}
+            <span class="badge badge-ok"
+              >{{ macros.icon('check')|safe }} Совпадает</span
+            >
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-muted">
+      Сверка схем API идёт статически: эталон — <code>specs/schemas/</code>,
+      проверка — <code>tests/api/test_schema_drift.py</code>.
+    </p>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

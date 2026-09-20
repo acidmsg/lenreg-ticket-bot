@@ -5,8 +5,10 @@
 - GET  /login          — страница входа (HTML)
 - POST /api/login      — проверка логина/пароля, установка cookie (JSON)
 - POST /api/logout     — удаление сессионного cookie (JSON)
-- GET  /settings       — страница настроек безопасности (HTML, только для auth)
 - POST /api/settings/change-password — смена пароля (JSON)
+
+Страница настроек (``/settings``) живёт в ``routers/pages.py``: это HTML-экран
+с вкладками «Аккаунт» и «Параметры».
 """
 
 import re
@@ -169,23 +171,6 @@ async def api_logout(request: Request) -> JSONResponse:
     response = JSONResponse(content={"success": True})
     response.delete_cookie(COOKIE_NAME)
     return response
-
-
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request) -> HTMLResponse:
-    """
-    Страница настроек безопасности дашборда.
-
-    Доступна только аутентифицированным пользователям
-    (проверка — в SessionAuthMiddleware).
-    """
-    username = getattr(request.state, "dashboard_user", None)
-    templates = cast(Jinja2Templates, request.app.state.templates)
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"username": username},
-    )
 
 
 @router.post("/api/settings/change-password")

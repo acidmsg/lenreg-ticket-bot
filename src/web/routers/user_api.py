@@ -17,7 +17,7 @@ from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from src.config import settings
@@ -1557,60 +1557,6 @@ async def get_bookings_archive(request: Request) -> dict[str, Any]:
     bookings = await db.get_user_bookings_archive(telegram_id)
     serialized = [_serialize_booking(b) for b in bookings]
     return {"bookings": serialized}
-
-
-@router.get("/bookings/{booking_id}/export")
-async def export_booking(
-    request: Request,
-    booking_id: str,
-    format: str = Query(..., description="Формат экспорта: png, pdf, ics"),
-) -> Response:
-    """Экспорт записи в выбранном формате (T-15).
-
-    Args:
-        booking_id: Составной ID записи.
-        format: ``png``, ``pdf`` или ``ics``.
-
-    Returns:
-        Response с соответствующим media_type и Content-Disposition.
-    """
-
-    db = _get_db(request)
-    telegram_id = _get_telegram_id(request)
-
-    # Поиск записи
-    booking = await db.get_booking_by_id(booking_id)
-    if booking is None:
-        return JSONResponse(
-            status_code=404,
-            content={"detail": "Запись не найдена."},
-        )
-
-    # Проверка принадлежности записи пользователю
-    if booking["uid"] != telegram_id:
-        return JSONResponse(
-            status_code=403,
-            content={"detail": "Доступ запрещён."},
-        )
-
-    from src.services.export import ExportUnavailableError, render_export
-
-    try:
-        content, media_type, ext = render_export(booking, format.lower().strip())
-    except ExportUnavailableError as exc:
-        return JSONResponse(status_code=501, content={"detail": str(exc)})
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
-
-    return Response(
-        content=content,
-        media_type=media_type,
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="booking_{booking_id}.{ext}"'
-            ),
-        },
-    )
 
 
 @router.get("/bookings/{booking_id}/export-link")
