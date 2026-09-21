@@ -226,7 +226,7 @@ async def redis_snapshot() -> dict[str, Any]:
         from src.utils.redis import RedisClient
 
         client = await RedisClient.get_instance()
-        if not client.is_available():
+        if not client.is_available:
             return {"status": "ok", "connected": False, "level": "warn"}
 
         raw = client.client
