@@ -487,7 +487,7 @@ class ZdravClient:
                 "appointment_list",
                 f"{self.base_url}/appointment_list/",
             )
-            logger.info(f"API response for {doc_id}: {model.response}")
+            logger.debug(f"API response for {doc_id}: {model.response}")
             formatted: list[str] = []
             raw_slots: list = []
             for date, items in model.response.items():
@@ -498,7 +498,7 @@ class ZdravClient:
                         formatted.append(f"{date} в {t}")
             formatted.sort()
             if not formatted:
-                logger.info(f"API returned 200 but no slots for {doc_id}")
+                logger.debug(f"API returned 200 but no slots for {doc_id}")
             return CheckSlotsResult(formatted=formatted, slots=raw_slots)
         elif res.status_code in [403, 429]:
             logger.opt(exception=True).warning(

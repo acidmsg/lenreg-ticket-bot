@@ -36,10 +36,11 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
         # Пропускаем пути, не относящиеся к Mini App API
         path = request.url.path
         if not path.startswith("/api/user"):
-            logger.debug(
-                "Mini App middleware: путь {} пропущен (не /api/user/*)",
-                path,
-            )
+            # Статику не логируем: строка на каждый файл превращала лог в шум.
+            # Прочие пути остаются в DEBUG — иначе опечатка вроде /api/users
+            # пройдёт мимо проверки незамеченной.
+            if not path.startswith("/static/"):
+                logger.debug("Mini App middleware: путь {} вне /api/user/*", path)
             return await call_next(request)
 
         logger.debug("Mini App middleware: проверка initData для пути {}", path)

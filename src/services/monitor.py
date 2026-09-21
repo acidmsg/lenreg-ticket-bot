@@ -532,7 +532,7 @@ async def _check_single_doctor(
     # --- Шаг 2: извлечение данных врача ---
     d_name, doctor_specialty, clinic_id = await _extract_doctor_info(d_info, p_info)
 
-    logger.info(
+    logger.debug(
         "Monitor checking slots: d_id={}, p_id={}, clinic_id={}",
         d_id,
         p_id,
@@ -545,7 +545,7 @@ async def _check_single_doctor(
             d_id, p_id, clinic_id, limiter=api.limiter_monitor
         )
 
-    logger.info(f"API result for {d_id}: {slots_result}")
+    logger.debug(f"API result for {d_id}: {slots_result}")
 
     if slots_result is None:
         logger.warning(f"API error for {d_id}, {p_id}. Skipping.")
@@ -579,7 +579,7 @@ async def _check_single_doctor(
         filtered_slots = filter_slots_by_user_prefs(slots, d_info)
         if not filtered_slots:
             # После фильтрации слотов не осталось — пропускаем уведомление
-            logger.info(
+            logger.debug(
                 "Все слоты отфильтрованы для d_id={} p_id={} (настройки пользователя)",
                 d_id,
                 p_id,
@@ -602,7 +602,7 @@ async def _check_single_doctor(
 
     # --- Initial sync: только кэш, без уведомлений ---
     if initial_sync:
-        logger.info(
+        logger.debug(
             "Initial sync — пропускаем уведомление для {} ({}), кэш заполнен",
             d_id,
             p_id,

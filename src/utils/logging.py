@@ -79,6 +79,7 @@ _NOISY_LOGGER_PREFIXES: Final = (
     "http11",
     "aiosqlite",
     "aiohttp.access",
+    "aiohttp.web_log",
     "urllib3",
 )
 _NOISY_MIN_LEVEL: Final = "WARNING"

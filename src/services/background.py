@@ -589,7 +589,7 @@ class BackgroundTaskManager:
                 if task._metrics:
                     task._metrics.errors_consecutive.labels(task=task.name).set(0)
 
-                logger.debug(
+                logger.trace(
                     f"Task '{task.name}': iteration #{task._iterations} OK "
                     f"({task._last_run_duration:.1f}s)"
                 )
