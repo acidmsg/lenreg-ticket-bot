@@ -4,11 +4,11 @@ HTML-страницы веб-дашборда.
 Все эндпоинты — read-only, рендерят Jinja2-шаблоны.
 """
 
+import asyncio
 import json
 import time
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -19,24 +19,24 @@ from src.config import settings
 from src.services.background import describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics
 from src.services.healthcheck import metrics_lock
+from src.services.log_reader import (
+    LEVELS,
+    LogRecord,
+    collect_sources,
+    default_log_path,
+    read_logs,
+)
 from src.services.params import RESOLUTION_ORDER, collect_params
 from src.services.schema_watcher import collect_schema_status
 from src.services.search import search_all
 from src.services.system_info import backups_reason, collect_system_snapshot
 from src.services.tools import TOOLS, tool_view
-from src.services.trends import (
-    TREND_HOURS_DAY,
-    TREND_HOURS_WEEK,
-    build_cards,
-    collect_trends,
-)
 from src.services.user_actions import ACTIONS, action_view
 from src.web.routers._shared import (
     get_clinics_data,
     get_summary_data,
     get_users_data,
     next_scan_seconds,
-    parse_positive_int,
     planner_status,
 )
 
@@ -64,11 +64,6 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
         background_tasks = data.get("background_tasks") or []
         next_scan_in = next_scan_seconds(background_tasks)
 
-        # Тренды за сутки и неделю (DASH-6): ряды из журнала и агрегатов,
-        # спарклайны рисует сервер (без внешних библиотек).
-        trends_day = await collect_trends(db, TREND_HOURS_DAY)
-        trends_week = await collect_trends(db, TREND_HOURS_WEEK)
-
         templates = cast(Jinja2Templates, request.app.state.templates)
         return templates.TemplateResponse(
             request,
@@ -83,15 +78,10 @@ async def dashboard_summary(request: Request) -> HTMLResponse:
                 "api_checks": data["checks_total"],
                 "api_errors": data["errors_total"],
                 "notifications": data["notifications_sent"],
-                "recent_alerts": data["recent_alerts"],
                 "doctors_discovered": data["doctors_discovered"],
                 "doctors_last_scan": data["doctors_last_scan"],
                 "doctor_scan_enabled": doctor_scan_enabled == "1",
                 "next_scan_in": next_scan_in,
-                "trend_cards_day": build_cards(trends_day),
-                "trend_cards_week": build_cards(trends_week),
-                "trend_day_has_data": trends_day["has_data"],
-                "trend_week_has_data": trends_week["has_data"],
                 "telegram": data["telegram"],
             },
         )
@@ -155,65 +145,71 @@ async def user_detail(request: Request, uid: str) -> HTMLResponse:
     )
 
 
-# Состояния журнала событий: табы страницы и значения фильтра.
-JOURNAL_STATES = ("all", "new", "acked", "resolved")
+# ── Логи бота (страница вместо журнала событий, 2026-09-20) ──
+
+# Сколько строк отдаём на страницу: больше читать с диска незачем.
+LOGS_PAGE_LIMIT = 200
 
 
 @router.get("/logs", response_class=HTMLResponse)
-async def monitoring_logs(
+async def logs_page(
     request: Request,
+    level: str | None = Query(None),
+    source: str | None = Query(None),
+    q: str | None = Query(None),
+    limit: int = Query(LOGS_PAGE_LIMIT, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    uid: str | None = Query(None),
-    status: str | None = Query(None),
-    state: str = Query("all"),
-    days: str | None = Query(None),
 ) -> HTMLResponse:
-    """Журнал событий: один экран для записей мониторинга и инцидентов.
+    """Логи бота: фильтр по уровню, источнику, тексту и постраничный вывод."""
+    log_path = default_log_path()
+    level_value = level.upper() if level else None
+    if level_value not in LEVELS:
+        level_value = None
+    source_value = (source or "").strip() or None
+    query_value = (q or "").strip() or None
 
-    Табы «Все события / Новые / Подтверждённые / Разобранные» — фильтр по
-    состоянию подтверждения. Выгрузка CSV учитывает те же фильтры, поэтому
-    отдельная страница алертов больше не нужна.
-    """
-    db = request.app.state.db
-    if state not in JOURNAL_STATES:
-        state = "all"
-    ack_status = None if state == "all" else state
-    days_value = parse_positive_int(days)
-    since = time.time() - days_value * 86400 if days_value else None
-
-    logs = await db.list_alerts(
-        limit=limit,
-        offset=offset,
-        uid=uid,
-        status=status,
-        ack_status=ack_status,
-        since=since,
-    )
-    total = await db.count_alerts(
-        uid=uid, status=status, ack_status=ack_status, since=since
-    )
-
-    # Счётчик уже посчитан middleware для бейджа: 0 — это значение, а не
-    # «нет данных», поэтому проверяем именно None, без лишнего запроса в БД.
-    unacked_total = getattr(request.state, "unacked_alerts", None)
-    if unacked_total is None:
-        unacked_total = await db.unacked_alerts_count()
+    records: list[LogRecord] = []
+    sources: list[str] = []
+    truncated = False
+    log_exists = log_path.is_file()
+    log_size = 0
+    if log_exists:
+        # Чтение хвоста файла — в отдельном потоке: сканирование с диска (до 4 МБ)
+        # не должно блокировать event loop дашборда (SSE, другие страницы).
+        try:
+            records, truncated = await asyncio.to_thread(
+                read_logs,
+                log_path,
+                level=level_value,
+                source=source_value,
+                query=query_value,
+                limit=limit,
+                offset=offset,
+            )
+            sources = await asyncio.to_thread(collect_sources, log_path)
+            log_size = log_path.stat().st_size
+        except OSError:
+            # Файл ротировали между is_file() и чтением — показываем пустую страницу.
+            records, sources, truncated = [], [], False
+            log_exists, log_size = False, 0
 
     templates = cast(Jinja2Templates, request.app.state.templates)
     return templates.TemplateResponse(
         request,
         "logs.html",
         {
-            "logs": logs,
-            "offset": offset,
+            "records": records,
+            "levels": LEVELS,
+            "sources": sources,
+            "level_filter": level_value or "",
+            "source_filter": source_value or "",
+            "query_filter": query_value or "",
             "limit": limit,
-            "total": total,
-            "uid_filter": uid or "",
-            "status_filter": status or "",
-            "state": state,
-            "days_filter": days_value or "",
-            "unacked_total": unacked_total,
+            "offset": offset,
+            "truncated": truncated,
+            "log_name": log_path.name,
+            "log_exists": log_exists,
+            "log_size": log_size,
         },
     )
 
@@ -391,21 +387,6 @@ async def tools_page(request: Request) -> HTMLResponse:
         "tools.html",
         {"tools": [tool_view(spec) for spec in TOOLS.values()]},
     )
-
-
-@router.get("/alerts", response_class=RedirectResponse)
-async def alerts_page(request: Request) -> RedirectResponse:
-    """Старый адрес алертов: журнал событий переехал на общий экран ``/logs``.
-
-    Параметры фильтров переносятся, ``ack_status`` превращается в таб
-    ``state`` — ссылки из закладок продолжают работать.
-    """
-    params = dict(request.query_params)
-    ack = params.pop("ack_status", None)
-    if ack:
-        params.setdefault("state", ack)
-    query = urlencode(params)
-    return RedirectResponse(url=f"/logs?{query}" if query else "/logs", status_code=302)
 
 
 @router.get("/system", response_class=HTMLResponse)

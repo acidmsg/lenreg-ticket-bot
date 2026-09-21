@@ -130,31 +130,6 @@ class ClinicInfo(TypedDict):
     """ID детского пациента для discovery (per-клиника переопределение)."""
 
 
-class MonitoringLogEntry(TypedDict):
-    """Запись из таблицы ``monitoring_log``."""
-
-    id: int
-    uid: str
-    p_id: str
-    d_id: str
-    doctor_name: str
-    patient_name: str
-    specialty: str
-    clinic_name: str
-    slot_date: str
-    status: str  # 'появился' | 'исчез' | 'уменьшился'
-    ts: float
-
-    ack_status: NotRequired[str]
-    """Состояние алерта: ``new`` | ``acked`` | ``resolved``."""
-
-    acked_by: NotRequired[str]
-    """Кто подтвердил (логин администратора или ``bot``)."""
-
-    acked_ts: NotRequired[float]
-    """Когда подтвердили (Unix-время)."""
-
-
 class BookingEntry(TypedDict):
     """Запись из таблицы ``bookings``."""
 
@@ -221,31 +196,3 @@ class AuditLogEntry(TypedDict):
 
     payload_json: str
     """Дополнительные данные в виде JSON-строки."""
-
-
-class MetricsHourlyEntry(TypedDict):
-    """Почасовой агрегат метрик (``metrics_hourly``)."""
-
-    bucket_ts: int
-    """Начало часа (Unix-время)."""
-
-    api_checks: int
-    """Проверок API за час."""
-
-    api_errors: int
-    """Ошибок API за час."""
-
-    latency_sum: float
-    """Сумма длительностей проверок (для среднего)."""
-
-    latency_max: float
-    """Максимальная длительность проверки за час."""
-
-    latency_count: int
-    """Сколько проверок дали длительность."""
-
-    slots_found: int
-    """Событий появления слотов за час."""
-
-    notifications: int
-    """Отправленных уведомлений за час."""

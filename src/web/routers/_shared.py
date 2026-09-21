@@ -22,13 +22,12 @@ async def get_summary_data(
     """Сбор сырых данных для сводки дашборда.
 
     Returns:
-        Словарь с агрегированной статистикой, метриками здоровья API,
-        данными doctor_discovery и последними алертами.
+        Словарь с агрегированной статистикой, метриками здоровья API
+        и данными doctor_discovery.
     """
     stats = await db.get_total_stats()
     user_stats = db.get_user_statistics()
     active_monitorings = user_stats["active_monitorings"]
-    recent_alerts = await db.get_all_monitoring_logs(limit=10, offset=0)
 
     async with metrics_lock:
         uptime_str = health_metrics_module.uptime_str()
@@ -50,7 +49,6 @@ async def get_summary_data(
     return {
         "stats": stats,
         "active_monitorings": active_monitorings,
-        "recent_alerts": recent_alerts,
         "uptime_str": uptime_str,
         "uptime_sec": uptime_sec,
         "api_ok": api_ok,
@@ -266,9 +264,6 @@ async def build_live_payload(
             "tg_retry_after": telegram["retry_after"],
         },
         "flags": {"api_ok": bool(data["api_ok"]), "tg_api_ok": telegram["api_ok"]},
-        "alerts_html": render_partial(
-            templates, "_alerts.html", recent_alerts=data["recent_alerts"]
-        ),
     }
 
 

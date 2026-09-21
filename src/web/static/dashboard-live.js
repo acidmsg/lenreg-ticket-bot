@@ -78,7 +78,6 @@
     patchDisplay(payload.display);
     patchApiBadge(payload.flags, payload.display);
     patchTgBadge(payload.flags, payload.display);
-    patchHtml("live-alerts", payload.alerts_html);
     setState("live", "live");
   }
 

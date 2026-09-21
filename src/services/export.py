@@ -23,10 +23,10 @@ from src.i18n import _
 async def _collect_export_data(
     db_manager: DatabaseManager, user_id: int
 ) -> tuple[str, dict, dict, list, dict[str, str]]:
-    """Собирает общие данные для экспорта: patients, monitoring, logs, clinic_names.
+    """Собирает общие данные для экспорта: patients, monitoring, clinic_names.
 
     Returns:
-        (uid, patients, monitoring, logs, clinic_names)
+        (uid, patients, monitoring, clinic_names)
     Raises:
         ValueError: Если у пользователя нет данных для экспорта.
     """
@@ -38,9 +38,8 @@ async def _collect_export_data(
     if not patients and not monitoring:
         raise ValueError(_("export-no-data-error"))
 
-    logs = await db_manager.get_user_monitoring_logs(uid, limit=10000)
     clinic_names = await db_manager.get_all_clinic_names()
-    return uid, patients, monitoring, logs, clinic_names
+    return uid, patients, monitoring, clinic_names
 
 
 async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> str:
@@ -60,7 +59,7 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
     Raises:
         ValueError: Если у пользователя нет данных для экспорта.
     """
-    uid, patients, monitoring, logs, clinic_names = await _collect_export_data(
+    uid, patients, monitoring, clinic_names = await _collect_export_data(
         db_manager, user_id
     )
 
@@ -79,61 +78,41 @@ async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> st
         ]
     )
 
-    # Сначала пишем логи мониторинга (если есть)
+    # Текущая конфигурация мониторинга (пациенты и врачи)
+    now_str = _format_timestamp(time.time())
     rows_written = 0
-    if logs:
-        for entry in logs:
-            ts_str = _format_timestamp(entry["ts"])
+
+    for p_id, doctors in monitoring.items():
+        raw_p = patients.get(p_id)
+        if raw_p is None:
+            continue
+        p_info: PatientInfo = raw_p
+        p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
+
+        for _d_id, d_info in doctors.items():
+            if isinstance(d_info, dict):
+                d_name = d_info.get("name", "")
+                doctor_specialty = d_info.get("specialty", "")
+                clinic_id = d_info.get("clinic_id", "")
+            else:
+                d_name = str(d_info)
+                doctor_specialty = ""
+                clinic_id = ""
+
+            clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
+
             writer.writerow(
                 [
-                    entry.get("patient_name", ""),
-                    entry.get("specialty", ""),
-                    entry.get("doctor_name", ""),
-                    entry.get("clinic_name", ""),
-                    entry.get("slot_date", ""),
-                    entry.get("status", ""),
-                    ts_str,
+                    p_name,
+                    doctor_specialty,
+                    d_name,
+                    clinic_name,
+                    "",
+                    _("export-status-active"),
+                    now_str,
                 ]
             )
             rows_written += 1
-
-    # Если логов нет, пишем текущую конфигурацию мониторинга
-    if not rows_written:
-        now_str = _format_timestamp(time.time())
-
-        for p_id, doctors in monitoring.items():
-            raw_p = patients.get(p_id)
-            if raw_p is None:
-                continue
-            p_info: PatientInfo = raw_p
-            p_name = p_info.get("alias") or p_info.get(
-                "fio", _("patient-fallback-name")
-            )
-
-            for _d_id, d_info in doctors.items():
-                if isinstance(d_info, dict):
-                    d_name = d_info.get("name", "")
-                    doctor_specialty = d_info.get("specialty", "")
-                    clinic_id = d_info.get("clinic_id", "")
-                else:
-                    d_name = str(d_info)
-                    doctor_specialty = ""
-                    clinic_id = ""
-
-                clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
-
-                writer.writerow(
-                    [
-                        p_name,
-                        doctor_specialty,
-                        d_name,
-                        clinic_name,
-                        "",
-                        _("export-status-active"),
-                        now_str,
-                    ]
-                )
-                rows_written += 1
 
     # Асинхронная запись временного файла
     import os
@@ -167,25 +146,9 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
     Raises:
         ValueError: Если у пользователя нет данных для экспорта.
     """
-    uid, patients, monitoring, logs, clinic_names = await _collect_export_data(
+    uid, patients, monitoring, clinic_names = await _collect_export_data(
         db_manager, user_id
     )
-
-    # Группируем логи по пациенту → врачу
-    log_by_patient: dict[str, dict[str, list[dict]]] = {}
-    for entry in logs:
-        pid = entry["p_id"]
-        did = entry["d_id"]
-        log_by_patient.setdefault(pid, {}).setdefault(did, []).append(
-            {
-                "doctor_name": entry.get("doctor_name", ""),
-                "specialty": entry.get("specialty", ""),
-                "clinic_name": entry.get("clinic_name", ""),
-                "slot_date": entry.get("slot_date", ""),
-                "status": entry.get("status", ""),
-                "timestamp": _format_timestamp(entry["ts"]),
-            }
-        )
 
     # Собираем структуру
     export_data: dict[str, Any] = {
@@ -225,24 +188,8 @@ async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> s
                 "specialty": doctor_specialty,
                 "clinic_name": clinic_name,
                 "status": _("export-status-active"),
-                "history": log_by_patient.get(p_id, {}).get(d_id, []),
             }
             patient_entry["doctors"].append(doctor_entry)
-
-        # Добавляем пациентов, которые есть в логах, но уже не в мониторинге
-        if not patient_entry["doctors"] and p_id in log_by_patient:
-            for d_id, entries in log_by_patient[p_id].items():
-                if entries:
-                    first = entries[0]
-                    doctor_entry = {
-                        "doctor_id": d_id,
-                        "doctor_name": first.get("doctor_name", ""),
-                        "specialty": first.get("specialty", ""),
-                        "clinic_name": first.get("clinic_name", ""),
-                        "status": _("export-status-inactive"),
-                        "history": entries,
-                    }
-                    patient_entry["doctors"].append(doctor_entry)
 
         export_data["patients"].append(patient_entry)
 

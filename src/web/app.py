@@ -129,12 +129,6 @@ def create_app(
         app.add_middleware(TelegramInitDataMiddleware)
         logger.debug("TelegramInitDataMiddleware: включен (MINI_APP_ENABLED=True)")
 
-    # Бейдж неподтверждённых алертов для сайдбара (DASH-5)
-    from src.web.alerts_badge import AlertsBadgeMiddleware
-
-    app.add_middleware(AlertsBadgeMiddleware, db=db)
-    logger.debug("AlertsBadgeMiddleware: включен (счётчик неподтверждённых)")
-
     # Статика и шаблоны
     import os
     import time as time_module

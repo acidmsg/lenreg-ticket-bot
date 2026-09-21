@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import aiosqlite
 from loguru import logger
 
@@ -21,8 +19,6 @@ from src.database.repo_clinics import (
 )
 from src.database.repo_config import ConfigRepository
 from src.database.repo_doctors import DoctorRepository
-from src.database.repo_logs import LogRepository
-from src.database.repo_metrics import MetricsRepository
 from src.database.repo_monitoring import MonitoringRepository
 from src.database.repo_search import SearchRepository
 from src.database.repo_users import UserRepository
@@ -31,9 +27,7 @@ from src.database.types import (
     ClinicInfo,
     DoctorEntry,
     LastMessageEntry,
-    MetricsHourlyEntry,
     MonitoringEntry,
-    MonitoringLogEntry,
     PatientInfo,
     UserData,
 )
@@ -60,9 +54,7 @@ class Database:
         self.clinics = ClinicRepository(self._conn)
         self.monitoring = MonitoringRepository(self._conn)
         self.config = ConfigRepository(self._conn)
-        self.logs = LogRepository(self._conn)
         self.audit = AuditRepository(self._conn)
-        self.metrics = MetricsRepository(self._conn)
         self.search = SearchRepository(self._conn)
 
     @property
@@ -295,79 +287,6 @@ class Database:
         """Заполняет таблицу config дефолтными значениями из settings."""
         return await self.config.seed_config_from_defaults()
 
-    # ── Логи мониторинга ────────────────────────────────────
-
-    async def add_monitoring_log(
-        self,
-        uid: str,
-        p_id: str,
-        d_id: str,
-        doctor_name: str,
-        patient_name: str,
-        specialty: str,
-        clinic_name: str,
-        slot_date: str,
-        status: str,
-        ts: float,
-    ) -> None:
-        """Добавляет запись в лог мониторинга."""
-        return await self.logs.add_monitoring_log(
-            uid,
-            p_id,
-            d_id,
-            doctor_name,
-            patient_name,
-            specialty,
-            clinic_name,
-            slot_date,
-            status,
-            ts,
-        )
-
-    async def get_user_monitoring_logs(
-        self, uid: str, limit: int = 5000, offset: int = 0
-    ) -> list[MonitoringLogEntry]:
-        """Возвращает логи мониторинга для пользователя."""
-        return await self.logs.get_user_monitoring_logs(uid, limit, offset)
-
-    async def get_user_monitoring_logs_count(self, uid: str) -> int:
-        """Возвращает количество записей лога для пользователя."""
-        return await self.logs.get_user_monitoring_logs_count(uid)
-
-    async def get_all_monitoring_logs(
-        self,
-        limit: int = 50,
-        offset: int = 0,
-        uid: str | None = None,
-        status: str | None = None,
-    ) -> list[MonitoringLogEntry]:
-        """Возвращает логи мониторинга с пагинацией и фильтрацией."""
-        return await self.logs.get_all_monitoring_logs(limit, offset, uid, status)
-
-    async def get_all_monitoring_logs_count(
-        self, uid: str | None = None, status: str | None = None
-    ) -> int:
-        """Возвращает количество записей лога мониторинга (с фильтрами)."""
-        return await self.logs.get_all_monitoring_logs_count(uid, status)
-
-    # ── Почасовые агрегаты метрик (DASH-6) ──────────────────
-
-    async def record_metrics_bucket(
-        self, bucket_ts: int, deltas: dict[str, float]
-    ) -> None:
-        """Прибавляет дельты метрик к часу ``bucket_ts``."""
-        await self.metrics.upsert_bucket(bucket_ts, deltas)
-
-    async def get_metrics_series(self, since_ts: int) -> list[MetricsHourlyEntry]:
-        """Часовые агрегаты метрик начиная с ``since_ts``."""
-        return await self.metrics.get_series(since_ts)
-
-    async def get_slot_events_per_hour(
-        self, since_ts: float
-    ) -> dict[int, dict[str, int]]:
-        """События слотов по часам (из ``monitoring_log``)."""
-        return await self.logs.get_slot_events_per_hour(since_ts)
-
     # ── Поиск (DASH-9) ──────────────────────────────────────
 
     async def search_users(self, query: str, limit: int = 20) -> list[str]:
@@ -401,26 +320,6 @@ class Database:
     async def delete_doctor(self, uid: str, d_id: str) -> int:
         """Удаляет врача из мониторинга пользователя."""
         return await self.monitoring.delete_doctor(uid, d_id)
-
-    # ── Алерты (DASH-5) ─────────────────────────────────────
-
-    async def list_alerts(self, **filters: Any) -> list[MonitoringLogEntry]:
-        """Алерты с фильтрами (см. ``LogRepository.list_alerts``)."""
-        return await self.logs.list_alerts(**filters)
-
-    async def count_alerts(self, **filters: Any) -> int:
-        """Количество алертов под фильтрами."""
-        return await self.logs.count_alerts(**filters)
-
-    async def unacked_alerts_count(self) -> int:
-        """Количество неподтверждённых алертов (бейдж в сайдбаре)."""
-        return await self.logs.unacked_alerts_count()
-
-    async def set_alerts_state(
-        self, alert_ids: list[int], state: str, actor: str
-    ) -> int:
-        """Подтверждение/снятие алертов; возвращает число изменённых строк."""
-        return await self.logs.set_alerts_state(alert_ids, state, actor)
 
     # ── Статистика (агрегация) ──────────────────────────────
 

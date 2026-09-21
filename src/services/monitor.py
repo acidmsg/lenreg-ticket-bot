@@ -1,7 +1,6 @@
 import asyncio
 import json
 import random
-import time
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -432,72 +431,6 @@ async def _check_empty_slots_protection(
     return True
 
 
-async def _log_monitoring_change(
-    db: DatabaseManager,
-    uid: str,
-    p_id: str,
-    d_id: str,
-    d_info: MonitoringEntry | str,
-    p_info: PatientInfo,
-    slots: list[str] | None,
-    notify_type: str,
-) -> None:
-    """Записывает изменение слотов в monitoring_log.
-
-    Args:
-        notify_type: "available" | "new" | "empty" | "decreased"
-    """
-    status_map = {
-        "available": "появился",
-        "new": "появился",
-        "empty": "исчез",
-        "decreased": "уменьшился",
-    }
-    log_status = status_map.get(notify_type, notify_type)
-
-    slot_date = ""
-    if slots:
-        slot_date = slots[0].split(",")[0].strip() if "," in slots[0] else slots[0]
-
-    patient_label = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
-    d_name = (
-        d_info.get("name", _("doctor-fallback-name"))
-        if isinstance(d_info, dict)
-        else str(d_info)
-    )
-    doctor_specialty = d_info.get("specialty", "") if isinstance(d_info, dict) else ""
-    clinic_id_for_log = d_info.get("clinic_id", "") if isinstance(d_info, dict) else ""
-
-    clinic_name = ""
-    if clinic_id_for_log:
-        try:
-            name = await db.get_clinic_name(clinic_id_for_log)
-            if name:
-                clinic_name = name
-        except Exception:
-            logger.debug(
-                "Не удалось получить имя клиники clinic_id={} для p_id={}",
-                clinic_id_for_log,
-                p_id,
-            )
-
-    try:
-        await db.add_monitoring_log(
-            uid=uid,
-            p_id=p_id,
-            d_id=d_id,
-            doctor_name=d_name,
-            patient_name=patient_label,
-            specialty=doctor_specialty,
-            clinic_name=clinic_name,
-            slot_date=slot_date,
-            status=log_status,
-            ts=time.time(),
-        )
-    except Exception as e:
-        logger.debug(f"Не удалось записать лог мониторинга: {e}")
-
-
 def _build_notification_message(
     p_info: PatientInfo,
     d_name: str,
@@ -668,11 +601,6 @@ async def _check_single_doctor(
                     pass
             display_slots = display_filtered if display_filtered else filtered_slots
         slots = filtered_slots
-
-    # --- Шаг 7: логирование изменения ---
-    await _log_monitoring_change(
-        db, uid, p_id, d_id, d_info, p_info, slots, notify_type
-    )
 
     # --- Initial sync: только кэш, без уведомлений ---
     if initial_sync:

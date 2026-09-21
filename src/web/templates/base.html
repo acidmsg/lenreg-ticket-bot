@@ -90,15 +90,8 @@
               />
               <circle cx="2.5" cy="12" r="1" fill="currentColor" />
             </svg>
-            <span class="sidebar__link-text">Журнал событий</span>
-            {% if request.state.unacked_alerts %}
-            <span
-              class="badge badge-warn sidebar__badge"
-              title="Неподтверждённых событий: {{ request.state.unacked_alerts }}"
-              >{{ request.state.unacked_alerts }}</span
-            >
-            {% endif %}
-          </a>
+            <span class="sidebar__link-text">Логи</span>
+                      </a>
           <a
             href="/audit-log"
             class="sidebar__link {% if request.url.path == '/audit-log' %}active{% endif %}" {% if request.url.path == '/audit-log' %}aria-current="page"{% endif %}

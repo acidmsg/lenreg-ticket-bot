@@ -4,17 +4,17 @@ JSON API веб-дашборда.
 Эндпоинты возвращают JSON-ответы для дашборда и Mini App.
 """
 
+import asyncio
 import csv
 import io
-import time
 from typing import Any
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, Response
 
 from src.services.audit import actor_from_request, log_action
 from src.services.doctor_discovery import trigger_force_scan
+from src.services.log_reader import LEVELS, default_log_path, read_tail
 from src.services.params import (
     RESOLUTION_ORDER,
     ParamError,
@@ -27,7 +27,6 @@ from src.services.user_actions import ACTIONS, action_view, run_action
 from src.web.routers._shared import (
     get_summary_data,
     get_users_data,
-    parse_positive_int,
 )
 
 router = APIRouter()
@@ -41,25 +40,7 @@ async def api_summary(request: Request) -> dict[str, Any]:
 
     data = await get_summary_data(db, pm)
     stats = data["stats"]
-    recent_alerts = data["recent_alerts"]
     telegram = data["telegram"]
-
-    # Форматируем алерты
-    alerts = []
-    for log in recent_alerts:
-        alerts.append(
-            {
-                "id": log["id"],
-                "uid": log["uid"],
-                "patient_name": log["patient_name"],
-                "doctor_name": log["doctor_name"],
-                "specialty": log["specialty"],
-                "clinic_name": log["clinic_name"],
-                "slot_date": log["slot_date"],
-                "status": log["status"],
-                "ts": log["ts"],
-            }
-        )
 
     return {
         "uptime": data["uptime_str"],
@@ -101,7 +82,6 @@ async def api_summary(request: Request) -> dict[str, Any]:
         "background_tasks": {
             task["name"]: task["health"] for task in data["background_tasks"]
         },
-        "recent_alerts": alerts,
     }
 
 
@@ -186,18 +166,8 @@ async def force_doctor_scan(request: Request) -> dict[str, Any]:
     return {"status": "started" if started else "unavailable"}
 
 
-# ── Алерты (DASH-5) ─────────────────────────────────────────
-
-# Максимум идентификаторов в одном подтверждении: ограничивает число
-# параметров SQL-запроса (SQLITE_MAX_VARIABLE_NUMBER).
-MAX_ALERT_IDS = 500
-
 # Префиксы, с которых табличные процессоры начинают формулу (CWE-1236).
 _CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-
-# Потолок выгрузки журнала: больше отдавать одним файлом небезопасно.
-LOGS_EXPORT_LIMIT = 5000
 
 
 def _csv_response(filename: str, rows: list[list[str]]) -> Response:
@@ -228,82 +198,53 @@ def _csv_safe(value: Any) -> str:
     return text
 
 
-@router.post("/alerts/ack")
-async def ack_alerts(request: Request) -> dict[str, Any]:
-    """Подтверждает или снимает алерты; изменение пишется в журнал.
+@router.get("/logs/tail")
+async def api_logs_tail(
+    request: Request,
+    after: int | None = None,
+    level: str | None = None,
+    source: str | None = None,
+    q: str | None = None,
+) -> dict[str, Any]:
+    """Новые строки лога для режима «следить» на странице логов.
 
-    Тело запроса: ``{"ids": [1, 2], "state": "acked" | "resolved"}``.
-    ``state`` по умолчанию — ``acked``.
+    ``after`` — байтовая позиция, с которой дочитываем файл (отрицательная
+    считается началом слежения); ротация отслеживается по размеру файла.
+    Фильтры повторяют фильтры страницы, чтобы в таблицу не попадало лишнее.
     """
+    log_path = default_log_path()
+    if not log_path.is_file():
+        return {"records": [], "offset": 0, "rotated": False}
+    level_value = level.upper() if level else None
+    if level_value not in LEVELS:
+        level_value = None
+    # Чтение файла — в отдельном потоке: сканирование хвоста не должно
+    # блокировать event loop дашборда (SSE и остальные запросы).
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"detail": "Неверный JSON."})
-
-    if not isinstance(body, dict):
-        return JSONResponse(status_code=400, content={"detail": "Ожидался объект."})
-
-    raw_ids = body.get("ids")
-    if not isinstance(raw_ids, list) or not raw_ids:
-        return JSONResponse(
-            status_code=400, content={"detail": "Нужен непустой список ids."}
+        records, offset, rotated = await asyncio.to_thread(
+            read_tail,
+            log_path,
+            after_offset=after,
+            level=level_value,
+            source=(source or "").strip() or None,
+            query=(q or "").strip() or None,
         )
-    try:
-        alert_ids = [int(value) for value in raw_ids]
-    except (TypeError, ValueError):
-        return JSONResponse(
-            status_code=400, content={"detail": "Идентификаторы должны быть числами."}
-        )
-
-    if len(alert_ids) > MAX_ALERT_IDS:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": f"Слишком много идентификаторов (максимум {MAX_ALERT_IDS})."
-            },
-        )
-
-    state = str(body.get("state", "acked"))
-    if state not in ("acked", "resolved", "new"):
-        return JSONResponse(
-            status_code=400, content={"detail": f"Недопустимое состояние: {state}"}
-        )
-
-    db = request.app.state.db
-    actor = actor_from_request(request)
-    changed = await db.set_alerts_state(alert_ids, state, actor)
-    await log_action(
-        db,
-        actor,
-        "alert_state",
-        target=",".join(str(value) for value in alert_ids[:20]),
-        state=state,
-        changed=changed,
-    )
+    except OSError:
+        # Файл ротировали между is_file() и чтением — слежение начнётся заново.
+        return {"records": [], "offset": 0, "rotated": True}
     return {
-        "status": "ok",
-        "changed": changed,
-        "state": state,
-        "unacked": await db.unacked_alerts_count(),
+        "records": [
+            {
+                "ts": record.ts,
+                "level": record.level,
+                "source": record.source,
+                "message": record.message,
+            }
+            for record in records
+        ],
+        "offset": offset,
+        "rotated": rotated,
     }
-
-
-@router.get("/alerts/export.csv")
-async def alerts_export_redirect(request: Request) -> RedirectResponse:
-    """Старый адрес выгрузки алертов: журнал событий теперь выгружается целиком.
-
-    Держим 302, чтобы внешние выгрузки не падали на 404: фильтр ``ack_status``
-    переносится в параметр ``state`` нового адреса.
-    """
-    params = dict(request.query_params)
-    ack = params.pop("ack_status", None)
-    if ack:
-        params.setdefault("state", ack)
-    query = urlencode(params)
-    target = "/api/dashboard/export/logs.csv"
-    return RedirectResponse(
-        url=f"{target}?{query}" if query else target, status_code=302
-    )
 
 
 @router.get("/dashboard/search")
@@ -334,74 +275,6 @@ async def api_export_users(request: Request) -> Response:
         target=f"rows={len(rows) - 1}",
     )
     return _csv_response("users.csv", rows)
-
-
-@router.get("/dashboard/export/logs.csv")
-async def api_export_logs(
-    request: Request,
-    uid: str | None = None,
-    status: str | None = None,
-    state: str = "all",
-    days: str | None = None,
-) -> Response:
-    """Выгрузка журнала событий: последние LOGS_EXPORT_LIMIT записей.
-
-    Фильтры совпадают со страницей журнала: пользователь, тип события, таб
-    состояния и период. Отдельная выгрузка алертов больше не нужна — это тот
-    же журнал, только под другим фильтром.
-    """
-    db = request.app.state.db
-    ack_status = state if state in ("new", "acked", "resolved") else None
-    days_value = parse_positive_int(days)
-    since = time.time() - days_value * 86400 if days_value else None
-
-    entries = await db.list_alerts(
-        limit=LOGS_EXPORT_LIMIT,
-        offset=0,
-        uid=uid,
-        status=status,
-        ack_status=ack_status,
-        since=since,
-    )
-    rows: list[list[str]] = [
-        [
-            "id",
-            "время",
-            "uid",
-            "пациент",
-            "врач",
-            "специальность",
-            "клиника",
-            "дата слота",
-            "событие",
-            "состояние",
-            "подтвердил",
-        ]
-    ]
-    for entry in entries:
-        rows.append(
-            [
-                _csv_safe(entry["id"]),
-                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry["ts"])),
-                _csv_safe(entry["uid"]),
-                _csv_safe(entry["patient_name"]),
-                _csv_safe(entry["doctor_name"]),
-                _csv_safe(entry["specialty"]),
-                _csv_safe(entry["clinic_name"]),
-                _csv_safe(entry["slot_date"]),
-                _csv_safe(entry["status"]),
-                _csv_safe(entry.get("ack_status", "new")),
-                _csv_safe(entry.get("acked_by", "")),
-            ]
-        )
-
-    await log_action(
-        db,
-        actor_from_request(request),
-        "export_logs",
-        target=f"rows={len(rows) - 1}",
-    )
-    return _csv_response("logs.csv", rows)
 
 
 @router.get("/dashboard/export/clinics.csv")

@@ -433,13 +433,6 @@ stroke="currentColor" (либо fill="currentColor" для монохромны�
     stroke-linejoin="round"
   />
 </svg>
-{% endif %} {%- endmacro %} {% macro status_badge(status) -%} {% if status ==
-'появился' or status == 'увеличилось' %}
-<span class="badge badge-ok">{{ status }}</span>
-{% elif status == 'исчез' or status == 'уменьшилось' %}
-<span class="badge badge-warn">{{ status }}</span>
-{% else %}
-<span class="badge">{{ status }}</span>
 {% endif %} {%- endmacro %} {% macro background_task_row(task) -%}
 <div class="info-label">
   {{ task.name }} <span class="text-muted">({{ task.state }})</span>
@@ -461,74 +454,3 @@ stroke="currentColor" (либо fill="currentColor" для монохромны�
 <div class="empty-state">{{ text }}</div>
 {% endmacro %}
 
-{# Макрос alerts_table(rows, detailed, empty_text) — таблица алертов.
-   Один источник разметки: компактный вид для сводки и SSE (detailed=false),
-   расширенный с выбором и состоянием — для журнала событий (/logs). #} {% macro
-alerts_table(rows, detailed=false, empty_text="Нет записей") %} {% if rows %}
-<div
-  class="dg-table {% if detailed %}dg-table--events{% else %}dg-table--alerts{% endif %}"
-  role="table"
-  aria-label="{% if detailed %}Журнал событий{% else %}Последние алерты{% endif %}"
->
-  <div class="dg-header" role="rowgroup">
-    {% if detailed %}
-    <div class="dg-cell" role="columnheader">✓</div>
-    {% endif %}
-    <div class="dg-cell" role="columnheader">Дата и время</div>
-    <div class="dg-cell" role="columnheader">Пациент</div>
-    <div class="dg-cell" role="columnheader">Врач</div>
-    {% if detailed %}
-    <div class="dg-cell" role="columnheader">Специальность</div>
-    {% endif %}
-    <div class="dg-cell" role="columnheader">
-      {% if detailed %}Событие{% else %}Статус{% endif %}
-    </div>
-    {% if detailed %}
-    <div class="dg-cell" role="columnheader">Состояние</div>
-    {% endif %}
-  </div>
-  <div class="dg-tbody" role="rowgroup">
-    {% for log in rows %}
-    <div class="dg-row" role="row">
-      {% if detailed %}
-      <div class="dg-cell" role="cell" data-label="Выбор">
-        <input type="checkbox" class="alert-check" value="{{ log.id }}" />
-      </div>
-      {% endif %}
-      <div class="dg-cell cell-nowrap" role="cell" data-label="Дата и время">
-        {% if detailed %}{{ log.ts|int|strftime }}{% else %}{{ log.ts|int|strftime('%d.%m %H:%M') }}{% endif %}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Пациент">
-        {{ log.patient_name }}
-      </div>
-      <div class="dg-cell" role="cell" data-label="Врач">{{ log.doctor_name }}</div>
-      {% if detailed %}
-      <div class="dg-cell" role="cell" data-label="Специальность">
-        {{ log.specialty }}
-      </div>
-      {% endif %}
-      <div
-        class="dg-cell"
-        role="cell"
-        data-label="{% if detailed %}Событие{% else %}Статус{% endif %}"
-      >
-        {{ status_badge(log.status) }}
-      </div>
-      {% if detailed %}
-      <div class="dg-cell" role="cell" data-label="Состояние">
-        {% if log.ack_status == 'new' %}
-        <span class="badge badge-warn">новый</span>
-        {% elif log.ack_status == 'resolved' %}
-        <span class="badge badge-info">разобран</span>
-        {% else %}
-        <span class="badge badge-ok">подтверждён</span>
-        {% endif %}
-      </div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% else %}
-<p class="text-muted">{{ empty_text }}</p>
-{% endif %} {% endmacro %}

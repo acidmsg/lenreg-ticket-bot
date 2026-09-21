@@ -538,25 +538,49 @@ h2 {
   grid-template-columns: var(--dg-columns);
 }
 
-/* Подробный вид журнала событий (/logs): чекбокс, дата и время, пациент,
-   врач, специальность, событие, состояние — 7 колонок. Колонка времени
-   расширена под полную дату (раньше влезало только ЧЧ:ММ:СС). */
-.dg-table--events {
-  --dg-columns: 40px 165px 1fr 1fr 130px 110px 110px;
-
-  grid-template-columns: var(--dg-columns);
-}
-
 .dg-table--logs {
   --dg-columns: 165px 120px 130px 1fr 1fr;
 
   grid-template-columns: var(--dg-columns);
 }
 
-.dg-table--alerts {
-  --dg-columns: 140px 1fr 1fr 100px;
+/* Витрина логов бота (/logs): время, уровень, источник, сообщение. */
+.dg-table--applogs {
+  --dg-columns: 165px 100px 220px 1fr;
 
   grid-template-columns: var(--dg-columns);
+}
+
+.log-message {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.log-follow {
+  margin-left: auto;
+}
+
+/* Уровни логов: цвет строки задаёт важность записи. */
+.level {
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.level--debug {
+  color: var(--text-muted, #8b949e);
+}
+
+.level--info {
+  color: var(--status-available);
+}
+
+.level--warning {
+  color: var(--color-warning);
+}
+
+.level--error,
+.level--critical {
+  color: var(--color-danger);
 }
 
 .dg-table--patients {
