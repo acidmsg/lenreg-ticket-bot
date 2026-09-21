@@ -11,13 +11,13 @@ API-эндпоинты для Telegram Mini App.
 import asyncio
 import datetime
 import json
-import logging
 import time as time_module
 from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
 from src.config import settings
@@ -29,8 +29,6 @@ from src.utils.helpers import (
     safe_name,
     shorten_specialty,
 )
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/user", tags=["Mini App (JSON API)"])
 
@@ -481,7 +479,7 @@ async def add_doctor(
 
     except httpx.TimeoutException:
         logger.error(
-            "Таймаут API при добавлении врача %s для пользователя %s",
+            "Таймаут API при добавлении врача {} для пользователя {}",
             body.doctor_id,
             telegram_id,
         )
@@ -491,7 +489,7 @@ async def add_doctor(
         )
     except httpx.NetworkError:
         logger.error(
-            "Сетевая ошибка API при добавлении врача %s для пользователя %s",
+            "Сетевая ошибка API при добавлении врача {} для пользователя {}",
             body.doctor_id,
             telegram_id,
         )
@@ -501,7 +499,7 @@ async def add_doctor(
         )
     except Exception:
         logger.exception(
-            "Ошибка при добавлении врача %s для пользователя %s",
+            "Ошибка при добавлении врача {} для пользователя {}",
             body.doctor_id,
             telegram_id,
         )
@@ -627,7 +625,7 @@ async def update_monitoring_filter(
         )
     except Exception:
         logger.exception(
-            "Ошибка обновления фильтра для monitoring_id=%s", monitoring_id
+            "Ошибка обновления фильтра для monitoring_id={}", monitoring_id
         )
         return JSONResponse(
             status_code=500,
@@ -683,7 +681,7 @@ async def get_specialties(
         specialties_raw = await db._db.get_clinic_specialties(clinic_id)
     except Exception:
         logger.exception(
-            "Ошибка при получении специальностей из БД для clinic_id=%s", clinic_id
+            "Ошибка при получении специальностей из БД для clinic_id={}", clinic_id
         )
         return JSONResponse(
             status_code=500,
@@ -734,7 +732,7 @@ async def get_available_doctors(
     #    (аналогично common._discover_doctors_on_demand в боте)
     if not doctors_dict:
         logger.info(
-            "Врачи для clinic_id=%s не найдены в БД, запускаем on-demand discovery",
+            "Врачи для clinic_id={} не найдены в БД, запускаем on-demand discovery",
             clinic_id,
         )
         try:
@@ -744,7 +742,7 @@ async def get_available_doctors(
                 api, db, clinic_id, patient_id
             )
         except Exception:
-            logger.exception("Ошибка on-demand discovery для clinic_id=%s", clinic_id)
+            logger.exception("Ошибка on-demand discovery для clinic_id={}", clinic_id)
             # Если discovery упал — возвращаем пустой список, но не 500
             doctors_dict = {}
 
@@ -760,7 +758,7 @@ async def get_available_doctors(
                 monitored_doctor_ids.add(d_id)
         patient_monitoring = monitoring.get(patient_id, {})
     except Exception:
-        logger.exception("Ошибка получения данных мониторинга для uid=%s", telegram_id)
+        logger.exception("Ошибка получения данных мониторинга для uid={}", telegram_id)
 
     # 4. Получаем свежие слоты из API (один batch-запрос)
     slots_map: dict[str, dict[str, Any]] = {}
@@ -789,17 +787,17 @@ async def get_available_doctors(
                 }
     except httpx.TimeoutException:
         logger.warning(
-            "Таймаут API слотов для clinic_id=%s, возвращаем врачей без слотов",
+            "Таймаут API слотов для clinic_id={}, возвращаем врачей без слотов",
             clinic_id,
         )
     except httpx.NetworkError:
         logger.warning(
-            "Сетевая ошибка API слотов для clinic_id=%s, возвращаем врачей без слотов",
+            "Сетевая ошибка API слотов для clinic_id={}, возвращаем врачей без слотов",
             clinic_id,
         )
     except Exception:
         logger.exception(
-            "Ошибка получения слотов для clinic_id=%s, возвращаем врачей без слотов",
+            "Ошибка получения слотов для clinic_id={}, возвращаем врачей без слотов",
             clinic_id,
         )
 
@@ -859,7 +857,7 @@ async def search_doctors(
     try:
         doctors = await db._db.search_doctors_by_name(q, limit=20)
     except Exception:
-        logger.exception("Ошибка поиска врачей по запросу '%s'", q)
+        logger.exception("Ошибка поиска врачей по запросу '{}'", q)
         return JSONResponse(
             status_code=500,
             content={"detail": "Внутренняя ошибка сервера при поиске врачей."},
@@ -946,7 +944,7 @@ async def add_patient(
             timeout=15.0,
         )
     except TimeoutError:
-        logger.error("Поиск пациента '%s' превысил таймаут 15с", fio)
+        logger.error("Поиск пациента '{}' превысил таймаут 15с", fio)
         return JSONResponse(
             status_code=504,
             content={
@@ -998,7 +996,7 @@ async def add_patient(
         await db.add_patient(uid=telegram_id, p_id=p_id, p_info=p_info)
     except Exception:
         logger.exception(
-            "Ошибка сохранения пациента p_id=%s для пользователя %s",
+            "Ошибка сохранения пациента p_id={} для пользователя {}",
             p_id,
             telegram_id,
         )
@@ -1036,7 +1034,7 @@ async def delete_patient(
     masked_patient = str(patient_id)[-4:]
     masked_telegram = str(telegram_id)[-4:]
     logger.info(
-        "Пациент ...%s удалён пользователем ...%s",
+        "Пациент ...{} удалён пользователем ...{}",
         masked_patient,
         masked_telegram,
     )
@@ -1117,14 +1115,14 @@ async def get_slots(
         )
     except TimeoutError:
         logger.warning(
-            "Превышен бюджет времени (%.1f с) при получении слотов: monitoring_id=%s",
+            "Превышен бюджет времени ({:.1f} с) при получении слотов: monitoring_id={}",
             settings.WEB_SLOTS_TIMEOUT,
             monitoring_id,
         )
         return _build_service_error_response(504, "api_timeout")
     except Exception:
         logger.exception(
-            "Ошибка при получении слотов для monitoring_id=%s",
+            "Ошибка при получении слотов для monitoring_id={}",
             monitoring_id,
         )
         return JSONResponse(
@@ -1136,7 +1134,7 @@ async def get_slots(
         # None от check_slots() — отказ внешнего API (таймаут/сеть/DNS-отказ,
         # 403/429). Это не «нет слотов»: сообщаем о недоступности сервиса.
         logger.warning(
-            "Внешний API недоступен при получении слотов: monitoring_id=%s",
+            "Внешний API недоступен при получении слотов: monitoring_id={}",
             monitoring_id,
         )
         return _build_service_error_response(502, "api_unavailable")
@@ -1231,7 +1229,7 @@ async def force_check_doctor(
         )
     except Exception:
         logger.exception(
-            "Ошибка при проверке слотов для monitoring_id=%s", body.monitoring_id
+            "Ошибка при проверке слотов для monitoring_id={}", body.monitoring_id
         )
         return JSONResponse(
             status_code=502,
@@ -1298,7 +1296,7 @@ async def book_appointment(
     try:
         user_data = await db.get_user_data(telegram_id)
     except Exception:
-        logger.exception("Ошибка получения данных пользователя %s", telegram_id)
+        logger.exception("Ошибка получения данных пользователя {}", telegram_id)
         return JSONResponse(
             status_code=500,
             content={
@@ -1320,7 +1318,7 @@ async def book_appointment(
     doctor_info = monitored_doctors.get(body.doctor_id)
     if doctor_info is None:
         logger.warning(
-            "Врач d_id=%s не найден в мониторинге пациента p_id=%s (uid=%s)",
+            "Врач d_id={} не найден в мониторинге пациента p_id={} (uid={})",
             body.doctor_id,
             body.patient_id,
             telegram_id,
@@ -1362,7 +1360,7 @@ async def book_appointment(
             referral_id=body.referral_id,
         )
     except httpx.TimeoutException:
-        logger.error("Таймаут API при бронировании для пользователя %s", telegram_id)
+        logger.error("Таймаут API при бронировании для пользователя {}", telegram_id)
         return JSONResponse(
             status_code=504,
             content={
@@ -1373,7 +1371,7 @@ async def book_appointment(
         )
     except httpx.NetworkError:
         logger.error(
-            "Сетевая ошибка API при бронировании для пользователя %s", telegram_id
+            "Сетевая ошибка API при бронировании для пользователя {}", telegram_id
         )
         return JSONResponse(
             status_code=502,
@@ -1384,7 +1382,7 @@ async def book_appointment(
             },
         )
     except Exception:
-        logger.exception("Ошибка при бронировании для пользователя %s", telegram_id)
+        logger.exception("Ошибка при бронировании для пользователя {}", telegram_id)
         return JSONResponse(
             status_code=500,
             content={
@@ -1424,7 +1422,7 @@ async def book_appointment(
             )
             await db.save_booking(booking)
         except Exception as e:
-            logger.error("Ошибка сохранения booking в БД: %s", e)
+            logger.error("Ошибка сохранения booking в БД: {}", e)
             # Не фейлим ответ — запись уже создана на стороне API
 
         return {
@@ -1540,7 +1538,7 @@ async def get_bookings(request: Request) -> dict[str, Any]:
     try:
         await db.archive_past_bookings(telegram_id)
     except Exception:
-        logger.exception("Ошибка автоархивации для uid=%s", telegram_id)
+        logger.exception("Ошибка автоархивации для uid={}", telegram_id)
 
     # Получаем активные записи
     bookings = await db.get_user_bookings(telegram_id)

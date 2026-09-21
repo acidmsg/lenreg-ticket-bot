@@ -7,16 +7,13 @@ X-Telegram-InitData. Применяется только к путям /api/user
 которая является единственным источником истины для проверки initData.
 """
 
-import logging
-
+from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from src.config import settings
 from src.utils.helpers import verify_telegram_init_data
-
-logger = logging.getLogger(__name__)
 
 
 class TelegramInitDataMiddleware(BaseHTTPMiddleware):
@@ -36,14 +33,11 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
         # Пропускаем пути, не относящиеся к Mini App API
         path = request.url.path
         if not path.startswith("/api/user"):
-            # Статику не логируем: строка на каждый файл превращала лог в шум.
-            # Прочие пути остаются в DEBUG — иначе опечатка вроде /api/users
-            # пройдёт мимо проверки незамеченной.
-            if not path.startswith("/static/"):
-                logger.debug("Mini App middleware: путь %s вне /api/user/*", path)
+            # Пути вне Mini App API пропускаем молча: и статика, и страницы
+            # дашборда не повод писать строку на каждое открытие.
             return await call_next(request)
 
-        logger.debug("Mini App middleware: проверка initData для пути %s", path)
+        logger.debug("Mini App middleware: проверка initData для пути {}", path)
 
         # --- Аутентификация управляется флагом MINI_APP_AUTH_ENABLED ---
         if not settings.MINI_APP_AUTH_ENABLED:
@@ -79,7 +73,7 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
                 status_code = 403
 
             logger.warning(
-                "Mini App middleware: верификация не пройдена — %s",
+                "Mini App middleware: верификация не пройдена — {}",
                 error_msg,
             )
             return JSONResponse(
@@ -91,7 +85,7 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
         request.state.telegram_id = telegram_id
 
         logger.debug(
-            "Mini App middleware: initData успешно проверена для telegram_id=%d",
+            "Mini App middleware: initData успешно проверена для telegram_id={}",
             request.state.telegram_id,
         )
 

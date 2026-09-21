@@ -10,18 +10,16 @@ initData его не касается. Авторизация здесь — п�
 (``Telegram.WebApp.downloadFile`` / ``openLink``).
 """
 
-import logging
 from typing import cast
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
+from loguru import logger
 
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.services.export import ExportUnavailableError, render_export
 from src.web.export_token import verify_export
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/export", tags=["Mini App (экспорт по ссылке)"])
 
@@ -53,7 +51,7 @@ async def download_booking_export(
         booking_id, fmt, str(uid), exp, sig, bot_token=settings.BOT_TOKEN
     ):
         logger.warning(
-            "Экспорт по ссылке: подпись недействительна или истекла | booking=%s",
+            "Экспорт по ссылке: подпись недействительна или истекла | booking={}",
             booking_id,
         )
         return JSONResponse(

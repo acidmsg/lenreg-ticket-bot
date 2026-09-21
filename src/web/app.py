@@ -10,7 +10,6 @@ event loop'е, что и aiogram-бот, фоновые задачи и Promethe
 [`event-loop-ownership.md`](../../specs/design/event-loop-ownership.md:1).
 """
 
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
@@ -18,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from loguru import logger
 
 from src.config import Settings
 from src.database.manager import DatabaseManager
@@ -26,8 +26,6 @@ from src.services.metrics import PrometheusMetrics
 
 if TYPE_CHECKING:
     from src.api.zdrav_client import ZdravClient
-
-logger = logging.getLogger(__name__)
 
 
 class StaticNoCacheMiddleware:
@@ -194,7 +192,7 @@ def create_app(
             )
         else:
             logger.error(
-                "Mini App static: директория %s не найдена — "
+                "Mini App static: директория {} не найдена — "
                 "статика /app/ не смонтирована!",
                 _app_static_dir,
             )
