@@ -198,7 +198,7 @@ def _scan_backup_dirs_sync(backup_dir: Path) -> list[dict[str, Any]]:
         try:
             entries = list(cat_dir.iterdir())
         except OSError:
-            logger.warning("Не удалось прочитать директорию {}", cat_dir)
+            logger.warning("Не удалось прочитать директорию %s", cat_dir)
             continue
 
         for entry_path in entries:
@@ -313,7 +313,7 @@ async def _load_tokens() -> dict[str, dict[str, Any]]:
 
         return await loop.run_in_executor(None, _read)
     except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Не удалось загрузить restore-токены: {}", e)
+        logger.warning("Не удалось загрузить restore-токены: %s", e)
         return {}
 
 
@@ -330,7 +330,7 @@ async def _save_tokens(tokens: dict[str, dict[str, Any]]) -> None:
 
         await loop.run_in_executor(None, _write)
     except OSError as e:
-        logger.error("Не удалось сохранить restore-токены: {}", e)
+        logger.error("Не удалось сохранить restore-токены: %s", e)
 
 
 async def _cleanup_expired_tokens(
@@ -353,7 +353,7 @@ async def _cleanup_expired_tokens(
         del tokens[token]
 
     if expired:
-        logger.debug("Удалено {} просроченных restore-токенов", len(expired))
+        logger.debug("Удалено %d просроченных restore-токенов", len(expired))
 
     return tokens
 
@@ -421,7 +421,7 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
         script_env["NTFY_BACKUP_TOPIC"] = settings.ntfy_backup_topic
 
     logger.info(
-        "Ручной запуск бэкапа: script={}, backup_dir={}, cwd={}",
+        "Ручной запуск бэкапа: script=%s, backup_dir=%s, cwd=%s",
         backup_script,
         script_env["BACKUP_DIR"],
         _PROJECT_ROOT,
@@ -437,7 +437,7 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
             str(_PROJECT_ROOT),
         )
     except subprocess.TimeoutExpired:
-        logger.error("Таймаут ({}с) при выполнении backup.sh", _SCRIPT_TIMEOUT)
+        logger.error("Таймаут (%dс) при выполнении backup.sh", _SCRIPT_TIMEOUT)
         return JSONResponse(
             status_code=504,
             content={
@@ -466,7 +466,7 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
 
     output = result.stdout.strip()
     if result.returncode == 0:
-        logger.info("Ручной бэкап успешно завершён (rc={})", result.returncode)
+        logger.info("Ручной бэкап успешно завершён (rc=%d)", result.returncode)
         # Извлекаем имя файла из вывода скрипта (последняя строка с .db)
         filename = ""
         for line in reversed(result.stdout.splitlines()):
@@ -491,7 +491,7 @@ async def run_backup(request: Request) -> dict[str, Any] | JSONResponse:
         }
     else:
         logger.error(
-            "Ручной бэкап завершился с ошибкой (rc={}): {}",
+            "Ручной бэкап завершился с ошибкой (rc=%d): %s",
             result.returncode,
             result.stderr.strip() or result.stdout.strip(),
         )
@@ -549,7 +549,7 @@ async def restore_backup(
         safe_path = _safe_backup_path(backup_dir, filename, category)
         full_path = safe_path
     except ValueError:
-        logger.warning("Path traversal validation failed for file: {}", filename)
+        logger.warning("Path traversal validation failed for file: %s", filename)
         return JSONResponse(
             status_code=400,
             content={"status": "error", "message": "Некорректное имя файла или путь."},
@@ -581,7 +581,7 @@ async def restore_backup(
         )
 
         logger.warning(
-            "Запрошен токен подтверждения восстановления: filename={}, token={}",
+            "Запрошен токен подтверждения восстановления: filename=%s, token=%s",
             filename,
             restore_token,
         )
@@ -639,7 +639,7 @@ async def restore_backup(
     # 2. Автоснапшот текущей БД — страховка перед перезаписью
     safety_snapshot = await loop.run_in_executor(None, _make_safety_snapshot)
     if safety_snapshot:
-        logger.critical("Автоснапшот текущей БД: {}", safety_snapshot)
+        logger.critical("Автоснапшот текущей БД: %s", safety_snapshot)
 
     # 3. Запуск скрипта восстановления; флаг сканирования возвращается
     #    в finally при любом исходе (успех, ошибка, таймаут, исключение).
@@ -672,8 +672,8 @@ async def restore_backup(
             script_env["NTFY_BACKUP_TOPIC"] = settings.ntfy_backup_topic
 
         logger.critical(
-            "Запуск восстановления из бэкапа: filename={}, full_path={}, "
-            "restore_in_container={}",
+            "Запуск восстановления из бэкапа: filename=%s, full_path=%s, "
+            "restore_in_container=%s",
             filename,
             full_path,
             settings.restore_in_container,
@@ -690,7 +690,7 @@ async def restore_backup(
             )
         except subprocess.TimeoutExpired:
             logger.critical(
-                "Таймаут ({}с) при восстановлении из {}",
+                "Таймаут (%dс) при восстановлении из %s",
                 _SCRIPT_TIMEOUT,
                 filename,
             )
@@ -730,7 +730,7 @@ async def restore_backup(
                 },
             )
         except Exception:
-            logger.exception("Неожиданная ошибка при восстановлении из {}", filename)
+            logger.exception("Неожиданная ошибка при восстановлении из %s", filename)
             await log_action(
                 db,
                 audit_actor,
@@ -756,7 +756,7 @@ async def restore_backup(
 
         if result.returncode == 0 and integrity == "ok":
             logger.critical(
-                "Восстановление из {} успешно завершено (rc={}), integrity={}",
+                "Восстановление из %s успешно завершено (rc=%d), integrity=%s",
                 filename,
                 result.returncode,
                 integrity,
@@ -782,7 +782,7 @@ async def restore_backup(
         if result.returncode == 0:
             # Скрипт отработал, но целостность не подтверждена — это не «ok».
             logger.critical(
-                "Восстановление из {}: rc=0, но проверка целостности: {}",
+                "Восстановление из %s: rc=0, но проверка целостности: %s",
                 filename,
                 integrity,
             )
@@ -810,7 +810,7 @@ async def restore_backup(
             }
 
         logger.critical(
-            "Восстановление из {} завершилось с ошибкой (rc={}): {}",
+            "Восстановление из %s завершилось с ошибкой (rc=%d): %s",
             filename,
             result.returncode,
             result.stderr.strip() or output,
@@ -841,7 +841,7 @@ async def restore_backup(
             await db.config.set_config("doctor_scan_enabled", prev_scan_enabled)
         except Exception:
             logger.exception(
-                "Не удалось вернуть флаг doctor_scan_enabled={} после restore",
+                "Не удалось вернуть флаг doctor_scan_enabled=%s после restore",
                 prev_scan_enabled,
             )
 
@@ -880,7 +880,7 @@ async def delete_backup(
         safe_path = _safe_backup_path(backup_dir, filename, category)
         full_path = safe_path
     except ValueError:
-        logger.warning("Path traversal validation failed for file: {}", filename)
+        logger.warning("Path traversal validation failed for file: %s", filename)
         return JSONResponse(
             status_code=400,
             content={"status": "error", "message": "Некорректное имя файла или путь."},
@@ -888,7 +888,7 @@ async def delete_backup(
 
     category = full_path.parent.name
     logger.warning(
-        "Удаление бэкапа: filename={}, category={}, path={}",
+        "Удаление бэкапа: filename=%s, category=%s, path=%s",
         filename,
         category,
         full_path,
@@ -916,7 +916,7 @@ async def delete_backup(
             full_path.unlink()
             removed_files.append(str(full_path))
     except OSError:
-        logger.exception("Ошибка удаления файла {}", full_path)
+        logger.exception("Ошибка удаления файла %s", full_path)
         return JSONResponse(
             status_code=500,
             content={
@@ -937,10 +937,10 @@ async def delete_backup(
                 marker.unlink()
                 removed_files.append(str(marker))
         except OSError:
-            logger.warning("Не удалось удалить маркер {}", marker)
+            logger.warning("Не удалось удалить маркер %s", marker)
 
     logger.info(
-        "Бэкап удалён: filename={}, category={}, удалено файлов: {}",
+        "Бэкап удалён: filename=%s, category=%s, удалено файлов: %d",
         filename,
         category,
         len(removed_files),
@@ -1031,7 +1031,7 @@ async def backup_status(request: Request) -> dict[str, Any] | JSONResponse:
         health_data: dict[str, Any] = json.loads(stdout)
     except json.JSONDecodeError as e:
         logger.error(
-            "Не удалось разобрать JSON от backup_healthcheck.sh: {}\nВывод: {}",
+            "Не удалось разобрать JSON от backup_healthcheck.sh: %s\nВывод: %s",
             e,
             stdout[:500],
         )

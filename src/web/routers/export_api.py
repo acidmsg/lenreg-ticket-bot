@@ -53,7 +53,7 @@ async def download_booking_export(
         booking_id, fmt, str(uid), exp, sig, bot_token=settings.BOT_TOKEN
     ):
         logger.warning(
-            "Экспорт по ссылке: подпись недействительна или истекла | booking={}",
+            "Экспорт по ссылке: подпись недействительна или истекла | booking=%s",
             booking_id,
         )
         return JSONResponse(

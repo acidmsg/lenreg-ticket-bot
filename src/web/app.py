@@ -194,7 +194,7 @@ def create_app(
             )
         else:
             logger.error(
-                "Mini App static: директория {} не найдена — "
+                "Mini App static: директория %s не найдена — "
                 "статика /app/ не смонтирована!",
                 _app_static_dir,
             )
