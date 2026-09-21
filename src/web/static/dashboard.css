@@ -558,7 +558,6 @@ h2 {
   font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
   font-size: 0.75rem;
   line-height: var(--line-height-tight);
-  cursor: pointer;
 }
 
 .log-row:hover {
@@ -579,43 +578,11 @@ h2 {
   white-space: nowrap;
 }
 
-/* Сообщение свёрнуто в две строки: длинные запросы разворачиваются кликом. */
-/* Сообщение показывается целиком; обрезаем только длинные записи (класс
-   log-row--long ставит разметка). Режем по max-height, а не через
-   -webkit-line-clamp: при white-space: pre-wrap мобильный Chrome оставлял
-   полустроку, которая налезала на следующую запись. box-sizing: content-box
-   обязателен — иначе max-height вбирает padding и рамку ячейки, и вторая
-   строка снова обрезается посередине. */
+/* Сообщение показывается целиком, без обрезки и без разворачивания:
+   длинные токены переносятся, чтобы строка не выходила за карточку. */
 .log-message {
-  box-sizing: content-box;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  line-height: 1.35;
-}
-
-.log-row--long .log-message {
-  max-height: calc(2 * 1.35em);
-  overflow: hidden;
-}
-
-.log-row--open .log-message {
-  max-height: none;
-}
-
-.log-row--open {
-  background: var(--color-bg-secondary);
-}
-
-/* Значок «запись разворачивается» — только у длинных сообщений */
-.log-toggle {
-  display: inline-block;
-  margin-left: 0.25rem;
-  color: var(--color-text-secondary);
-  font-size: 0.7rem;
-}
-
-.log-row--open .log-toggle {
-  transform: rotate(180deg);
 }
 
 .logs-bar {

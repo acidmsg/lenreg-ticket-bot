@@ -144,13 +144,6 @@
     ).observe(sentinel);
   }
 
-  /* ── Разворот длинного сообщения по клику ──────────────────── */
-
-  body.addEventListener("click", (event) => {
-    const row = event.target.closest(".log-row");
-    if (row) row.classList.toggle("log-row--open");
-  });
-
   /* ── Режим «следить» ───────────────────────────────────────── */
 
   async function tick() {
