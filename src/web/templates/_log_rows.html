@@ -1,9 +1,15 @@
 {# Строки витрины логов. Одна разметка на первый экран, подгрузку и слежение. #}
 {% for record in records %}
-<div class="log-row" role="row" title="Развернуть сообщение">
+{% set long_message = record.message|length > 120 or "\n" in record.message %}
+<div
+  class="log-row{{ ' log-row--long' if long_message else '' }}"
+  role="row"
+  title="Развернуть сообщение"
+>
   <span class="log-cell log-time" role="cell">
     <span class="log-date">{{ record.ts.split(" ")[0] }}</span>
     <span class="log-clock">{{ record.ts.split(" ")[1] }}</span>
+    {% if long_message %}<span class="log-toggle" aria-hidden="true">⌄</span>{% endif %}
   </span>
   <span class="log-cell log-level level level--{{ record.level|lower }}" role="cell"
     >{{ record.level }}</span
