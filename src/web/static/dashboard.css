@@ -548,7 +548,8 @@ h2 {
    Строка плотная на любом экране — без карточных отступов и без подписей
    полей: их роль играет порядок колонок, а не подписи. */
 .dg-table--applogs {
-  --dg-columns: 150px 60px minmax(110px, 190px) minmax(0, 1fr);
+  /* Полная метка времени 19 символов моно 0.75rem ≈ 137px + паддинги ячейки. */
+  --dg-columns: 176px 60px minmax(110px, 190px) minmax(0, 1fr);
 }
 
 .log-row {
@@ -657,10 +658,6 @@ h2 {
     grid-template-areas: "clock level source" "message message message";
     gap: 0 0.4rem;
     font-size: 0.72rem;
-  }
-
-  .log-date {
-    display: none;
   }
 
   .log-time {
@@ -1035,48 +1032,63 @@ h2 {
   user-select: none;
 }
 
-.toggle input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
+/* ── Переключатель ─────────────────────────────────────────────
+   Любой чекбокс дашборда выглядит переключателем: дорожка с бегунком,
+   во включённом состоянии — акцентный цвет. Размеры в em, поэтому он
+   подстраивается под кегль места: фильтр логов, подтверждение, скан. */
+input[type="checkbox"] {
+  --switch-width: 2.4em;
+  --switch-height: 1.35em;
 
-.toggle__slider {
+  /* Поля ввода по умолчанию не наследуют кегль: без этого em считался бы
+     от размера по умолчанию и переключатель не подстраивался бы под место. */
+  font-size: inherit;
   position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 22px;
+  flex: none;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  margin: 0;
+  appearance: none;
+  vertical-align: middle;
   background: var(--color-border-strong);
+  border: 0;
   border-radius: var(--radius-full);
+  cursor: pointer;
   transition: background var(--transition-normal);
-  flex-shrink: 0;
 }
 
-.toggle__slider::after {
+input[type="checkbox"]::after {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
+  top: 50%;
+  left: 0.15em;
+  width: calc(var(--switch-height) - 0.3em);
+  height: calc(var(--switch-height) - 0.3em);
   background: var(--color-text-primary);
   border-radius: 50%;
-  transition: transform var(--transition-normal);
+  transform: translateY(-50%);
+  transition:
+    left var(--transition-normal),
+    background var(--transition-normal);
 }
 
-.toggle input:checked + .toggle__slider {
+input[type="checkbox"]:checked {
   background: var(--color-accent);
 }
 
-.toggle input:checked + .toggle__slider::after {
-  transform: translateX(18px);
-  background: var(--color-accent-text);
+input[type="checkbox"]:checked::after {
+  left: calc(100% - var(--switch-height) + 0.15em);
+  background: #fff;
 }
 
-.toggle input:focus-visible + .toggle__slider {
-  outline: 2px solid var(--color-accent);
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-info);
   outline-offset: 2px;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Scan controls (обёртка для toggle + кнопки) ────────────────── */

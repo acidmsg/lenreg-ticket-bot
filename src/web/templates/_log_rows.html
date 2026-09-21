@@ -1,10 +1,7 @@
 {# Строки витрины логов. Одна разметка на первый экран, подгрузку и слежение. #}
 {% for record in records %}
 <div class="log-row" role="row">
-  <span class="log-cell log-time" role="cell">
-    <span class="log-date">{{ record.ts.split(" ")[0] }}</span>
-    <span class="log-clock">{{ record.ts.split(" ")[1] }}</span>
-  </span>
+  <span class="log-cell log-time" role="cell">{{ record.ts }}</span>
   <span class="log-cell log-level level level--{{ record.level|lower }}" role="cell"
     >{{ record.level }}</span
   >
