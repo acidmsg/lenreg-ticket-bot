@@ -2,11 +2,11 @@
 %}Логи — LenReg Ticket Bot Dashboard{% endblock %} {% block content %}
 <h1>Логи</h1>
 
-<div class="card">
-  <form method="GET" action="/logs" class="filter-form">
+<div class="card card--tight">
+  <form method="GET" action="/logs" class="filter-form" id="logs-filter">
     <label>
       Уровень:
-      <select name="level">
+      <select name="level" id="logs-level">
         <option value="">все</option>
         {% for value in levels %}
         <option value="{{ value }}" {% if level_filter == value %}selected{% endif %}>
@@ -15,47 +15,62 @@
         {% endfor %}
       </select>
     </label>
-    <label>
-      Источник:
-      <input
-        type="text"
-        name="source"
-        list="log-sources"
-        value="{{ source_filter }}"
-        placeholder="src.services"
-      />
-    </label>
-    <label>
+
+    <details class="multi" id="logs-sources" {% if selected_sources %}open{% endif %}>
+      <summary>
+        Источник: {% if selected_sources %}{{ selected_sources|length }}{% else
+        %}все{% endif %}
+      </summary>
+      <div class="multi__panel">
+        {% for value in sources %}
+        <label class="multi__item">
+          <input
+            type="checkbox"
+            name="source"
+            value="{{ value }}"
+            {% if value in selected_sources %}checked{% endif %}
+          />
+          <span>{{ value }}</span>
+        </label>
+        {% else %}
+        <span class="text-muted">Источников пока нет</span>
+        {% endfor %}
+      </div>
+    </details>
+
+    <label class="filter-search">
       Поиск:
       <input
-        type="text"
+        type="search"
         name="q"
         value="{{ query_filter }}"
         placeholder="текст сообщения"
+        autocomplete="off"
       />
     </label>
-    <button type="submit" class="btn">Показать</button>
-    {% if level_filter or source_filter or query_filter %}
-    <a href="/logs" class="btn-link">Сбросить</a>
+
+    <button type="submit" class="btn filter-submit">Показать</button>
+    {% if level_filter or selected_sources or query_filter %}
+    <a href="/logs" class="btn-link" id="logs-reset">Сбросить</a>
     {% endif %}
     <label class="log-follow">
       <input type="checkbox" id="follow-toggle" />
       Следить
     </label>
   </form>
-  <datalist id="log-sources">
-    {% for value in sources %}
-    <option value="{{ value }}"></option>
-    {% endfor %}
-  </datalist>
 </div>
 
-<div class="card">
-  <span class="page-info" id="logs-status">
-    {{ log_name }} · {{ (log_size / 1024)|round(1) }} КБ · показано {{
-    records|length }} строк{% if truncated %} · вглубь дальше 4 МБ не смотрю,
-    уточните фильтры{% endif %}
-  </span>
+<div class="card card--tight">
+  <div class="logs-bar">
+    <span class="page-info" id="logs-status">
+      {{ log_name }} · {{ (log_size / 1024)|round(1) }} КБ · показано {{
+      records|length }}
+    </span>
+    <span class="page-info" id="logs-hint">
+      {% if truncated %}вглубь дальше 4 МБ не смотрю — уточните фильтры{% endif %}
+    </span>
+  </div>
+
   <div class="dg-table dg-table--applogs" role="table" aria-label="Логи бота">
     <div class="dg-header" role="rowgroup">
       <div class="dg-cell" role="columnheader">Время</div>
@@ -67,56 +82,22 @@
       class="dg-tbody"
       role="rowgroup"
       id="logs-body"
-      data-offset="{{ log_size }}"
+      data-limit="{{ limit }}"
+      data-loaded="{{ records|length }}"
+      data-has-more="{{ 'true' if has_more else 'false' }}"
+      data-tail-offset="{{ log_size }}"
+      data-tail-url="/api/logs/tail"
+      data-rows-url="/api/logs/rows"
     >
-      {% for record in records %}
-      <div class="dg-row" role="row">
-        <div class="dg-cell cell-nowrap" role="cell" data-label="Время">
-          {{ record.ts }}
-        </div>
-        <div class="dg-cell" role="cell" data-label="Уровень">
-          <span class="level level--{{ record.level|lower }}"
-            >{{ record.level }}</span
-          >
-        </div>
-        <div class="dg-cell" role="cell" data-label="Источник">
-          {{ record.source }}
-        </div>
-        <div class="dg-cell log-message" role="cell" data-label="Сообщение">
-          {{ record.message }}
-        </div>
-      </div>
-      {% endfor %}
+      {% include "_log_rows.html" %}
     </div>
   </div>
-  {% if not records %}
-  <p class="text-muted">
+
+  <div class="logs-sentinel" id="logs-sentinel" aria-hidden="true"></div>
+  <p class="text-muted logs-empty" id="logs-empty" {% if records %}hidden{% endif %}>
     {% if not log_exists %}Файла логов пока нет — строки появятся после первых
     записей.{% else %}В логах нет строк по выбранным фильтрам.{% endif %}
   </p>
-  {% endif %}
-</div>
-
-{# Пагинация вне условия записей: «Новее» нужна и когда на этой странице
-   строк не осталось (например, после перехода вглубь). #}
-<div class="pagination">
-  {% if offset > 0 %}
-  <a
-    href="?offset={{ offset - limit if offset >= limit else 0 }}&limit={{ limit }}{% if level_filter %}&level={{ level_filter }}{% endif %}{% if source_filter %}&source={{ source_filter|urlencode }}{% endif %}{% if query_filter %}&q={{ query_filter|urlencode }}{% endif %}"
-    class="btn-link"
-  >
-    {{ macros.icon('arrow-left')|safe }} Новее
-  </a>
-  {% endif %}
-  <span class="page-info">Стр. {{ (offset // limit) + 1 }}</span>
-  {% if records|length == limit %}
-  <a
-    href="?offset={{ offset + limit }}&limit={{ limit }}{% if level_filter %}&level={{ level_filter }}{% endif %}{% if source_filter %}&source={{ source_filter|urlencode }}{% endif %}{% if query_filter %}&q={{ query_filter|urlencode }}{% endif %}"
-    class="btn-link"
-  >
-    Старее {{ macros.icon('arrow-right')|safe }}
-  </a>
-  {% endif %}
 </div>
 
 <script src="/static/logs.js"></script>

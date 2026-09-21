@@ -7,14 +7,20 @@ JSON API веб-дашборда.
 import asyncio
 import csv
 import io
-from typing import Any
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.templating import Jinja2Templates
 
 from src.services.audit import actor_from_request, log_action
 from src.services.doctor_discovery import trigger_force_scan
-from src.services.log_reader import LEVELS, default_log_path, read_tail
+from src.services.log_reader import (
+    LEVELS,
+    default_log_path,
+    read_logs,
+    read_tail,
+)
 from src.services.params import (
     RESOLUTION_ORDER,
     ParamError,
@@ -198,53 +204,102 @@ def _csv_safe(value: Any) -> str:
     return text
 
 
+def _log_rows_response(
+    request: Request,
+    records: list[Any],
+    offset: int | None,
+    rotated: bool,
+) -> HTMLResponse:
+    """Отдаёт строки логов частичным шаблоном: одна разметка на страницу и динамику."""
+    templates = cast(Jinja2Templates, request.app.state.templates)
+    response = templates.TemplateResponse(
+        request, "_log_rows.html", {"records": records}
+    )
+    if offset is not None:
+        response.headers["X-Log-Offset"] = str(offset)
+    response.headers["X-Log-Rotated"] = "1" if rotated else "0"
+    return response
+
+
+def _log_filters(
+    level: str | None, source: list[str] | None, q: str | None
+) -> tuple[str | None, list[str], str | None]:
+    """Приводит параметры фильтра к виду, который понимает читатель логов."""
+    level_value = level.upper() if level else None
+    if level_value not in LEVELS:
+        level_value = None
+    sources = [item.strip() for item in (source or []) if item.strip()]
+    return level_value, sources, (q or "").strip() or None
+
+
+@router.get("/logs/rows")
+async def api_logs_rows(
+    request: Request,
+    level: str | None = None,
+    source: Annotated[list[str] | None, Query()] = None,
+    q: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> HTMLResponse:
+    """Следующая порция логов для динамической подгрузки списка.
+
+    Разметка приходит тем же частичным шаблоном, что и на странице, поэтому
+    подгруженные записи не отличаются от первого экрана.
+    """
+    log_path = default_log_path()
+    level_value, sources, query_value = _log_filters(level, source, q)
+    records: list[Any] = []
+    log_size: int | None = None
+    if log_path.is_file():
+        try:
+            records, _ = await asyncio.to_thread(
+                read_logs,
+                log_path,
+                level=level_value,
+                sources=sources or None,
+                query=query_value,
+                limit=max(1, min(limit, 500)),
+                offset=max(0, offset),
+            )
+            log_size = log_path.stat().st_size
+        except OSError:
+            records = []
+    return _log_rows_response(request, records, log_size, False)
+
+
 @router.get("/logs/tail")
 async def api_logs_tail(
     request: Request,
     after: int | None = None,
     level: str | None = None,
-    source: str | None = None,
+    source: Annotated[list[str] | None, Query()] = None,
     q: str | None = None,
-) -> dict[str, Any]:
-    """Новые строки лога для режима «следить» на странице логов.
+) -> HTMLResponse:
+    """Новые строки лога для режима «следить» (HTML-фрагмент строк).
 
     ``after`` — байтовая позиция, с которой дочитываем файл (отрицательная
-    считается началом слежения); ротация отслеживается по размеру файла.
-    Фильтры повторяют фильтры страницы, чтобы в таблицу не попадало лишнее.
+    считается началом слежения). Ротация сообщается заголовком
+    ``X-Log-Rotated``, позиция для следующего запроса — ``X-Log-Offset``.
+    Фильтры те же, что на странице: слежение не подмешивает лишние строки.
     """
     log_path = default_log_path()
+    level_value, sources, query_value = _log_filters(level, source, q)
     if not log_path.is_file():
-        return {"records": [], "offset": 0, "rotated": False}
-    level_value = level.upper() if level else None
-    if level_value not in LEVELS:
-        level_value = None
-    # Чтение файла — в отдельном потоке: сканирование хвоста не должно
-    # блокировать event loop дашборда (SSE и остальные запросы).
+        return _log_rows_response(request, [], 0, False)
     try:
         records, offset, rotated = await asyncio.to_thread(
             read_tail,
             log_path,
             after_offset=after,
             level=level_value,
-            source=(source or "").strip() or None,
-            query=(q or "").strip() or None,
+            sources=sources or None,
+            query=query_value,
         )
     except OSError:
         # Файл ротировали между is_file() и чтением — слежение начнётся заново.
-        return {"records": [], "offset": 0, "rotated": True}
-    return {
-        "records": [
-            {
-                "ts": record.ts,
-                "level": record.level,
-                "source": record.source,
-                "message": record.message,
-            }
-            for record in records
-        ],
-        "offset": offset,
-        "rotated": rotated,
-    }
+        return _log_rows_response(request, [], 0, True)
+    # Строки кладутся сверху, поэтому отдаём их в порядке «новые первыми».
+    return _log_rows_response(request, list(reversed(records)), offset, rotated)
 
 
 @router.get("/dashboard/search")

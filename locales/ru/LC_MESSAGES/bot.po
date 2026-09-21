@@ -390,10 +390,6 @@ msgstr "Временная метка"
 msgid "export-status-active"
 msgstr "активен"
 
-#: src/services/export.py:230
-msgid "export-status-inactive"
-msgstr "неактивен"
-
 #: src/services/export.py:44, 157
 msgid "export-no-data-error"
 msgstr "Нет данных для экспорта."

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,13 +56,17 @@ def _matches(
     record: LogRecord,
     *,
     level: str | None,
-    source: str | None,
+    sources: Sequence[str] | None,
     query: str | None,
 ) -> bool:
-    """Проверяет запись против фильтров страницы."""
+    """Проверяет запись против фильтров страницы.
+
+    Источников может быть несколько — запись проходит, если совпал любой
+    из выбранных префиксов.
+    """
     if level and record.level != level:
         return False
-    if source and not record.source.startswith(source):
+    if sources and not any(record.source.startswith(item) for item in sources):
         return False
     if query:
         return query.lower() in record.message.lower()
@@ -115,7 +119,7 @@ def read_logs(
     path: Path,
     *,
     level: str | None = None,
-    source: str | None = None,
+    sources: Sequence[str] | None = None,
     query: str | None = None,
     limit: int = 200,
     offset: int = 0,
@@ -129,7 +133,7 @@ def read_logs(
     collected: list[LogRecord] = []
     state: dict[str, bool] = {"complete": False}
     for record in _iter_records_backwards(path, state=state):
-        if _matches(record, level=level, source=source, query=query):
+        if _matches(record, level=level, sources=sources, query=query):
             collected.append(record)
             if len(collected) >= need:
                 break
@@ -154,7 +158,7 @@ def read_tail(
     after_offset: int | None,
     limit: int = 200,
     level: str | None = None,
-    source: str | None = None,
+    sources: Sequence[str] | None = None,
     query: str | None = None,
 ) -> tuple[list[LogRecord], int, bool]:
     """Дочитывает файл с позиции ``after_offset`` (для режима «следить»).
@@ -214,7 +218,7 @@ def read_tail(
     for raw in parts:
         record = parse_line(raw.decode("utf-8", "replace"))
         if record is not None and _matches(
-            record, level=level, source=source, query=query
+            record, level=level, sources=sources, query=query
         ):
             records.append(record)
 

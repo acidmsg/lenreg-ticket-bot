@@ -1,0 +1,13 @@
+{# Строки витрины логов. Одна разметка на первый экран, подгрузку и слежение. #}
+{% for record in records %}
+<div class="log-row" role="row" title="Развернуть сообщение">
+  <span class="log-cell log-time" role="cell">{{ record.ts }}</span>
+  <span class="log-cell log-level level level--{{ record.level|lower }}" role="cell"
+    >{{ record.level }}</span
+  >
+  <span class="log-cell log-source" role="cell" title="{{ record.source }}"
+    >{{ record.source }}</span
+  >
+  <span class="log-cell log-message" role="cell">{{ record.message }}</span>
+</div>
+{% endfor %}

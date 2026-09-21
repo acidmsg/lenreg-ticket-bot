@@ -8,7 +8,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -155,7 +155,7 @@ LOGS_PAGE_LIMIT = 200
 async def logs_page(
     request: Request,
     level: str | None = Query(None),
-    source: str | None = Query(None),
+    source: Annotated[list[str] | None, Query()] = None,
     q: str | None = Query(None),
     limit: int = Query(LOGS_PAGE_LIMIT, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -165,7 +165,7 @@ async def logs_page(
     level_value = level.upper() if level else None
     if level_value not in LEVELS:
         level_value = None
-    source_value = (source or "").strip() or None
+    source_values = [item.strip() for item in (source or []) if item.strip()]
     query_value = (q or "").strip() or None
 
     records: list[LogRecord] = []
@@ -181,7 +181,7 @@ async def logs_page(
                 read_logs,
                 log_path,
                 level=level_value,
-                source=source_value,
+                sources=source_values or None,
                 query=query_value,
                 limit=limit,
                 offset=offset,
@@ -202,7 +202,8 @@ async def logs_page(
             "levels": LEVELS,
             "sources": sources,
             "level_filter": level_value or "",
-            "source_filter": source_value or "",
+            "selected_sources": source_values,
+            "has_more": len(records) == limit,
             "query_filter": query_value or "",
             "limit": limit,
             "offset": offset,

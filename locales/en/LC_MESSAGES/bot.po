@@ -391,10 +391,6 @@ msgstr "Timestamp"
 msgid "export-status-active"
 msgstr "active"
 
-#: src/services/export.py:230
-msgid "export-status-inactive"
-msgstr "inactive"
-
 #: src/services/export.py:44, 157
 msgid "export-no-data-error"
 msgstr "No data to export."
