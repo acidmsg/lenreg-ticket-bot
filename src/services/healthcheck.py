@@ -290,7 +290,7 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
         except Exception as e:
             await safe_set("last_error_time", time.time())
             await safe_set("last_error_message", f"Healthcheck error: {e}")
-            logger.error(f"Ошибка в healthcheck-цикле: {e}", exc_info=True)
+            logger.opt(exception=True).error(f"Ошибка в healthcheck-цикле: {e}")
             await asyncio.sleep(60)
 
 

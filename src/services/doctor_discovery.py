@@ -130,8 +130,8 @@ async def fetch_specialties(
             if item.get("IdSpesiality") and item.get("NameSpesiality")
         ]
     except Exception as e:
-        logger.error(
-            f"Ошибка получения специальностей для {clinic_id}: {e}", exc_info=True
+        logger.opt(exception=True).error(
+            f"Ошибка получения специальностей для {clinic_id}: {e}"
         )
         return []
 
@@ -259,8 +259,8 @@ async def discovery_loop(
                 logger.info("Цикл discovery остановлен (cancelled)")
                 return
             except Exception as e:
-                logger.error(
-                    f"Ошибка в цикле discovery для {clinic_id}: {e}", exc_info=True
+                logger.opt(exception=True).error(
+                    f"Ошибка в цикле discovery для {clinic_id}: {e}"
                 )
 
         # Устанавливаем метрики по итогам полного цикла
@@ -426,7 +426,6 @@ async def sync_clinic_names(api: ZdravClient, database: Database) -> None:
     except Exception as e:
         _sync_consecutive_errors += 1
         use_exc_info = _sync_consecutive_errors <= 3
-        logger.error(
+        logger.opt(exception=use_exc_info).error(
             f"Ошибка синхронизации названий клиник: {e}",
-            exc_info=use_exc_info,
         )

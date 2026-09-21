@@ -37,12 +37,12 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if not path.startswith("/api/user"):
             logger.debug(
-                "Mini App middleware: путь %s пропущен (не /api/user/*)",
+                "Mini App middleware: путь {} пропущен (не /api/user/*)",
                 path,
             )
             return await call_next(request)
 
-        logger.debug("Mini App middleware: проверка initData для пути %s", path)
+        logger.debug("Mini App middleware: проверка initData для пути {}", path)
 
         # --- Аутентификация управляется флагом MINI_APP_AUTH_ENABLED ---
         if not settings.MINI_APP_AUTH_ENABLED:
@@ -78,7 +78,7 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
                 status_code = 403
 
             logger.warning(
-                "Mini App middleware: верификация не пройдена — %s",
+                "Mini App middleware: верификация не пройдена — {}",
                 error_msg,
             )
             return JSONResponse(
@@ -90,7 +90,7 @@ class TelegramInitDataMiddleware(BaseHTTPMiddleware):
         request.state.telegram_id = telegram_id
 
         logger.debug(
-            "Mini App middleware: initData успешно проверена для telegram_id=%d",
+            "Mini App middleware: initData успешно проверена для telegram_id={}",
             request.state.telegram_id,
         )
 

@@ -16,7 +16,7 @@ import re
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from loguru import logger
 
@@ -68,6 +68,33 @@ def _mask_sensitive_query_params(message: str) -> str:
 
     pattern = r"([?&])(" + "|".join(_SENSITIVE_QUERY_PARAMS) + r")=[^&\s]+"
     return re.sub(pattern, _replace_param, message, flags=re.IGNORECASE)
+
+
+# Сторонние библиотеки пишут по несколько строк на каждый HTTP-запрос и каждую
+# транзакцию SQLite — в проде это ~86% объёма логов. Их DEBUG/INFO не нужны,
+# WARNING и выше сохраняем: проблемы с сетью и БД должны быть видны.
+_NOISY_LOGGER_PREFIXES: Final = (
+    "httpx",
+    "httpcore",
+    "http11",
+    "aiosqlite",
+    "aiohttp.access",
+    "urllib3",
+)
+_NOISY_MIN_LEVEL: Final = "WARNING"
+
+
+def _quiet_third_party(record: Record) -> bool:
+    """Пропускает шум сторонних библиотек только от WARNING и выше."""
+    name = record["name"] or ""
+    if name.startswith(_NOISY_LOGGER_PREFIXES):
+        return record["level"].no >= logger.level(_NOISY_MIN_LEVEL).no
+    return True
+
+
+def _log_filter(record: Record) -> bool:
+    """Фильтр всех приёмников: маскировка чувствительных данных и отсечение шума."""
+    return _sensitive_filter(record) and _quiet_third_party(record)
 
 
 def _sensitive_filter(record: Record) -> bool:
@@ -186,7 +213,7 @@ def setup_logging(
         ),
         level=level.upper(),
         colorize=True,
-        filter=_sensitive_filter,
+        filter=_log_filter,
     )
 
     # --- File sink (plain text, with rotation) ---
@@ -200,7 +227,7 @@ def setup_logging(
         rotation=rotation,
         retention=retention,
         encoding="utf-8",
-        filter=_sensitive_filter,
+        filter=_log_filter,
     )
 
     # --- Optional JSON sink ---
@@ -212,7 +239,7 @@ def setup_logging(
             retention=retention,
             serialize=True,
             encoding="utf-8",
-            filter=_sensitive_filter,
+            filter=_log_filter,
         )
 
     # --- Bridge standard ``logging`` → Loguru ---

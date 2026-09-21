@@ -239,5 +239,5 @@ async def _reset_fsm(uid: str) -> int:
             deleted += int(await client.delete(*batch) or 0)
         return deleted
     except Exception:
-        logger.warning("Сброс FSM: не удалось удалить ключи", exc_info=True)
+        logger.opt(exception=True).warning("Сброс FSM: не удалось удалить ключи")
         return 0

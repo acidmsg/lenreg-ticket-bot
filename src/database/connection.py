@@ -83,9 +83,8 @@ class DatabaseConnection:
             try:
                 await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except Exception:
-                logger.debug(
+                logger.opt(exception=True).debug(
                     "Не удалось выполнить WAL checkpoint при закрытии БД",
-                    exc_info=True,
                 )
             await self._conn.close()
             self._conn = None

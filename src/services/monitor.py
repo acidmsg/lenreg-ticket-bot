@@ -135,20 +135,18 @@ async def _send_telegram_safe(
                         photo_path=photo_path,
                     )
                 except Exception as e2:
-                    logger.error(
+                    logger.opt(exception=True).error(
                         "Telegram retry failed for chat {}: {}",
                         chat_id,
                         e2,
-                        exc_info=True,
                     )
                     telegram_health.record_send_error()
                     return False
             except Exception as e:
-                logger.error(
+                logger.opt(exception=True).error(
                     "Telegram send failed for chat {}: {}",
                     chat_id,
                     e,
-                    exc_info=True,
                 )
                 telegram_health.record_send_error()
                 return False
@@ -679,11 +677,10 @@ async def _run_patient_doctor_tasks(
     results = await asyncio.gather(*doctor_tasks, return_exceptions=True)
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
-            logger.error(
+            logger.opt(exception=True).error(
                 "Doctor task {} failed: {}",
                 i,
                 result,
-                exc_info=True,
             )
 
 
@@ -796,7 +793,7 @@ async def monitor_loop(
             logger.info("Цикл мониторинга остановлен (cancelled)")
             break
         except Exception as e:
-            logger.error(f"Ошибка в цикле мониторинга: {e}", exc_info=True)
+            logger.opt(exception=True).error(f"Ошибка в цикле мониторинга: {e}")
             if _initial_sync:
                 logger.info(
                     "Initial sync завершён с ошибками — уведомления разблокированы"

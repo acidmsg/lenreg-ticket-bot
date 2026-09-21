@@ -401,10 +401,9 @@ class Database:
                     updated,
                 )
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Не удалось заполнить specialty_aliases из fallback: {}",
                 e,
-                exc_info=True,
             )
 
     async def seed_clinics_and_doctors_from_file(
@@ -424,11 +423,10 @@ class Database:
 
             return await seed_clinics_and_doctors_from_json(c, json_path, force=force)
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Не удалось загрузить seed-данные из {}: {}",
                 json_path,
                 e,
-                exc_info=True,
             )
             return (0, 0)
 

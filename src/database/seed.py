@@ -19,10 +19,26 @@ Seed-механизм: предзагрузка клиник и врачей и�
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Final
 
 import aiofiles
 import aiofiles.os
 from loguru import logger
+
+# Запасной каталог: файл запекается в образ отдельно от data/, потому что
+# в проде каталог data перекрыт томом и файл оттуда не виден.
+PACKAGED_SEED_DIR: Final = Path(__file__).resolve().parents[2] / "seed"
+
+
+def resolve_seed_path(json_path: str) -> str:
+    """Возвращает путь к seed-файлу: сначала настроенный, затем запасной из образа."""
+    if Path(json_path).is_file():
+        return json_path
+    fallback = PACKAGED_SEED_DIR / Path(json_path).name
+    if fallback.is_file():
+        return str(fallback)
+    return json_path
 
 
 async def seed_clinics_and_doctors_from_json(
@@ -46,8 +62,13 @@ async def seed_clinics_and_doctors_from_json(
         (clinics_added, doctors_added) — количество новых записей,
         добавленных в этой сессии.
     """
+    json_path = resolve_seed_path(json_path)
     if not await aiofiles.os.path.exists(json_path):
-        logger.warning("Seed-файл не найден: {}, пропускаю загрузку", json_path)
+        logger.warning(
+            "Seed-файл не найден: {} (запасной путь {}), пропускаю загрузку",
+            json_path,
+            PACKAGED_SEED_DIR,
+        )
         return (0, 0)
 
     # Проверка: если clinics уже содержит данные и force=False — пропускаем

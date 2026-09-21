@@ -22,7 +22,7 @@ class ConfigRepository(BaseRepository):
             row = await cursor.fetchone()
             return row["value"] if row else default
         except Exception:
-            logger.debug("Ошибка при get_config key={}", key, exc_info=True)
+            logger.opt(exception=True).debug("Ошибка при get_config key={}", key)
             return default
 
     async def set_config(self, key: str, value: str) -> None:
@@ -86,8 +86,7 @@ class ConfigRepository(BaseRepository):
                 len(defaults),
             )
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Не удалось заполнить config из defaults: {}",
                 e,
-                exc_info=True,
             )

@@ -93,6 +93,9 @@ WORKDIR /app
 COPY scripts/ scripts/
 COPY locales/ locales/
 COPY src/ src/
+# Справочник клиник и врачей: в проде каталог data перекрыт томом,
+# поэтому запекаем его отдельным путём как запасной вариант для восстановления.
+COPY data/seed/ seed/
 
 RUN chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/docker-healthcheck.sh
 

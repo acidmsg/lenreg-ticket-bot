@@ -90,12 +90,11 @@ class UserRepository(BaseRepository):
                 entry: LastMessageEntry = {"msg_id": row["msg_id"], "ts": row["ts"]}
                 return entry
         except Exception:
-            logger.debug(
+            logger.opt(exception=True).debug(
                 "Ошибка при get_last_message uid={} p_id={} d_id={}",
                 uid,
                 p_id,
                 d_id,
-                exc_info=True,
             )
         return None
 

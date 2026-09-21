@@ -334,10 +334,9 @@ class ZdravClient:
         except (httpx.TimeoutException, httpx.NetworkError):
             return None, _("api-timeout")
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в fetch_patient_id: {!r}",
                 e,
-                exc_info=True,
             )
             return None, _("api-timeout")
 
@@ -356,16 +355,14 @@ class ZdravClient:
                 _("api-patient-not-found"),
             )
         elif res.status_code == 403:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Доступ запрещён (fetch_patient_id): статус 403, "
                 "возможно истекла сессия/CSRF",
-                exc_info=True,
             )
             return None, _("api-forbidden")
         elif res.status_code == 429:
-            logger.warning(
+            logger.opt(exception=True).warning(
                 "Превышен лимит запросов (fetch_patient_id): статус 429",
-                exc_info=True,
             )
             return None, _("api-rate-limited")
         return None, _("api-temp-unavailable").format(status=res.status_code)
@@ -408,10 +405,9 @@ class ZdravClient:
             )
             return None
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в fetch_speciality_list: {}",
                 e,
-                exc_info=True,
             )
             return None
 
@@ -478,10 +474,9 @@ class ZdravClient:
         except (httpx.TimeoutException, httpx.NetworkError):
             return None
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в check_slots: {!r}",
                 e,
-                exc_info=True,
             )
             return None
 
@@ -506,9 +501,8 @@ class ZdravClient:
                 logger.info(f"API returned 200 but no slots for {doc_id}")
             return CheckSlotsResult(formatted=formatted, slots=raw_slots)
         elif res.status_code in [403, 429]:
-            logger.warning(
+            logger.opt(exception=True).warning(
                 f"Заблокировано API (check_slots): {res.status_code}",
-                exc_info=True,
             )
         return None
 
@@ -570,10 +564,9 @@ class ZdravClient:
                 error=SignupError(detail=f"Сетевая ошибка: {e}"),
             )
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в book_appointment: {!r}",
                 e,
-                exc_info=True,
             )
             return SignupResponse(
                 success=False,
@@ -654,10 +647,9 @@ class ZdravClient:
         except (httpx.TimeoutException, httpx.NetworkError):
             return []
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в fetch_all_doctors: {!r}",
                 e,
-                exc_info=True,
             )
             return []
 
@@ -675,15 +667,13 @@ class ZdravClient:
                         doc["_specialty_name"] = specialty_name
                 return result
         elif res.status_code == 403:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Доступ запрещён (fetch_all_doctors): статус 403, "
                 "возможно истекла сессия/CSRF",
-                exc_info=True,
             )
         elif res.status_code == 429:
-            logger.warning(
+            logger.opt(exception=True).warning(
                 "Превышен лимит запросов (fetch_all_doctors): статус 429",
-                exc_info=True,
             )
         return []
 
@@ -824,10 +814,9 @@ class ZdravClient:
         except (httpx.TimeoutException, httpx.NetworkError):
             return []
         except Exception as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Критическая ошибка в fetch_clinic_list: {!r}",
                 e,
-                exc_info=True,
             )
             return []
 
@@ -841,19 +830,16 @@ class ZdravClient:
             if model.success:
                 return [item.model_dump(by_alias=True) for item in model.response]
         elif res.status_code == 403:
-            logger.error(
+            logger.opt(exception=True).error(
                 "Доступ запрещён (fetch_clinic_list): статус 403, "
                 "возможно истекла сессия/CSRF",
-                exc_info=True,
             )
         elif res.status_code == 429:
-            logger.warning(
+            logger.opt(exception=True).warning(
                 "Превышен лимит запросов (fetch_clinic_list): статус 429",
-                exc_info=True,
             )
         else:
-            logger.warning(
+            logger.opt(exception=True).warning(
                 f"clinic_list вернул {res.status_code} для района {district_id}",
-                exc_info=True,
             )
         return []

@@ -178,10 +178,9 @@ class ClinicRepository(BaseRepository):
                     row["discovery_patient_child"] or "",
                 )
         except Exception:
-            logger.debug(
+            logger.opt(exception=True).debug(
                 "Ошибка при get_clinic_discovery_patients clinic_id={}",
                 clinic_id,
-                exc_info=True,
             )
         return ("", "")
 
@@ -233,9 +232,8 @@ class ClinicRepository(BaseRepository):
             row = await cursor.fetchone()
             return row["cnt"] if row else 0
         except Exception:
-            logger.debug(
+            logger.opt(exception=True).debug(
                 "Ошибка при get_clinic_doctor_count clinic_id={}",
                 clinic_id,
-                exc_info=True,
             )
             return 0

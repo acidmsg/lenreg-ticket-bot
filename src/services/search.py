@@ -54,7 +54,7 @@ async def search_all(db: Any, query: str, limit: int = SEARCH_LIMIT) -> dict[str
     names = ("users", "patients", "doctors", "clinics")
     for name, section in zip(names, sections, strict=True):
         if isinstance(section, BaseException):
-            logger.warning(f"Поиск: раздел {name} не отработал", exc_info=section)
+            logger.opt(exception=section).warning(f"Поиск: раздел {name} не отработал")
             result[name] = []
         else:
             result[name] = section

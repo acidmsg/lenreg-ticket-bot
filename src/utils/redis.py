@@ -148,9 +148,8 @@ class RedisClient:
             logger.warning(f"Redis get({key}): timeout — {e}. Fallback: return None.")
             return None
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis get({key}): Redis error — {e}. Fallback: return None.",
-                exc_info=True,
             )
             return None
 
@@ -169,9 +168,8 @@ class RedisClient:
             logger.warning(f"Redis set({key}): timeout — {e}. Fallback: return False.")
             return False
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis set({key}): Redis error — {e}. Fallback: return False.",
-                exc_info=True,
             )
             return False
 
@@ -190,9 +188,8 @@ class RedisClient:
             logger.warning(f"Redis delete({keys}): timeout — {e}. Fallback: return 0.")
             return 0
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis delete({keys}): Redis error — {e}. Fallback: return 0.",
-                exc_info=True,
             )
             return 0
 
@@ -211,9 +208,8 @@ class RedisClient:
             logger.warning(f"Redis exists({keys}): timeout — {e}. Fallback: return 0.")
             return 0
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis exists({keys}): Redis error — {e}. Fallback: return 0.",
-                exc_info=True,
             )
             return 0
 
@@ -232,9 +228,8 @@ class RedisClient:
             logger.warning(f"Redis expire({key}, {seconds}s): timeout — {e}. → False")
             return False
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis expire({key}, {seconds}s): Redis error — {e}. → False",
-                exc_info=True,
             )
             return False
 
@@ -255,9 +250,8 @@ class RedisClient:
             logger.warning(f"Redis ttl({key}): timeout — {e}. Fallback: return -2.")
             return -2
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis ttl({key}): Redis error — {e}. Fallback: return -2.",
-                exc_info=True,
             )
             return -2
 
@@ -278,9 +272,8 @@ class RedisClient:
             )
             return []
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis keys({pattern}): Redis error — {e}. Fallback: return [].",
-                exc_info=True,
             )
             return []
 
@@ -299,9 +292,8 @@ class RedisClient:
             logger.warning(f"Redis incr({key}): timeout — {e}. Fallback: return 0.")
             return 0
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis incr({key}): Redis error — {e}. Fallback: return 0.",
-                exc_info=True,
             )
             return 0
 
@@ -318,9 +310,8 @@ class RedisClient:
             logger.warning(f"Redis rpush({key}, {values}): timeout — {e}. → 0")
             return 0
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis rpush({key}, {values}): Redis error — {e}. → 0",
-                exc_info=True,
             )
             return 0
 
@@ -339,9 +330,8 @@ class RedisClient:
             logger.warning(f"Redis lrange({key}, {start}, {end}): timeout — {e}. → []")
             return []
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis lrange({key}, {start}, {end}): Redis error — {e}. → []",
-                exc_info=True,
             )
             return []
 
@@ -362,9 +352,8 @@ class RedisClient:
             )
             return False
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis ltrim({key}, {start}, {end}): Redis error — {e}. → False",
-                exc_info=True,
             )
             return False
 
@@ -383,9 +372,8 @@ class RedisClient:
             logger.warning(f"Redis llen({key}): timeout — {e}. Fallback: return 0.")
             return 0
         except RedisError as e:
-            logger.error(
+            logger.opt(exception=True).error(
                 f"Redis llen({key}): Redis error — {e}. Fallback: return 0.",
-                exc_info=True,
             )
             return 0
 

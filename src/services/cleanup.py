@@ -32,7 +32,7 @@ async def cleanup_loop(bot: Bot, db: DatabaseManager) -> None:
             logger.info("Цикл очистки остановлен (cancelled)")
             break
         except Exception as e:
-            logger.error(f"Ошибка в цикле очистки: {e}", exc_info=True)
+            logger.opt(exception=True).error(f"Ошибка в цикле очистки: {e}")
 
         await asyncio.sleep(settings.CLEANUP_INTERVAL)
 
