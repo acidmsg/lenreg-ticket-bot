@@ -48,8 +48,6 @@ dependencies = [
     "sentry-sdk>=2.0,<3.0",
     # === Metrics & Monitoring ===
     "prometheus-client>=0.20,<1.0",
-    # === Vector Search (Qdrant) ===
-    "qdrant-client>=1.9,<2.0",
     # === File Locking (Cross-platform) ===
     "portalocker>=3.0,<4.0",
     # === Image Processing & PDF Export (Booking Export) ===
@@ -97,7 +95,10 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.11"
+# Таргет совпадает с рантаймом образа (python:3.12-slim). При 3.11 mypy не может
+# разобрать стабы numpy 2.4 (PEP 695 `type X = ...`) и падает синтаксической
+# ошибкой, скрывая остальные находки.
+python_version = "3.12"
 ignore_missing_imports = true
 check_untyped_defs = true
 explicit_package_bases = true

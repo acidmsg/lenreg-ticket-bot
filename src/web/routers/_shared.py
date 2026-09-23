@@ -137,7 +137,7 @@ def render_partial(templates: Any, name: str, **context: Any) -> str:
     env = templates.env
     ctx: dict[str, Any] = {"macros": env.get_template("macros.html").module}
     ctx.update(context)
-    return env.get_template(name).render(**ctx)
+    return str(env.get_template(name).render(**ctx))
 
 
 def next_scan_seconds(

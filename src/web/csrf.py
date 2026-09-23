@@ -71,7 +71,7 @@ async def token_from_request(request: Any) -> str | None:
     """
     provided = request.headers.get(CSRF_HEADER)
     if provided:
-        return provided
+        return str(provided)
 
     content_type = request.headers.get("content-type", "")
     if "application/x-www-form-urlencoded" not in content_type:

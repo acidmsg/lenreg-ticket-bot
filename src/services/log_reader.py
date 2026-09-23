@@ -189,7 +189,10 @@ def read_tail(
         and size - after_offset > _TAIL_SCAN_BYTES
     ):
         tail_scan = True
-    start = max(0, size - _TAIL_SCAN_BYTES) if tail_scan else after_offset
+    if tail_scan:
+        start = max(0, size - _TAIL_SCAN_BYTES)
+    else:
+        start = after_offset if after_offset is not None else 0
 
     try:
         with path.open("rb") as handle:

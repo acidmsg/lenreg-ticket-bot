@@ -125,7 +125,7 @@ def client_address(request: object) -> str:
     if headers and getattr(settings, "WEB_TRUST_FORWARDED_FOR", False):
         forwarded = headers.get("x-forwarded-for")
         if forwarded:
-            first = forwarded.split(",")[0].strip()
+            first = str(forwarded).split(",")[0].strip()
             if first:
                 return first
 

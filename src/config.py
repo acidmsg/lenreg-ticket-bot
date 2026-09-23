@@ -65,10 +65,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""
 
-    # === Qdrant (Codebase Indexing) ===
-    qdrant_url: str = "http://qdrant:6333"
-    qdrant_api_key: str | None = None
-
     # Прокси для Telegram
     PROXY_URL: str | None = None
 

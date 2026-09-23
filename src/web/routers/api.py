@@ -370,8 +370,10 @@ async def api_user_actions(request: Request, uid: str) -> dict[str, Any]:
     }
 
 
-@router.post("/dashboard/user-actions/{uid}/{action}")
-async def api_user_action(request: Request, uid: str, action: str) -> dict[str, Any]:
+@router.post("/dashboard/user-actions/{uid}/{action}", response_model=None)
+async def api_user_action(
+    request: Request, uid: str, action: str
+) -> dict[str, Any] | JSONResponse:
     """Выполняет действие над пользователем; без confirm — не выполняет.
 
     Тело: ``{"params": {...}, "confirm": bool}``.
@@ -420,8 +422,8 @@ async def api_tools(request: Request) -> dict[str, Any]:
     return {"tools": [tool_view(spec) for spec in TOOLS.values()]}
 
 
-@router.post("/tools/{name}/run")
-async def api_tool_run(request: Request, name: str) -> dict[str, Any]:
+@router.post("/tools/{name}/run", response_model=None)
+async def api_tool_run(request: Request, name: str) -> dict[str, Any] | JSONResponse:
     """Запускает инструмент; мутирующие — только с подтверждением.
 
     Тело: ``{"params": {...}, "apply": bool, "confirm": bool}``.

@@ -502,7 +502,7 @@ async def effective_value(db: Any, key: str) -> str:
         return ""
     stored_all = await db.config.get_all_config()
     if key in stored_all:
-        return stored_all[key]
+        return str(stored_all[key])
     if spec.settings_attr is not None:
         return _format(_settings_value(spec))
     if spec.db_default is not None:

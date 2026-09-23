@@ -22,7 +22,7 @@ from src.i18n import _
 
 async def _collect_export_data(
     db_manager: DatabaseManager, user_id: int
-) -> tuple[str, dict, dict, list, dict[str, str]]:
+) -> tuple[str, dict[str, Any], dict[str, Any], dict[str, str]]:
     """Собирает общие данные для экспорта: patients, monitoring, clinic_names.
 
     Returns:
