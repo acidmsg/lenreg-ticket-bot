@@ -13,6 +13,7 @@ import { renderSlots } from "./views/slots.js";
 import { renderPatients, renderPatientAddForm } from "./views/patients.js";
 import { renderBookingsList, renderArchiveList } from "./views/bookings.js";
 import { renderHeader } from "./components/header.js";
+import { renderTabbar, bindTabbar } from "./components/tabbar.js";
 import { lucideIcon } from "./components/icon.js";
 import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
 
@@ -117,49 +118,58 @@ function buildRouteHTML(route) {
   const userInfo = getUserInfo();
   const userName = userInfo ? userInfo.first_name || "Пользователь" : "";
 
+  let content;
+
   switch (route) {
     case "doctors":
-      return `
+      content = `
         ${renderHeader("Мониторинг врачей", state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
-        <div class="fab-group">
-          <button class="btn btn--secondary btn--sm" id="btn-patients"><span class="lucide-icon">${lucideIcon("users", 16)}</span> Пациенты</button>
-          <button class="fab" id="fab-add"><span class="lucide-icon">${lucideIcon("circle-plus", 18)}</span> Новый мониторинг</button>
-        </div>
       `;
+      break;
     case "add":
-      return `
+      content = `
         ${renderHeader("Новый мониторинг", true, userName)}
         <div class="app-view" id="add-content"></div>
       `;
+      break;
     case "slots":
-      return `
+      content = `
         ${renderHeader("Свободные номерки", true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
+      break;
     case "patients":
-      return `
+      content = `
         ${renderHeader("Пациенты", true, userName)}
         <div class="app-content" id="patients-content"></div>
       `;
+      break;
     case "patient-add":
-      return `
+      content = `
         ${renderHeader("Новый пациент", true, userName)}
         <div class="app-view" id="patient-add-content"></div>
       `;
+      break;
     case "bookings":
-      return `
+      content = `
         ${renderHeader("Мои записи", true, userName)}
         <div class="app-content" id="bookings-content"></div>
       `;
+      break;
     case "bookings-archive":
-      return `
+      content = `
         ${renderHeader("Архив записей", true, userName)}
         <div class="app-content" id="archive-content"></div>
       `;
+      break;
     default:
-      return "<p>Страница не найдена</p>";
+      content = "<p>Страница не найдена</p>";
+      break;
   }
+
+  // Нижняя панель навигации отображается на каждом экране
+  return `${content}${renderTabbar(route)}`;
 }
 
 /**
@@ -185,10 +195,7 @@ async function renderRouteContent(route) {
   switch (route) {
     case "doctors":
       container = document.getElementById("doctors-content");
-      if (container) {
-        await renderDoctors(container);
-        bindDoctorsEvents();
-      }
+      if (container) await renderDoctors(container);
       break;
     case "add":
       container = document.getElementById("add-content");
@@ -229,6 +236,7 @@ async function render() {
   setupBackButton(route);
   app.innerHTML = buildRouteHTML(route);
   bindGoBackHandler(app);
+  bindTabbar(app);
 
   // Скрываем MainButton — больше не используется ни на одном экране
   if (isInTelegram() && window.Telegram?.WebApp?.MainButton) {
@@ -236,38 +244,6 @@ async function render() {
   }
 
   await renderRouteContent(route);
-}
-
-/**
- * Привязывает обработчики событий для главного экрана.
- */
-function bindDoctorsEvents() {
-  const fab = document.getElementById("fab-add");
-  if (fab) {
-    fab.addEventListener("click", () => {
-      navigate("add");
-    });
-  }
-
-  const patientsBtn = document.getElementById("btn-patients");
-  if (patientsBtn) {
-    patientsBtn.addEventListener("click", () => {
-      navigate("patients");
-    });
-  }
-
-  // Динамически добавляем кнопку «Мои записи» в fab-group если её там нет
-  const fabGroup = document.querySelector(".fab-group");
-  if (fabGroup && !document.getElementById("btn-bookings")) {
-    const bookingsBtn = document.createElement("button");
-    bookingsBtn.id = "btn-bookings";
-    bookingsBtn.className = "btn btn--secondary btn--sm";
-    bookingsBtn.innerHTML = `<span class="lucide-icon">${lucideIcon("calendar", 16)}</span> Мои записи`;
-    bookingsBtn.addEventListener("click", () => {
-      navigate("bookings");
-    });
-    fabGroup.insertBefore(bookingsBtn, fabGroup.firstChild);
-  }
 }
 
 // ============================================================

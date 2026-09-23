@@ -15,6 +15,7 @@
   --font-md: 16px;
   --font-lg: 18px;
   --font-xl: 22px;
+  --font-2xl: 24px;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -155,6 +156,9 @@ body {
   width: 100%;
   min-height: 0;
   overflow: hidden;
+
+  /* Место под нижнюю панель навигации (tabbar) */
+  padding-bottom: calc(var(--size-control-lg) + env(safe-area-inset-bottom, 0));
 }
 
 .app-view {
@@ -170,7 +174,7 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-2xl);
   background-color: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
   position: sticky;
@@ -200,7 +204,7 @@ body {
 }
 
 .app-header__title {
-  font-size: var(--font-xl);
+  font-size: var(--font-2xl);
   font-weight: var(--font-weight-semibold);
   flex: 1;
   white-space: nowrap;
@@ -221,15 +225,14 @@ body {
   min-height: 0;
   overflow-y: auto;
   width: 100%;
-  padding: var(--space-lg) var(--space-lg);
-  padding-bottom: 80px; /* Отступ для FAB */
+  padding: var(--space-2xl);
 }
 
 /* === Карточки === */
 .card {
   background-color: var(--color-bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
   margin-bottom: var(--space-md);
   box-shadow: var(--shadow-md);
   transition:
@@ -487,7 +490,9 @@ body {
 /* === Группа кнопок внизу экрана (пациенты + FAB) === */
 .fab-group {
   position: fixed;
-  bottom: var(--space-xl);
+  bottom: calc(
+    var(--size-control-lg) + var(--space-md) + env(safe-area-inset-bottom, 0)
+  );
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -512,6 +517,47 @@ body {
 
 .fab-group .fab:active {
   transform: scale(0.95);
+}
+
+/* === Нижняя панель навигации (tabbar) ===
+   Зафиксирована внизу, непрозрачный фон, пункты только иконками,
+   активный пункт выделяется цветом акцента. */
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: stretch;
+  background-color: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  z-index: 30;
+}
+
+.tabbar__item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-control-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.tabbar__icon {
+  display: inline-flex;
+}
+
+.tabbar__item--active {
+  color: var(--color-accent);
+}
+
+.tabbar__item:active {
+  color: var(--color-accent-hover);
 }
 
 /* === Скелетон (загрузка) === */
@@ -708,9 +754,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-lg);
+  padding: var(--space-md);
   background: var(--color-bg-secondary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   margin-bottom: var(--space-sm);
 }
@@ -860,7 +906,7 @@ body {
   font-size: var(--font-xl);
   font-weight: var(--font-weight-semibold);
   margin-bottom: var(--space-xs);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-2xl);
 }
 
 .stepper__description {
@@ -870,7 +916,7 @@ body {
   font-size: var(--font-xs);
   color: var(--color-text-secondary);
   margin-bottom: var(--space-lg);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-2xl);
 }
 
 .stepper__content {
@@ -878,7 +924,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   width: 100%;
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-2xl);
   padding-bottom: var(--space-lg);
 }
 
@@ -887,7 +933,7 @@ body {
   gap: var(--space-md);
   flex-shrink: 0;
   width: 100%;
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-2xl);
   border-top: 1px solid var(--color-border);
   background-color: var(--color-bg-primary);
   z-index: 10;
@@ -917,7 +963,7 @@ body {
 
 /* === Поиск/фильтрация === */
 .search-bar {
-  padding: var(--space-sm) var(--space-lg);
+  padding: var(--space-sm) var(--space-2xl);
   margin-bottom: var(--space-md);
 }
 
@@ -993,7 +1039,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: var(--space-sm) var(--space-lg) var(--space-lg) var(--space-lg);
+  padding: var(--space-sm) var(--space-2xl) var(--space-2xl) var(--space-2xl);
   overflow-y: auto;
 }
 
@@ -2058,8 +2104,8 @@ body {
   /* Кнопка использует .btn--primary */
 
   .backup-table-wrapper {
-    margin: 0 calc(-1 * var(--space-lg));
-    padding: 0 var(--space-lg);
+    margin: 0 calc(-1 * var(--space-2xl));
+    padding: 0 var(--space-2xl);
   }
 
   .backup-modal {
@@ -2081,7 +2127,7 @@ body {
 
 .booking-card {
   margin-bottom: var(--space-md);
-  padding: var(--space-lg);
+  padding: var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
