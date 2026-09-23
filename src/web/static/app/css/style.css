@@ -65,6 +65,8 @@
 /* === Тёмная тема «Неоновая плазма» (по умолчанию) === */
 :root,
 [data-theme="dark"] {
+  color-scheme: dark;
+
   --color-bg-primary: #0a0a10;
   --color-bg-secondary: #12121c;
   --color-text-primary: #e0e8f8;
@@ -91,6 +93,8 @@
 
 /* === Светлая тема «Медицинская чистота» === */
 [data-theme="light"] {
+  color-scheme: light;
+
   --color-bg-primary: #f4f6f9;
   --color-bg-secondary: #fff;
   --color-text-primary: #1e293b;
@@ -217,6 +221,30 @@ body {
   color: var(--color-text-secondary);
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* Кнопка выбора темы: иконка отражает текущий режим */
+.app-header__theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  margin-left: var(--space-sm);
+  flex-shrink: 0;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.app-header__theme:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-border);
 }
 
 /* === Основной контент === */
@@ -558,6 +586,71 @@ body {
 
 .tabbar__item:active {
   color: var(--color-accent-hover);
+}
+
+.theme-sheet__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.theme-sheet__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.theme-sheet__option--active {
+  border-color: var(--color-accent);
+}
+
+.theme-sheet__option-icon {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.theme-sheet__option--active .theme-sheet__option-icon {
+  color: var(--color-accent);
+}
+
+.theme-sheet__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-sheet__option-label {
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.theme-sheet__option-hint {
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.theme-sheet__option-check {
+  display: none;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.theme-sheet__option--active .theme-sheet__option-check {
+  display: inline-flex;
 }
 
 /* === Скелетон (загрузка) === */
@@ -2342,10 +2435,10 @@ body {
   transition: border-color var(--transition-fast);
 }
 
-/* Нативные контролы date/time под тёмную тему приложения */
+/* Схема нативных контролов (date/time) берётся из color-scheme темы */
 .form-field__input[type="date"],
 .form-field__input[type="time"] {
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 .form-field__input:focus {

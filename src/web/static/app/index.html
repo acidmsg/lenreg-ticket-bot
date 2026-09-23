@@ -7,22 +7,55 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="app-version" content="5" />
+    <meta name="app-version" content="6" />
     <title>Мониторинг врачей</title>
     <link rel="stylesheet" href="/static/app/vendor/vanilla-calendar.min.css" />
-    <link rel="stylesheet" href="css/style.css?v=5" />
+    <link rel="stylesheet" href="css/style.css?v=6" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
+      // Тема применяется до первой отрисовки, чтобы не мигало: сохранённый режим
+      // (system/dark/light), для системного — colorScheme Telegram, затем ОС.
       (function () {
-        function applyTheme(scheme) {
-          document.documentElement.dataset.theme = scheme || "dark";
+        var STORAGE_KEY = "miniapp-theme";
+
+        function storedMode() {
+          try {
+            var value = localStorage.getItem(STORAGE_KEY);
+            return value === "dark" || value === "light" ? value : "system";
+          } catch (error) {
+            return "system";
+          }
         }
-        // Telegram Mini App
-        if (window.Telegram && window.Telegram.WebApp) {
-          applyTheme(window.Telegram.WebApp.colorScheme);
-          window.Telegram.WebApp.onEvent("themeChanged", function () {
-            applyTheme(window.Telegram.WebApp.colorScheme);
-          });
+
+        function systemTheme() {
+          var tg = window.Telegram && window.Telegram.WebApp;
+          if (tg && (tg.colorScheme === "light" || tg.colorScheme === "dark")) {
+            return tg.colorScheme;
+          }
+          if (
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: light)").matches
+          ) {
+            return "light";
+          }
+          return "dark";
+        }
+
+        function applyTheme() {
+          var mode = storedMode();
+          document.documentElement.dataset.themeMode = mode;
+          document.documentElement.dataset.theme =
+            mode === "system" ? systemTheme() : mode;
+        }
+
+        applyTheme();
+
+        if (
+          window.Telegram &&
+          window.Telegram.WebApp &&
+          window.Telegram.WebApp.onEvent
+        ) {
+          window.Telegram.WebApp.onEvent("themeChanged", applyTheme);
         }
       })();
     </script>
@@ -37,6 +70,6 @@
     <script src="/static/app/js/utils/dom.js"></script>
     <script src="/static/app/js/utils/monitoring.js"></script>
     <script src="/static/app/js/utils/ui.js"></script>
-    <script type="module" src="js/app.js?v=5"></script>
+    <script type="module" src="js/app.js?v=6"></script>
   </body>
 </html>

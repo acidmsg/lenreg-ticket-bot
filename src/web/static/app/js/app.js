@@ -14,6 +14,8 @@ import { renderPatients, renderPatientAddForm } from "./views/patients.js";
 import { renderBookingsList, renderArchiveList } from "./views/bookings.js";
 import { renderHeader } from "./components/header.js";
 import { renderTabbar, bindTabbar } from "./components/tabbar.js";
+import { openThemeSheet } from "./components/theme-sheet.js";
+import { initTheme } from "./theme.js";
 import { lucideIcon } from "./components/icon.js";
 import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
 
@@ -34,24 +36,6 @@ const state = {
   routeParams: null,
   history: [],
 };
-
-// ============================================================
-// Управление темой
-// ============================================================
-
-/**
- * Применяет цветовую схему Telegram через CSS-переменные.
- *
- * @param {object} themeParams — Telegram.WebApp.themeParams
- */
-/**
- * Принудительное переопределение цветовой схемы.
- * Устанавливает data-theme="dark" для принудительного применения тёмной темы,
- * блокируя попытки Telegram WebView переопределить цвета через инлайн-стили.
- */
-function forceThemeOverride() {
-  document.documentElement.setAttribute("data-theme", "dark");
-}
 
 // ============================================================
 // SPA-роутер
@@ -173,14 +157,19 @@ function buildRouteHTML(route) {
 }
 
 /**
- * Привязывает обработчик к кнопке «← Назад» в кастомной шапке.
+ * Привязывает обработчики элементов шапки: кнопки «Назад» и выбора темы.
  *
  * @param {HTMLElement} app — корневой элемент приложения
  */
-function bindGoBackHandler(app) {
+function bindHeaderEvents(app) {
   const headerBackBtn = app.querySelector("#header-back");
   if (headerBackBtn) {
     headerBackBtn.addEventListener("click", goBack);
+  }
+
+  const themeBtn = app.querySelector("#header-theme");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", openThemeSheet);
   }
 }
 
@@ -235,7 +224,7 @@ async function render() {
 
   setupBackButton(route);
   app.innerHTML = buildRouteHTML(route);
-  bindGoBackHandler(app);
+  bindHeaderEvents(app);
   bindTabbar(app);
 
   // Скрываем MainButton — больше не используется ни на одном экране
@@ -274,13 +263,8 @@ function init() {
   tg.ready();
   tg.expand();
 
-  // Применяем форсированную тему
-  forceThemeOverride();
-
-  // При смене темы в Telegram — переприменить форсированную тему
-  tg.onEvent("themeChanged", () => {
-    forceThemeOverride();
-  });
+  // Применяем сохранённый режим темы (системная / тёмная / светлая)
+  initTheme();
 
   // Кнопка «Назад» в шапке Telegram
   tg.BackButton.onClick(() => {
