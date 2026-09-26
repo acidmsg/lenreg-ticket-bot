@@ -8,8 +8,8 @@
  * @module views/backups
  */
 
-import { lucideIcon } from "../components/icon.js";
-import { escapeHtml } from "../utils/escape.js";
+import { lucideIcon } from "/app/js/components/icon.js";
+import { escapeHtml } from "/app/js/utils/escape.js";
 
 // ── Конфигурация ─────────────────────────────────────────────
 

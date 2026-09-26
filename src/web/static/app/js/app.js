@@ -16,6 +16,7 @@ import { renderHeader } from "./components/header.js";
 import { renderTabbar, bindTabbar } from "./components/tabbar.js";
 import { openThemeSheet } from "./components/theme-sheet.js";
 import { initTheme } from "./theme.js";
+import { stopAllPollers } from "./utils/polling.js";
 import { lucideIcon } from "./components/icon.js";
 import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
 
@@ -107,19 +108,19 @@ function buildRouteHTML(route) {
   switch (route) {
     case "doctors":
       content = `
-        ${renderHeader("Мониторинг врачей", state.history.length > 0, userName)}
+        ${renderHeader("Мониторинг", state.history.length > 0, userName)}
         <div class="app-content" id="doctors-content"></div>
       `;
       break;
     case "add":
       content = `
-        ${renderHeader("Новый мониторинг", true, userName)}
+        ${renderHeader("Поиск врача", true, userName)}
         <div class="app-view" id="add-content"></div>
       `;
       break;
     case "slots":
       content = `
-        ${renderHeader("Свободные номерки", true, userName)}
+        ${renderHeader("Номерки", true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
       break;
@@ -143,7 +144,7 @@ function buildRouteHTML(route) {
       break;
     case "bookings-archive":
       content = `
-        ${renderHeader("Архив записей", true, userName)}
+        ${renderHeader("Архив", true, userName)}
         <div class="app-content" id="archive-content"></div>
       `;
       break;
@@ -219,6 +220,9 @@ async function renderRouteContent(route) {
 async function render() {
   const app = document.getElementById("app");
   if (!app) return;
+
+  // Ушедшая вьюха не должна продолжать фоновое обновление
+  stopAllPollers();
 
   const route = state.route;
 

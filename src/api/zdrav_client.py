@@ -2,7 +2,9 @@ import asyncio
 import datetime
 import json
 import random
+import secrets
 import socket
+import string
 from typing import Any, TypeVar, cast
 from urllib.parse import urlparse
 
@@ -34,6 +36,10 @@ from src.i18n import _
 # TypeVar для сохранения конкретного типа Pydantic-модели в _validate_response
 M = TypeVar("M", bound=BaseModel)
 
+# Значения CSRF_TOKEN, которые считаются заглушкой, а не реальным токеном
+# (см. валидатор warn_empty_csrf в src/config.py).
+CSRF_TOKEN_PLACEHOLDERS = {"", "NOTPROVIDED"}
+
 
 class ZdravClient:
     def __init__(self):
@@ -61,20 +67,83 @@ class ZdravClient:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) "
             "Gecko/20100101 Firefox/123.0",
         ]
+        # CSRF-токен резолвится на инстанс: cookie jar → .env → генерация (P1-CSRF).
+        self._csrf_token: str | None = None
+        self._csrf_source = "unresolved"
         self._base_headers = {
             "Referer": settings.REFERER_URL,
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "X-CSRFToken": settings.CSRF_TOKEN,
-            "Cookie": f"csrftoken={settings.CSRF_TOKEN}",
             "Origin": settings.ORIGIN_URL,
             "X-Client-Version": settings.API_VERSION,
         }
         self._client: httpx.AsyncClient | None = None
 
+    def csrf_token(self) -> str:
+        """Возвращает действующий CSRF-токен, выбирая источник при первом обращении.
+
+        Приоритет источников:
+        1. cookie jar — если zdrav начал выдавать cookie ``csrftoken``;
+        2. ``settings.CSRF_TOKEN`` — если задан реальный токен (не заглушка);
+        3. генерация случайного токена на время жизни инстанса.
+
+        Реальный токен из ``.env`` больше не обязателен: заглушка ``NOTPROVIDED``
+        или пустое значение означают переход к генерации (замеры 25.09.2026 —
+        API здоров токен не проверяет).
+
+        Returns:
+            str — CSRF-токен для заголовков ``X-CSRFToken``/``Cookie`` и поля формы.
+        """
+        cookie_token = self._read_csrf_cookie()
+        if cookie_token:
+            if cookie_token != self._csrf_token:
+                self._csrf_token = cookie_token
+                self._csrf_source = "cookie"
+                logger.info("CSRF-токен взят из cookie jar zdrav (источник: cookie)")
+            return cookie_token
+
+        if self._csrf_token:
+            return self._csrf_token
+
+        env_token = (settings.CSRF_TOKEN or "").strip()
+        if env_token and env_token not in CSRF_TOKEN_PLACEHOLDERS:
+            self._csrf_token = env_token
+            self._csrf_source = "env"
+            logger.debug("CSRF-токен взят из конфигурации (источник: env)")
+        else:
+            self._csrf_token = self._generate_csrf_token()
+            self._csrf_source = "generated"
+            logger.info(
+                "CSRF_TOKEN не задан — сгенерирован токен на клиенте "
+                "(источник: generated)"
+            )
+        return self._csrf_token
+
+    def _read_csrf_cookie(self) -> str | None:
+        """Читает ``csrftoken`` из cookie jar httpx-клиента, если он есть."""
+        if self._client is None:
+            return None
+        value = self._client.cookies.get("csrftoken")
+        return value or None
+
+    @staticmethod
+    def _generate_csrf_token() -> str:
+        """Генерирует случайный CSRF-токен (32 символа, как в Django)."""
+        alphabet = string.ascii_letters + string.digits
+        return "".join(secrets.choice(alphabet) for _ in range(32))
+
+    def _rotate_csrf_token(self) -> None:
+        """Обновляет токен после 403 — одна повторная попытка запроса."""
+        self._csrf_token = self._generate_csrf_token()
+        self._csrf_source = "rotated"
+        logger.warning("CSRF-токен обновлён после 403 (источник: rotated)")
+
     def _get_headers(self):
+        token = self.csrf_token()
         return {
             **self._base_headers,
+            "X-CSRFToken": token,
+            "Cookie": f"csrftoken={token}",
             "User-Agent": random.choice(self.user_agents),
         }
 
@@ -173,8 +242,8 @@ class ZdravClient:
         ``socket.gaierror``, ``httpx.ConnectError``/``httpx.ConnectTimeout``)
         не повторяются: выполняется ровно одна попытка без паузы (fail-fast),
         иначе недоступный DNS растягивает латентность до
-        ``max_retries × API_TIMEOUT + паузы``. При 403/429/4xx — не retry,
-        ответ возвращается как есть.
+        ``max_retries × API_TIMEOUT + паузы``. При 403 — одна повторная попытка с
+        обновлённым CSRF-токеном (P1-CSRF), остальные 4xx не повторяются.
 
         Args:
             url: Полный URL эндпоинта.
@@ -194,6 +263,7 @@ class ZdravClient:
         last_exception: Exception | None = None
         http_limiter = limiter or self.limiter
         client = await self._get_client()
+        csrf_retried = False
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -219,6 +289,18 @@ class ZdravClient:
                     )
                     if attempt < max_retries:
                         await asyncio.sleep(2)
+                    continue
+
+                # 403 — вероятен устаревший CSRF-токен: обновляем и повторяем
+                # ровно один раз (P1-CSRF). Токен в теле запроса тоже меняется.
+                if res.status_code == 403 and not csrf_retried:
+                    csrf_retried = True
+                    logger.warning(
+                        "API 403 ({}) — обновляю CSRF-токен и повторяю запрос",
+                        endpoint_name,
+                    )
+                    self._rotate_csrf_token()
+                    data = {**data, "csrfmiddlewaretoken": self.csrf_token()}
                     continue
                 return res
 
@@ -319,7 +401,7 @@ class ZdravClient:
                 "patient_form-insurance_number": "",
                 "patient_form-birthday": iso_bday,
                 "patient_form-clinic_id": clinic_id,
-                "csrfmiddlewaretoken": settings.CSRF_TOKEN,
+                "csrfmiddlewaretoken": self.csrf_token(),
             }
         ).model_dump(by_alias=True)
 
@@ -539,7 +621,7 @@ class ZdravClient:
                 "appointment_form-appointment_id": appointment_id,
                 "appointment_form-history_id": history_id,
                 "appointment_form-referral_id": referral_id,
-                "csrfmiddlewaretoken": settings.CSRF_TOKEN,
+                "csrfmiddlewaretoken": self.csrf_token(),
             }
         ).model_dump(by_alias=True)
 

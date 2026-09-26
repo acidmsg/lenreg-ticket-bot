@@ -1328,13 +1328,12 @@ body {
   border-left: 3px solid var(--status-available);
 }
 
-.doctor-card__monitored-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
+/* Компактная метка времени последнего обновления данных по врачу */
+.doctor-card__checked {
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
   opacity: 0.8;
+  white-space: nowrap;
 }
 
 /* === Toast-уведомление === */
@@ -1547,6 +1546,10 @@ body {
 
 .card__footer--noslots {
   background: rgb(239 68 68 / 6%);
+}
+
+.card__footer--checking {
+  background: rgb(59 130 246 / 8%);
 }
 
 /* === Индикация слотов в карточке врача с фильтром (§7.3) ===

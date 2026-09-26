@@ -78,11 +78,6 @@ export function createDoctorCard({
       </ul>`
       : "";
 
-  // Индикатор отслеживания (зелёная точка/иконка)
-  const monitoredIndicator = isMonitored
-    ? `<span class="doctor-card__monitored-badge" title="Врач отслеживается">🔔</span>`
-    : "";
-
   // CSS-класс для отслеживаемого врача
   const monitoredClass = isMonitored ? " doctor-card--monitored" : "";
 
@@ -100,7 +95,7 @@ export function createDoctorCard({
           <div class="card__subtitle">${escapeHtml(specialty)}</div>
         </div>
         <div class="card__header-actions">
-          ${monitoredIndicator}
+          <span class="doctor-card__checked" title="Время последнего обновления данных"></span>
           <button
             class="btn--refresh"
             data-monitoring-id="${escapeHtml(monitoringId)}"
@@ -314,13 +309,23 @@ export function renderSlotsIndicator({
 }
 
 /**
- * Рендерит прежний футер карточки со статусом номерков.
+ * Рендерит футер карточки со статусом номерков.
+ *
+ * Три состояния различимы и не смешиваются: «идёт проверка» — это ещё не
+ * «номерков нет», поэтому свежий мониторинг без кэша нельзя показывать как
+ * отсутствие талонов.
  *
  * @param {string} status — статус ('slots_available', 'no_slots', 'checking')
  * @param {number} freeTickets — количество свободных слотов
  * @returns {string} HTML-строка футера
  */
 export function renderStatusFooter(status, freeTickets) {
+  if (status === "checking") {
+    return `<div class="card__footer card__footer--checking">
+        <span class="lucide-icon">${lucideIcon("loader-circle", 14)}</span>
+        <span style="color: var(--status-checking); opacity: 0.85;">Идёт проверка номерков…</span>
+      </div>`;
+  }
   if (status === "slots_available" && Number(freeTickets) > 0) {
     return `<div class="card__footer card__footer--slots">
         <span class="lucide-icon">${lucideIcon("circle-check", 14)}</span>

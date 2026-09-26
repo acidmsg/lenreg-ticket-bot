@@ -15,10 +15,10 @@ import { navigate } from "../app.js";
  * Первым идёт главный экран — список отслеживаемых врачей.
  */
 const TAB_ITEMS = [
-  { route: "doctors", icon: "stethoscope", label: "Мониторинг врачей" },
+  { route: "doctors", icon: "stethoscope", label: "Мониторинг" },
   { route: "patients", icon: "users", label: "Пациенты" },
   { route: "bookings", icon: "calendar", label: "Мои записи" },
-  { route: "add", icon: "circle-plus", label: "Новый мониторинг" },
+  { route: "add", icon: "circle-plus", label: "Поиск врача" },
 ];
 
 /**

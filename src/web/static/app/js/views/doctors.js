@@ -11,9 +11,13 @@ import { createDoctorCard } from "../components/card.js";
 import { openFilterModal } from "../components/filter-modal.js";
 import { renderError } from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
+import { startPolling } from "../utils/polling.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
 import { navigate } from "../app.js";
+
+/** Базовый интервал автообновления главного экрана, мс. */
+const AUTO_REFRESH_INTERVAL_MS = 45000;
 
 /**
  * Рендерит главный экран в указанный контейнер.
@@ -37,12 +41,88 @@ export async function renderDoctors(container) {
     }
 
     container.innerHTML = renderDoctorList(doctors);
+    container.dataset.signature = listSignature(doctors);
+    updateCheckedLabels(container, new Date());
     bindDoctorEvents(container, doctors);
+
+    // Автообновление из состояния БД: сеть дёргается по расписанию,
+    // очистка поллера — на роутере при смене экрана (stopAllPollers).
+    startPolling(() => refreshDoctorList(container), {
+      intervalMs: AUTO_REFRESH_INTERVAL_MS,
+    });
   } catch (error) {
     renderError(container, error.message, "Повторить", () =>
       renderDoctors(container),
     );
   }
+}
+
+/**
+ * Перезапрашивает состояние мониторинга и обновляет список без перезахода.
+ *
+ * Данные берутся из БД/Redis через сервер (`GET /doctors`) — внешние вызовы
+ * zdrav в поллинге не выполняются. DOM перерисовывается только при изменении
+ * состояния; метки времени обновляются всегда.
+ *
+ * @param {HTMLElement} container — контейнер списка
+ */
+async function refreshDoctorList(container) {
+  if (!container || !container.isConnected) return;
+
+  const data = await apiGet("/doctors");
+  const doctors = data.doctors || [];
+
+  if (doctors.length === 0) {
+    if (container.dataset.signature !== "") {
+      container.innerHTML = renderEmpty();
+      container.dataset.signature = "";
+      bindEmptyEvents(container);
+    }
+    return;
+  }
+
+  const signature = listSignature(doctors);
+  if (signature !== container.dataset.signature) {
+    container.innerHTML = renderDoctorList(doctors);
+    container.dataset.signature = signature;
+    bindDoctorEvents(container, doctors);
+  }
+  updateCheckedLabels(container, new Date());
+}
+
+/**
+ * Строит подпись состояния списка — сравнение вместо лишней перерисовки.
+ *
+ * @param {Array} doctors — массив врачей из API
+ * @returns {string} подпись состояния
+ */
+function listSignature(doctors) {
+  return JSON.stringify(doctors);
+}
+
+/**
+ * Обновляет метки времени последней проверки в карточках врачей.
+ *
+ * @param {HTMLElement} container — контейнер списка
+ * @param {Date} date — время успешного обновления
+ */
+function updateCheckedLabels(container, date) {
+  const label = formatCheckedTime(date);
+  container.querySelectorAll(".doctor-card__checked").forEach((el) => {
+    el.textContent = label;
+  });
+}
+
+/**
+ * Форматирует время проверки компактно (ЧЧ:ММ).
+ *
+ * @param {Date} date — время проверки
+ * @returns {string} время в формате ЧЧ:ММ
+ */
+export function formatCheckedTime(date) {
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 /**
@@ -81,7 +161,7 @@ function renderEmpty() {
         Вы пока не отслеживаете ни одного врача.
         Добавьте первый мониторинг, чтобы получать уведомления о появлении свободных номерков.
       </p>
-      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Новый мониторинг</button>
+      <button class="btn btn--primary" id="empty-add-btn"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Поиск врача</button>
     </div>
   `;
 }
