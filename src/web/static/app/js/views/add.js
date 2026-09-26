@@ -14,6 +14,7 @@ import { createStepper } from "../components/stepper.js";
 import { escapeHtml } from "../utils/escape.js";
 import { lucideIcon } from "../components/icon.js";
 import { navigate } from "../app.js";
+import { fetchSlots } from "../utils/slots-api.js";
 
 /**
  * Рендерит экран добавления врача в указанный контейнер.
@@ -69,8 +70,8 @@ export function renderAddDoctor(container) {
     },
     {
       title: "Подтверждение",
-      description:
-        "Проверьте выбранные данные и нажмите «Готово» для добавления в мониторинг",
+      description: "Проверьте данные и выберите: записаться сейчас или следить",
+      completeLabel: "Следить",
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
         const patient = selections[0]?.value || {};
@@ -89,12 +90,21 @@ export function renderAddDoctor(container) {
           doctor = selections[2]?.value || {};
         }
 
+        // Развилка «Записаться / Следить»: доступность врача проверяется сразу,
+        // чтобы кнопка «Записаться» была активна только при наличии талонов.
+        const availability = await loadDoctorAvailability({
+          patient,
+          clinic,
+          doctor,
+        });
+
         return [
           {
             _confirm: true,
             patient,
             clinic,
             doctor,
+            availability,
             _skipNext: selections[1]?._skipNext,
           },
         ];
@@ -174,6 +184,10 @@ export function renderAddDoctor(container) {
       navigate("doctors");
     },
   });
+
+  // Развилка шага 4: «Записаться» ведёт на экран слотов в прямом режиме
+  // (без записи мониторинга), «Следить» — штатное завершение stepper'а.
+  bindStep4Booking(container);
 
   // Перехватываем клики по уже отслеживаемым врачам
   container.addEventListener(
@@ -475,6 +489,7 @@ function renderConfirmation(item) {
   const patient = item.patient || {};
   const clinic = item.clinic || {};
   const doctor = item.doctor || {};
+  const availability = item.availability || null;
 
   const patientName = patient.fio || "Неизвестно";
   const clinicName = clinic.short_name || clinic.name || "Неизвестно";
@@ -499,8 +514,130 @@ function renderConfirmation(item) {
             : ""
         }
       </div>
+      ${renderAvailabilityBlock(availability)}
     </div>
   `;
+}
+
+/**
+ * Рендерит блок доступности врача и кнопку «Записаться» (шаг 4).
+ *
+ * Кнопка активна только при наличии свободных талонов; отсутствие данных
+ * (например, внешний API недоступен) трактуется как «записаться нельзя», но
+ * путь «Следить» всегда доступен — он живёт в нижней кнопке stepper'а.
+ *
+ * @param {{slots?: Array, total?: number, error?: boolean}|null} availability — доступность
+ * @returns {string} HTML блока либо пустая строка
+ */
+function renderAvailabilityBlock(availability) {
+  if (!availability) return "";
+
+  const total = availability.total || 0;
+  const text = availability.error
+    ? "Не удалось проверить номерки"
+    : total > 0
+      ? `Свободных номерков: ${total}`
+      : "Сейчас свободных номерков нет";
+  const disabled = total > 0 && !availability.error ? "" : " disabled";
+
+  return `
+      <div class="confirm-availability">
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> Доступность</div>
+        <div class="confirm-value">${escapeHtml(text)}</div>
+        <button
+          class="btn btn--primary mt-md"
+          id="step4-book-btn"
+          data-clinic-id="${escapeHtml(availability.clinicId || "")}"
+          data-doctor-id="${escapeHtml(availability.doctorId || "")}"
+          data-patient-id="${escapeHtml(availability.patientId || "")}"
+          data-patient-name="${escapeHtml(availability.patientName || "")}"
+${disabled}>Записаться</button>
+      </div>`;
+}
+
+/**
+ * Загружает доступность врача для шага подтверждения (best-effort).
+ *
+ * Использует прямой режим контракта слотов (clinic_id + doctor_id + patient_id),
+ * поэтому запись мониторинга на этом шаге ещё не требуется.
+ *
+ * @param {object} data — выбранные на шаге данные
+ * @param {object} data.patient — пациент
+ * @param {object} data.clinic — клиника
+ * @param {object} data.doctor — врач
+ * @returns {Promise<{slots: Array, total: number, error: boolean, clinicId: string, doctorId: string, patientId: string}>}
+ *   доступность и идентификаторы для дальнейшего перехода к записи
+ */
+async function loadDoctorAvailability({ patient, clinic, doctor }) {
+  const clinicId = clinic?.clinic_id || clinic?.id || doctor?.clinic_id || "";
+  const doctorId = doctor?.doctor_id || doctor?.id || "";
+  const patientId = patient?.patient_id || patient?.id || "";
+  const patientName = patient?.fio || "";
+
+  try {
+    const data = await fetchSlots({ clinicId, doctorId, patientId });
+    return {
+      slots: data.slots || [],
+      total: data.total || 0,
+      error: false,
+      clinicId,
+      doctorId,
+      patientId,
+      patientName,
+    };
+  } catch {
+    return {
+      slots: [],
+      total: 0,
+      error: true,
+      clinicId,
+      doctorId,
+      patientId,
+      patientName,
+    };
+  }
+}
+
+/**
+ * Привязывает кнопку «Записаться» на шаге подтверждения.
+ *
+ * Клик ведёт на экран слотов в прямом режиме (без записи мониторинга) —
+ * логика слотов и бронирования не дублируется, используется тот же компонент,
+ * что и на экране слотов.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ */
+function bindStep4Booking(container) {
+  if (!container || container.dataset.step4Bound === "1") return;
+  container.dataset.step4Bound = "1";
+
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("#step4-book-btn");
+    if (!btn || btn.disabled) return;
+
+    const patientId = btn.getAttribute("data-patient-id") || "";
+    const doctorId = btn.getAttribute("data-doctor-id") || "";
+    const patientName = btn.getAttribute("data-patient-name") || "";
+
+    navigate("slots", {
+      direct: {
+        clinicId: btn.getAttribute("data-clinic-id") || "",
+        doctorId,
+        patientId,
+      },
+      // Пациент — только для карточки подтверждения: entryId совпадает с
+      // композитным monitoring_id из ответа API.
+      patients: patientName
+        ? [
+            {
+              name: patientName,
+              patientId,
+              entryId: `${patientId}_${doctorId}`,
+            },
+          ]
+        : [],
+    });
+  });
 }
 
 // ============================================================

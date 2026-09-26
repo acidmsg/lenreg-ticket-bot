@@ -1061,42 +1061,127 @@ def _build_service_error_response(status_code: int, error_code: str) -> JSONResp
 @router.get("/slots", response_model=None)
 async def get_slots(
     request: Request,
-    monitoring_id: str = Query(
-        ..., description="ID мониторинга: {patient_id}_{doctor_id}"
+    monitoring_id: str | None = Query(
+        None, description="ID мониторинга: {patient_id}_{doctor_id}"
+    ),
+    clinic_id: str | None = Query(None, description="ID клиники (режим прямой записи)"),
+    doctor_id: str | None = Query(None, description="ID врача (режим прямой записи)"),
+    patient_id: str | None = Query(
+        None, description="ID пациента (режим прямой записи)"
     ),
 ) -> dict[str, Any] | JSONResponse:
-    """Свободные слоты для отслеживаемого врача."""
+    """Свободные слоты врача: по мониторингу либо для прямой записи.
+
+    Два режима: ``monitoring_id`` (врач из мониторинга пользователя) либо тройка
+    ``clinic_id`` + ``doctor_id`` + ``patient_id`` — без записи мониторинга
+    (сценарий «Записаться»). В режиме тройки пациент обязан принадлежать
+    текущему пользователю, иначе 403 (IDOR).
+    """
     db = _get_db(request)
     api = _get_api(request)
     telegram_id = _get_telegram_id(request)
 
-    try:
-        p_id, d_id = _monitoring_id_to_parts(monitoring_id)
-    except ValueError:
+    user_data = await db.get_user_data(telegram_id)
+    direct_mode = bool(clinic_id and doctor_id and patient_id)
+
+    if monitoring_id and direct_mode:
         return JSONResponse(
             status_code=400,
-            content={"detail": "Неверный формат monitoring_id."},
-        )
-
-    # Проверяем, что врач действительно отслеживается
-    user_data = await db.get_user_data(telegram_id)
-    patient_doctors = user_data.get("monitoring", {}).get(p_id, {})
-
-    if d_id not in patient_doctors:
-        return JSONResponse(
-            status_code=404,
             content={
                 "detail": (
-                    f"Врач с monitoring_id='{monitoring_id}' не найден в мониторинге."
+                    "Укажите либо monitoring_id, либо clinic_id + doctor_id + "
+                    "patient_id."
                 ),
             },
         )
 
-    doctor_info = patient_doctors[d_id]
-    doctor_name = doctor_info.get("name", d_id)
-    clinic_id = doctor_info.get("clinic_id", "")
-    specialty = doctor_info.get("specialty", "")
-    clinic_name = await db.get_clinic_name(clinic_id) or clinic_id
+    if monitoring_id:
+        try:
+            p_id, d_id = _monitoring_id_to_parts(monitoring_id)
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Неверный формат monitoring_id."},
+            )
+
+        # Проверяем, что врач действительно отслеживается
+        patient_doctors = user_data.get("monitoring", {}).get(p_id, {})
+
+        if d_id not in patient_doctors:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": (
+                        f"Врач с monitoring_id='{monitoring_id}' "
+                        f"не найден в мониторинге."
+                    ),
+                },
+            )
+
+        doctor_info = patient_doctors[d_id]
+        c_id = doctor_info.get("clinic_id", "")
+        doctor_name = doctor_info.get("name", d_id)
+        specialty = doctor_info.get("specialty", "")
+    elif clinic_id and doctor_id and patient_id:
+        p_id, d_id, c_id = patient_id, doctor_id, clinic_id
+
+        # IDOR: слоты запрашиваются только для своих пациентов.
+        if p_id not in user_data.get("patients", {}):
+            logger.warning(
+                "Запрос слотов для чужого пациента p_id={} (uid={})",
+                p_id,
+                telegram_id,
+            )
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Пациент не найден у текущего пользователя."},
+            )
+
+        # Запись мониторинга необязательна: реквизиты берём из неё, если есть,
+        # иначе — из справочника клиники по паре (clinic_id, doctor_id).
+        doctor_entry: MonitoringEntry | None = (
+            user_data.get("monitoring", {}).get(p_id, {}).get(d_id)
+        )
+        doctor_name = doctor_entry.get("name", "") if doctor_entry else ""
+        specialty = doctor_entry.get("specialty", "") if doctor_entry else ""
+
+        if not doctor_name or not specialty:
+            clinic_doctors = await db.get_doctors_for_clinic(c_id)
+            clinic_doctor = clinic_doctors.get(d_id)
+            if clinic_doctor is not None:
+                doctor_name = doctor_name or clinic_doctor["name"]
+                specialty = specialty or clinic_doctor["specialty"]
+            elif clinic_doctors:
+                # Справочник клиники заполнен, а пары в нём нет — врач не из
+                # этой клиники, запрос отклоняем.
+                logger.warning(
+                    "Врач d_id={} не найден в справочнике клиники c_id={} (uid={})",
+                    d_id,
+                    c_id,
+                    telegram_id,
+                )
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Выбранный врач не найден в указанной клинике."},
+                )
+
+        # Справочник пуст — пару проверить нечем; внешний API отклонит неверную
+        # пару сам, а блокировать запись из-за незаполненного кэша нельзя.
+        doctor_name = doctor_name or d_id
+
+        # Композитный идентификатор сохраняет форму ответа неизменной.
+        monitoring_id = f"{p_id}_{d_id}"
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": (
+                    "Укажите monitoring_id либо clinic_id + doctor_id + patient_id."
+                ),
+            },
+        )
+
+    clinic_name = await db.get_clinic_name(c_id) or c_id
 
     # Живой запрос слотов с жёстким серверным бюджетом времени
     # (settings.WEB_SLOTS_TIMEOUT < клиентских 20 с): ответ приходит всегда.
@@ -1108,7 +1193,7 @@ async def get_slots(
             api.check_slots(
                 doc_id=d_id,
                 patient_id=p_id,
-                clinic_id=clinic_id,
+                clinic_id=c_id,
                 limiter=api.limiter,
             ),
             timeout=settings.WEB_SLOTS_TIMEOUT,
@@ -1160,7 +1245,7 @@ async def get_slots(
                     "time": time_str.strip(),
                     "appointment_id": appointment_id,
                     "slot_id": appointment_id,  # синоним
-                    "clinic_id": clinic_id,
+                    "clinic_id": c_id,
                 }
             )
 
@@ -1285,8 +1370,11 @@ async def book_appointment(
 
     Тело запроса: ``BookRequest`` с полями clinic_id, patient_id, doctor_id,
     appointment_id, slot_date, slot_time, history_id (опционально),
-    referral_id (опционально). Врач валидируется по мониторингу пациента:
-    если ``doctor_id`` не отслеживается для ``patient_id`` — ответ 400.
+    referral_id (опционально). Запись мониторинга для пары «пациент + врач» не
+    требуется: реквизиты берутся из мониторинга (если запись есть), иначе — из
+    справочника клиники по паре ``clinic_id`` + ``doctor_id``. Явные проверки:
+    ``patient_id`` принадлежит текущему пользователю (иначе 403, IDOR) и пара
+    ``clinic_id`` + ``doctor_id`` известна справочнику (иначе 400).
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -1306,45 +1394,57 @@ async def book_appointment(
             },
         )
 
-    # Имя пациента
+    # 1a. IDOR: записывать можно только своих пациентов.
     patients = user_data.get("patients", {})
-    patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
-    patient_name = patient_info.get("fio", body.patient_id)
-
-    # Реквизиты врача берём из мониторинга указанного пациента строго по
-    # doctor_id из запроса: в одной клинике может отслеживаться несколько
-    # врачей, поэтому подбор по clinic_id записывал «чужого» врача.
-    monitored_doctors = user_data.get("monitoring", {}).get(body.patient_id, {})
-    doctor_info = monitored_doctors.get(body.doctor_id)
-    if doctor_info is None:
+    if body.patient_id not in patients:
         logger.warning(
-            "Врач d_id={} не найден в мониторинге пациента p_id={} (uid={})",
-            body.doctor_id,
+            "Запись на чужого пациента p_id={} (uid={})",
             body.patient_id,
             telegram_id,
         )
         return JSONResponse(
-            status_code=400,
+            status_code=403,
             content={
                 "success": False,
-                "error": "unknown",
-                "detail": (
-                    "Выбранный врач не найден в отслеживаемых для указанного пациента."
-                ),
+                "error": "forbidden",
+                "detail": "Пациент не найден у текущего пользователя.",
             },
         )
 
-    doctor_name = doctor_info.get("name", "")
-    doctor_specialty = doctor_info.get("specialty", "")
+    patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
+    patient_name = patient_info.get("fio", body.patient_id)
 
-    # Добивка отсутствующих реквизитов из локального справочника врачей —
-    # строго по составному ключу (clinic_id, doctor_id).
+    # 1b. Реквизиты врача: запись мониторинга (если есть) → справочник клиники
+    # строго по составному ключу (clinic_id, doctor_id). Мониторинг больше не
+    # обязателен: врач может быть выбран напрямую из карточки клиники.
+    monitored_doctors = user_data.get("monitoring", {}).get(body.patient_id, {})
+    doctor_info = monitored_doctors.get(body.doctor_id)
+
+    doctor_name = doctor_info.get("name", "") if doctor_info else ""
+    doctor_specialty = doctor_info.get("specialty", "") if doctor_info else ""
+
     if not doctor_name or not doctor_specialty:
         clinic_doctors = await db.get_doctors_for_clinic(body.clinic_id)
         clinic_doctor = clinic_doctors.get(body.doctor_id)
         if clinic_doctor is not None:
             doctor_name = doctor_name or clinic_doctor["name"]
             doctor_specialty = doctor_specialty or clinic_doctor["specialty"]
+        elif clinic_doctors:
+            # Справочник клиники заполнен, а пары в нём нет — отклоняем.
+            logger.warning(
+                "Врач d_id={} не найден в справочнике клиники c_id={} (uid={})",
+                body.doctor_id,
+                body.clinic_id,
+                telegram_id,
+            )
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "unknown",
+                    "detail": "Выбранный врач не найден в указанной клинике.",
+                },
+            )
 
     d_id = body.doctor_id
     doctor_name = doctor_name or d_id

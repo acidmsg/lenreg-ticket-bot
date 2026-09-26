@@ -78,6 +78,24 @@ export function createDoctorCard({
       </ul>`
       : "";
 
+  // Селект пациента (P2-BOOKFLOW): при нескольких пациентах запись начинается
+  // с явного выбора в карточке — всплывающий выбор при клике убран.
+  const patientSelectHtml =
+    patients.length > 1
+      ? `
+      <label class="doctor-card__patient-picker">
+        <span class="doctor-card__patient-picker-label">Пациент</span>
+        <select class="doctor-card__patient-select">
+          ${patients
+            .map(
+              (p) =>
+                `<option value="${escapeAttr(p.entryId)}">${escapeHtml(p.name)}</option>`,
+            )
+            .join("")}
+        </select>
+      </label>`
+      : "";
+
   // CSS-класс для отслеживаемого врача
   const monitoredClass = isMonitored ? " doctor-card--monitored" : "";
 
@@ -111,6 +129,7 @@ export function createDoctorCard({
           }
         </div>
       </div>
+      ${patientSelectHtml}
       ${patientsHtml}
       <div class="card__meta"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> ${escapeHtml(clinicName)}</div>
       ${footerHtml}

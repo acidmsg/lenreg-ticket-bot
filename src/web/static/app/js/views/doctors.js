@@ -330,75 +330,15 @@ function bindDoctorCardClick(container, doctors) {
       // Находим пациентов для этой карточки
       const patients = findPatientsForCard(card, doctors);
 
-      // Если несколько пациентов — показываем выбор (dropdown)
-      if (patients.length > 1) {
-        const selectedPatient = await showPatientSelect(patients);
-        if (!selectedPatient) return; // пользователь отменил выбор
-        navigate("slots", { monitoringId: selectedPatient.entryId, patients });
-        return;
-      }
-
-      const entryId = card.getAttribute("data-entry-id");
+      // Пациент выбирается селектом в карточке (P2-BOOKFLOW): всплывающий
+      // выбор убран — сначала пациент, затем время на экране слотов.
+      const select = card.querySelector(".doctor-card__patient-select");
+      const entryId = select?.value || card.getAttribute("data-entry-id");
       if (!entryId) return;
 
       navigate("slots", { monitoringId: entryId, patients });
     });
   });
-}
-
-/**
- * Показывает диалог выбора пациента (если врач отслеживается для нескольких).
- *
- * @param {Array<{name: string, patientId: string, entryId: string}>} patients
- * @returns {Promise<{name: string, patientId: string, entryId: string}|null>}
- */
-async function showPatientSelect(patients) {
-  if (window.Telegram?.WebApp?.showPopup) {
-    const message = patients.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-
-    return new Promise((resolve) => {
-      window.Telegram.WebApp.showPopup(
-        {
-          title: "Выберите пациента",
-          message: `Для записи выберите пациента:\n\n${message}`,
-          buttons: [
-            ...patients.map((p, i) => ({
-              id: String(i),
-              type: "default",
-              text: p.name,
-            })),
-            { type: "cancel" },
-          ],
-        },
-        (buttonId) => {
-          if (buttonId === undefined || buttonId === null) {
-            resolve(null);
-            return;
-          }
-          const idx = parseInt(buttonId, 10);
-          if (idx >= 0 && idx < patients.length) {
-            resolve(patients[idx]);
-          } else {
-            resolve(null);
-          }
-        },
-      );
-    });
-  }
-
-  // Fallback для браузера
-  const list = patients.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-  const choice = window.prompt(
-    `Выберите пациента (введите номер):\n\n${list}`,
-    "1",
-  );
-  if (choice !== null) {
-    const idx = parseInt(choice, 10) - 1;
-    if (idx >= 0 && idx < patients.length) {
-      return patients[idx];
-    }
-  }
-  return null;
 }
 
 /**
@@ -474,6 +414,30 @@ function bindDoctorEvents(container, doctors) {
   bindDoctorRefreshButtons(container);
   bindDoctorDeleteButtons(container);
   bindFilterButtons(container, doctors);
+  bindPatientSelects(container, doctors);
+}
+
+/**
+ * Привязывает селекты пациента в карточках врачей (P2-BOOKFLOW).
+ *
+ * Смена пациента сразу перезапрашивает слоты: они пациент-зависимы
+ * (`monitoring_id` считается на пару пациент + врач), поэтому переход на экран
+ * слотов выполняется с новым `monitoring_id`.
+ *
+ * @param {HTMLElement} container — контейнер со списком
+ * @param {Array} doctors — массив врачей
+ */
+function bindPatientSelects(container, doctors) {
+  container.querySelectorAll(".doctor-card__patient-select").forEach((select) => {
+    select.addEventListener("click", (e) => e.stopPropagation());
+    select.addEventListener("change", (e) => {
+      e.stopPropagation();
+      const card = select.closest(".doctor-card");
+      if (!card || !select.value) return;
+      const patients = findPatientsForCard(card, doctors);
+      navigate("slots", { monitoringId: select.value, patients });
+    });
+  });
 }
 
 /**

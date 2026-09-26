@@ -6,10 +6,14 @@
  */
 
 import { navigate } from "../app.js";
-import { apiGet, apiPost, apiDelete } from "../api.js";
+import { apiPost, apiDelete } from "../api.js";
 import { isInTelegram } from "../auth.js";
-import { createSlotsCalendar } from "../components/calendar.js";
-import { createSlotCard } from "../components/card.js";
+import {
+  bindSlotsPickerChips,
+  initSlotsPicker,
+  renderSlotList,
+  renderSlotsPickerLayout,
+} from "../components/slots-picker.js";
 import { escapeHtml } from "../utils/escape.js";
 import {
   isServiceUnavailableError,
@@ -17,6 +21,7 @@ import {
   SERVICE_UNAVAILABLE_MESSAGE,
 } from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
+import { fetchSlots } from "../utils/slots-api.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
 
@@ -29,8 +34,9 @@ import { lucideIcon } from "../components/icon.js";
 export async function renderSlots(container, params) {
   if (!container) return;
 
-  const monitoringId = params?.monitoringId;
-  if (!monitoringId) {
+  const monitoringId = params?.monitoringId || "";
+  const direct = params?.direct || null;
+  if (!monitoringId && !direct) {
     renderError(container, "Не указан ID отслеживания.", "Повторить", null);
     return;
   }
@@ -39,8 +45,10 @@ export async function renderSlots(container, params) {
   container.innerHTML = renderLoading();
 
   try {
-    const data = await apiGet(
-      `/slots?monitoring_id=${encodeURIComponent(monitoringId)}`,
+    // Режим мониторинга — по monitoringId; прямой режим — по тройке
+    // clinic_id + doctor_id + patient_id (openapi 1.5.0, без мониторинга).
+    const data = await fetchSlots(
+      monitoringId ? { monitoringId } : { ...direct },
     );
 
     // §11.5: источник истины для карточки подтверждения — ответ
@@ -61,7 +69,7 @@ export async function renderSlots(container, params) {
     if (slots.length === 0) {
       html += renderNoSlots();
     } else {
-      html += renderSlotsLayout();
+      html += renderSlotsPickerLayout();
     }
 
     container.innerHTML = html;
@@ -72,18 +80,18 @@ export async function renderSlots(container, params) {
     // Гибридный режим: календарь слотов + панель выбранной даты.
     // При недоступности VanillaCalendar — откат к плоскому списку.
     if (slots.length > 0) {
-      const calendarReady = initSlotsCalendar(
-        container,
+      const onSelect = (slot) => handleSlotBooking(slot, params);
+      const calendarReady = initSlotsPicker(container, {
         slots,
-        params,
-        data.clinic_id || "",
-      );
+        onSelect,
+        fallbackClinicId: data.clinic_id || "",
+      });
       if (!calendarReady) {
         const layout = container.querySelector(".slots-layout");
         if (layout) {
           layout.outerHTML = renderSlotList(slots, data.clinic_id || "");
         }
-        bindSlotChipClicks(container, params);
+        bindSlotsPickerChips(container, onSelect);
       }
     }
   } catch (error) {
@@ -173,132 +181,6 @@ function renderNoSlots() {
         Мы уведомим вас, когда они появятся.
       </p>
     </div>
-  `;
-}
-
-/**
- * Группирует слоты по датам, сохраняя время и данные для бронирования.
- *
- * @param {Array} slots — массив слотов [{ date, time, appointment_id, clinic_id }]
- * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
- * @returns {Object<string, Array<{time: string, appointmentId: string, clinicId: string}>>}
- *   карта «дата → слоты»
- */
-function groupSlotsByDate(slots, fallbackClinicId = "") {
-  const grouped = {};
-  slots.forEach((slot) => {
-    const date = slot.date || "";
-    if (!date) return;
-    if (!grouped[date]) grouped[date] = [];
-    grouped[date].push({
-      time: slot.time || "—",
-      appointmentId: slot.appointment_id || slot.slot_id || "",
-      clinicId: slot.clinic_id || fallbackClinicId || "",
-    });
-  });
-  return grouped;
-}
-
-/**
- * Рендерит гибридную раскладку: календарь + панель слотов выбранной даты.
- * На десктопе панель видна всегда, на мобильном раскрывается после выбора даты.
- *
- * @returns {string} HTML раскладки
- */
-function renderSlotsLayout() {
-  return `
-    <div class="slots-layout">
-      <div class="slots-layout__calendar" id="slots-calendar"></div>
-      <div class="slots-layout__panel" id="slots-panel"></div>
-    </div>
-  `;
-}
-
-/**
- * Рендерит слоты выбранной даты для панели.
- *
- * @param {Object} grouped — карта «дата → слоты»
- * @param {string} date — выбранная дата (YYYY-MM-DD)
- * @returns {string} HTML панели
- */
-function renderSlotsPanel(grouped, date) {
-  const daySlots = grouped[date] || [];
-  if (date && daySlots.length > 0) {
-    return createSlotCard({ date, slots: daySlots });
-  }
-  return `
-    <div class="slots-panel__empty">
-      На выбранную дату свободных номерков нет
-    </div>
-  `;
-}
-
-/**
- * Инициализирует календарь слотов и панель выбранной даты.
- *
- * @param {HTMLElement} container — контейнер экрана
- * @param {Array} slots — массив слотов
- * @param {object} params — параметры маршрута
- * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
- * @returns {boolean} true, если календарь инициализирован
- */
-function initSlotsCalendar(container, slots, params, fallbackClinicId = "") {
-  if (typeof VanillaCalendar !== "function") return false;
-
-  const calendarEl = container.querySelector("#slots-calendar");
-  const panelEl = container.querySelector("#slots-panel");
-  if (!calendarEl || !panelEl) return false;
-
-  const grouped = groupSlotsByDate(slots, fallbackClinicId);
-  const dates = Object.keys(grouped).sort();
-  if (dates.length === 0) return false;
-
-  const slotCounts = {};
-  dates.forEach((date) => {
-    slotCounts[date] = grouped[date].length;
-  });
-
-  const renderPanel = (date) => {
-    // Клик по недоступной дате сбрасывает selectedDates в null —
-    // панель при этом не трогаем, чтобы не терять текущий выбор.
-    if (!date) return;
-    panelEl.innerHTML = renderSlotsPanel(grouped, date);
-    panelEl.classList.add("slots-layout__panel--open");
-    bindSlotChipClicks(panelEl, params);
-  };
-
-  const calendar = createSlotsCalendar(calendarEl, {
-    slotDates: dates,
-    slotCounts,
-    onSelect: renderPanel,
-  });
-  if (!calendar) return false;
-
-  renderPanel(calendar.selectedDates[0] || dates[0]);
-  return true;
-}
-
-/**
- * Рендерит плоский список слотов, сгруппированных по датам (fallback).
- * Каждый слот — кликабельная кнопка с data-атрибутами для бронирования.
- *
- * @param {Array} slots — массив слотов [{ date, time, appointment_id, clinic_id }]
- * @param {string} [fallbackClinicId=""] — ID клиники по умолчанию
- * @returns {string} HTML списка слотов
- */
-function renderSlotList(slots, fallbackClinicId = "") {
-  const grouped = groupSlotsByDate(slots, fallbackClinicId);
-  const sortedDates = Object.keys(grouped).sort();
-
-  const groupsHtml = sortedDates
-    .map((date) => createSlotCard({ date, slots: grouped[date] }))
-    .join("");
-
-  return `
-    ${groupsHtml}
-    <p class="text-center mt-md" style="color: var(--color-text-secondary); font-size: var(--font-sm);">
-      Выберите удобное время для записи
-    </p>
   `;
 }
 
@@ -478,22 +360,7 @@ function bindSlotDeletePatientButtons(container, patients, params) {
 function bindSlotEvents(container, patients, params) {
   bindSlotRefreshButtons(container);
   bindSlotDeletePatientButtons(container, patients, params);
-  bindSlotChipClicks(container, params);
-}
-
-/**
- * Привязывает обработчики кликов по кнопкам слотов (бронирование).
- *
- * @param {HTMLElement} container — контейнер
- * @param {object} params — параметры маршрута ({ monitoringId, patients })
- */
-function bindSlotChipClicks(container, params) {
-  container.querySelectorAll(".slot-chip--clickable").forEach((chip) => {
-    chip.addEventListener("click", (e) => {
-      e.stopPropagation();
-      handleSlotBooking(chip, params);
-    });
-  });
+  bindSlotsPickerChips(container, (slot) => handleSlotBooking(slot, params));
 }
 
 /** Формат времени слота, ожидаемый контрактом `POST /book` (ЧЧ:ММ). */
@@ -539,11 +406,11 @@ function toIsoSlotDate(value) {
  * @param {HTMLElement} chip — кнопка слота
  * @param {object} params — параметры маршрута
  */
-async function handleSlotBooking(chip, params) {
-  const date = chip.getAttribute("data-slot-date") || "";
-  const time = chip.getAttribute("data-slot-time") || "";
-  const appointmentId = chip.getAttribute("data-appointment-id") || "";
-  const clinicId = chip.getAttribute("data-clinic-id") || "";
+async function handleSlotBooking(slot, params) {
+  const date = slot?.date || "";
+  const time = slot?.time || "";
+  const appointmentId = slot?.appointmentId || "";
+  const clinicId = slot?.clinicId || "";
 
   if (!appointmentId) {
     if (window.showToast) {
@@ -613,15 +480,46 @@ async function handleSlotBooking(chip, params) {
       if (window.showToast) {
         window.showToast("✅ Вы успешно записаны!", "success");
       }
+      // Инвалидация кэша слотов: забронированный талон не должен висеть в UI
+      // (карточка врача показывает счётчик из кэша мониторинга).
+      try {
+        await refreshDoctorSlots(monitoringId);
+      } catch {
+        // Неудача инвалидации не отменяет успешную запись.
+      }
       // Возвращаемся на главную
       navigate("doctors");
     } else {
       const errorCode = result.error || "unknown";
       const detail = result.detail || "Неизвестная ошибка";
       handleBookingError(errorCode, detail);
+      // Мёртвого экрана нет: остаёмся на слотах и обновляем список,
+      // чтобы занятый талон не висел в UI.
+      await refreshSlotsAfterBookingError(params);
     }
   } catch (error) {
     handleBookingError("network", error.message);
+    await refreshSlotsAfterBookingError(params);
+  }
+}
+
+/**
+ * Обновляет список слотов после отказа бронирования.
+ *
+ * Пользователь остаётся на экране слотов (никакой навигации), но список
+ * перезапрашивается: талон, который уже заняли, исчезает из UI, а не остаётся
+ * мёртвой кнопкой. Ошибка обновления не пробрасывается — сообщение об отказе
+ * уже показано.
+ *
+ * @param {object} params — параметры маршрута
+ */
+async function refreshSlotsAfterBookingError(params) {
+  const container = document.getElementById("slots-content");
+  if (!container) return;
+  try {
+    await renderSlots(container, params);
+  } catch {
+    // Список не обновился — сообщение об ошибке уже показано.
   }
 }
 

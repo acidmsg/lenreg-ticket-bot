@@ -161,7 +161,7 @@ function buildStepperHTML(steps, currentStep, opts) {
       <div class="stepper__actions">
         ${backButtonHtml}
         <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? "" : " disabled"}>
-          ${isLastStep ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> Готово` : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> Далее`}
+          ${isLastStep ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> ${escapeHtml(steps[currentStep]?.completeLabel || "Готово")}` : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> Далее`}
         </button>
       </div>
     </div>

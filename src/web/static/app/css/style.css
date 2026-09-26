@@ -1336,6 +1336,27 @@ body {
   white-space: nowrap;
 }
 
+/* Селект пациента в карточке врача (P2-BOOKFLOW) */
+.doctor-card__patient-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+.doctor-card__patient-select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
+}
+
 /* === Toast-уведомление === */
 .stepper-toast {
   position: fixed;
