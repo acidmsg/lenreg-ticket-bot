@@ -685,8 +685,15 @@ async def bootstrap_bot(
 
         dp.include_router(mini_app.router)
 
-    # Проверка связи с Telegram API до запуска фоновых задач
-    await _bot_me_with_retry(bot)
+    # Проверка связи с Telegram API до запуска фоновых задач.
+    # В режиме стенда (SKIP_TELEGRAM_STARTUP) связь не проверяем: фейковый
+    # токен заведомо не пройдёт get_me(), а приложению нужен только HTTP-слой.
+    if settings.SKIP_TELEGRAM_STARTUP:
+        logger.warning(
+            "SKIP_TELEGRAM_STARTUP=1 — проверка Telegram API пропущена (режим стенда)"
+        )
+    else:
+        await _bot_me_with_retry(bot)
 
     return bot, dp
 
@@ -798,6 +805,17 @@ async def shutdown_services(
     await RedisClient.shutdown()
 
 
+async def _wait_until_stopped() -> None:
+    """Ждёт сигнала остановки, не запуская поллинг Telegram (режим стенда).
+
+    Нужна, чтобы приложение в контейнере (deps-lab) поднимало HTTP-слой и
+    проверялось на graceful shutdown без боевого токена: задача висит на
+    событии, а SIGINT/SIGTERM в контейнере доставляются как отмена задачи,
+    после чего ``finally`` в :func:`main` выполняет штатную остановку сервисов.
+    """
+    await asyncio.Event().wait()
+
+
 async def main() -> None:
     """Основная функция запуска бота — оркестрирует все bootstrap-этапы."""
     await bootstrap_logging()
@@ -816,7 +834,15 @@ async def main() -> None:
     logger.info("Бот запущен и готов помогать!")
 
     try:
-        await dp.start_polling(bot, db=db, api=api)
+        if settings.SKIP_TELEGRAM_STARTUP:
+            # Режим локального стенда (deps-lab): поллинг не запускаем, но
+            # приложение живёт ради дашборда/метрик до сигнала остановки.
+            logger.warning(
+                "SKIP_TELEGRAM_STARTUP=1 — поллинг Telegram отключён (режим стенда)"
+            )
+            await _wait_until_stopped()
+        else:
+            await dp.start_polling(bot, db=db, api=api)
     except asyncio.CancelledError:
         logger.info("Поллинг остановлен (cancelled)")
     except Exception as e:

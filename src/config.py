@@ -198,6 +198,12 @@ class Settings(BaseSettings):
 
     # === Web Dashboard (F5) ===
     WEB_DASHBOARD_ENABLED: bool = True
+
+    # Режим локального стенда (deps-lab): не обращаться к Telegram API и не
+    # запускать поллинг. Нужен, чтобы проверять старт приложения, HTTP-слой и
+    # graceful shutdown в контейнере без боевого токена. В проде — False:
+    # включённый флаг оставляет бота без обработки обновлений.
+    SKIP_TELEGRAM_STARTUP: bool = False
     WEB_DASHBOARD_PORT: int = 8080
     # Интервал обновления живых данных дашборда (SSE), секунды
     DASHBOARD_STREAM_INTERVAL: int = 10
