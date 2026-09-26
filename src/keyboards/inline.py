@@ -1,4 +1,9 @@
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
@@ -43,7 +48,7 @@ from src.utils.helpers import (
 )
 
 
-def get_notification_keyboard(p_id: str, d_id: str):
+def get_notification_keyboard(p_id: str, d_id: str) -> InlineKeyboardMarkup:
     """Инлайн-клавиатура уведомления о свободных номерках.
 
     Кнопки:

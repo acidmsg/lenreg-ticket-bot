@@ -813,20 +813,15 @@ async def unsubscribe_monitoring(
     user_data = await db.get_user_data(uid)
     d_info = user_data.get("monitoring", {}).get(p_id, {}).get(d_id)
 
-    if not isinstance(d_info, dict):
-        # Мониторинг уже снят (повторный тап или снятие из Mini App).
+    if not isinstance(d_info, dict) or not await db.remove_monitoring(
+        uid=uid, p_id=p_id, d_id=d_id
+    ):
+        # Мониторинг уже снят (повторный тап, гонка или снятие из Mini App).
+        # remove_monitoring идемпотентен и никогда не добавляет врача обратно.
         await call.answer(_("unsubscribe-already"), show_alert=False)
         await _replace_notification_markup(call, _("unsubscribe-already"))
         return
 
-    await db.toggle_monitoring(
-        uid=uid,
-        p_id=p_id,
-        d_id=d_id,
-        d_name=d_info.get("name", ""),
-        clinic_id=d_info.get("clinic_id", ""),
-        doctor_specialty=d_info.get("specialty", ""),
-    )
     await delete_cache_keys_by_prefix(f"{uid}_{p_id}_{d_id}")
     logger.info(
         "Unsubscribe from notification: uid={}, p_id={}, d_id={}",

@@ -299,6 +299,28 @@ class DatabaseManager:
             if updated:
                 self._data_cache[uid] = updated
 
+    async def remove_monitoring(self, uid: str, p_id: str, d_id: str) -> bool:
+        """Идемпотентно снимает наблюдение за парой (пациент + врач).
+
+        В отличие от ``toggle_monitoring`` только удаляет и никогда не добавляет:
+        повторный вызов или гонка с параллельным удалением не возвращают врача
+        в мониторинг.
+
+        Returns:
+            True если запись была удалена, False если её уже не было.
+        """
+        uid = str(uid)
+        async with self._lock:
+            user_data = self._get_user_data_nolock(uid)
+            if d_id not in user_data["monitoring"].get(p_id, {}):
+                return False
+            del user_data["monitoring"][p_id][d_id]
+            await self._db.remove_monitoring_entry(uid, p_id, d_id)
+            updated = await self._db.get_user(uid)
+            if updated:
+                self._data_cache[uid] = updated
+            return True
+
     async def update_monitoring_filter(
         self,
         uid: str,
