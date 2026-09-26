@@ -42,6 +42,26 @@ router = APIRouter(prefix="/api/user", tags=["Mini App (JSON API)"])
 # ── Вспомогательные функции ──────────────────────────────────
 
 
+def _normalize_bday_display(value: Any) -> str:
+    """Приводит дату рождения к формату отображения ``ДД.ММ.ГГГГ``.
+
+    В хранилище встречаются обе формы: ``ДД.ММ.ГГГГ`` и ISO ``ГГГГ-ММ-ДД``
+    (старые записи и часть путей добавления сохраняли ISO). Мини-апп ждёт
+    ``ДД.ММ.ГГГГ`` и валидирует поле, поэтому нормализуем на выдаче.
+    Нераспознанное значение возвращается как есть, чтобы не терять данные.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    for fmt in ("%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            parsed = datetime.datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+        return parsed.strftime("%d.%m.%Y")
+    return text
+
+
 def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
     """Сериализует словарь пациентов в список словарей для JSON-ответа."""
     result: list[dict[str, Any]] = []
@@ -49,7 +69,7 @@ def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {
             "patient_id": p_id,
             "fio": p_info.get("fio", ""),
-            "bday": p_info.get("bday", ""),
+            "bday": _normalize_bday_display(p_info.get("bday", "")),
         }
         if "alias" in p_info:
             entry["alias"] = p_info["alias"]
@@ -1155,7 +1175,8 @@ async def update_patient(
             )
 
     # Дата рождения
-    bday_display = str(existing.get("bday", ""))
+    existing_bday = _normalize_bday_display(existing.get("bday", ""))
+    bday_display = existing_bday
     if body.birth_date is not None:
         try:
             bday_date = datetime.datetime.strptime(
@@ -1175,9 +1196,7 @@ async def update_patient(
             )
         bday_display = bday_date.strftime("%d.%m.%Y")
 
-    data_changed = fio != str(existing.get("fio", "")) or bday_display != str(
-        existing.get("bday", "")
-    )
+    data_changed = fio != str(existing.get("fio", "")) or bday_display != existing_bday
 
     if data_changed:
         try:

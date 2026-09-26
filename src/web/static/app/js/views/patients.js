@@ -91,6 +91,26 @@ function validateBday(value) {
 }
 
 /**
+ * Приводит дату рождения к формату ДД.ММ.ГГГГ для предзаполнения формы.
+ *
+ * В карточке дата может лежать в ISO (ГГГГ-ММ-ДД): так сохраняли старые записи
+ * и часть путей добавления. Поле формы и `validateBday` ждут ДД.ММ.ГГГГ, поэтому
+ * ISO-значение без нормализации подсвечивалось ошибкой сразу при открытии правки.
+ *
+ * @param {string} value — дата из API
+ * @returns {string} дата в формате ДД.ММ.ГГГГ (или исходное значение, если формат иной)
+ */
+export function normalizeBdayValue(value) {
+  const text = (value || "").trim();
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day}.${month}.${year}`;
+  }
+  return text;
+}
+
+/**
  * Отображает ошибку валидации у конкретного поля.
  *
  * @param {HTMLElement|null} inputEl — поле ввода
@@ -127,7 +147,7 @@ function setFieldError(inputEl, errorEl, message) {
 function buildPatientFormHTML({ mode = "add", patient = null } = {}) {
   const isEdit = mode === "edit";
   const fio = escapeHtml(patient?.fio || "");
-  const bday = escapeHtml(patient?.bday || "");
+  const bday = escapeHtml(normalizeBdayValue(patient?.bday));
   const alias = escapeHtml(patient?.alias || "");
   const submitLabel = isEdit ? "Сохранить" : "Добавить";
   const submitIcon = isEdit ? "check" : "circle-plus";
@@ -364,7 +384,11 @@ function setupDateMask(inputEl, calendar, bdayError) {
  * @param {"add"|"edit"} [options.mode="add"] — режим
  * @param {string|null} [options.patientId=null] — ID пациента (для edit)
  */
-function setupPatientFormSubmit(form, onSuccess, { mode = "add", patientId = null } = {}) {
+function setupPatientFormSubmit(
+  form,
+  onSuccess,
+  { mode = "add", patientId = null } = {},
+) {
   const container = form.closest(".patient-add-form");
   if (!container) return;
 
