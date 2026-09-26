@@ -150,6 +150,14 @@ function buildStepperHTML(steps, currentStep, opts) {
 
   const nextBtnClass = isLastStep || isWidget ? "" : " stepper__btn--next";
 
+  // Кнопка действия шага (например, «Запись» на шаге подтверждения):
+  // идёт последней, чтобы основное действие было справа.
+  const actionLabel = steps[currentStep]?.actionLabel;
+  const actionsClass = actionLabel ? " stepper__actions--triple" : "";
+  const actionButtonHtml = actionLabel
+    ? `<button class="btn btn--primary" id="stepper-action" disabled>${escapeHtml(actionLabel)}</button>`
+    : "";
+
   return `
     <div class="stepper">
       <div class="stepper__progress">${progressHtml}</div>
@@ -158,11 +166,12 @@ function buildStepperHTML(steps, currentStep, opts) {
       ${searchHtml}
       ${clinicLinkHtml}
       <div class="stepper__content" id="stepper-content">${contentHTML}</div>
-      <div class="stepper__actions">
+      <div class="stepper__actions${actionsClass}">
         ${backButtonHtml}
         <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? "" : " disabled"}>
           ${isLastStep ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> ${escapeHtml(steps[currentStep]?.completeLabel || "Готово")}` : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> Далее`}
         </button>
+        ${actionButtonHtml}
       </div>
     </div>
   `;
@@ -299,6 +308,12 @@ function updateStepperContent(container, state) {
     state.stepData,
     currentStepDef.renderItem,
   );
+
+  // Хук после рендера шага: нужен шагам с интерактивным содержимым
+  // (например, календарь выбора слота инициализируется после вставки DOM).
+  if (typeof currentStepDef.onRender === "function") {
+    currentStepDef.onRender(container, state);
+  }
 
   if (isLastStep) return;
 

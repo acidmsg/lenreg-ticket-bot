@@ -15,6 +15,13 @@ import { escapeHtml } from "../utils/escape.js";
 import { lucideIcon } from "../components/icon.js";
 import { navigate } from "../app.js";
 import { fetchSlots } from "../utils/slots-api.js";
+import {
+  bindSlotsPickerChips,
+  initSlotsPicker,
+  renderSlotList,
+  renderSlotsPickerLayout,
+} from "../components/slots-picker.js";
+import { bookSlot } from "../utils/booking.js";
 
 /**
  * Рендерит экран добавления врача в указанный контейнер.
@@ -72,6 +79,11 @@ export function renderAddDoctor(container) {
       title: "Подтверждение",
       description: "Проверьте данные и выберите: записаться сейчас или следить",
       completeLabel: "Следить",
+      // Кнопка действия в футере stepper'а: «Запись» справа (MA-1).
+      // Запись и слежение независимы: запись не добавляет врача в мониторинг.
+      actionLabel: "Запись",
+      onAction: () => handleStep4Booking(),
+      onRender: (container, state) => initStep4Picker(container, state),
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
         const patient = selections[0]?.value || {};
@@ -185,9 +197,8 @@ export function renderAddDoctor(container) {
     },
   });
 
-  // Развилка шага 4: «Записаться» ведёт на экран слотов в прямом режиме
-  // (без записи мониторинга), «Следить» — штатное завершение stepper'а.
-  bindStep4Booking(container);
+  // Развилка шага 4 живёт в футере stepper'а: «Запись» (кнопка действия,
+  // привязывается самим stepper'ом через `onAction`) и «Следить».
 
   // Перехватываем клики по уже отслеживаемым врачам
   container.addEventListener(
@@ -498,7 +509,6 @@ function renderConfirmation(item) {
 
   return `
     <div class="confirm-card">
-      <div class="confirm-card__icon">${lucideIcon("file-text", 48)}</div>
       <div class="confirm-card__details">
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("user", 14)}</span> Пациент</div>
         <div class="confirm-value">${escapeHtml(patientName)}</div>
@@ -514,45 +524,129 @@ function renderConfirmation(item) {
             : ""
         }
       </div>
-      ${renderAvailabilityBlock(availability)}
+      ${renderStep4Block(availability)}
     </div>
   `;
 }
 
 /**
- * Рендерит блок доступности врача и кнопку «Записаться» (шаг 4).
+ * Рендерит блок шага 4: доступность врача и календарь выбора слота.
  *
- * Кнопка активна только при наличии свободных талонов; отсутствие данных
- * (например, внешний API недоступен) трактуется как «записаться нельзя», но
- * путь «Следить» всегда доступен — он живёт в нижней кнопке stepper'а.
+ * Календарь — тот же переиспользуемый компонент, что и на экране номерков
+ * (`components/slots-picker.js`), поэтому разметка слотов не дублируется.
  *
  * @param {{slots?: Array, total?: number, error?: boolean}|null} availability — доступность
  * @returns {string} HTML блока либо пустая строка
  */
-function renderAvailabilityBlock(availability) {
+function renderStep4Block(availability) {
   if (!availability) return "";
 
   const total = availability.total || 0;
   const text = availability.error
     ? "Не удалось проверить номерки"
     : total > 0
-      ? `Свободных номерков: ${total}`
-      : "Сейчас свободных номерков нет";
-  const disabled = total > 0 && !availability.error ? "" : " disabled";
+      ? `Свободных номерков: ${total}. Выберите дату и время.`
+      : "Сейчас свободных номерков нет — можно только следить.";
 
   return `
       <div class="confirm-availability">
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> Доступность</div>
         <div class="confirm-value">${escapeHtml(text)}</div>
-        <button
-          class="btn btn--primary mt-md"
-          id="step4-book-btn"
-          data-clinic-id="${escapeHtml(availability.clinicId || "")}"
-          data-doctor-id="${escapeHtml(availability.doctorId || "")}"
-          data-patient-id="${escapeHtml(availability.patientId || "")}"
-          data-patient-name="${escapeHtml(availability.patientName || "")}"
-${disabled}>Записаться</button>
-      </div>`;
+      </div>
+      ${total > 0 ? renderSlotsPickerLayout("step4") : ""}`;
+}
+
+/** Контекст шага 4 (реквизиты записи) и выбранный слот. */
+let step4Context = null;
+let step4SelectedSlot = null;
+
+/**
+ * Инициализирует календарь выбора слота на шаге подтверждения.
+ *
+ * Вызывается stepper'ом после рендера шага (`onRender`): DOM уже вставлен,
+ * можно поднять VanillaCalendar и панель выбранной даты. Кнопка «Запись»
+ * активна только после выбора слота.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а
+ */
+function initStep4Picker(container, state) {
+  const item = state?.stepData?.[0] || {};
+  const availability = item.availability || {};
+  const slots = availability.slots || [];
+  const doctor = item.doctor || {};
+  const clinic = item.clinic || {};
+
+  step4Context = {
+    clinicId: availability.clinicId || "",
+    doctorId: availability.doctorId || "",
+    patientId: availability.patientId || "",
+    patientName: availability.patientName || "",
+    doctorName: extractDoctorName(doctor) || "",
+    specialty: doctor.specialty_name || "",
+    clinicName: clinic.short_name || clinic.name || "",
+  };
+  step4SelectedSlot = null;
+
+  const actionBtn = document.getElementById("stepper-action");
+  if (slots.length === 0) {
+    if (actionBtn) actionBtn.disabled = true;
+    return;
+  }
+
+  const select = (slot) => {
+    step4SelectedSlot = slot;
+    if (actionBtn) actionBtn.disabled = false;
+  };
+
+  const calendarReady = initSlotsPicker(container, {
+    slots,
+    rootId: "step4",
+    fallbackClinicId: step4Context.clinicId,
+    onSelect: select,
+  });
+
+  if (!calendarReady) {
+    // Календарь недоступен — плоский список (тот же компонент карточки слота).
+    const layout = container.querySelector(".slots-layout");
+    if (layout) {
+      layout.outerHTML = renderSlotList(slots, step4Context.clinicId);
+    }
+    bindSlotsPickerChips(container, select);
+  }
+
+  // Слот не выбран — «Запись» неактивна.
+  if (actionBtn) actionBtn.disabled = true;
+}
+
+/**
+ * Оформляет запись на выбранный слот шага 4.
+ *
+ * Путь тот же, что и на экране номерков (`utils/booking.js`): подтверждение →
+ * `POST /book` → обработка ошибок. Мониторинг при этом не создаётся.
+ */
+async function handleStep4Booking() {
+  const ctx = step4Context;
+  const slot = step4SelectedSlot;
+  if (!ctx || !slot) return;
+
+  const result = await bookSlot({
+    date: slot.date,
+    time: slot.time,
+    appointmentId: slot.appointmentId,
+    clinicId: slot.clinicId || ctx.clinicId,
+    patientId: ctx.patientId,
+    doctorId: ctx.doctorId,
+    patientName: ctx.patientName,
+    doctorName: ctx.doctorName,
+    specialty: ctx.specialty,
+    clinicName: ctx.clinicName,
+  });
+
+  if (result.success) {
+    // Запись видна сразу в «Моих записях».
+    navigate("bookings");
+  }
 }
 
 /**
@@ -596,48 +690,6 @@ async function loadDoctorAvailability({ patient, clinic, doctor }) {
       patientName,
     };
   }
-}
-
-/**
- * Привязывает кнопку «Записаться» на шаге подтверждения.
- *
- * Клик ведёт на экран слотов в прямом режиме (без записи мониторинга) —
- * логика слотов и бронирования не дублируется, используется тот же компонент,
- * что и на экране слотов.
- *
- * @param {HTMLElement} container — контейнер stepper'а
- */
-function bindStep4Booking(container) {
-  if (!container || container.dataset.step4Bound === "1") return;
-  container.dataset.step4Bound = "1";
-
-  container.addEventListener("click", (e) => {
-    const btn = e.target.closest("#step4-book-btn");
-    if (!btn || btn.disabled) return;
-
-    const patientId = btn.getAttribute("data-patient-id") || "";
-    const doctorId = btn.getAttribute("data-doctor-id") || "";
-    const patientName = btn.getAttribute("data-patient-name") || "";
-
-    navigate("slots", {
-      direct: {
-        clinicId: btn.getAttribute("data-clinic-id") || "",
-        doctorId,
-        patientId,
-      },
-      // Пациент — только для карточки подтверждения: entryId совпадает с
-      // композитным monitoring_id из ответа API.
-      patients: patientName
-        ? [
-            {
-              name: patientName,
-              patientId,
-              entryId: `${patientId}_${doctorId}`,
-            },
-          ]
-        : [],
-    });
-  });
 }
 
 // ============================================================

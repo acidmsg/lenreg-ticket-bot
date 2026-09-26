@@ -6,7 +6,7 @@
  */
 
 import { navigate } from "../app.js";
-import { apiPost, apiDelete } from "../api.js";
+import { apiDelete } from "../api.js";
 import { isInTelegram } from "../auth.js";
 import {
   bindSlotsPickerChips,
@@ -22,6 +22,13 @@ import {
 } from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
 import { fetchSlots } from "../utils/slots-api.js";
+import { bookSlot } from "../utils/booking.js";
+
+// Реэкспорт для существующих потребителей (тесты и внешние импорты).
+export {
+  buildBookingConfirmMessage,
+  showBookingConfirm,
+} from "../utils/booking.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
 
@@ -62,7 +69,7 @@ export async function renderSlots(container, params) {
     // Блок пациентов (пришёл через params из doctors.js)
     const patients = params?.patients;
     if (patients && patients.length > 0) {
-      html += renderPatientsBlock(patients);
+      html += renderPatientsBlock(patients, monitoringId);
     }
 
     const slots = data.slots || [];
@@ -190,26 +197,33 @@ function renderNoSlots() {
  * @param {Array<{name: string, patientId: string, entryId: string}>} patients — список пациентов
  * @returns {string} HTML блока пациентов
  */
-function renderPatientsBlock(patients) {
+function renderPatientsBlock(patients, monitoringId = "") {
   const patientsHtml = patients
-    .map(
-      (p) => `
-      <li class="monitoring-patient">
+    .map((p) => {
+      const active = p.entryId && p.entryId === monitoringId;
+      return `
+      <li class="monitoring-patient${active ? " monitoring-patient--active" : ""}">
         <span class="monitoring-patient__icon">${lucideIcon("user", 16)}</span>
-        <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
+        <button
+          class="monitoring-patient__switch"
+          data-entry-id="${escapeHtml(p.entryId)}"
+          data-patient-name="${escapeHtml(p.name)}"
+          aria-pressed="${active ? "true" : "false"}"
+          title="Записаться на этого пациента"
+        >${escapeHtml(p.name)}</button>
         <button
           class="monitoring-patient__delete"
           data-entry-id="${escapeHtml(p.entryId)}"
           data-patient-name="${escapeHtml(p.name)}"
           title="Удалить мониторинг для этого пациента"
         >${lucideIcon("trash-2", 16)}</button>
-      </li>`,
-    )
+      </li>`;
+    })
     .join("");
 
   return `
     <div class="slots-patients">
-      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon("users", 14)}</span> Пациенты:</div>
+      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon("users", 14)}</span> Пациенты — выберите, на кого записывать:</div>
       <ul class="monitoring-patients">
         ${patientsHtml}
       </ul>
@@ -303,7 +317,10 @@ async function handleSlotDeletePatient(btn, container, patients, params) {
       if (updatedPatients.length === 0) {
         patientsBlock.remove();
       } else {
-        patientsBlock.outerHTML = renderPatientsBlock(updatedPatients);
+        patientsBlock.outerHTML = renderPatientsBlock(
+          updatedPatients,
+          params?.monitoringId,
+        );
         // Обновляем массив patients в замыкании через перепривязку
         patients.length = 0;
         updatedPatients.forEach((p) => patients.push(p));
@@ -351,6 +368,55 @@ function bindSlotDeletePatientButtons(container, patients, params) {
 }
 
 /**
+ * Привязывает выбор пациента на экране номерков.
+ *
+ * Кнопка имени пациента переключает, на кого будет оформлена запись.
+ *
+ * @param {HTMLElement} container — контейнер
+ * @param {Array} patients — список пациентов
+ * @param {object} params — параметры маршрута
+ */
+function bindPatientSwitches(container, patients, params) {
+  container.querySelectorAll(".monitoring-patient__switch").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlePatientSwitch(btn, container, params);
+    });
+  });
+}
+
+/**
+ * Переключает пациента, на которого будет оформлена запись.
+ *
+ * Номерки пациент-зависимы (`monitoring_id` = `{patient_id}_{doctor_id}`), поэтому
+ * смена пациента сразу перезапрашивает экран: список слотов и карточка
+ * подтверждения соответствуют выбранному пациенту, а `patient_id` в
+ * `POST /book` берётся из тех же параметров маршрута.
+ *
+ * @param {HTMLElement} btn — кнопка пациента
+ * @param {HTMLElement} container — контейнер экрана
+ * @param {object} params — параметры маршрута
+ */
+async function handlePatientSwitch(btn, container, params) {
+  btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
+  const entryId = btn.getAttribute("data-entry-id");
+  if (!entryId) return;
+
+  const direct = params?.direct;
+  if (entryId === params?.monitoringId) return; // уже выбран — ничего не делаем
+
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.selectionChanged?.();
+  }
+
+  const nextParams = direct
+    ? { ...params, direct: { ...direct, patientId: entryId.split("_", 1)[0] } }
+    : { ...params, monitoringId: entryId };
+
+  await renderSlots(container, nextParams);
+}
+
+/**
  * Привязывает обработчики событий на экране слотов.
  *
  * @param {HTMLElement} container — контейнер
@@ -360,11 +426,9 @@ function bindSlotDeletePatientButtons(container, patients, params) {
 function bindSlotEvents(container, patients, params) {
   bindSlotRefreshButtons(container);
   bindSlotDeletePatientButtons(container, patients, params);
+  bindPatientSwitches(container, patients, params);
   bindSlotsPickerChips(container, (slot) => handleSlotBooking(slot, params));
 }
-
-/** Формат времени слота, ожидаемый контрактом `POST /book` (ЧЧ:ММ). */
-const SLOT_TIME_PATTERN = /^\d{2}:\d{2}$/;
 
 /**
  * Разбирает `monitoringId` вида `{p_id}_{d_id}` на компоненты.
@@ -381,23 +445,6 @@ function parseMonitoringId(monitoringId) {
 }
 
 /**
- * Переводит дату слота в ISO-формат `ГГГГ-ММ-ДД` (поле `slot_date` запроса).
- *
- * Слоты API приходят в формате `ДД.ММ.ГГГГ`, контракт `POST /book` ожидает
- * `date`. Преобразование выполняется по строкам — без `Date` и timezone-сдвигов.
- *
- * @param {string} value — дата слота (`ДД.ММ.ГГГГ` или `ГГГГ-ММ-ДД`)
- * @returns {string} дата в формате `ГГГГ-ММ-ДД`, пустая строка — если дата не распознана
- */
-function toIsoSlotDate(value) {
-  const parts = String(value || "").split(".");
-  if (parts.length !== 3) return value || "";
-  if (!parts.every((part) => /^\d+$/.test(part))) return "";
-  const [day, month, year] = parts;
-  return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-}
-
-/**
  * Обрабатывает клик по слоту: показывает подтверждение и выполняет бронирование.
  *
  * Врач определяется по `params.monitoringId` (`{p_id}_{d_id}`): `GET /api/user/slots`
@@ -407,100 +454,39 @@ function toIsoSlotDate(value) {
  * @param {object} params — параметры маршрута
  */
 async function handleSlotBooking(slot, params) {
-  const date = slot?.date || "";
-  const time = slot?.time || "";
-  const appointmentId = slot?.appointmentId || "";
-  const clinicId = slot?.clinicId || "";
-
-  if (!appointmentId) {
-    if (window.showToast) {
-      window.showToast("❌ Невозможно определить слот для записи", "error");
-    }
-    return;
-  }
-
   // patient_id и doctor_id — компоненты monitoringId; врач обязателен
   // в контракте POST /book, иначе бэкенд подберёт «первого врача клиники».
   const monitoringId = params?.monitoringId || "";
   const { patientId, doctorId } = parseMonitoringId(monitoringId);
-  const slotDate = toIsoSlotDate(date);
 
-  if (
-    !patientId ||
-    !clinicId ||
-    !doctorId ||
-    !slotDate ||
-    !SLOT_TIME_PATTERN.test(time)
-  ) {
-    if (window.showToast) {
-      window.showToast("❌ Недостаточно данных для записи", "error");
-    }
+  // Карточка подтверждения (§11.5) и сама запись — в общем модуле
+  // `utils/booking.js`: тот же путь, что и у шага подтверждения мастера.
+  const result = await bookSlot({
+    date: slot?.date || "",
+    time: slot?.time || "",
+    appointmentId: slot?.appointmentId || "",
+    clinicId: slot?.clinicId || "",
+    patientId,
+    doctorId,
+    patientName: findPatientName(params?.patients, monitoringId, patientId),
+    doctorName: params?.doctorName || "",
+    specialty: params?.specialty || "",
+    clinicName: params?.clinicName || "",
+    monitoringId,
+  });
+
+  if (result.success) {
+    // Возвращаемся на главную
+    navigate("doctors");
     return;
   }
 
-  // Карточка подтверждения (§11.5): врач, специальность и клиника —
-  // из ответа `GET /api/user/slots` (сохранены в params функцией
-  // saveBookingData), пациент — из params.patients.
-  const booking = {
-    doctor: params?.doctorName || "",
-    specialty: params?.specialty || "",
-    clinic: params?.clinicName || "",
-    date,
-    time,
-    patient: findPatientName(params?.patients, monitoringId, patientId),
-  };
+  // Отмена и нехватка данных — сообщение уже показано, обновлять нечего.
+  if (result.error === "cancelled" || result.error === "invalid_data") return;
 
-  // Показываем подтверждение
-  const confirmed = await showBookingConfirm(booking);
-
-  if (!confirmed) return;
-
-  // Тактильный отклик
-  if (window.Telegram?.WebApp?.HapticFeedback) {
-    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
-  }
-
-  // Выполняем бронирование
-  try {
-    const result = await apiPost("/book", {
-      clinic_id: clinicId,
-      patient_id: patientId,
-      doctor_id: doctorId,
-      appointment_id: appointmentId,
-      slot_date: slotDate,
-      slot_time: time,
-      history_id: "",
-      referral_id: "",
-    });
-
-    if (result.success) {
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
-      }
-      if (window.showToast) {
-        window.showToast("✅ Вы успешно записаны!", "success");
-      }
-      // Инвалидация кэша слотов: забронированный талон не должен висеть в UI
-      // (карточка врача показывает счётчик из кэша мониторинга).
-      try {
-        await refreshDoctorSlots(monitoringId);
-      } catch {
-        // Неудача инвалидации не отменяет успешную запись.
-      }
-      // Возвращаемся на главную
-      navigate("doctors");
-    } else {
-      const errorCode = result.error || "unknown";
-      const detail = result.detail || "Неизвестная ошибка";
-      handleBookingError(errorCode, detail);
-      // Мёртвого экрана нет: остаёмся на слотах и обновляем список,
-      // чтобы занятый талон не висел в UI.
-      await refreshSlotsAfterBookingError(params);
-    }
-  } catch (error) {
-    handleBookingError("network", error.message);
-    await refreshSlotsAfterBookingError(params);
-  }
+  // Мёртвого экрана нет: остаёмся на слотах и обновляем список,
+  // чтобы занятый талон не висел в UI.
+  await refreshSlotsAfterBookingError(params);
 }
 
 /**
@@ -543,119 +529,6 @@ function findPatientName(patients, monitoringId, patientId) {
     entries.find((entry) => entry.entryId === monitoringId) ||
     entries.find((entry) => entry.patientId === patientId);
   return patient?.name || "";
-}
-
-/**
- * Собирает текст карточки подтверждения записи (§11.5).
- *
- * Порядок строк совпадает с ботом (§11.2). Строки с пустым значением
- * отбрасываются вместе с эмодзи. Значения экранируются: popup Mini App
- * рендерит HTML.
- *
- * Ключи-паритеты локализации (каталоги `locales/ru` и `locales/en`):
- * `booking-confirm-popup-doctor`, `booking-confirm-popup-specialty`,
- * `booking-confirm-popup-clinic`, `booking-confirm-popup-datetime`,
- * `booking-confirm-popup-patient`, `booking-confirm-popup-question`.
- *
- * @param {object} booking — данные записи
- * @param {string} booking.doctor — врач
- * @param {string} booking.specialty — специальность (может быть пустой)
- * @param {string} booking.clinic — клиника (может быть пустой)
- * @param {string} booking.date — дата приёма (`ДД.ММ.ГГГГ`)
- * @param {string} booking.time — время приёма (`ЧЧ:ММ`)
- * @param {string} booking.patient — пациент (может быть пустой)
- * @returns {string} текст карточки с вопросом подтверждения
- */
-export function buildBookingConfirmMessage(booking) {
-  const rows = [
-    booking.doctor ? `🧑‍⚕️ ${escapeHtml(booking.doctor)}` : "",
-    booking.specialty ? `📋 ${escapeHtml(booking.specialty)}` : "",
-    booking.clinic ? `🏥 ${escapeHtml(booking.clinic)}` : "",
-    booking.date
-      ? `📅 ${escapeHtml(booking.date)} в ${escapeHtml(booking.time)}`
-      : "",
-    booking.patient ? `👤 Пациент: ${escapeHtml(booking.patient)}` : "",
-  ];
-
-  const card = rows.filter((row) => row !== "").join("\n");
-
-  // ❓ Записаться? — ключ-паритет booking-confirm-popup-question
-  return `${card}\n\n❓ Записаться?`;
-}
-
-/**
- * Показывает модальное окно подтверждения записи.
- *
- * Текст собирается один раз (§Ⅰ модульность) и используется в обеих ветках:
- * `Telegram.WebApp.showPopup` и `window.confirm`.
- *
- * @param {object} booking — данные записи ({ doctor, specialty, clinic, date, time, patient })
- * @returns {Promise<boolean>} подтверждено или нет
- */
-export async function showBookingConfirm(booking) {
-  // Заголовок — ключ-паритет booking-confirm-popup-title,
-  // кнопки — существующие btn-booking-confirm / btn-booking-back.
-  const title = "Подтверждение записи";
-  const message = buildBookingConfirmMessage(booking);
-
-  if (window.Telegram?.WebApp?.showPopup) {
-    return new Promise((resolve) => {
-      window.Telegram.WebApp.showPopup(
-        {
-          title: title,
-          message: message,
-          buttons: [
-            { id: "confirm", type: "default", text: "✅ Подтвердить" },
-            { id: "back", type: "cancel", text: "↩ Назад" },
-          ],
-        },
-        (buttonId) => {
-          resolve(buttonId === "confirm");
-        },
-      );
-    });
-  }
-
-  return window.confirm(`${title}\n\n${message}`);
-}
-
-/**
- * Обрабатывает ошибку бронирования: показывает toast с понятным сообщением.
- *
- * @param {string} errorCode — код ошибки (slot_taken, api_unavailable, ...)
- * @param {string} detail — детальное описание
- */
-function handleBookingError(errorCode, detail) {
-  if (window.Telegram?.WebApp?.HapticFeedback) {
-    window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
-  }
-
-  let message;
-  switch (errorCode) {
-    case "slot_taken":
-      message = "❌ Этот талон уже занят. Выберите другое время.";
-      break;
-    case "api_unavailable":
-      message = "❌ Сервер записи временно недоступен. Попробуйте позже.";
-      break;
-    case "api_timeout":
-      message = "❌ Сервер не отвечает. Попробуйте позже.";
-      break;
-    case "forbidden":
-      message = "❌ Доступ запрещён. Попробуйте позже.";
-      break;
-    default:
-      message = `❌ Ошибка записи: ${detail || "попробуйте позже"}`;
-      break;
-  }
-
-  if (window.showToast) {
-    window.showToast(message, "error");
-  } else if (window.Telegram?.WebApp?.showAlert) {
-    window.Telegram.WebApp.showAlert(message);
-  } else {
-    alert(message);
-  }
 }
 
 /**
