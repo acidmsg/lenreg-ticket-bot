@@ -10,9 +10,11 @@ event loop'е, что и aiogram-бот, фоновые задачи и Promethe
 [`event-loop-ownership.md`](../../specs/design/event-loop-ownership.md:1).
 """
 
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qsl
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -70,6 +72,122 @@ class StaticNoCacheMiddleware:
             await send(message)
 
         await self.app(scope, receive, _send)
+
+
+# Параметры запроса, которые безопасно писать в журнал длительности:
+# идентификаторы клиник/пациентов/врачей нужны для разбора инцидентов и не
+# являются секретами. initData, токены и прочие чувствительные значения
+# в журнал не попадают.
+_LOGGED_QUERY_PARAMS = frozenset(
+    {"clinic_id", "patient_id", "doctor_id", "monitoring_id", "specialty_id"}
+)
+
+
+def _format_logged_params(query_string: bytes) -> str:
+    """Собирает безопасную часть query-строки для журнала длительности.
+
+    Args:
+        query_string: сырая query-строка ASGI-scope (bytes).
+
+    Returns:
+        Строка вида ``" clinic_id=62 patient_id=2343192"`` (с ведущим пробелом)
+        либо пустая строка, если логировать нечего.
+    """
+    if not query_string:
+        return ""
+    try:
+        pairs = parse_qsl(query_string.decode("latin-1"), keep_blank_values=False)
+    except (UnicodeDecodeError, ValueError):
+        return ""
+
+    filtered = [
+        (key, value) for key, value in pairs if key in _LOGGED_QUERY_PARAMS and value
+    ]
+    if not filtered:
+        return ""
+    return " " + " ".join(f"{key}={value}" for key, value in sorted(filtered))
+
+
+class RequestDurationMiddleware:
+    """Логирует длительность обработки запросов к API.
+
+    В access-логе uvicorn нет длительностей, а запрос, оборванный клиентом
+    (например, 20-секундным таймаутом Mini App), в журнал не попадает вовсе —
+    поэтому «сервер не отвечает» нельзя отличить от «сервер отвечал медленно».
+    Middleware замеряет время от входа до ``http.response.start`` и пишет
+    метод, путь, безопасные параметры, статус и длительность; запросы дольше
+    :attr:`SLOW_THRESHOLD_MS` поднимаются до WARNING с пометкой «МЕДЛЕННО»,
+    чтобы их было видно без грепа по числам.
+
+    Логируются только прикладные пути (``/api/``): статика дашборда и Mini App
+    журнал не засоряет.
+    """
+
+    SLOW_THRESHOLD_MS = 3000.0
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or not scope.get("path", "").startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        started = time.perf_counter()
+
+        async def _send(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                duration_ms = (time.perf_counter() - started) * 1000
+                self._log(
+                    scope,
+                    status=message.get("status", 0),
+                    duration_ms=duration_ms,
+                )
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception:
+            duration_ms = (time.perf_counter() - started) * 1000
+            logger.opt(exception=True).warning(
+                "HTTP {} {}{} → исключение за {:.0f} мс",
+                scope.get("method", ""),
+                scope.get("path", ""),
+                _format_logged_params(scope.get("query_string", b"")),
+                duration_ms,
+            )
+            raise
+
+    @classmethod
+    def _log(cls, scope: dict, status: int, duration_ms: float) -> None:
+        """Пишет строку о длительности запроса.
+
+        Args:
+            scope: ASGI-scope запроса.
+            status: HTTP-статус ответа.
+            duration_ms: длительность обработки в миллисекундах.
+        """
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+        params = _format_logged_params(scope.get("query_string", b""))
+        if duration_ms >= cls.SLOW_THRESHOLD_MS:
+            logger.warning(
+                "МЕДЛЕННО: HTTP {} {}{} → {} за {:.0f} мс",
+                method,
+                path,
+                params,
+                status,
+                duration_ms,
+            )
+        else:
+            logger.info(
+                "HTTP {} {}{} → {} за {:.0f} мс",
+                method,
+                path,
+                params,
+                status,
+                duration_ms,
+            )
 
 
 @asynccontextmanager
@@ -170,6 +288,11 @@ def create_app(
     # не доходят до пользователей после пересборки образа.
     app.add_middleware(StaticNoCacheMiddleware)
     logger.debug("StaticNoCacheMiddleware: включен для всех ответов сервера")
+
+    # Замер длительности запросов к API: без него в access-логе нет
+    # длительностей, а оборванный клиентом запрос не попадает в журнал вовсе.
+    app.add_middleware(RequestDurationMiddleware)
+    logger.debug("RequestDurationMiddleware: замер длительности /api/* включён")
 
     # Роутер Mini App API (/api/user/*)
     if config.MINI_APP_ENABLED:
