@@ -120,6 +120,17 @@ class CloseSection(CallbackData, prefix="close_sec"):
     p_id: str
 
 
+class UnsubscribeMonitoring(CallbackData, prefix="unsub_mon"):
+    """Отписка от мониторинга врача из уведомления: unsub_mon_{p_id}_{d_id}.
+
+    Снимает наблюдение только за этой парой (пациент + врач), не затрагивая
+    остальные мониторинги пользователя.
+    """
+
+    p_id: str
+    d_id: str
+
+
 class StartMonitoring(CallbackData, prefix="start_mon"):
     """Добавление врача в отслеживание: start_mon_{p_id}_{clinic_id}_{d_id}."""
 

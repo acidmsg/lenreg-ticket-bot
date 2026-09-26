@@ -15,6 +15,7 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
 from src.i18n import _
+from src.keyboards.inline import get_notification_keyboard
 from src.services.telegram_health import (
     TELEGRAM_SEND_RATE_LIMIT,
     TELEGRAM_SEND_RATE_PERIOD,
@@ -88,6 +89,7 @@ async def _send_telegram_safe(
     text: str,
     *,
     photo_path: Path | None = None,
+    reply_markup=None,
 ) -> bool:
     """Отправка уведомления в Telegram с rate limiting и обработкой 429.
 
@@ -115,6 +117,7 @@ async def _send_telegram_safe(
                     d_id,
                     text,
                     photo_path=photo_path,
+                    reply_markup=reply_markup,
                 )
             except tg_exceptions.TelegramRetryAfter as e:
                 logger.warning(
@@ -133,6 +136,7 @@ async def _send_telegram_safe(
                         d_id,
                         text,
                         photo_path=photo_path,
+                        reply_markup=reply_markup,
                     )
                 except Exception as e2:
                     logger.opt(exception=True).error(
@@ -560,6 +564,7 @@ async def _send_notification(
             d_id,
             msg,
             photo_path=photo_path,
+            reply_markup=get_notification_keyboard(p_id, d_id),
         )
 
 

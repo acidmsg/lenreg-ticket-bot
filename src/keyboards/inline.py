@@ -31,6 +31,7 @@ from src.handlers.callbacks import (
     StartMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
+    UnsubscribeMonitoring,
 )
 from src.i18n import _
 from src.utils.helpers import (
@@ -40,6 +41,35 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
+
+
+def get_notification_keyboard(p_id: str, d_id: str):
+    """Инлайн-клавиатура уведомления о свободных номерках.
+
+    Кнопки:
+    - «Открыть в приложении» — web_app-кнопка Mini App (только если Mini App
+      включён и задан URL); ведёт на форму записи.
+    - «Отписаться» — снимает мониторинг пары (пациент + врач) одним тапом.
+
+    Args:
+        p_id: Идентификатор пациента.
+        d_id: Идентификатор врача.
+
+    Returns:
+        InlineKeyboardMarkup с одной-двумя кнопками.
+    """
+    builder = InlineKeyboardBuilder()
+    if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:
+        builder.button(
+            text=_("btn-open-mini-app"),
+            web_app=WebAppInfo(url=settings.MINI_APP_URL),
+        )
+    builder.button(
+        text=_("btn-unsubscribe"),
+        callback_data=UnsubscribeMonitoring(p_id=p_id, d_id=d_id).pack(),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def get_main_menu_keyboard(

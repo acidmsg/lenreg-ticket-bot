@@ -55,6 +55,7 @@ from src.handlers.callbacks import (
     StartMonitoring,
     StopClinicMonitoring,
     StopPatientMonitoring,
+    UnsubscribeMonitoring,
 )
 from src.i18n import _
 from src.keyboards.inline import (
@@ -790,6 +791,73 @@ async def stop_patient_monitoring(
                 ),
                 db=db,
             )
+
+
+@router.callback_query(create_callback_filter(UnsubscribeMonitoring))
+async def unsubscribe_monitoring(
+    call: CallbackQuery,
+    db: DatabaseManager,
+    callback_data: UnsubscribeMonitoring,
+) -> None:
+    """Отписка от мониторинга врача прямо из уведомления о номерках.
+
+    Снимает наблюдение только за парой (пациент + врач), очищает кэш слотов
+    и подтверждает действие, убирая кнопки из самого уведомления.
+    """
+    if not call.from_user:
+        return
+    uid = str(call.from_user.id)
+    p_id = callback_data.p_id
+    d_id = callback_data.d_id
+
+    user_data = await db.get_user_data(uid)
+    d_info = user_data.get("monitoring", {}).get(p_id, {}).get(d_id)
+
+    if not isinstance(d_info, dict):
+        # Мониторинг уже снят (повторный тап или снятие из Mini App).
+        await call.answer(_("unsubscribe-already"), show_alert=False)
+        await _replace_notification_markup(call, _("unsubscribe-already"))
+        return
+
+    await db.toggle_monitoring(
+        uid=uid,
+        p_id=p_id,
+        d_id=d_id,
+        d_name=d_info.get("name", ""),
+        clinic_id=d_info.get("clinic_id", ""),
+        doctor_specialty=d_info.get("specialty", ""),
+    )
+    await delete_cache_keys_by_prefix(f"{uid}_{p_id}_{d_id}")
+    logger.info(
+        "Unsubscribe from notification: uid={}, p_id={}, d_id={}",
+        uid,
+        p_id,
+        d_id,
+    )
+
+    await call.answer(_("unsubscribe-confirmed"), show_alert=False)
+    await _replace_notification_markup(call, _("unsubscribe-confirmed"))
+
+
+async def _replace_notification_markup(call: CallbackQuery, confirmation: str) -> None:
+    """Переписывает уведомление после отписки: текст + подтверждение, без кнопок.
+
+    Уведомление приходит фото-сообщением (с картинкой) либо текстом —
+    правится соответствующим методом. Ошибки правки не критичны: подтверждение
+    уже показано всплывающей подсказкой ``call.answer``.
+    """
+    message = call.message
+    if not isinstance(message, Message):
+        return
+    base = message.caption or message.text or ""
+    new_text = f"{base}\n\n{confirmation}" if base else confirmation
+    with contextlib.suppress(TelegramBadRequest, TelegramAPIError):
+        if message.photo:
+            await message.edit_caption(
+                caption=new_text, parse_mode="Markdown", reply_markup=None
+            )
+        else:
+            await message.edit_text(new_text, parse_mode="Markdown", reply_markup=None)
 
 
 @router.callback_query(create_callback_filter(StopClinicMonitoring))

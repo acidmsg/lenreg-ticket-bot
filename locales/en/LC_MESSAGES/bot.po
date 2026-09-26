@@ -291,6 +291,22 @@ msgstr "⚠️ **Number of appointments decreased to {new} (was {old})**"
 msgid "slots-disappeared-body"
 msgstr "We'll notify you when they appear."
 
+#: src/keyboards/inline.py
+msgid "btn-open-mini-app"
+msgstr "🌐 Open in app"
+
+#: src/keyboards/inline.py
+msgid "btn-unsubscribe"
+msgstr "🔕 Unsubscribe"
+
+#: src/handlers/common.py
+msgid "unsubscribe-confirmed"
+msgstr "✅ Unsubscribed — monitoring for this doctor is off."
+
+#: src/handlers/common.py
+msgid "unsubscribe-already"
+msgstr "Monitoring for this doctor is already off."
+
 #: src/services/healthcheck.py:234
 msgid "status-report-title"
 msgstr "🤖 **lenreg_ticket_bot**"

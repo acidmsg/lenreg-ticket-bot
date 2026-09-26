@@ -290,6 +290,22 @@ msgstr "⚠️ **Количество номерков уменьшилось д
 msgid "slots-disappeared-body"
 msgstr "Мы уведомим вас, когда появятся."
 
+#: src/keyboards/inline.py
+msgid "btn-open-mini-app"
+msgstr "🌐 Открыть в приложении"
+
+#: src/keyboards/inline.py
+msgid "btn-unsubscribe"
+msgstr "🔕 Отписаться"
+
+#: src/handlers/common.py
+msgid "unsubscribe-confirmed"
+msgstr "✅ Отписка оформлена — наблюдение за этим врачом снято."
+
+#: src/handlers/common.py
+msgid "unsubscribe-already"
+msgstr "Наблюдение за этим врачом уже снято."
+
 #: src/services/healthcheck.py:234
 msgid "status-report-title"
 msgstr "🤖 **lenreg_ticket_bot**"
