@@ -399,6 +399,67 @@ async def _apply_jitter(min_delay: float = 1.0, max_delay: float = 3.0) -> None:
     await asyncio.sleep(random.uniform(min_delay, max_delay))
 
 
+class _SlotsFetchCache:
+    """Один live-запрос на пару (клиника, врач) в рамках одной итерации.
+
+    Эндпоинт ``/appointment_list/`` принимает ``patient_id``, но ответ по одной
+    паре (clinic_id, doctor_id) совпадает для разных пациентов: проверено на
+    проде 26.09.2026 (clinic_id=62, d_id=49709000 — 52 слота, наборы идентичны
+    для двух пациентов). Поэтому повторные запросы в одной итерации не нужны —
+    результат берётся из кэша, а первый запрос переиспользуется остальными
+    мониторингами той же пары.
+
+    Кэш живёт одну итерацию монитора: между циклами данные считаются свежими.
+    """
+
+    def __init__(self) -> None:
+        self._tasks: dict[tuple[str, str], asyncio.Task] = {}
+        self._lock = asyncio.Lock()
+
+    async def get(
+        self,
+        api: ZdravClient,
+        d_id: str,
+        p_id: str,
+        clinic_id: str,
+        semaphore: asyncio.Semaphore,
+    ):
+        """Возвращает результат запроса, переиспользуя незавершённый/готовый.
+
+        Args:
+            api: Клиент zdrav.lenreg.ru.
+            d_id: Идентификатор врача.
+            p_id: Идентификатор пациента (из первого запроса по паре).
+            clinic_id: Идентификатор клиники.
+            semaphore: Семафор конкурентности HTTP-запросов.
+
+        Returns:
+            ``CheckSlotsResult | None`` — тот же тип, что у ``api.check_slots``.
+        """
+        key = (str(clinic_id), str(d_id))
+        async with self._lock:
+            task = self._tasks.get(key)
+            if task is None:
+                task = asyncio.create_task(
+                    self._fetch(api, d_id, p_id, clinic_id, semaphore)
+                )
+                self._tasks[key] = task
+        return await task
+
+    @staticmethod
+    async def _fetch(
+        api: ZdravClient,
+        d_id: str,
+        p_id: str,
+        clinic_id: str,
+        semaphore: asyncio.Semaphore,
+    ):
+        async with semaphore:
+            return await api.check_slots(
+                d_id, p_id, clinic_id, limiter=api.limiter_monitor
+            )
+
+
 async def _check_empty_slots_protection(
     slots: list[str] | None,
     cache_key: str,
@@ -514,6 +575,7 @@ async def _check_single_doctor(
     empty_counts: dict[str, int],
     bot: Bot | None,
     db: DatabaseManager,
+    slots_cache: _SlotsFetchCache | None = None,
     *,
     initial_sync: bool = False,
 ) -> None:
@@ -540,10 +602,15 @@ async def _check_single_doctor(
     )
 
     # --- Шаг 3: API-запрос под семафором ---
-    async with semaphore:
-        slots_result = await api.check_slots(
-            d_id, p_id, clinic_id, limiter=api.limiter_monitor
-        )
+    # Один live-запрос на пару (clinic_id, doctor_id) за итерацию: результат
+    # переиспользуется остальными мониторингами той же пары (см. _SlotsFetchCache).
+    if slots_cache is not None:
+        slots_result = await slots_cache.get(api, d_id, p_id, clinic_id, semaphore)
+    else:
+        async with semaphore:
+            slots_result = await api.check_slots(
+                d_id, p_id, clinic_id, limiter=api.limiter_monitor
+            )
 
     logger.debug(f"API result for {d_id}: {slots_result}")
 
@@ -648,6 +715,7 @@ async def _run_patient_doctor_tasks(
     empty_counts: dict[str, int],
     bot: Bot,
     db: DatabaseManager,
+    slots_cache: _SlotsFetchCache | None = None,
     *,
     initial_sync: bool = False,
 ) -> None:
@@ -670,6 +738,7 @@ async def _run_patient_doctor_tasks(
             empty_counts=empty_counts,
             bot=bot,
             db=db,
+            slots_cache=slots_cache,
             initial_sync=initial_sync,
         )
         doctor_tasks.append(task)
@@ -700,6 +769,10 @@ async def _run_monitoring_iteration(
     по всем активным цепочкам мониторинга.
     """
     users_data = db.data
+
+    # Один live-запрос на пару (клиника, врач) за итерацию (MA-2): повторные
+    # запросы той же пары от других пациентов берут готовый результат.
+    slots_cache = _SlotsFetchCache()
 
     # Пользователи на паузе (DASH-8) пропускаются целиком: мониторинг
     # приостановлен, но цепочки пациент-врач сохранены.
@@ -735,6 +808,7 @@ async def _run_monitoring_iteration(
                 empty_counts=empty_counts,
                 bot=bot,
                 db=db,
+                slots_cache=slots_cache,
                 initial_sync=initial_sync,
             )
 

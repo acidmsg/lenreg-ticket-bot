@@ -36,6 +36,23 @@ from src.i18n import _
 # TypeVar для сохранения конкретного типа Pydantic-модели в _validate_response
 M = TypeVar("M", bound=BaseModel)
 
+
+# Пауза между попытками: базовая 2 с + джиттер до 1 с. Джиттер разводит
+# одновременные повторы: при массовых 5xx фоновые задачи иначе повторяют
+# синхронным «залпом» и усиливают нагрузку на деградировавший портал.
+RETRY_PAUSE_SECONDS = 2.0
+RETRY_JITTER_SECONDS = 1.0
+
+
+def _retry_pause() -> float:
+    """Возвращает паузу между попытками запроса (2 с + джиттер до 1 с).
+
+    Returns:
+        float: длительность паузы в секундах, не меньше ``RETRY_PAUSE_SECONDS``.
+    """
+    return RETRY_PAUSE_SECONDS + random.uniform(0, RETRY_JITTER_SECONDS)
+
+
 # Значения CSRF_TOKEN, которые считаются заглушкой, а не реальным токеном
 # (см. валидатор warn_empty_csrf в src/config.py).
 CSRF_TOKEN_PLACEHOLDERS = {"", "NOTPROVIDED"}
@@ -237,8 +254,8 @@ class ZdravClient:
         во время паузы между попытками: иначе один неуспешный вызов держит
         лимитер занятым весь retry-цикл и блокирует пользовательские запросы.
 
-        Retry (до ``max_retries`` попыток, пауза 2 с) — при 5xx, таймаутах и
-        прочих сетевых ошибках. Ошибки уровня соединения (DNS-резолв
+        Retry (до ``max_retries`` попыток, пауза 2 с + джиттер до 1 с) — при
+        5xx, таймаутах и прочих сетевых ошибках. Ошибки уровня соединения (DNS-резолв
         ``socket.gaierror``, ``httpx.ConnectError``/``httpx.ConnectTimeout``)
         не повторяются: выполняется ровно одна попытка без паузы (fail-fast),
         иначе недоступный DNS растягивает латентность до
@@ -288,7 +305,7 @@ class ZdravClient:
                         f"API вернул 5xx: статус {res.status_code}"
                     )
                     if attempt < max_retries:
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(_retry_pause())
                     continue
 
                 # 403 — вероятен устаревший CSRF-токен: обновляем и повторяем
@@ -327,7 +344,7 @@ class ZdravClient:
                 )
                 last_exception = e
                 if attempt < max_retries:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(_retry_pause())
 
             except httpx.NetworkError as e:
                 logger.error(
@@ -339,7 +356,7 @@ class ZdravClient:
                 )
                 last_exception = e
                 if attempt < max_retries:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(_retry_pause())
 
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.error(
@@ -351,7 +368,7 @@ class ZdravClient:
                 )
                 last_exception = e
                 if attempt < max_retries:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(_retry_pause())
 
             except asyncio.CancelledError:
                 raise
@@ -367,7 +384,7 @@ class ZdravClient:
                 )
                 last_exception = e
                 if attempt < max_retries:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(_retry_pause())
 
         # Все попытки исчерпаны — пробрасываем последнюю ошибку
         if isinstance(last_exception, (httpx.TimeoutException, httpx.NetworkError)):
