@@ -47,6 +47,16 @@ def _parse_bday(value: str) -> date_cls | None:
     return None
 
 
+def _mask_id(value: object) -> str:
+    """Маскирует идентификатор до последних 4 символов для логов.
+
+    Единая конвенция проекта: в лог не попадают полные ID пользователя
+    и пациента (см. ``update_patient`` в ``web/routers/user_api.py``).
+    """
+    text = str(value or "")
+    return f"...{text[-4:]}" if len(text) > 4 else "..."
+
+
 def cache_key(uid: str, p_id: str, clinic_id: str) -> str:
     """Ключ кэша проверки: пара (пользователь, пациент) + клиника."""
     return f"{uid}:{p_id}:{clinic_id or 'global'}"
@@ -120,13 +130,17 @@ async def check_patient_status(
     """
     fio = str(p_info.get("fio") or "").strip()
     if len(fio.split()) != 3:
-        logger.debug("Проверка пациента {}: ФИО не из трёх слов, статус unknown", p_id)
+        logger.debug(
+            "Проверка пациента {}: ФИО не из трёх слов, статус unknown",
+            _mask_id(p_id),
+        )
         return CHECK_STATUS_UNKNOWN
 
     bday = _parse_bday(str(p_info.get("bday") or ""))
     if bday is None:
         logger.debug(
-            "Проверка пациента {}: не разобрана дата рождения, статус unknown", p_id
+            "Проверка пациента {}: не разобрана дата рождения, статус unknown",
+            _mask_id(p_id),
         )
         return CHECK_STATUS_UNKNOWN
 
@@ -145,7 +159,7 @@ async def check_patient_status(
         except Exception:
             logger.exception(
                 "Проверка пациента {} в clinic_id={} завершилась ошибкой API",
-                p_id,
+                _mask_id(p_id),
                 clinic_id,
             )
             saw_error = True
@@ -156,9 +170,9 @@ async def check_patient_status(
                 # Пациент найден под другим id: дубль в базе клиники.
                 logger.warning(
                     "Проверка пациента {} в clinic_id={}: найден другой id={}",
-                    p_id,
+                    _mask_id(p_id),
                     clinic_id,
-                    found_id,
+                    _mask_id(found_id),
                 )
             await set_check_cache(key, CHECK_STATUS_VALID, VALID_CACHE_TTL)
             return CHECK_STATUS_VALID
@@ -170,7 +184,10 @@ async def check_patient_status(
         # Не «не найден», а сбой/лимит/таймаут — не кэшируем.
         saw_error = True
         logger.warning(
-            "Проверка пациента {} в clinic_id={}: сбой API ({})", p_id, clinic_id, err
+            "Проверка пациента {} в clinic_id={}: сбой API ({})",
+            _mask_id(p_id),
+            clinic_id,
+            err,
         )
 
     return CHECK_STATUS_UNKNOWN if saw_error else CHECK_STATUS_INVALID

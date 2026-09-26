@@ -666,7 +666,10 @@ function bindEvents(container, patients = []) {
       const patientId = btn.dataset.patientId;
       btn.disabled = true;
       try {
-        const result = await apiPost(`/patients/${patientId}/check`, {});
+        const result = await apiPost(
+          `/patients/${encodeURIComponent(patientId)}/check`,
+          {},
+        );
         showCheckResult(result.status);
         // Перерисовываем список, чтобы обновить бейдж «требует проверки»
         const patientsContainer = container.closest("#patients-content");

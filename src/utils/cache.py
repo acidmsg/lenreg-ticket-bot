@@ -38,6 +38,18 @@ def _check_key(key: str) -> str:
     return f"{_CHECK_KEY_PREFIX}{key}"
 
 
+def _mask_check_key(key: str) -> str:
+    """Маскирует uid и p_id в ключе проверки до последних 4 символов.
+
+    Единая конвенция проекта: полные ID пользователя/пациента в лог не пишутся.
+    """
+    parts = key.split(":")
+    if len(parts) == 3:
+        uid, p_id, clinic_id = parts
+        return f"...{uid[-4:]}:...{p_id[-4:]}:{clinic_id}"
+    return "..."
+
+
 async def get_check_cache(key: str) -> Any | None:
     """Читает статус проверки пациента из кэша.
 
@@ -53,7 +65,7 @@ async def get_check_cache(key: str) -> Any | None:
             return None
         return json.loads(raw)
     except Exception as e:
-        logger.error(f"Ошибка чтения кэша проверки [{key}]: {e}")
+        logger.error(f"Ошибка чтения кэша проверки [{_mask_check_key(key)}]: {e}")
         return None
 
 
@@ -72,7 +84,7 @@ async def set_check_cache(key: str, value: Any, ttl_seconds: int) -> None:
             ex=ttl_seconds,
         )
     except Exception as e:
-        logger.error(f"Ошибка записи кэша проверки [{key}]: {e}")
+        logger.error(f"Ошибка записи кэша проверки [{_mask_check_key(key)}]: {e}")
 
 
 async def delete_check_cache(uid: str, p_id: str) -> int:
@@ -98,7 +110,9 @@ async def delete_check_cache(uid: str, p_id: str) -> int:
                 break
         return deleted
     except Exception as e:
-        logger.error(f"Ошибка удаления кэша проверок [{uid}:{p_id}]: {e}")
+        logger.error(
+            f"Ошибка удаления кэша проверок [{_mask_check_key(f'{uid}:{p_id}:')}]: {e}"
+        )
         return 0
 
 

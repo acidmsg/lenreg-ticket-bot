@@ -25,6 +25,7 @@ from src.database.manager import DatabaseManager
 from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
 from src.services.patient_check import (
     CHECK_STATUS_INVALID,
+    cache_key,
     check_patient_status,
     clinic_ids_for,
 )
@@ -925,7 +926,7 @@ async def _patient_needs_check(
 ) -> bool:
     """True, если хотя бы для одной клиники пациента есть кэш «не найден»."""
     for clinic_id in clinic_ids_for(p_info):
-        key = f"{uid}:{p_id}:{clinic_id or 'global'}"
+        key = cache_key(uid, p_id, clinic_id)
         if await get_check_cache(key) == CHECK_STATUS_INVALID:
             return True
     return False
@@ -1650,10 +1651,10 @@ async def book_appointment(
     )
     if check_status == CHECK_STATUS_INVALID:
         logger.info(
-            "Запись отклонена: пациент {} не найден в клинике {} (uid={})",
-            body.patient_id,
+            "Запись отклонена: пациент ...{} не найден в клинике {} (uid=...{})",
+            str(body.patient_id)[-4:],
             body.clinic_id,
-            telegram_id,
+            str(telegram_id)[-4:],
         )
         return JSONResponse(
             status_code=409,
