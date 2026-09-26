@@ -31,6 +31,7 @@ const ROUTE_TO_TAB = {
   add: "add",
   patients: "patients",
   "patient-add": "patients",
+  "patient-edit": "patients",
   bookings: "bookings",
   "bookings-archive": "bookings",
 };

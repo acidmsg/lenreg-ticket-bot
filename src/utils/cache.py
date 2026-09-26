@@ -26,6 +26,81 @@ _MONITORING_TTL = 86400
 # TTL для spam-кэша (1 секунда)
 _SPAM_TTL = 1
 
+# Префикс для кэша результатов проверки пациентов (P3-VERIFY)
+_CHECK_KEY_PREFIX = "check:"
+
+
+# --- Кэш проверки пациентов (P3-VERIFY) ---
+
+
+def _check_key(key: str) -> str:
+    """Формирует полный Redis-ключ с префиксом проверки пациентов."""
+    return f"{_CHECK_KEY_PREFIX}{key}"
+
+
+async def get_check_cache(key: str) -> Any | None:
+    """Читает статус проверки пациента из кэша.
+
+    Возвращает десериализованное значение (например строку ``"valid"``)
+    либо None, если ключ не найден или Redis недоступен.
+    """
+    redis = await get_redis()
+    if not redis.is_available:
+        return None
+    try:
+        raw = await redis.client.get(_check_key(key))
+        if raw is None:
+            return None
+        return json.loads(raw)
+    except Exception as e:
+        logger.error(f"Ошибка чтения кэша проверки [{key}]: {e}")
+        return None
+
+
+async def set_check_cache(key: str, value: Any, ttl_seconds: int) -> None:
+    """Кладёт статус проверки пациента в кэш с TTL.
+
+    При недоступности Redis — no-op (graceful degradation).
+    """
+    redis = await get_redis()
+    if not redis.is_available:
+        return
+    try:
+        await redis.client.set(
+            _check_key(key),
+            json.dumps(value, ensure_ascii=False),
+            ex=ttl_seconds,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка записи кэша проверки [{key}]: {e}")
+
+
+async def delete_check_cache(uid: str, p_id: str) -> int:
+    """Удаляет все ключи кэша проверок пары (uid, p_id).
+
+    Нужна при правке карточки пациента (P3-EDIT): после изменения ФИО/ДР
+    старые результаты проверки недействительны.
+    """
+    redis = await get_redis()
+    if not redis.is_available:
+        return 0
+    pattern = f"{_CHECK_KEY_PREFIX}{uid}:{p_id}:*"
+    deleted = 0
+    try:
+        cursor = 0
+        while True:
+            cursor, keys = await redis.client.scan(
+                cursor=cursor, match=pattern, count=100
+            )
+            if keys:
+                deleted += await redis.client.delete(*keys)
+            if cursor == 0:
+                break
+        return deleted
+    except Exception as e:
+        logger.error(f"Ошибка удаления кэша проверок [{uid}:{p_id}]: {e}")
+        return 0
+
 
 # --- Spam-защита (замена TTLCache) ---
 

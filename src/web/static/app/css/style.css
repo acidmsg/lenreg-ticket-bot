@@ -871,6 +871,44 @@ body {
   margin-top: 2px;
 }
 
+.patient-card__badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: var(--font-xs);
+  border-radius: var(--radius-full);
+  background: rgb(234 51 111 / 12%);
+  color: var(--color-danger);
+}
+
+.patient-card__check,
+.patient-card__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  margin-left: var(--space-sm);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.patient-card__check:hover,
+.patient-card__edit:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.patient-card__check:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .patient-card__delete {
   display: inline-flex;
   align-items: center;

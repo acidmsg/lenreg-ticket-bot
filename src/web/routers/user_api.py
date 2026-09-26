@@ -23,7 +23,12 @@ from pydantic import BaseModel, Field, field_validator
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
-from src.utils.cache import get_cache_key
+from src.services.patient_check import (
+    CHECK_STATUS_INVALID,
+    check_patient_status,
+    clinic_ids_for,
+)
+from src.utils.cache import delete_check_cache, get_cache_key, get_check_cache
 from src.utils.helpers import (
     format_error_message,
     safe_name,
@@ -54,6 +59,18 @@ def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # ── Pydantic-модели для тел запросов ─────────────────────────
+
+
+class PatientUpdateRequest(BaseModel):
+    """Тело запроса на правку карточки пациента (P3-EDIT).
+
+    Незаданные поля не меняются. Правка ФИО или даты рождения запускает
+    обязательную повторную верификацию через ``check_patient``.
+    """
+
+    full_name: str | None = Field(None, description="ФИО: три слова")
+    birth_date: str | None = Field(None, description="Дата рождения ДД.ММ.ГГГГ")
+    alias: str | None = Field(None, description="Псевдоним (пусто — удалить)")
 
 
 class AddDoctorRequest(BaseModel):
@@ -881,15 +898,68 @@ async def search_doctors(
 
 @router.get("/patients")
 async def get_patients(request: Request) -> dict[str, Any]:
-    """Список пациентов пользователя."""
+    """Список пациентов пользователя.
+
+    К каждому пациенту добавляется флаг ``needs_check`` (P3-ACTUAL): он берётся
+    только из кэша проверок (P3-VERIFY) и не вызывает внешний API, поэтому
+    список остаётся дешёвым.
+    """
     db = _get_db(request)
     telegram_id = _get_telegram_id(request)
 
     user_data = await db.get_user_data(telegram_id)
 
-    patients_list = _serialize_patients(user_data.get("patients", {}))
+    patients_dict = user_data.get("patients", {})
+    patients_list = _serialize_patients(patients_dict)
+    for entry in patients_list:
+        p_id = str(entry["patient_id"])
+        entry["needs_check"] = await _patient_needs_check(
+            telegram_id, p_id, patients_dict.get(p_id, {})
+        )
 
     return {"patients": patients_list}
+
+
+async def _patient_needs_check(
+    uid: str, p_id: str, p_info: PatientInfo | dict[str, Any]
+) -> bool:
+    """True, если хотя бы для одной клиники пациента есть кэш «не найден»."""
+    for clinic_id in clinic_ids_for(p_info):
+        key = f"{uid}:{p_id}:{clinic_id or 'global'}"
+        if await get_check_cache(key) == CHECK_STATUS_INVALID:
+            return True
+    return False
+
+
+@router.post("/patients/{patient_id}/check", response_model=None)
+async def check_patient(
+    request: Request,
+    patient_id: str,
+) -> dict[str, Any] | JSONResponse:
+    """Проверить, числится ли пациент в клиниках (P3-ACTUAL).
+
+    Единый сервис с кэшем (P3-VERIFY): повторные вызовы не бьют по внешнему API.
+    Статус ``invalid`` означает «пациент не найден» — клиент показывает бейдж
+    «требует проверки» и предлагает исправить карточку.
+    """
+    db = _get_db(request)
+    api = _get_api(request)
+    telegram_id = _get_telegram_id(request)
+
+    user_data = await db.get_user_data(telegram_id)
+    p_info = user_data.get("patients", {}).get(patient_id)
+    if p_info is None:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Пациент не найден."},
+        )
+
+    status = await check_patient_status(telegram_id, patient_id, p_info, api, db)
+    return {
+        "patient_id": patient_id,
+        "status": status,
+        "needs_check": status == CHECK_STATUS_INVALID,
+    }
 
 
 @router.post("/patients/add", response_model=None)
@@ -1039,6 +1109,159 @@ async def delete_patient(
         masked_telegram,
     )
     return {"status": "deleted", "patient_id": patient_id}
+
+
+@router.put("/patients/{patient_id}", response_model=None)
+async def update_patient(
+    request: Request,
+    patient_id: str,
+    body: PatientUpdateRequest,
+) -> dict[str, Any] | JSONResponse:
+    """Отредактировать карточку пациента с повторной верификацией (P3-EDIT).
+
+    Меняются только переданные поля. Если меняются ФИО или дата рождения,
+    пациент заново ищется во всех клиниках (``check_patient``):
+
+    - не найден — 404 (правка не сохраняется);
+    - найден под другим ``patient_id`` — 409 (правка создала бы дубль);
+    - API недоступен — 504.
+
+    Кэш проверок пары (P3-VERIFY) сбрасывается: старая отметка «не найден»
+    после успешной правки больше не актуальна.
+    """
+    db = _get_db(request)
+    api = _get_api(request)
+    telegram_id = _get_telegram_id(request)
+
+    user_data = await db.get_user_data(telegram_id)
+    existing = user_data.get("patients", {}).get(patient_id)
+    if existing is None:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Пациент не найден."},
+        )
+
+    # ФИО
+    fio = str(existing.get("fio", ""))
+    if body.full_name is not None:
+        fio = body.full_name.strip()
+        if len([part for part in fio.split() if part]) != 3:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": "ФИО должно состоять из трёх слов: Фамилия Имя Отчество"
+                },
+            )
+
+    # Дата рождения
+    bday_display = str(existing.get("bday", ""))
+    if body.birth_date is not None:
+        try:
+            bday_date = datetime.datetime.strptime(
+                body.birth_date.strip(), "%d.%m.%Y"
+            ).date()
+            if not (datetime.date(1900, 1, 1) <= bday_date <= datetime.date.today()):
+                raise ValueError("Дата вне допустимого диапазона")
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "detail": (
+                        "Неверный формат даты рождения. "
+                        "Ожидается ДД.ММ.ГГГГ (например, 01.01.1990)"
+                    )
+                },
+            )
+        bday_display = bday_date.strftime("%d.%m.%Y")
+
+    data_changed = fio != str(existing.get("fio", "")) or bday_display != str(
+        existing.get("bday", "")
+    )
+
+    if data_changed:
+        try:
+            target_bday = datetime.datetime.strptime(bday_display, "%d.%m.%Y").date()
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Неверная дата рождения."},
+            )
+
+        try:
+            found_id, last_err = await asyncio.wait_for(
+                _find_patient_id(api, fio, target_bday, db, telegram_id),
+                timeout=15.0,
+            )
+        except TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={
+                    "detail": (
+                        "Поиск пациента занял слишком много времени. Попробуйте позже."
+                    )
+                },
+            )
+
+        if found_id is None:
+            if last_err == "api-timeout":
+                return JSONResponse(
+                    status_code=504,
+                    content={"detail": "Сервер zdrav.lenreg.ru не отвечает."},
+                )
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": (
+                        "Пациент с такими данными не найден ни в одной клинике. "
+                        "Проверьте ФИО и дату рождения."
+                    )
+                },
+            )
+
+        if str(found_id) != str(patient_id):
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": (
+                        "Пациент с такими данными уже есть в системе под другим "
+                        "ID. Удалите карточку и добавьте заново."
+                    )
+                },
+            )
+
+    new_info: dict[str, Any] = dict(existing)
+    new_info["fio"] = fio
+    new_info["bday"] = bday_display
+    if body.alias is not None:
+        alias = body.alias.strip()
+        if alias:
+            new_info["alias"] = alias
+        else:
+            new_info.pop("alias", None)
+    new_info.setdefault("confirmed_clinics", [])
+
+    await db.add_patient(
+        uid=telegram_id, p_id=patient_id, p_info=cast(PatientInfo, new_info)
+    )
+    await delete_check_cache(telegram_id, patient_id)
+
+    # NOTE: CodeQL false positive (py/clear-text-logging-sensitive-data).
+    # ID маскированы до последних 4 символов.
+    logger.info(
+        "Карточка пациента ...{} отредактирована пользователем ...{}",
+        str(patient_id)[-4:],
+        str(telegram_id)[-4:],
+    )
+    return {
+        "status": "updated",
+        "patient": {
+            "patient_id": patient_id,
+            "fio": fio,
+            "bday": bday_display,
+            "alias": new_info.get("alias"),
+            "needs_check": False,
+        },
+    }
 
 
 def _build_service_error_response(status_code: int, error_code: str) -> JSONResponse:
@@ -1413,6 +1636,36 @@ async def book_appointment(
 
     patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
     patient_name = patient_info.get("fio", body.patient_id)
+
+    # 1c. Предпроверка перед записью (P3-PREBOOK): пациент должен числиться
+    # в клинике записи. Дешёвая проверка с кэшем (P3-VERIFY) вместо ошибки
+    # внешнего signup: пользователь получает понятное «пациент не найден».
+    check_status = await check_patient_status(
+        telegram_id,
+        body.patient_id,
+        patient_info,
+        api,
+        db,
+        clinic_ids=[body.clinic_id],
+    )
+    if check_status == CHECK_STATUS_INVALID:
+        logger.info(
+            "Запись отклонена: пациент {} не найден в клинике {} (uid={})",
+            body.patient_id,
+            body.clinic_id,
+            telegram_id,
+        )
+        return JSONResponse(
+            status_code=409,
+            content={
+                "success": False,
+                "error": "patient_not_found",
+                "detail": (
+                    "Пациент не найден в выбранной клинике. "
+                    "Проверьте ФИО и дату рождения в карточке пациента."
+                ),
+            },
+        )
 
     # 1b. Реквизиты врача: запись мониторинга (если есть) → справочник клиники
     # строго по составному ключу (clinic_id, doctor_id). Мониторинг больше не

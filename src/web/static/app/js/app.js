@@ -10,7 +10,11 @@ import { escapeHtml } from "./utils/escape.js";
 import { renderDoctors } from "./views/doctors.js";
 import { renderAddDoctor } from "./views/add.js";
 import { renderSlots } from "./views/slots.js";
-import { renderPatients, renderPatientAddForm } from "./views/patients.js";
+import {
+  renderPatients,
+  renderPatientAddForm,
+  renderPatientEditForm,
+} from "./views/patients.js";
 import { renderBookingsList, renderArchiveList } from "./views/bookings.js";
 import { renderHeader } from "./components/header.js";
 import { renderTabbar, bindTabbar } from "./components/tabbar.js";
@@ -26,7 +30,7 @@ import "./components/toast.js"; // Сайд-эффект: устанавлива
 
 /**
  * @typedef {object} AppState
- * @property {string} route — текущий маршрут ('doctors', 'add', 'slots', 'patients')
+ * @property {string} route — текущий маршрут ('doctors', 'add', 'slots', 'patients', 'patient-edit')
  * @property {object|null} routeParams — параметры маршрута (например, { monitoringId })
  * @property {Array<{route: string, params: object|null}>} history — история навигации
  */
@@ -45,7 +49,7 @@ const state = {
 /**
  * Навигация между экранами Mini App.
  *
- * @param {string} route — имя маршрута ('doctors', 'add', 'slots', 'patients')
+ * @param {string} route — имя маршрута ('doctors', 'add', 'slots', 'patients', 'patient-edit')
  * @param {object|null} [params=null] — параметры маршрута
  */
 export function navigate(route, params = null) {
@@ -136,6 +140,12 @@ function buildRouteHTML(route) {
         <div class="app-view" id="patient-add-content"></div>
       `;
       break;
+    case "patient-edit":
+      content = `
+        ${renderHeader("Правка пациента", true, userName)}
+        <div class="app-view" id="patient-edit-content"></div>
+      `;
+      break;
     case "bookings":
       content = `
         ${renderHeader("Мои записи", true, userName)}
@@ -202,6 +212,10 @@ async function renderRouteContent(route) {
     case "patient-add":
       container = document.getElementById("patient-add-content");
       if (container) await renderPatientAddForm(container);
+      break;
+    case "patient-edit":
+      container = document.getElementById("patient-edit-content");
+      if (container) await renderPatientEditForm(container, state.routeParams);
       break;
     case "bookings":
       container = document.getElementById("bookings-content");

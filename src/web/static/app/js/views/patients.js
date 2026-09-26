@@ -5,7 +5,7 @@
  * @module views/patients
  */
 
-import { apiGet, apiPost, apiDelete } from "../api.js";
+import { apiGet, apiPost, apiPut, apiDelete } from "../api.js";
 import { isInTelegram } from "../auth.js";
 import { createPatientCalendar } from "../components/calendar.js";
 import { lucideIcon } from "../components/icon.js";
@@ -113,11 +113,25 @@ function setFieldError(inputEl, errorEl, message) {
 // ============================================================
 
 /**
- * Формирует HTML-разметку формы добавления пациента.
+ * Формирует HTML-разметку формы пациента (добавление или правка).
  *
+ * Единая форма на оба экрана: в режиме ``edit`` поля предзаполнены карточкой,
+ * кнопка отправки — «Сохранить». Правка использует те же id полей, потому что
+ * экраны взаимоисключающие.
+ *
+ * @param {object} [options={}] — режим формы
+ * @param {"add"|"edit"} [options.mode="add"] — режим формы
+ * @param {object|null} [options.patient=null] — карточка для предзаполнения
  * @returns {string} HTML-разметка
  */
-function buildPatientFormHTML() {
+function buildPatientFormHTML({ mode = "add", patient = null } = {}) {
+  const isEdit = mode === "edit";
+  const fio = escapeHtml(patient?.fio || "");
+  const bday = escapeHtml(patient?.bday || "");
+  const alias = escapeHtml(patient?.alias || "");
+  const submitLabel = isEdit ? "Сохранить" : "Добавить";
+  const submitIcon = isEdit ? "check" : "circle-plus";
+
   return `
     <div class="patient-add-form">
       <form id="patient-form" autocomplete="off">
@@ -128,6 +142,7 @@ function buildPatientFormHTML() {
             id="patient-fio"
             class="form__input"
             placeholder="Иванов Пётр Иванович"
+            value="${fio}"
             required
             autocomplete="off"
           >
@@ -140,6 +155,7 @@ function buildPatientFormHTML() {
             id="patient-bday"
             class="form__input"
             placeholder="ДД.ММ.ГГГГ"
+            value="${bday}"
             autocomplete="off"
           >
           <span class="form__error" id="patient-bday-error"></span>
@@ -151,6 +167,7 @@ function buildPatientFormHTML() {
             id="patient-alias"
             class="form__input"
             placeholder="Например: мама, ребёнок"
+            value="${alias}"
             autocomplete="off"
           >
         </div>
@@ -158,7 +175,7 @@ function buildPatientFormHTML() {
       <div id="patient-form-error" class="hidden mt-md" style="color: var(--color-danger); font-size: var(--font-sm);"></div>
       <div class="fab-group">
         <button class="btn btn--secondary btn--sm" id="patient-add-back">← Назад</button>
-        <button class="fab" id="patient-add-submit"><span class="lucide-icon">${lucideIcon("circle-plus", 16)}</span> Добавить</button>
+        <button class="fab" id="patient-add-submit"><span class="lucide-icon">${lucideIcon(submitIcon, 16)}</span> ${submitLabel}</button>
       </div>
     </div>
   `;
@@ -335,12 +352,19 @@ function setupDateMask(inputEl, calendar, bdayError) {
 // ============================================================
 
 /**
- * Навешивает обработчик отправки формы добавления пациента.
+ * Навешивает обработчик отправки формы пациента.
+ *
+ * В режиме ``add`` отправляет POST ``/patients/add``, в режиме ``edit`` —
+ * PUT ``/patients/{id}`` с повторной верификацией на бэкенде (P3-EDIT).
+ * В режиме правки псевдоним уходит всегда: пустая строка удаляет его.
  *
  * @param {HTMLFormElement} form — элемент формы
- * @param {Function} onSuccess — колбэк при успешном добавлении
+ * @param {Function} onSuccess — колбэк при успехе
+ * @param {object} [options={}] — режим отправки
+ * @param {"add"|"edit"} [options.mode="add"] — режим
+ * @param {string|null} [options.patientId=null] — ID пациента (для edit)
  */
-function setupPatientFormSubmit(form, onSuccess) {
+function setupPatientFormSubmit(form, onSuccess, { mode = "add", patientId = null } = {}) {
   const container = form.closest(".patient-add-form");
   if (!container) return;
 
@@ -374,8 +398,13 @@ function setupPatientFormSubmit(form, onSuccess) {
 
     try {
       const body = { full_name, birth_date };
-      if (alias) body.alias = alias;
-      await apiPost("/patients/add", body);
+      if (mode === "edit" || alias) body.alias = alias;
+
+      if (mode === "edit") {
+        await apiPut(`/patients/${encodeURIComponent(patientId)}`, body);
+      } else {
+        await apiPost("/patients/add", body);
+      }
 
       // Тактильный отклик (если доступен)
       if (isInTelegram() && window.Telegram.WebApp?.HapticFeedback) {
@@ -409,7 +438,7 @@ export async function renderPatients(container) {
     const patients = data.patients || [];
 
     container.innerHTML = renderPatientList(patients);
-    bindEvents(container);
+    bindEvents(container, patients);
   } catch (error) {
     renderError(container, error.message, "Повторить", () =>
       renderPatients(container),
@@ -418,15 +447,15 @@ export async function renderPatients(container) {
 }
 
 /**
- * Рендерит форму добавления пациента на отдельном экране.
+ * Создаёт календарь, маску даты и валидацию для формы пациента.
+ * Общая обвязка экранов добавления и правки.
  *
- * @param {HTMLElement} container — DOM-элемент для рендеринга
+ * @param {HTMLElement} container — контейнер с отрендеренной формой
+ * @param {object} [options={}] — режим формы
+ * @param {"add"|"edit"} [options.mode="add"] — режим
+ * @param {string|null} [options.patientId=null] — ID пациента (для edit)
  */
-export async function renderPatientAddForm(container) {
-  if (!container) return;
-
-  container.innerHTML = buildPatientFormHTML();
-
+function wirePatientForm(container, { mode = "add", patientId = null } = {}) {
   const dateInput = container.querySelector("#patient-bday");
   const fioInput = container.querySelector("#patient-fio");
   const fioError = container.querySelector("#patient-fio-error");
@@ -500,10 +529,51 @@ export async function renderPatientAddForm(container) {
   // Отправка формы
   const form = container.querySelector("#patient-form");
   if (form) {
-    setupPatientFormSubmit(form, () => {
-      navigate("patients");
-    });
+    setupPatientFormSubmit(
+      form,
+      () => {
+        navigate("patients");
+      },
+      { mode, patientId },
+    );
   }
+}
+
+/**
+ * Рендерит форму добавления пациента на отдельном экране.
+ *
+ * @param {HTMLElement} container — DOM-элемент для рендеринга
+ */
+export async function renderPatientAddForm(container) {
+  if (!container) return;
+
+  container.innerHTML = buildPatientFormHTML();
+  wirePatientForm(container, { mode: "add" });
+}
+
+/**
+ * Рендерит экран правки пациента (P3-EDIT).
+ *
+ * Форма предзаполнена текущей карточкой; сохранение — PUT, бэкенд заново
+ * верифицирует ФИО/ДР. Без карточки в параметрах возвращает к списку.
+ *
+ * @param {HTMLElement} container — DOM-элемент для рендеринга
+ * @param {object|null} [params=null] — параметры маршрута ({ patient })
+ */
+export async function renderPatientEditForm(container, params = null) {
+  if (!container) return;
+
+  const patient = params ? params.patient : null;
+  if (!patient || !patient.patient_id) {
+    navigate("patients");
+    return;
+  }
+
+  container.innerHTML = buildPatientFormHTML({ mode: "edit", patient });
+  wirePatientForm(container, {
+    mode: "edit",
+    patientId: String(patient.patient_id),
+  });
 }
 
 /**
@@ -538,7 +608,14 @@ function renderPatientList(patients) {
           <div class="patient-card__name">${escapeHtml(p.fio || "Без имени")}</div>
           ${p.bday ? `<div class="patient-card__bday">${escapeHtml(p.bday)}</div>` : ""}
           ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ""}
+          ${p.needs_check ? `<div class="patient-card__badge">⚠️ требует проверки</div>` : ""}
         </div>
+        <button class="patient-card__edit" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Изменить пациента">
+          ${lucideIcon("pencil", 18)}
+        </button>
+        <button class="patient-card__check" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Проверить пациента">
+          ${lucideIcon("refresh-cw", 18)}
+        </button>
         <button class="patient-card__delete" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Удалить пациента">
           ${lucideIcon("trash-2", 18)}
         </button>
@@ -560,13 +637,53 @@ function renderPatientList(patients) {
  *
  * @param {HTMLElement} container — контейнер
  */
-function bindEvents(container) {
+function bindEvents(container, patients = []) {
   const addBtn = container.querySelector("#patient-add-btn");
   if (addBtn) {
     addBtn.addEventListener("click", () => {
       navigate("patient-add");
     });
   }
+
+  // Обработчики кнопок правки пациента (P3-EDIT)
+  container.querySelectorAll(".patient-card__edit").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const patientId = btn.dataset.patientId;
+      const patient = patients.find(
+        (p) => String(p.patient_id) === String(patientId),
+      );
+      if (patient) {
+        navigate("patient-edit", { patient });
+      }
+    });
+  });
+
+  // Обработчики кнопок проверки пациента (P3-ACTUAL)
+  container.querySelectorAll(".patient-card__check").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const patientId = btn.dataset.patientId;
+      btn.disabled = true;
+      try {
+        const result = await apiPost(`/patients/${patientId}/check`, {});
+        showCheckResult(result.status);
+        // Перерисовываем список, чтобы обновить бейдж «требует проверки»
+        const patientsContainer = container.closest("#patients-content");
+        if (patientsContainer) {
+          await renderPatients(patientsContainer);
+        }
+      } catch (error) {
+        if (window.showToast) {
+          window.showToast(error.message, "error");
+        } else {
+          alert(error.message);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 
   // Обработчики кнопок удаления пациента
   container.querySelectorAll(".patient-card__delete").forEach((btn) => {
@@ -594,6 +711,28 @@ function bindEvents(container) {
       }
     });
   });
+}
+
+/**
+ * Показывает результат проверки пациента (P3-ACTUAL).
+ *
+ * @param {string} status — valid | invalid | unknown
+ */
+function showCheckResult(status) {
+  if (!window.showToast) return;
+  if (status === "valid") {
+    window.showToast("Пациент числится в клинике", "success");
+  } else if (status === "invalid") {
+    window.showToast(
+      "Пациент не найден в клинике — проверьте ФИО и дату рождения",
+      "error",
+    );
+  } else {
+    window.showToast(
+      "Не удалось проверить — портал временно недоступен",
+      "error",
+    );
+  }
 }
 
 /**
