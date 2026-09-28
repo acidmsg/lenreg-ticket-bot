@@ -19,6 +19,7 @@ from src.database.repo_clinics import (
 )
 from src.database.repo_config import ConfigRepository
 from src.database.repo_doctors import DoctorRepository
+from src.database.repo_favorites import FavoriteRepository
 from src.database.repo_monitoring import MonitoringRepository
 from src.database.repo_search import SearchRepository
 from src.database.repo_users import UserRepository
@@ -52,6 +53,7 @@ class Database:
         self.users = UserRepository(self._conn)
         self.doctors = DoctorRepository(self._conn)
         self.clinics = ClinicRepository(self._conn)
+        self.favorites = FavoriteRepository(self._conn)
         self.monitoring = MonitoringRepository(self._conn)
         self.config = ConfigRepository(self._conn)
         self.audit = AuditRepository(self._conn)

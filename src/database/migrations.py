@@ -292,6 +292,29 @@ CREATE TABLE IF NOT EXISTS user_state (
     logger.info("Миграция v14: состояние пользователя (пауза мониторинга)")
 
 
+async def migrate_v15_favorite_clinics(db) -> None:
+    """Избранные клиники аккаунта (P4-FAV).
+
+    Привязка — к аккаунту (``uid``), не к пациенту: набор «своих» клиник один
+    на аккаунт и показывается первым при выборе клиники и поиске врача.
+    Повторная вставка пары (uid, clinic_id) ничего не меняет — ключ первичный.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS favorite_clinics (
+    uid         TEXT NOT NULL,
+    clinic_id   TEXT NOT NULL,
+    created_at  REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (uid, clinic_id)
+);
+""")
+    await c.commit()
+    logger.info("Миграция v15: избранные клиники аккаунта (favorite_clinics)")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -304,4 +327,5 @@ MIGRATIONS = [
     (12, migrate_v12_monitoring_log_ack),
     (13, migrate_v13_metrics_hourly),
     (14, migrate_v14_user_state),
+    (15, migrate_v15_favorite_clinics),
 ]

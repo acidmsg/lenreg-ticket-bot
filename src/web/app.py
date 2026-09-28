@@ -134,9 +134,12 @@ class RequestDurationMiddleware:
             return
 
         started = time.perf_counter()
+        logged = False
 
         async def _send(message: dict) -> None:
+            nonlocal logged
             if message["type"] == "http.response.start":
+                logged = True
                 duration_ms = (time.perf_counter() - started) * 1000
                 self._log(
                     scope,
@@ -148,6 +151,7 @@ class RequestDurationMiddleware:
         try:
             await self.app(scope, receive, _send)
         except Exception:
+            logged = True
             duration_ms = (time.perf_counter() - started) * 1000
             logger.opt(exception=True).warning(
                 "HTTP {} {}{} → исключение за {:.0f} мс",
@@ -157,6 +161,18 @@ class RequestDurationMiddleware:
                 duration_ms,
             )
             raise
+        finally:
+            # Ответ так и не начался: клиент отключился (или приложение
+            # завершилось молча). Без этой строки такие ожидания не видны.
+            if not logged:
+                duration_ms = (time.perf_counter() - started) * 1000
+                logger.warning(
+                    "БЕЗ ОТВЕТА: HTTP {} {}{} за {:.0f} мс — клиент отключился",
+                    scope.get("method", ""),
+                    scope.get("path", ""),
+                    _format_logged_params(scope.get("query_string", b"")),
+                    duration_ms,
+                )
 
     @classmethod
     def _log(cls, scope: dict, status: int, duration_ms: float) -> None:

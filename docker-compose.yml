@@ -3,7 +3,7 @@ services:
   # Redis — FSM-хранилище и кэш
   # ===========================================================================
   redis:
-    image: redis:7.2-alpine
+    image: redis:8-alpine
     container_name: lenreg_ticket_redis
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}

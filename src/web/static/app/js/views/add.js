@@ -8,7 +8,7 @@
  * @module views/add
  */
 
-import { apiGet, apiPost } from "../api.js";
+import { apiDelete, apiGet, apiPost } from "../api.js";
 import { isInTelegram } from "../auth.js";
 import { createStepper } from "../components/stepper.js";
 import { escapeHtml } from "../utils/escape.js";
@@ -22,6 +22,87 @@ import {
   renderSlotsPickerLayout,
 } from "../components/slots-picker.js";
 import { bookSlot } from "../utils/booking.js";
+
+/** Управление мастером: нужно коллбэкам шагов для перехода на экран подтверждения. */
+let wizard = null;
+
+/** Режим экрана подтверждения: "booking" — записаться, "monitor" — следить. */
+let step5Mode = "monitor";
+
+/** Защита от двойной отправки с экрана подтверждения. */
+let step5Submitting = false;
+
+/**
+ * Ставит врача под мониторинг (завершение мастера в режиме «Следить»).
+ *
+ * Вынесено из `onComplete` мастера: тот же поток, что и раньше, — POST
+ * `/doctors/add` с возвратом на главный экран и мягкой обработкой дубликата.
+ *
+ * @param {Array} selections — выбранные значения шагов мастера
+ */
+async function completeMonitoringStep(selections) {
+  // selections содержит 2 или 3 элемента:
+  // - Нормальный поток (3): [patient, clinic, doctor]
+  // - Глобальный поиск (2): [patient, doctor(with clinic info)]
+  const patient = selections[0]?.value;
+  let clinic, doctor;
+
+  if (selections[1]?._skipNext) {
+    // Глобальный поиск: doctor уже содержит clinic_id
+    doctor = selections[1]?.value;
+    clinic = {
+      clinic_id: doctor?.clinic_id || "",
+      short_name: doctor?.clinic_name || "",
+      name: doctor?.clinic_name || "",
+    };
+  } else {
+    // Нормальный поток
+    clinic = selections[1]?.value;
+    doctor = selections[2]?.value;
+  }
+
+  const doctorName = extractDoctorName(doctor) || "";
+  const specialtyName = doctor?.specialty_name || "";
+
+  try {
+    await apiPost("/doctors/add", {
+      clinic_id: clinic?.clinic_id || clinic?.id || String(clinic || ""),
+      specialty_id: doctor?.specialty_id || "",
+      doctor_id: doctor?.doctor_id || doctor?.id || String(doctor || ""),
+      patient_id: patient?.patient_id || patient?.id || String(patient || ""),
+      doctor_name: doctorName,
+      specialty_name: specialtyName,
+    });
+
+    // Тактильный отклик
+    if (isInTelegram()) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+    }
+
+    // Возвращаемся на главный экран
+    navigate("doctors");
+  } catch (error) {
+    // Дубликат (врач уже отслеживается) — возвращаемся на главную без ошибки
+    const msg = (error.message || "").toLowerCase();
+    if (
+      msg.includes("уже отслеживается") ||
+      msg.includes("already") ||
+      msg.includes("duplicate") ||
+      msg.includes("exists")
+    ) {
+      navigate("doctors");
+      return;
+    }
+
+    if (isInTelegram()) {
+      window.Telegram.WebApp.showAlert(
+        `Ошибка при добавлении: ${error.message}`,
+      );
+    } else {
+      alert(`Ошибка при добавлении: ${error.message}`);
+    }
+  }
+}
 
 /**
  * Рендерит экран добавления врача в указанный контейнер.
@@ -76,13 +157,19 @@ export function renderAddDoctor(container) {
       renderItem: renderDoctorItem,
     },
     {
-      title: "Подтверждение",
-      description: "Проверьте данные и выберите: записаться сейчас или следить",
-      completeLabel: "Следить",
-      // Кнопка действия в футере stepper'а: «Запись» справа (MA-1).
-      // Запись и слежение независимы: запись не добавляет врача в мониторинг.
+      title: "Выбор талона",
+      description: "Отметьте время в календаре или перейдите к слежению",
+      // Переход («Следить») и действие («Запись») ведут на экран подтверждения:
+      // режим фиксируется до перехода, сам экран — следующий шаг мастера.
+      nextLabel: "Следить",
+      onNext: () => {
+        step5Mode = "monitor";
+      },
       actionLabel: "Запись",
-      onAction: () => handleStep4Booking(),
+      onAction: () => {
+        step5Mode = "booking";
+        if (wizard) wizard.goToStep(4);
+      },
       onRender: (container, state) => initStep4Picker(container, state),
       loadData: async (selections) => {
         // На этом шаге данные уже выбраны, показываем подтверждение
@@ -117,79 +204,45 @@ export function renderAddDoctor(container) {
             clinic,
             doctor,
             availability,
-            _skipNext: selections[1]?._skipNext,
           },
         ];
       },
       renderItem: (item) => renderConfirmation(item),
     },
+    {
+      title: "Подтверждение",
+      description: "Проверьте данные и подтвердите действие",
+      completeLabel: "Подтвердить",
+      loadData: async () => [
+        {
+          _summary: true,
+          mode: step5Mode,
+          ctx: step4Context,
+          slot: step4SelectedSlot,
+        },
+      ],
+      renderItem: (item) => renderStep5Summary(item),
+    },
   ];
 
-  createStepper({
+  wizard = createStepper({
     container,
     steps,
     onComplete: async (selections) => {
-      // selections содержит 2 или 3 элемента:
-      // - Нормальный поток (3): [patient, clinic, doctor]
-      // - Глобальный поиск (2): [patient, doctor(with clinic info)]
-      const patient = selections[0]?.value;
-      let clinic, doctor;
-
-      if (selections[1]?._skipNext) {
-        // Глобальный поиск: doctor уже содержит clinic_id
-        doctor = selections[1]?.value;
-        clinic = {
-          clinic_id: doctor?.clinic_id || "",
-          short_name: doctor?.clinic_name || "",
-          name: doctor?.clinic_name || "",
-        };
-      } else {
-        // Нормальный поток
-        clinic = selections[1]?.value;
-        doctor = selections[2]?.value;
-      }
-
-      const doctorName = extractDoctorName(doctor) || "";
-      const specialtyName = doctor?.specialty_name || "";
+      // Защита от двойной отправки: повторный клик по «Подтвердить» не должен
+      // запускать вторую бронь или повторную постановку под мониторинг.
+      if (step5Submitting) return;
+      step5Submitting = true;
 
       try {
-        await apiPost("/doctors/add", {
-          clinic_id: clinic?.clinic_id || clinic?.id || String(clinic || ""),
-          specialty_id: doctor?.specialty_id || "",
-          doctor_id: doctor?.doctor_id || doctor?.id || String(doctor || ""),
-          patient_id:
-            patient?.patient_id || patient?.id || String(patient || ""),
-          doctor_name: doctorName,
-          specialty_name: specialtyName,
-        });
-
-        // Тактильный отклик
-        if (isInTelegram()) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
-        }
-
-        // Возвращаемся на главный экран
-        navigate("doctors");
-      } catch (error) {
-        // Дубликат (врач уже отслеживается) — просто возвращаемся на главную без ошибки
-        const msg = (error.message || "").toLowerCase();
-        if (
-          msg.includes("уже отслеживается") ||
-          msg.includes("already") ||
-          msg.includes("duplicate") ||
-          msg.includes("exists")
-        ) {
-          navigate("doctors");
+        // Экран подтверждения записи: бронируем выбранный талон.
+        if (step5Mode === "booking") {
+          await handleStep4Booking();
           return;
         }
-
-        if (isInTelegram()) {
-          window.Telegram.WebApp.showAlert(
-            `Ошибка при добавлении: ${error.message}`,
-          );
-        } else {
-          alert(`Ошибка при добавлении: ${error.message}`);
-        }
+        await completeMonitoringStep(selections);
+      } finally {
+        step5Submitting = false;
       }
     },
     onCancel: () => {
@@ -204,6 +257,15 @@ export function renderAddDoctor(container) {
   container.addEventListener(
     "click",
     (e) => {
+      // Звёздочка избранного: клик по ней не должен выбирать клинику в мастере.
+      const favoriteBtn = e.target.closest(".clinic-favorite");
+      if (favoriteBtn) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        void toggleClinicFavorite(favoriteBtn);
+        return;
+      }
+
       const stepperItem = e.target.closest(".stepper-item");
       if (!stepperItem) return;
 
@@ -264,7 +326,7 @@ async function loadClinics() {
   // Пытаемся загрузить из localStorage (TTL 1 час)
   const cached = getFromCache("clinics_cache");
   if (cached) {
-    return cached;
+    return await applyFavorites(cached);
   }
 
   const data = await apiGet("/clinics");
@@ -276,10 +338,78 @@ async function loadClinics() {
     subtitle: `${c.name || ""}${c.city ? `, ${c.city}` : ""}`,
   }));
 
-  // Кэшируем на 1 час
+  // Кэшируем на 1 час без пометок избранного: они меняются чаще, чем кэш
   saveToCache("clinics_cache", items);
 
-  return items;
+  return await applyFavorites(items);
+}
+
+/**
+ * Поднимает избранные клиники наверх и помечает их.
+ *
+ * Избранное — надстройка: если API недоступен, список клиник всё равно
+ * возвращается (без пометок), а не падает.
+ *
+ * @param {Array<object>} items — элементы списка клиник
+ * @returns {Promise<Array<object>>} элементы с полем isFavorite
+ */
+async function applyFavorites(items) {
+  let favoriteIds;
+  try {
+    const data = await apiGet("/favorites");
+    favoriteIds = (data.favorites || []).map((favorite) =>
+      String(favorite.clinic_id),
+    );
+  } catch {
+    favoriteIds = [];
+  }
+  return sortClinicsFavoritesFirst(items, favoriteIds);
+}
+
+/**
+ * Ставит избранные клиники первыми, сохраняя порядок внутри групп.
+ *
+ * Чистая функция — покрыта тестом `tests/js/views/add.test.js`.
+ *
+ * @param {Array<object>} items — элементы списка клиник
+ * @param {Array<string>} favoriteIds — id избранных клиник
+ * @returns {Array<object>} новые объекты с пометкой isFavorite
+ */
+export function sortClinicsFavoritesFirst(items, favoriteIds = []) {
+  const favorites = new Set(favoriteIds.map((id) => String(id)));
+  const marked = (items || []).map((item) => ({
+    ...item,
+    isFavorite: favorites.has(String(item?.value?.clinic_id ?? "")),
+  }));
+  return [
+    ...marked.filter((item) => item.isFavorite),
+    ...marked.filter((item) => !item.isFavorite),
+  ];
+}
+
+/**
+ * Переключает избранное для клиники и обновляет кнопку-звёздочку.
+ *
+ * @param {HTMLElement} button — кнопка избранного в элементе списка
+ */
+async function toggleClinicFavorite(button) {
+  const clinicId = button?.dataset?.clinicId || "";
+  if (!clinicId) return;
+
+  const wasFavorite = button.classList.contains("clinic-favorite--on");
+  try {
+    if (wasFavorite) {
+      await apiDelete(`/favorites/${encodeURIComponent(clinicId)}`);
+    } else {
+      await apiPost("/favorites", { clinic_id: clinicId });
+    }
+    button.classList.toggle("clinic-favorite--on", !wasFavorite);
+    button.setAttribute("aria-pressed", String(!wasFavorite));
+  } catch {
+    if (window.showToast) {
+      window.showToast("Не удалось изменить избранное", "error");
+    }
+  }
 }
 
 /**
@@ -411,11 +541,23 @@ function renderPatientItem(item) {
  * @returns {string} HTML элемента
  */
 function renderClinicItem(item) {
+  const clinicId = String(item?.value?.clinic_id ?? "");
+  const favoriteLabel = item.isFavorite
+    ? "Убрать из избранного"
+    : "Добавить в избранное";
   return `
     <div class="list__item-content">
       <div class="list__item-title">${escapeHtml(item.label)}</div>
       ${item.subtitle ? `<div class="list__item-subtitle">${escapeHtml(item.subtitle)}</div>` : ""}
     </div>
+    <button
+      class="clinic-favorite${item.isFavorite ? " clinic-favorite--on" : ""}"
+      type="button"
+      data-clinic-id="${escapeHtml(clinicId)}"
+      aria-pressed="${item.isFavorite ? "true" : "false"}"
+      aria-label="${favoriteLabel}"
+      title="${favoriteLabel}"
+    >${lucideIcon("star", 16)}</button>
     <span class="list__item-arrow">${lucideIcon("arrow-right", 16)}</span>
   `;
 }
@@ -497,34 +639,62 @@ function renderDoctorItem(item) {
  * @returns {string} HTML подтверждения
  */
 function renderConfirmation(item) {
-  const patient = item.patient || {};
-  const clinic = item.clinic || {};
-  const doctor = item.doctor || {};
   const availability = item.availability || null;
 
-  const patientName = patient.fio || "Неизвестно";
-  const clinicName = clinic.short_name || clinic.name || "Неизвестно";
-  const doctorName = extractDoctorName(doctor) || "Неизвестно";
-  const specialtyName = doctor.specialty_name || "";
+  // Сводка о параметрах записи переехала на экран подтверждения (шаг 5):
+  // здесь остаётся только выбор талона.
+  return `
+    <div class="confirm-card">
+      ${renderStep4Block(availability)}
+    </div>
+  `;
+}
+
+/**
+ * Рендерит экран подтверждения действия (шаг 5).
+ *
+ * Показывает итог выбранного действия: что именно произойдёт после нажатия
+ * «Подтвердить». Режим выбирается кнопками шага талона: «Запись» — бронь
+ * выбранного талона, «Следить» — постановка врача под мониторинг.
+ *
+ * @param {{mode?: string, ctx?: object, slot?: object}} item — данные шага
+ * @returns {string} HTML подтверждения
+ */
+function renderStep5Summary(item) {
+  const mode = item?.mode === "booking" ? "booking" : "monitor";
+  const ctx = item?.ctx || {};
+  const slot = item?.slot || null;
+  const actionText =
+    mode === "booking"
+      ? "записаться на выбранное время"
+      : "следить за появлением талонов";
+
+  const slotRows =
+    mode === "booking" && slot
+      ? `
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("clock", 14)}</span> Дата и время</div>
+        <div class="confirm-value">${escapeHtml(String(slot.date || ""))}${slot.time ? `, ${escapeHtml(String(slot.time))}` : ""}</div>`
+      : "";
 
   return `
     <div class="confirm-card">
       <div class="confirm-card__details">
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("user", 14)}</span> Пациент</div>
-        <div class="confirm-value">${escapeHtml(patientName)}</div>
+        <div class="confirm-value">${escapeHtml(ctx.patientName || "Неизвестно")}</div>
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> Клиника</div>
-        <div class="confirm-value">${escapeHtml(clinicName)}</div>
+        <div class="confirm-value">${escapeHtml(ctx.clinicName || "Неизвестно")}</div>
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("stethoscope", 14)}</span> Врач</div>
-        <div class="confirm-value">${escapeHtml(doctorName)}</div>
+        <div class="confirm-value">${escapeHtml(ctx.doctorName || "Неизвестно")}</div>
         ${
-          specialtyName
+          ctx.specialty
             ? `
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("microscope", 14)}</span> Специальность</div>
-        <div class="confirm-value">${escapeHtml(specialtyName)}</div>`
+        <div class="confirm-value">${escapeHtml(ctx.specialty)}</div>`
             : ""
         }
+        ${slotRows}
       </div>
-      ${renderStep4Block(availability)}
+      <div class="confirm-note">Нажмите «Подтвердить», чтобы ${escapeHtml(actionText)}.</div>
     </div>
   `;
 }
@@ -542,18 +712,26 @@ function renderStep4Block(availability) {
   if (!availability) return "";
 
   const total = availability.total || 0;
-  const text = availability.error
-    ? "Не удалось проверить номерки"
-    : total > 0
-      ? `Свободных номерков: ${total}. Выберите дату и время.`
-      : "Сейчас свободных номерков нет — можно только следить.";
+
+  if (availability.error) {
+    return `
+      <div class="confirm-availability">
+        <div class="confirm-label"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> Доступность</div>
+        <div class="confirm-value">Не удалось проверить номерки</div>
+      </div>`;
+  }
+
+  if (total === 0) {
+    // Номерков нет: календарь не нужен, слежение доступно кнопкой «Следить» в футере.
+    return `<div class="confirm-note confirm-note--danger">Талонов нет — можно следить за появлением.</div>`;
+  }
 
   return `
       <div class="confirm-availability">
         <div class="confirm-label"><span class="lucide-icon">${lucideIcon("calendar", 14)}</span> Доступность</div>
-        <div class="confirm-value">${escapeHtml(text)}</div>
+        <div class="confirm-value">Свободных номерков: ${total}. Выберите дату и время.</div>
       </div>
-      ${total > 0 ? renderSlotsPickerLayout("step4") : ""}`;
+      ${renderSlotsPickerLayout("step4")}`;
 }
 
 /** Контекст шага 4 (реквизиты записи) и выбранный слот. */
@@ -628,7 +806,12 @@ function initStep4Picker(container, state) {
 async function handleStep4Booking() {
   const ctx = step4Context;
   const slot = step4SelectedSlot;
-  if (!ctx || !slot) return;
+  if (!ctx || !slot) {
+    if (window.showToast) {
+      window.showToast("❌ Выберите дату и время талона", "error");
+    }
+    return;
+  }
 
   const result = await bookSlot({
     date: slot.date,

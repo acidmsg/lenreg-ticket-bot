@@ -813,14 +813,14 @@ class ZdravClient:
             )
             return []
 
-        # Диагностика: вывести все специальности с их флагами
-        logger.warning(
+        # Диагностика: на DEBUG — на INFO эти строки топят error.log
+        logger.debug(
             "DIAG: fetch_all_doctors_for_clinic clinic={}: всего специальностей={}",
             clinic_id,
             len(specialties_raw),
         )
         for s in specialties_raw:
-            logger.warning(
+            logger.debug(
                 "DIAG: specialty id={} name='{}' IsDoc={} IsTech={}",
                 s.get("Id"),
                 s.get("Name"),

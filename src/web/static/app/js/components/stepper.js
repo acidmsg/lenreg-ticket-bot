@@ -150,6 +150,12 @@ function buildStepperHTML(steps, currentStep, opts) {
 
   const nextBtnClass = isLastStep || isWidget ? "" : " stepper__btn--next";
 
+  // Метка кнопки перехода: на последнем шаге — завершение, иначе — «Далее»
+  // либо своя метка шага (`nextLabel`, например «Следить» на шаге талона).
+  const nextButtonContent = isLastStep
+    ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> ${escapeHtml(steps[currentStep]?.completeLabel || "Готово")}`
+    : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> ${escapeHtml(steps[currentStep]?.nextLabel || "Далее")}`;
+
   // Кнопка действия шага (например, «Запись» на шаге подтверждения):
   // идёт последней, чтобы основное действие было справа.
   const actionLabel = steps[currentStep]?.actionLabel;
@@ -169,7 +175,7 @@ function buildStepperHTML(steps, currentStep, opts) {
       <div class="stepper__actions${actionsClass}">
         ${backButtonHtml}
         <button class="btn btn--primary${nextBtnClass}" id="stepper-next"${isLastStep || isWidget ? "" : " disabled"}>
-          ${isLastStep ? `<span class="lucide-icon">${lucideIcon("check", 16)}</span> ${escapeHtml(steps[currentStep]?.completeLabel || "Готово")}` : `<span class="lucide-icon">${lucideIcon("arrow-right", 16)}</span> Далее`}
+          ${nextButtonContent}
         </button>
         ${actionButtonHtml}
       </div>
@@ -231,7 +237,12 @@ function bindStepperNavigation(container, state) {
 
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
-      const isWidget = state.steps[state.currentStep].type === "widget";
+      const step = state.steps[state.currentStep];
+      // Хук шага перед переходом: например, зафиксировать выбранный режим.
+      if (typeof step?.onNext === "function") {
+        step.onNext();
+      }
+      const isWidget = step.type === "widget";
       if (isWidget) {
         state.advanceStep(0);
         return;
@@ -240,6 +251,18 @@ function bindStepperNavigation(container, state) {
         if (state.onComplete) {
           state.onComplete(state.selections);
         }
+      }
+    });
+  }
+
+  // Кнопка действия шага («Запись» на шаге подтверждения и т.п.): компонент
+  // сам вызывает коллбэк шага `onAction`, иначе кнопка остаётся мёртвой.
+  const actionBtn = document.getElementById("stepper-action");
+  if (actionBtn) {
+    actionBtn.addEventListener("click", () => {
+      const step = state.steps[state.currentStep];
+      if (typeof step?.onAction === "function") {
+        step.onAction();
       }
     });
   }
@@ -454,7 +477,7 @@ function setupStepperSearch(container, state) {
  *
  * @param {object} options — параметры stepper
  * @param {HTMLElement} options.container — DOM-элемент для рендеринга
- * @param {Array<{title: string, description: string, loadData: Function, renderItem: Function, searchPlaceholder?: string}>} options.steps — массив шагов
+ * @param {Array<{title: string, description: string, loadData: Function, renderItem: Function, searchPlaceholder?: string, actionLabel?: string, onAction?: Function, nextLabel?: string, onNext?: Function, onRender?: Function}>} options.steps — массив шагов
  * @param {Function} options.onComplete — колбэк при завершении (вызывается с выбранными значениями)
  * @param {Function} [options.onCancel] — колбэк при отмене
  * @returns {object} объект управления stepper

@@ -841,6 +841,33 @@ body {
   flex-shrink: 0;
 }
 
+/* Звёздочка избранного в списке клиник (P4-FAV) */
+.clinic-favorite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.clinic-favorite:active {
+  transform: scale(0.92);
+}
+
+.clinic-favorite--on {
+  color: var(--color-accent);
+}
+
 /* ── Карточка пациента с кнопкой удаления ── */
 .patient-card {
   position: relative;
@@ -1359,6 +1386,19 @@ body {
   color: var(--color-text-primary);
 }
 
+/* Пояснение на экране подтверждения (что произойдёт после «Подтвердить») */
+.confirm-note {
+  max-width: 320px;
+  margin: var(--space-sm) auto 0;
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Приглушённая красная пометка (например, «талонов нет») */
+.confirm-note--danger {
+  color: var(--color-danger);
+}
+
 /* === Блокированная карточка врача (уже отслеживается — только для stepper) === */
 .stepper-item--monitored {
   opacity: 0.5;
@@ -1540,10 +1580,14 @@ body {
   color: var(--color-text-primary);
 }
 
-/* Выбранный пациент: именно на него будет оформлена запись */
+/* Выбранный пациент: именно на него будет оформлена запись.
+   Текст — обычный (--color-text-primary), акцент только рамкой и лёгкой
+   заливкой: --color-accent как цвет текста не гарантирует контраст
+   в светлой теме, а --color-accent-text рассчитан только на сплошную заливку. */
 .monitoring-patient--active .monitoring-patient__switch {
   border-color: var(--color-accent);
-  color: var(--color-accent-text);
+  background-color: rgb(var(--color-accent-rgb) / 14%);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
