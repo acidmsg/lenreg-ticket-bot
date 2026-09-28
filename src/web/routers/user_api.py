@@ -82,6 +82,13 @@ def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
 # ── Pydantic-модели для тел запросов ─────────────────────────
 
 
+# Бюджеты блокирующей работы пользовательских запросов. Клиент (Mini App)
+# сдаётся через 20 с, поэтому портальные операции в самом запросе ограничены:
+# не уложились — отдаём то, что есть, а обновление уходит в фон.
+DISCOVERY_TIMEOUT_SECONDS = 6.0
+SLOTS_TIMEOUT_SECONDS = 6.0
+
+
 class PatientUpdateRequest(BaseModel):
     """Тело запроса на правку карточки пациента (P3-EDIT).
 
@@ -834,9 +841,27 @@ async def get_available_doctors(
         try:
             from src.handlers.common import _discover_doctors_on_demand
 
-            doctors_dict = await _discover_doctors_on_demand(
-                api, db, clinic_id, patient_id
+            doctors_dict = await asyncio.wait_for(
+                _discover_doctors_on_demand(api, db, clinic_id, patient_id),
+                timeout=DISCOVERY_TIMEOUT_SECONDS,
             )
+        except TimeoutError:
+            # Инлайн-discovery не укладывается в бюджет пользовательского запроса:
+            # передаём работу фоновому циклу и отдаём то, что есть в БД, вместо
+            # ожидания в десятки секунд (клиент сдаётся на 20 с).
+            logger.warning(
+                "On-demand discovery для clinic_id={} не уложился в {} с — "
+                "передаём фоновому сканированию",
+                clinic_id,
+                DISCOVERY_TIMEOUT_SECONDS,
+            )
+            try:
+                from src.services.doctor_discovery import trigger_force_scan
+
+                trigger_force_scan()
+            except Exception:
+                logger.exception("Не удалось запросить фоновое сканирование врачей")
+            doctors_dict = {}
         except Exception:
             logger.exception("Ошибка on-demand discovery для clinic_id={}", clinic_id)
             # Если discovery упал — возвращаем пустой список, но не 500
@@ -861,18 +886,24 @@ async def get_available_doctors(
     try:
         if specialty_id:
             # Конкретная специальность — один запрос
-            api_doctors = await api.fetch_all_doctors(
-                specialty_id=specialty_id,
-                patient_id=patient_id,
-                clinic_id=clinic_id,
-                limiter=api.limiter,
+            api_doctors = await asyncio.wait_for(
+                api.fetch_all_doctors(
+                    specialty_id=specialty_id,
+                    patient_id=patient_id,
+                    clinic_id=clinic_id,
+                    limiter=api.limiter,
+                ),
+                timeout=SLOTS_TIMEOUT_SECONDS,
             )
         else:
             # Все специальности — batch-запрос
-            api_doctors = await api.fetch_all_doctors_for_clinic(
-                patient_id=patient_id,
-                clinic_id=clinic_id,
-                limiter=api.limiter,
+            api_doctors = await asyncio.wait_for(
+                api.fetch_all_doctors_for_clinic(
+                    patient_id=patient_id,
+                    clinic_id=clinic_id,
+                    limiter=api.limiter,
+                ),
+                timeout=SLOTS_TIMEOUT_SECONDS,
             )
         for doc in api_doctors:
             doc_id = str(doc.get("IdDoc", ""))
@@ -881,6 +912,12 @@ async def get_available_doctors(
                     "free_tickets": int(doc.get("CountFreeTicket", 0)),
                     "nearest_date": doc.get("NearestDate"),
                 }
+    except TimeoutError:
+        logger.warning(
+            "Слоты для clinic_id={} не получены за {} с — отдаём врачей без слотов",
+            clinic_id,
+            SLOTS_TIMEOUT_SECONDS,
+        )
     except httpx.TimeoutException:
         logger.warning(
             "Таймаут API слотов для clinic_id={}, возвращаем врачей без слотов",
