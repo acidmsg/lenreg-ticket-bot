@@ -41,7 +41,9 @@ class LogRecord:
 
 def parse_line(raw: str) -> LogRecord | None:
     """Разбирает строку лога; многострочные хвосты (трассировки) — None."""
-    match = _LINE_RE.match(raw.rstrip("\n"))
+    # Универсальные переводы строк: файл лога на Windows содержит CRLF, и без
+    # снятия "\r" он попадал бы в message, который уходит на страницу «Логи».
+    match = _LINE_RE.match(raw.rstrip("\r\n"))
     if match is None:
         return None
     return LogRecord(

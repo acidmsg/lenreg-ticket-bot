@@ -212,6 +212,24 @@ def _prepare_dry_run_db(db_path: Path) -> tuple[Path, Path]:
     return copy_path, work_dir
 
 
+def _kill_process_tree(process: subprocess.Popen[str]) -> None:
+    """Убивает процесс инструмента вместе с потомками, где это поддержано.
+
+    Группа процессов — механизм POSIX: ``start_new_session=True`` в
+    :func:`_run_sync` делает инструмент лидером своей группы, поэтому потомки
+    скрипта умирают вместе с ним. На Windows ``os.killpg`` и ``signal.SIGKILL``
+    отсутствуют — там остаётся одиночное ``process.kill()``: честная деградация
+    без ложного обещания убрать потомков.
+    """
+    if sys.platform != "win32":
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            return
+        except OSError:
+            pass
+    process.kill()
+
+
 def _run_sync(
     argv: list[str], env: dict[str, str], work_dir: Path | None
 ) -> tuple[int, str, bool]:
@@ -235,10 +253,7 @@ def _run_sync(
     except subprocess.TimeoutExpired:
         # Убиваем всю группу процессов: дочерние процессы скрипта не должны
         # остаться работать, пока мы убираем его данные.
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        except OSError:
-            process.kill()
+        _kill_process_tree(process)
         process.communicate()
         return -1, f"Таймаут {TOOL_TIMEOUT_SECONDS} с: инструмент не завершился.", True
     except OSError as exc:

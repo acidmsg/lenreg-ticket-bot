@@ -129,9 +129,14 @@ def _safe_size(file_path: Path) -> int:
 
 
 def _display_path(path: str | Path, root: str | Path) -> str:
-    """Путь относительно корня проекта: на странице нет абсолютных путей хоста."""
+    """Путь относительно корня проекта в POSIX-виде: абсолютных путей хоста нет.
+
+    Разделитель — прямой слэш на любой ОС: значение уходит в HTML/JS страницы
+    ``/system``, где путь ОС хоста смысла не имеет, а обратные слэши на Windows
+    делали вывод разным для одинаковых данных.
+    """
     try:
-        return str(Path(path).resolve().relative_to(Path(root).resolve()))
+        return Path(path).resolve().relative_to(Path(root).resolve()).as_posix()
     except (ValueError, OSError):
         return Path(path).name
 
