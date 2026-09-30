@@ -2074,6 +2074,17 @@ async def book_appointment(
         error_detail = result.error.ErrorDescription or result.error.detail or ""
         error_id = result.error.IdError
 
+        if error_detail == "busy":
+            # Предыдущая запись ещё выполняется (защита от конкурентных запросов)
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "success": False,
+                    "error": "busy",
+                    "detail": format_error_message("busy"),
+                },
+            )
+
         if (
             error_id == 39
             or "занят" in error_detail.lower()

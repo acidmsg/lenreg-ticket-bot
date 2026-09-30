@@ -82,6 +82,11 @@ class ZdravClient:
         self.limiter = aiolimiter.AsyncLimiter(
             max_rate=10, time_period=60
         )  # для хендлеров (пользовательские запросы)
+        # Защита от конкурентных бронирований (аналог клиентского ``ajaxBusy``
+        # на портале): пока одна запись не завершилась, вторая не уходит в API.
+        # Бот и Mini App работают в одном процессе и используют один инстанс
+        # клиента (``app.state.zdrav_client``), поэтому лока хватает обоим.
+        self._book_lock = asyncio.Lock()
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0",
@@ -614,6 +619,38 @@ class ZdravClient:
         return None
 
     async def book_appointment(
+        self,
+        clinic_id: str,
+        patient_id: str,
+        appointment_id: str,
+        history_id: str = "",
+        referral_id: str = "",
+    ) -> SignupResponse:
+        """Бронирование талона с защитой от конкурентных запросов.
+
+        Пока предыдущая запись не завершилась, повторный вызов не уходит в API,
+        а сразу возвращает ``SignupResponse(success=False)`` с ``detail="busy"``
+        — аналог клиентской защиты ``ajaxBusy`` на портале. Это исключает
+        двойное бронирование одного талона из бота и Mini App.
+        """
+        if self._book_lock.locked():
+            logger.warning(
+                "Бронирование отклонено (busy): предыдущая запись ещё идёт "
+                "(clinic={} patient={} slot={})",
+                clinic_id,
+                patient_id,
+                appointment_id,
+            )
+            return SignupResponse(
+                success=False,
+                error=SignupError(detail="busy"),
+            )
+        async with self._book_lock:
+            return await self._book_appointment_request(
+                clinic_id, patient_id, appointment_id, history_id, referral_id
+            )
+
+    async def _book_appointment_request(
         self,
         clinic_id: str,
         patient_id: str,

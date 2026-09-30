@@ -1718,6 +1718,29 @@ async def book_confirm_section(
                     parse_mode="Markdown",
                 )
 
+    elif result.error and result.error.detail == "busy":
+        # Защита от дублей: предыдущая запись ещё выполняется (аналог ajaxBusy)
+        error_text = format_error_message("busy")
+
+        builder = InlineKeyboardBuilder()
+        builder.button(
+            text=_("btn-booking-back"),
+            callback_data=DoctorSection(
+                p_id=p_id, clinic_id=clinic_id, d_id=d_id
+            ).pack(),
+        )
+        reply_markup = builder.as_markup()
+
+        try:
+            if isinstance(call.message, Message):
+                await call.message.edit_text(
+                    error_text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown",
+                )
+        except Exception:
+            logger.debug("Не удалось показать сообщение «запись уже выполняется»")
+
     elif result.error and result.error.IdError == 39:
         # Слот занят — кнопка «Назад к слотам»
         error_text = format_error_message("slot_taken")
