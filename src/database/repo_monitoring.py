@@ -163,3 +163,33 @@ class MonitoringRepository(BaseRepository):
         )
         await self._c.commit()
         return int(cursor.rowcount or 0)
+
+    async def delete_patient_monitoring(self, uid: str, p_id: str) -> int:
+        """Удаляет весь мониторинг пациента (все пары пациент + врач).
+
+        Returns:
+            Сколько пар пациент-врач удалено (0, если их не было).
+        """
+        cursor = await self._c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ? AND p_id = ?", (uid, p_id)
+        )
+        await self._c.commit()
+        return int(cursor.rowcount or 0)
+
+    async def delete_clinic_monitoring(
+        self, uid: str, p_id: str, clinic_id: str
+    ) -> int:
+        """Удаляет мониторинг пациента по одной клинике.
+
+        Фильтр отслеживания хранится в той же строке пары, поэтому удаление
+        строки снимает и фильтр врача.
+
+        Returns:
+            Сколько пар пациент-врач удалено (0, если их не было).
+        """
+        cursor = await self._c.execute(
+            "DELETE FROM user_monitoring WHERE uid = ? AND p_id = ? AND clinic_id = ?",
+            (uid, p_id, clinic_id),
+        )
+        await self._c.commit()
+        return int(cursor.rowcount or 0)

@@ -734,3 +734,19 @@ msgstr "Ticket number: {ticket}"
 #: src/handlers/common.py
 msgid "booking-ticket-barcode-unavailable"
 msgstr "Ticket barcode unavailable — show this ticket number: {ticket}"
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-all-confirm"
+msgstr "Reset all monitoring? All doctors will be untracked."
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-clinic-confirm"
+msgstr "Reset all doctors of clinic “{clinic}” for patient “{patient}”?"
+
+#: src/web/static/app/js/views/patients.js
+msgid "monitoring-reset-patient-confirm"
+msgstr "Reset monitoring for patient “{name}”? All their doctors will be untracked."
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-error"
+msgstr "❌ Failed to reset monitoring: {reason}"

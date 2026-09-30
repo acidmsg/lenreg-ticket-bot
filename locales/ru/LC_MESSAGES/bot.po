@@ -733,3 +733,19 @@ msgstr "Номер талона: {ticket}"
 #: src/handlers/common.py
 msgid "booking-ticket-barcode-unavailable"
 msgstr "Штрих-код талона недоступен — покажите этот номер талона: {ticket}"
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-all-confirm"
+msgstr "Сбросить весь мониторинг? Все врачи будут сняты с отслеживания."
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-clinic-confirm"
+msgstr "Сбросить всех врачей клиники «{clinic}» для пациента «{patient}»?"
+
+#: src/web/static/app/js/views/patients.js
+msgid "monitoring-reset-patient-confirm"
+msgstr "Сбросить мониторинг пациента «{name}»? Все его врачи будут сняты с отслеживания."
+
+#: src/web/static/app/js/views/doctors.js
+msgid "monitoring-reset-error"
+msgstr "❌ Не удалось сбросить мониторинг: {reason}"

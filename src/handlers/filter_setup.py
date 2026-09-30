@@ -40,16 +40,16 @@ from src.keyboards.inline import (
     get_filter_summary_keyboard,
     get_filter_wizard_keyboard,
 )
+from src.utils.filter_rules import (
+    FILTER_MAX_HORIZON_DAYS,
+    FILTER_MAX_SPECIFIC_DATES,
+)
 
 router = Router()
 
 # ── Константы модели фильтра (§9.3.5, §9.6) ───────────────────────────────────
-
-#: Максимальный горизонт даты фильтра — 365 дней от сегодня.
-FILTER_MAX_HORIZON_DAYS = 365
-
-#: Максимальное число конкретных дат в allow-списке.
-FILTER_MAX_SPECIFIC_DATES = 10
+# Числовые границы живут в src.utils.filter_rules — единый источник для бота и
+# Mini App (см. ``user_api._validate_filter_date``).
 
 #: Прочерк для пустой границы интервала в сводке.
 _EMPTY_BOUNDARY = "—"

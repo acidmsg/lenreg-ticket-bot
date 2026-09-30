@@ -209,6 +209,7 @@ function renderDoctorList(doctors) {
         doctorName: group.doctorName,
         specialty: group.specialty,
         clinicName: group.clinicName,
+        clinicId: group.clinicId,
         status: group.status,
         freeTickets: group.freeTickets,
         matchingFreeTickets: group.matchingFreeTickets,
@@ -220,7 +221,14 @@ function renderDoctorList(doctors) {
     })
     .join("");
 
-  return `<div class="doctors-list">${cards}</div>`;
+  return `
+    <div class="doctors-toolbar">
+      <button class="btn btn--secondary btn--sm" id="reset-all-monitoring">
+        <span class="lucide-icon">${lucideIcon("circle-slash", 16)}</span> 🛑 Сбросить весь мониторинг
+      </button>
+    </div>
+    <div class="doctors-list">${cards}</div>
+  `;
 }
 
 /**
@@ -313,6 +321,97 @@ async function handleDoctorDelete(btn, container) {
 }
 
 /**
+ * Показывает уведомление о результате сброса мониторинга.
+ *
+ * @param {string} message — текст уведомления
+ */
+function notifyReset(message) {
+  if (typeof window.showToast === "function") {
+    window.showToast(message);
+  } else if (isInTelegram()) {
+    window.Telegram.WebApp.showAlert(message);
+  } else {
+    alert(message);
+  }
+}
+
+/**
+ * Показывает ошибку сброса мониторинга.
+ *
+ * @param {Error} error — ошибка запроса
+ */
+function showResetError(error) {
+  notifyReset(`❌ Не удалось сбросить мониторинг: ${error.message}`);
+}
+
+/**
+ * Сбрасывает весь мониторинг пользователя (паритет с ботом).
+ *
+ * @param {HTMLElement} container — контейнер списка
+ * @param {HTMLElement} btn — кнопка сброса
+ */
+async function handleResetAll(container, btn) {
+  btn.blur();
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
+  }
+
+  const confirmed = await showConfirm(
+    "Сбросить весь мониторинг? Все врачи будут сняты с отслеживания.",
+  );
+  if (!confirmed) return;
+
+  try {
+    await apiDelete("/monitoring");
+    if (isInTelegram()) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+    }
+    notifyReset("✅ Весь мониторинг остановлен.");
+    await renderDoctors(container);
+  } catch (error) {
+    showResetError(error);
+  }
+}
+
+/**
+ * Сбрасывает мониторинг врачей клиники для пациента (паритет с ботом).
+ *
+ * @param {HTMLElement} btn — иконка сброса в строке пациента
+ * @param {HTMLElement} container — контейнер списка
+ */
+async function handleClinicReset(btn, container) {
+  btn.blur();
+  const patientId = btn.getAttribute("data-patient-id");
+  const clinicId = btn.getAttribute("data-clinic-id");
+  const patientName = btn.getAttribute("data-patient-name") || "пациента";
+  const clinicName = btn.getAttribute("data-clinic-name") || "этой клиники";
+  if (!patientId || !clinicId) return;
+
+  if (window.Telegram?.WebApp?.HapticFeedback) {
+    window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
+  }
+
+  const confirmed = await showConfirm(
+    `Сбросить всех врачей клиники «${clinicName}» для пациента «${patientName}»?`,
+  );
+  if (!confirmed) return;
+
+  try {
+    const path =
+      `/monitoring/patients/${encodeURIComponent(patientId)}` +
+      `/clinics/${encodeURIComponent(clinicId)}`;
+    await apiDelete(path);
+    if (isInTelegram()) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+    }
+    notifyReset("✅ Мониторинг для клиники сброшен.");
+    await renderDoctors(container);
+  } catch (error) {
+    showResetError(error);
+  }
+}
+
+/**
  * Привязывает обработчик клика по карточке врача → открытие слотов.
  *
  * @param {HTMLElement} container — контейнер со списком
@@ -325,6 +424,7 @@ function bindDoctorCardClick(container, doctors) {
       // фильтра и кнопке обновления
       if (e.target.closest(".monitoring-patient__delete")) return;
       if (e.target.closest(".monitoring-patient__filter")) return;
+      if (e.target.closest(".monitoring-patient__reset-clinic")) return;
       if (e.target.closest(".btn--refresh")) return;
 
       // Находим пациентов для этой карточки
@@ -404,6 +504,34 @@ function bindFilterButtons(container, doctors) {
 }
 
 /**
+ * Привязывает обработчики кнопок сброса мониторинга клиники в строках пациентов.
+ *
+ * @param {HTMLElement} container — контейнер со списком
+ */
+function bindClinicResetButtons(container) {
+  container
+    .querySelectorAll(".monitoring-patient__reset-clinic")
+    .forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleClinicReset(btn, container);
+      });
+    });
+}
+
+/**
+ * Привязывает обработчик кнопки полного сброса мониторинга.
+ *
+ * @param {HTMLElement} container — контейнер со списком
+ */
+function bindResetAllButton(container) {
+  const btn = container.querySelector("#reset-all-monitoring");
+  if (btn) {
+    btn.addEventListener("click", () => handleResetAll(container, btn));
+  }
+}
+
+/**
  * Привязывает обработчики событий для списка врачей.
  *
  * @param {HTMLElement} container — контейнер со списком
@@ -413,6 +541,8 @@ function bindDoctorEvents(container, doctors) {
   bindDoctorCardClick(container, doctors);
   bindDoctorRefreshButtons(container);
   bindDoctorDeleteButtons(container);
+  bindClinicResetButtons(container);
+  bindResetAllButton(container);
   bindFilterButtons(container, doctors);
   bindPatientSelects(container, doctors);
 }
@@ -428,16 +558,18 @@ function bindDoctorEvents(container, doctors) {
  * @param {Array} doctors — массив врачей
  */
 function bindPatientSelects(container, doctors) {
-  container.querySelectorAll(".doctor-card__patient-select").forEach((select) => {
-    select.addEventListener("click", (e) => e.stopPropagation());
-    select.addEventListener("change", (e) => {
-      e.stopPropagation();
-      const card = select.closest(".doctor-card");
-      if (!card || !select.value) return;
-      const patients = findPatientsForCard(card, doctors);
-      navigate("slots", { monitoringId: select.value, patients });
+  container
+    .querySelectorAll(".doctor-card__patient-select")
+    .forEach((select) => {
+      select.addEventListener("click", (e) => e.stopPropagation());
+      select.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const card = select.closest(".doctor-card");
+        if (!card || !select.value) return;
+        const patients = findPatientsForCard(card, doctors);
+        navigate("slots", { monitoringId: select.value, patients });
+      });
     });
-  });
 }
 
 /**

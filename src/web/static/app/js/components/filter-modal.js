@@ -19,8 +19,14 @@ import { lucideIcon } from "./icon.js";
 /** Максимальное число конкретных дат (§9.5.4). */
 const MAX_SPECIFIC_DATES = 10;
 
+/** Максимальный горизонт даты фильтра — 365 дней от сегодня (§9.5.4). */
+const MAX_FILTER_HORIZON_DAYS = 365;
+
 /** Формат даты ГГГГ-ММ-ДД (§9.5.4). */
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Формат времени ЧЧ:ММ (§9.5.4). */
+const ISO_TIME_PATTERN = /^\d{2}:\d{2}$/;
 
 /** Разделитель токенов конкретных дат: запятая или пробел (§9.5.4). */
 const SPECIFIC_DATES_DIVIDER = /[\s,]+/;
@@ -58,6 +64,10 @@ const TEXT = {
   reset: "Сбросить",
   saved: "✅ Фильтр обновлён",
   saveError: "❌ Не удалось сохранить фильтр: {reason}",
+  errorDateFormat: "❌ Неверный формат даты. Ожидается ГГГГ-ММ-ДД.",
+  errorDatePast: "❌ Дата не может быть в прошлом.",
+  errorDateHorizon: "❌ Дата не может быть позже чем через 365 дней.",
+  errorTimeFormat: "❌ Неверный формат времени. Ожидается ЧЧ:ММ.",
   errorDateRange: "❌ Дата окончания раньше даты начала.",
   errorTimeRange: "❌ Конец интервала времени раньше начала.",
   errorSpecificDates:
@@ -364,23 +374,107 @@ export function parseSpecificDates(raw) {
 }
 
 /**
- * Проверяет форму по матрице §9.5.4/§9.6.
+ * Возвращает локальную дату в формате ГГГГ-ММ-ДД.
+ *
+ * @param {Date} [now=new Date()] — опорный момент времени
+ * @returns {string} дата в формате ГГГГ-ММ-ДД
+ */
+export function currentIsoDate(now = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Сдвигает ISO-дату на заданное число дней (локальный календарь).
+ *
+ * @param {string} iso — дата в формате ГГГГ-ММ-ДД
+ * @param {number} days — сдвиг в днях (может быть отрицательным)
+ * @returns {string} сдвинутая дата в формате ГГГГ-ММ-ДД
+ */
+export function addIsoDays(iso, days) {
+  const date = new Date(`${iso}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return currentIsoDate(date);
+}
+
+/**
+ * Проверяет время на существование (зеркало `time.fromisoformat`).
+ *
+ * @param {string} value — время в формате ЧЧ:ММ
+ * @returns {boolean} `true`, если время корректно
+ */
+export function isRealTimeValue(value) {
+  if (!ISO_TIME_PATTERN.test(value)) return false;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+}
+
+/**
+ * Проверяет дату по правилам бота (§9.5.4): формат, не в прошлом, в горизонте.
+ *
+ * @param {string} value — значение поля в формате ГГГГ-ММ-ДД (пустое допустимо)
+ * @param {string} today — опорная дата в формате ГГГГ-ММ-ДД
+ * @returns {string} текст ошибки либо пустая строка
+ */
+function validateDateValue(value, today) {
+  if (!value) return "";
+  if (!isRealIsoDate(value)) return TEXT.errorDateFormat;
+  if (value < today) return TEXT.errorDatePast;
+  if (value > addIsoDays(today, MAX_FILTER_HORIZON_DAYS)) {
+    return TEXT.errorDateHorizon;
+  }
+  return "";
+}
+
+/**
+ * Проверяет форму по матрице §9.5.4/§9.6 — единые правила с ботом.
+ *
+ * Границы даты: не раньше сегодня и не позже сегодня + 365 дней; конкретные
+ * даты — не в прошлом, не более 10. Пустые поля ограничения не задают.
  *
  * @param {object} fields — значения полей формы
+ * @param {object} [options] — параметры проверки
+ * @param {string} [options.today] — опорная дата ГГГГ-ММ-ДД (по умолчанию — сегодня)
  * @returns {{errors: object, specificDates: Array<string>}} ошибки и разобранные даты
  */
-export function validateFilter(fields) {
+export function validateFilter(fields, { today = currentIsoDate() } = {}) {
   const errors = {};
 
-  if (fields.date_from && fields.date_to && fields.date_to < fields.date_from) {
+  const dateFromError = validateDateValue(fields.date_from, today);
+  if (dateFromError) errors.date_from = dateFromError;
+  const dateToError = validateDateValue(fields.date_to, today);
+  if (dateToError) errors.date_to = dateToError;
+
+  if (fields.time_from && !isRealTimeValue(fields.time_from)) {
+    errors.time_from = TEXT.errorTimeFormat;
+  }
+  if (fields.time_to && !isRealTimeValue(fields.time_to)) {
+    errors.time_to = TEXT.errorTimeFormat;
+  }
+
+  if (
+    !errors.date_from &&
+    !errors.date_to &&
+    fields.date_from &&
+    fields.date_to &&
+    fields.date_to < fields.date_from
+  ) {
     errors.date_to = TEXT.errorDateRange;
   }
-  if (fields.time_from && fields.time_to && fields.time_to < fields.time_from) {
+  if (
+    !errors.time_from &&
+    !errors.time_to &&
+    fields.time_from &&
+    fields.time_to &&
+    fields.time_to < fields.time_from
+  ) {
     errors.time_to = TEXT.errorTimeRange;
   }
 
   const parsed = parseSpecificDates(fields.specific_dates);
-  if (!parsed.valid) {
+  if (!parsed.valid || parsed.dates.some((date) => date < today)) {
     errors.specific_dates = TEXT.errorSpecificDates;
   }
 
@@ -537,6 +631,10 @@ function resolveErrorField(detail, elements) {
   if (lowered.includes("time_from")) return "time_from";
   if (lowered.includes("time_to")) return "time_to";
   if (lowered.includes("specific")) return "specific_dates";
+  // Русские тексты серверной валидации (§9.3.5).
+  if (lowered.includes("окончания раньше")) return "date_to";
+  if (lowered.includes("интервала времени")) return "time_to";
+  if (lowered.includes("конкретных дат")) return "specific_dates";
   return null;
 }
 

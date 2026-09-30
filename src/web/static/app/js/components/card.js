@@ -20,6 +20,7 @@ import {
  * @param {string} options.doctorName — ФИО врача
  * @param {string} options.specialty — специальность
  * @param {string} options.clinicName — название клиники
+ * @param {string} [options.clinicId=""] — ID клиники (для сброса мониторинга клиники)
  * @param {string} options.status — статус: 'slots_available', 'no_slots', 'checking'
  * @param {number} [options.freeTickets=0] — общее количество свободных слотов
  * @param {number} [options.matchingFreeTickets=0] — количество слотов, подходящих под фильтр (§7.3)
@@ -31,6 +32,7 @@ export function createDoctorCard({
   doctorName,
   specialty,
   clinicName,
+  clinicId = "",
   status,
   freeTickets = 0,
   matchingFreeTickets = 0,
@@ -63,6 +65,20 @@ export function createDoctorCard({
               role="button"
               tabindex="0"
             >${lucideIcon("sliders-horizontal", 16)}</span>
+            ${
+              isMonitored && clinicId
+                ? `<span
+              class="monitoring-patient__reset-clinic"
+              data-patient-id="${escapeHtml(p.patientId)}"
+              data-clinic-id="${escapeHtml(clinicId)}"
+              data-patient-name="${escapeHtml(p.name)}"
+              data-clinic-name="${escapeHtml(clinicName)}"
+              title="Сбросить мониторинг этой клиники для пациента"
+              role="button"
+              tabindex="0"
+            >${lucideIcon("hospital", 16)}</span>`
+                : ""
+            }
             <span
               class="monitoring-patient__delete"
               data-entry-id="${escapeHtml(p.entryId)}"

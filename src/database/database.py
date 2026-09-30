@@ -176,6 +176,24 @@ class Database:
         """Удаляет все записи мониторинга пользователя."""
         return await self.monitoring.clear_all_monitoring(uid)
 
+    async def delete_patient_monitoring(self, uid: str, p_id: str) -> int:
+        """Удаляет весь мониторинг пациента (делегирует в репозиторий).
+
+        Returns:
+            Сколько пар пациент-врач удалено.
+        """
+        return await self.monitoring.delete_patient_monitoring(uid, p_id)
+
+    async def delete_clinic_monitoring(
+        self, uid: str, p_id: str, clinic_id: str
+    ) -> int:
+        """Удаляет мониторинг пациента по одной клинике (делегирует).
+
+        Returns:
+            Сколько пар пациент-врач удалено.
+        """
+        return await self.monitoring.delete_clinic_monitoring(uid, p_id, clinic_id)
+
     async def delete_patient(self, uid: str, p_id: str) -> int:
         """Удаляет пациента и все связанные данные в одной транзакции.
 

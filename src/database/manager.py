@@ -363,6 +363,64 @@ class DatabaseManager:
                 self._data_cache[uid]["monitoring"] = {}
             await self._db.clear_all_monitoring(uid)
 
+    async def remove_patient_monitoring(self, uid: str, p_id: str) -> int:
+        """Идемпотентно снимает наблюдение за всеми врачами пациента.
+
+        Паритет с кнопкой бота «Сбросить мониторинг этого пациента»: удаляются
+        все пары пациент + врач, включая их фильтры отслеживания.
+
+        Returns:
+            Число удалённых пар пациент + врач (0, если их не было).
+        """
+        uid = str(uid)
+        async with self._lock:
+            monitoring = await self._db.get_user_monitoring(uid)
+            deleted = await self._db.delete_patient_monitoring(uid, p_id)
+            updated = await self._db.get_user(uid)
+            if updated:
+                self._data_cache[uid] = updated
+            else:
+                self._get_user_data_nolock(uid)["monitoring"].pop(p_id, None)
+            logger.info(
+                "Мониторинг пациента снят: uid={}, p_id={}, удалено={}",
+                uid,
+                p_id,
+                max(deleted, len(monitoring.get(p_id, {}))),
+            )
+            return deleted
+
+    async def remove_clinic_monitoring(
+        self, uid: str, p_id: str, clinic_id: str
+    ) -> list[str]:
+        """Идемпотентно снимает наблюдение за всеми врачами клиники пациента.
+
+        Паритет с кнопкой бота «Сбросить мониторинг этой клиники»: удаляются все
+        пары пациент + врач, где врач относится к ``clinic_id``.
+
+        Returns:
+            Отсортированный список снятых ``doctor_id`` (пусто, если их не было).
+        """
+        uid = str(uid)
+        async with self._lock:
+            monitoring = await self._db.get_user_monitoring(uid)
+            removed = sorted(
+                d_id
+                for d_id, info in monitoring.get(p_id, {}).items()
+                if info.get("clinic_id") == clinic_id
+            )
+            deleted = await self._db.delete_clinic_monitoring(uid, p_id, clinic_id)
+            updated = await self._db.get_user(uid)
+            if updated:
+                self._data_cache[uid] = updated
+            logger.info(
+                "Мониторинг клиники снят: uid={}, p_id={}, clinic_id={}, удалено={}",
+                uid,
+                p_id,
+                clinic_id,
+                max(deleted, len(removed)),
+            )
+            return removed
+
     async def delete_patient(self, uid: str, p_id: str) -> int:
         """Удаляет пациента и обновляет кеш данных.
 

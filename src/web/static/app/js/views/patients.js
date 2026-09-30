@@ -634,6 +634,9 @@ function renderPatientList(patients) {
           ${p.alias ? `<div class="patient-card__alias">${escapeHtml(p.alias)}</div>` : ""}
           ${p.needs_check ? `<div class="patient-card__badge">⚠️ требует проверки</div>` : ""}
         </div>
+        <button class="patient-card__reset" data-patient-id="${escapeHtml(p.patient_id)}" data-patient-name="${escapeHtml(p.fio || "")}" aria-label="Сбросить мониторинг пациента">
+          ${lucideIcon("circle-slash", 18)}
+        </button>
         <button class="patient-card__edit" data-patient-id="${escapeHtml(p.patient_id)}" aria-label="Изменить пациента">
           ${lucideIcon("pencil", 18)}
         </button>
@@ -708,6 +711,37 @@ function bindEvents(container, patients = []) {
         }
       } finally {
         btn.disabled = false;
+      }
+    });
+  });
+
+  // Обработчики кнопок сброса мониторинга пациента (паритет с ботом)
+  container.querySelectorAll(".patient-card__reset").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const patientId = btn.dataset.patientId;
+      const patientName = btn.dataset.patientName || "пациента";
+      const confirmed = await showConfirm(
+        `Сбросить мониторинг пациента «${patientName}»? Все его врачи будут сняты с отслеживания.`,
+      );
+      if (!confirmed) return;
+      try {
+        await apiDelete(
+          `/monitoring/patients/${encodeURIComponent(patientId)}`,
+        );
+        if (window.showToast) {
+          window.showToast("✅ Мониторинг для пациента сброшен.");
+        }
+        const patientsContainer = container.closest("#patients-content");
+        if (patientsContainer) {
+          await renderPatients(patientsContainer);
+        }
+      } catch (error) {
+        if (window.showToast) {
+          window.showToast(error.message, "error");
+        } else {
+          alert(error.message);
+        }
       }
     });
   });
