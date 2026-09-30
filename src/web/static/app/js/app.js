@@ -5,8 +5,14 @@
  * @module app
  */
 
-import { isInTelegram, getUserInfo, getInitDataError } from "./auth.js";
+import {
+  isInTelegram,
+  getUserInfo,
+  getInitDataError,
+  getStartParam,
+} from "./auth.js";
 import { escapeHtml } from "./utils/escape.js";
+import { parseStartParam } from "./utils/start-param.js";
 import { renderDoctors } from "./views/doctors.js";
 import { renderAddDoctor } from "./views/add.js";
 import { renderSlots } from "./views/slots.js";
@@ -311,6 +317,15 @@ function init() {
         window.Telegram.WebApp.close();
       });
     }
+    return;
+  }
+
+  // Deep-link (`?startapp=…`) — открываем целевой экран до первого рендера.
+  // navigate() кладёт главный экран в историю, поэтому «Назад» вернёт на него,
+  // а не закроет Mini App.
+  const startTarget = parseStartParam(getStartParam());
+  if (startTarget) {
+    navigate(startTarget.route, startTarget.params);
     return;
   }
 

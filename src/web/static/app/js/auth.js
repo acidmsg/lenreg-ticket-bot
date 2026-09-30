@@ -28,6 +28,23 @@ export function getInitData() {
 }
 
 /**
+ * Возвращает deep-link параметр `startapp` из Telegram Mini App.
+ *
+ * Telegram заполняет `initDataUnsafe.start_param` только при открытии по
+ * прямой ссылке `https://t.me/<bot>?startapp=…` (или из attachment-menu).
+ * У inline-кнопки `WebAppInfo(url=…)` параметр не приходит — там он пуст.
+ *
+ * @returns {string} параметр startapp или пустая строка (не в Telegram/не задан)
+ */
+export function getStartParam() {
+  if (!isInTelegram()) {
+    return "";
+  }
+  const unsafe = window.Telegram.WebApp.initDataUnsafe;
+  return (unsafe && unsafe.start_param) || "";
+}
+
+/**
  * Возвращает понятное пользователю сообщение об ошибке, если initData пуст.
  * Используется для отображения причины недоступности приложения.
  *

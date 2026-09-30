@@ -39,6 +39,7 @@ from src.handlers.callbacks import (
     UnsubscribeMonitoring,
 )
 from src.i18n import _
+from src.utils.bot_identity import get_bot_username
 from src.utils.helpers import (
     format_slot_date,
     is_cabinet,
@@ -52,8 +53,11 @@ def get_notification_keyboard(p_id: str, d_id: str) -> InlineKeyboardMarkup:
     """Инлайн-клавиатура уведомления о свободных номерках.
 
     Кнопки:
-    - «Открыть в приложении» — web_app-кнопка Mini App (только если Mini App
-      включён и задан URL); ведёт на форму записи.
+    - «Открыть в приложении» — открывает экран номерков конкретного врача.
+      Если username бота разрешён (см. :func:`resolve_bot_username`), ставится
+      deep-link `https://t.me/<bot>?startapp=slots_<p_id>_<d_id>`: Telegram
+      откроет Mini App сразу на нужном экране. Без username (тесты, офлайн,
+      режим стенда) — прежняя web_app-кнопка без параметров.
     - «Отписаться» — снимает мониторинг пары (пациент + врач) одним тапом.
 
     Args:
@@ -65,10 +69,17 @@ def get_notification_keyboard(p_id: str, d_id: str) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:
-        builder.button(
-            text=_("btn-open-mini-app"),
-            web_app=WebAppInfo(url=settings.MINI_APP_URL),
-        )
+        bot_username = get_bot_username()
+        if bot_username:
+            builder.button(
+                text=_("btn-open-mini-app"),
+                url=f"https://t.me/{bot_username}?startapp=slots_{p_id}_{d_id}",
+            )
+        else:
+            builder.button(
+                text=_("btn-open-mini-app"),
+                web_app=WebAppInfo(url=settings.MINI_APP_URL),
+            )
     builder.button(
         text=_("btn-unsubscribe"),
         callback_data=UnsubscribeMonitoring(p_id=p_id, d_id=d_id).pack(),

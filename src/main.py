@@ -51,6 +51,7 @@ from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import _monitor_iteration
 from src.services.telegram_health import check_bot_api
+from src.utils.bot_identity import resolve_bot_username
 from src.utils.logging import setup_logging
 from src.utils.proxy_discovery import (
     _parse_proxy_host_port,
@@ -736,6 +737,9 @@ async def bootstrap_bot(
         )
     else:
         await _bot_me_with_retry(bot)
+        # Username нужен deep-link'ам уведомлений (t.me/<bot>?startapp=…) и
+        # разрешается один раз: bot.me() уже закеширован проверкой выше.
+        await resolve_bot_username(bot)
 
     return bot, dp
 
