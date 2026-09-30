@@ -93,7 +93,8 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
-from src.utils.telegram_utils import send_or_update_message
+from src.utils.rich_messages import build_main_screen_rich
+from src.utils.telegram_utils import send_or_update_message, send_or_update_rich_message
 
 router = Router()
 # Хранит city_idx последнего выбора клиники для каждого пользователя
@@ -401,6 +402,69 @@ def build_monitoring_summary(
     return "\n".join(lines)
 
 
+def _build_main_screen_text(
+    patients: dict[str, PatientInfo],
+    monitoring: dict[str, dict[str, MonitoringEntry]],
+) -> str:
+    """Обычный текст главного экрана — fallback rich-сообщения."""
+    if not patients:
+        return _("no-patients-welcome")
+    summary = build_monitoring_summary(patients, monitoring)
+    return _("patient-list-header") + summary
+
+
+async def _send_main_screen(
+    bot: Bot | None,
+    msg: Message,
+    db: DatabaseManager | None,
+    patients: dict[str, PatientInfo],
+    monitoring: dict[str, dict[str, MonitoringEntry]],
+    old_message: Message | None = None,
+) -> Message | None:
+    """Отправляет главный экран в rich-форматировании (Bot API 10.3).
+
+    Без бота или БД (тестовый режим) — редактирует текущее сообщение обычным
+    текстом. Иначе удаляет предыдущий nav-экран (``last_messages["__nav__"]``,
+    при необходимости — ``old_message``) и отправляет rich-сообщение с
+    изображением-шапкой и инлайн-клавиатурой.
+
+    Args:
+        bot: Экземпляр бота либо ``None`` (fallback-режим).
+        msg: Сообщение, в контексте которого считаем chat_id.
+        db: Менеджер БД для кэша nav-сообщения.
+        patients: Пациенты пользователя.
+        monitoring: Мониторинг пользователя.
+        old_message: Сообщение для удаления перед отправкой (например,
+            ``call.message``); для ``/start`` — ``None``.
+    """
+    reply_markup = get_patient_selection(patients, monitoring)
+    plain_text = _build_main_screen_text(patients, monitoring)
+
+    if bot is None or db is None:
+        parse_mode = "Markdown" if patients else None
+        with contextlib.suppress(Exception):
+            await msg.edit_text(
+                plain_text, reply_markup=reply_markup, parse_mode=parse_mode
+            )
+            return msg
+        return None
+
+    photo_path = get_nav_image_path("patient")
+    rich_message = build_main_screen_rich(patients, monitoring, photo_path)
+    return await send_or_update_rich_message(
+        bot,
+        msg.chat.id,
+        db,
+        "__nav__",
+        "__nav__",
+        rich_message,
+        fallback_text=plain_text,
+        photo_path=photo_path,
+        reply_markup=reply_markup,
+        old_message=old_message,
+    )
+
+
 # ── Хендлеры ──────────────────────────────────────────────────
 
 
@@ -421,7 +485,7 @@ async def cmd_start(
     bot: Bot,
     state: FSMContext | None = None,
 ) -> None:
-    """Команда /start — приветствие с изображением-заголовком patient_select.
+    """Команда /start — главный экран в rich-форматировании (Bot API 10.3).
 
     Прерывает любой незавершённый FSM-сценарий, в том числе мастер фильтра (§9.3.6).
     """
@@ -440,40 +504,9 @@ async def cmd_start(
     await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
     await db.update_user(uid, {"last_messages": {}})
 
-    if not user_data.get("patients"):
-        text = _("no-patients-welcome")
-        reply_markup = get_patient_selection({}, {})
-        parse_mode = None
-    else:
-        summary = build_monitoring_summary(
-            user_data["patients"], user_data["monitoring"]
-        )
-        text = _("patient-list-header") + summary
-        reply_markup = get_patient_selection(
-            user_data["patients"], user_data["monitoring"]
-        )
-        parse_mode = "Markdown"
-
-    photo_path = get_nav_image_path("patient")
-    result_msg: Message | None = None
-    try:
-        if photo_path is not None:
-            photo = FSInputFile(photo_path)
-            result_msg = await message.answer_photo(
-                photo, caption=text, reply_markup=reply_markup, parse_mode=parse_mode
-            )
-        else:
-            result_msg = await message.answer(
-                text, reply_markup=reply_markup, parse_mode=parse_mode
-            )
-    except Exception:
-        result_msg = await message.answer(
-            text, reply_markup=reply_markup, parse_mode=parse_mode
-        )
-
-    # Сохраняем ID нового навигационного сообщения
-    if result_msg is not None:
-        await db.set_last_message_id(uid, "__nav__", "__nav__", result_msg.message_id)
+    await _send_main_screen(
+        bot, message, db, user_data["patients"], user_data["monitoring"]
+    )
 
     # Отправляем reply-клавиатуру с кнопкой Mini App (если включено)
     if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:
@@ -486,7 +519,7 @@ async def cmd_start(
 
 @router.callback_query(F.data == CB_BACK_TO_MAIN)
 async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
-    """Возврат в главное меню с изображением-заголовком patient_select."""
+    """Возврат в главное меню в rich-форматировании (Bot API 10.3)."""
     if not call.from_user or not call.message or not isinstance(call.message, Message):
         return
     uid = str(call.from_user.id)
@@ -498,19 +531,14 @@ async def back_to_main(call: CallbackQuery, db: DatabaseManager) -> None:
 
     user_data = await db.get_user_data(uid)
 
-    if not user_data.get("patients"):
-        text = _("no-patients-welcome")
-        reply_markup = get_patient_selection({}, {})
-    else:
-        summary = build_monitoring_summary(
-            user_data["patients"], user_data["monitoring"]
-        )
-        text = _("patient-list-header") + summary
-        reply_markup = get_patient_selection(
-            user_data["patients"], user_data["monitoring"]
-        )
-
-    await _send_nav_photo(call.bot, call.message, "patient", text, reply_markup, db=db)
+    await _send_main_screen(
+        call.bot,
+        call.message,
+        db,
+        user_data["patients"],
+        user_data["monitoring"],
+        old_message=call.message,
+    )
 
     # Отправляем reply-клавиатуру с кнопкой Mini App (если включено)
     if settings.MINI_APP_ENABLED and settings.MINI_APP_URL:

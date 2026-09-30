@@ -44,6 +44,34 @@ msgstr ""
 "📋 **Ваши пациенты:**\n---\n"
 "Выберите пациента для настройки мониторинга"
 
+#: src/utils/rich_messages.py
+msgid "main-screen-heading"
+msgstr "📋 Ваши пациенты"
+
+#: src/utils/rich_messages.py
+msgid "main-screen-subtitle"
+msgstr "Выберите пациента для настройки мониторинга"
+
+#: src/utils/rich_messages.py
+msgid "monitoring-summary-heading"
+msgstr "📊 Активный мониторинг"
+
+#: src/utils/rich_messages.py
+msgid "monitoring-patient-summary"
+msgstr "👤 {name} · 🧑‍⚕️ {count}"
+
+#: src/utils/rich_messages.py
+msgid "monitoring-patient-without-doctors"
+msgstr "👤 {name} · без мониторинга"
+
+#: src/utils/rich_messages.py
+msgid "monitoring-doctor-line"
+msgstr "🧑‍⚕️ {name} — {specialty}"
+
+#: src/utils/rich_messages.py
+msgid "monitoring-doctor-line-no-specialty"
+msgstr "🧑‍⚕️ {name}"
+
 #: src/handlers/common.py:517, 584
 msgid "select-city-prompt"
 msgstr "📍 Сначала выберите город/район:"
