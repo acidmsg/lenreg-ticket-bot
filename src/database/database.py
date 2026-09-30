@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import aiosqlite
 from loguru import logger
 
@@ -20,8 +22,10 @@ from src.database.repo_clinics import (
 from src.database.repo_config import ConfigRepository
 from src.database.repo_doctors import DoctorRepository
 from src.database.repo_favorites import FavoriteRepository
+from src.database.repo_metrics import MetricsRepository
 from src.database.repo_monitoring import MonitoringRepository
 from src.database.repo_search import SearchRepository
+from src.database.repo_slots import SlotsRepository
 from src.database.repo_users import UserRepository
 from src.database.types import (
     BookingEntry,
@@ -58,6 +62,8 @@ class Database:
         self.config = ConfigRepository(self._conn)
         self.audit = AuditRepository(self._conn)
         self.search = SearchRepository(self._conn)
+        self.metrics = MetricsRepository(self._conn)
+        self.slots = SlotsRepository(self._conn)
 
     @property
     def conn(self) -> aiosqlite.Connection | None:
@@ -225,9 +231,27 @@ class Database:
 
         return new_count
 
+    async def get_total_doctor_count(self) -> int:
+        """Общее число врачей в справочнике."""
+        return await self.doctors.get_total_doctor_count()
+
     async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
         """Поиск врачей по подстроке в имени (глобально)."""
         return await self.doctors.search_doctors_by_name(query, limit)
+
+    # ── Метрики discovery (PERF-OBS) ────────────────────────
+
+    async def record_discovery_stats(
+        self, *, doctors_total: int, doctors_added: int, ts: float | None = None
+    ) -> None:
+        """Записывает итоги цикла discovery в почасовые метрики."""
+        return await self.metrics.record_discovery(
+            doctors_total=doctors_total, doctors_added=doctors_added, ts=ts
+        )
+
+    async def get_discovery_history(self, hours: int = 168) -> list[dict]:
+        """История обходов discovery за последние ``hours`` часов."""
+        return await self.metrics.get_discovery_history(hours)
 
     # ── Клиники ─────────────────────────────────────────────
 
@@ -270,6 +294,45 @@ class Database:
     async def get_clinic_doctor_count(self, clinic_id: str) -> int:
         """Возвращает количество врачей в клинике."""
         return await self.clinics.get_clinic_doctor_count(clinic_id)
+
+    async def mark_clinic_synced(
+        self, clinic_id: str, doctors_count: int, ts: float | None = None
+    ) -> None:
+        """Ставит метку последней успешной синхронизации врачей клиники."""
+        return await self.clinics.mark_clinic_synced(clinic_id, doctors_count, ts)
+
+    async def get_clinic_sync_state(self, clinic_id: str) -> tuple[float, int]:
+        """Возвращает (doctors_synced_at, doctors_count) по клинике."""
+        return await self.clinics.get_clinic_sync_state(clinic_id)
+
+    async def get_clinic_empty_streak(self, clinic_id: str) -> int:
+        """Возвращает счётчик подряд идущих пустых синков клиники (T6)."""
+        return await self.clinics.get_clinic_empty_streak(clinic_id)
+
+    # ── Кэш талонов (clinic_slots, PERF-CACHE T3) ────────────────────
+
+    async def replace_clinic_slots(
+        self, clinic_id: str, rows: list[dict[str, Any]], ts: float | None = None
+    ) -> int:
+        """Перезаписывает талоны клиники (прокси в SlotsRepository)."""
+        return await self.slots.replace_clinic_slots(clinic_id, rows, ts)
+
+    async def upsert_clinic_slots(
+        self, clinic_id: str, rows: list[dict[str, Any]], ts: float | None = None
+    ) -> int:
+        """Добавляет или обновляет талоны указанных врачей.
+
+        Прокси в ``SlotsRepository``.
+        """
+        return await self.slots.upsert_clinic_slots(clinic_id, rows, ts)
+
+    async def get_clinic_slots(self, clinic_id: str) -> list[dict[str, Any]]:
+        """Возвращает талоны клиники (прокси в SlotsRepository)."""
+        return await self.slots.get_clinic_slots(clinic_id)
+
+    async def get_clinic_slots_state(self, clinic_id: str) -> float:
+        """Возвращает свежесть кэша талонов клиники (прокси в SlotsRepository)."""
+        return await self.slots.get_clinic_slots_state(clinic_id)
 
     # ── Конфигурация ────────────────────────────────────────
 

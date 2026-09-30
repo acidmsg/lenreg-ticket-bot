@@ -65,9 +65,17 @@ class ZdravClient:
         self.limiter_monitor = aiolimiter.AsyncLimiter(
             max_rate=10, time_period=60
         )  # мониторинг слотов
+        # PERF-TEMPO (T5): темп discovery берётся из настройки (правится в БД
+        # без релиза); некорректное значение откатывается к дефолту 20.
+        discovery_rate = getattr(settings, "DISCOVERY_RATE_PER_MINUTE", 20)
+        if not isinstance(discovery_rate, int) or discovery_rate < 1:
+            discovery_rate = 20
+        # Верхнюю границу держим и здесь: значение могли вписать в БД мимо UI
+        # (порог параметра — 120, выше портал начинает тормозить).
+        discovery_rate = min(discovery_rate, 120)
         self.limiter_discovery = aiolimiter.AsyncLimiter(
-            max_rate=5, time_period=60
-        )  # discovery врачей
+            max_rate=discovery_rate, time_period=60
+        )  # discovery врачей и талонов
         self.limiter_healthcheck = aiolimiter.AsyncLimiter(
             max_rate=30, time_period=60
         )  # healthcheck

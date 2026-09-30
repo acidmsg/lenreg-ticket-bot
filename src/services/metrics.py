@@ -66,6 +66,10 @@ class PrometheusMetrics:
             "lenreg_ticket_doctors_discovered",
             "Количество новых врачей, обнаруженных при последнем сканировании API",
         )
+        self._doctors_total: Any = Gauge(
+            "lenreg_ticket_doctors_total",
+            "Текущее количество врачей в справочнике",
+        )
         self.doctors_last_scan_timestamp = Gauge(
             "lenreg_ticket_doctors_last_scan_timestamp",
             "Unix-время последнего завершённого сканирования врачей",

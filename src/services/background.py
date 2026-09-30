@@ -48,10 +48,18 @@ class ScheduleConfig:
         jitter: Диапазон случайного разброса (min, max) в секундах.
                 Если задан — ``interval`` игнорируется, используется
                 ``random.uniform(jitter[0], jitter[1])``.
+        start_jitter: Диапазон случайной задержки перед **первой** итерацией
+                в секундах (``None`` — старт без задержки). Разводит
+                синхронный старт родственных задач после запуска процесса,
+                чтобы обходы не начинались ровно в один момент. Разброс
+                должен оставаться меньше грейс-периода статуса
+                (``_START_GRACE_SEC``), иначе задача успеет отметиться
+                мёртвой до первой итерации.
     """
 
     interval: float
     jitter: tuple[float, float] | None = None
+    start_jitter: tuple[float, float] | None = None
 
 
 @dataclass
@@ -371,6 +379,33 @@ class BackgroundTaskManager:
 
     # ── Запуск ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    async def _wait_start_jitter(task: BackgroundTask) -> bool:
+        """Выжидает случайный разброс старта перед первой итерацией задачи.
+
+        Args:
+            task: Фоновая задача с расписанием ``start_jitter``.
+
+        Returns:
+            ``False`` — задача остановлена во время ожидания; иначе ``True``.
+        """
+        if task.schedule.start_jitter is None:
+            return True
+        delay = random.uniform(*task.schedule.start_jitter)
+        if delay <= 0:
+            return True
+        try:
+            await asyncio.wait_for(task._stop_event.wait(), timeout=delay)
+        except TimeoutError:
+            return True
+        except asyncio.CancelledError:
+            task.state = TaskState.STOPPING
+            return False
+        # ``wait_for`` без исключения завершается только по ``stop_event``:
+        # разброс прервала остановка — первую итерацию не запускаем.
+        task.state = TaskState.STOPPING
+        return False
+
     async def start_all(self) -> None:
         """Запустить все зарегистрированные задачи конкурентно.
 
@@ -458,7 +493,14 @@ class BackgroundTaskManager:
         Бесконечный цикл: выполнить итерацию → sleep/jitter → повторить.
         При ошибке: retry с backoff → если исчерпан → watchdog → CRASHED.
         """
+        first_iteration = True
         while not task._stop_event.is_set():
+            # ── Разброс старта: развести синхронный запуск задач ────
+            if first_iteration:
+                first_iteration = False
+                if not await self._wait_start_jitter(task):
+                    break
+
             # ── RUNNING: выполнение итерации ─────────────────────────
             task.state = TaskState.RUNNING
             task._last_run_start = time.monotonic()

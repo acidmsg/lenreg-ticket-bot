@@ -38,6 +38,10 @@ from src.services.background import (
 from src.services.cleanup import _cleanup_iteration
 from src.services.dns_watchdog import DnsWatchdogState, dns_watchdog_loop
 from src.services.doctor_discovery import (
+    CLINIC_REFRESH_INTERVAL_SECONDS,
+    CLINIC_SLOTS_REFRESH_INTERVAL_SECONDS,
+    _clinic_refresh_iteration,
+    _clinic_slots_refresh_iteration,
     _discovery_iteration,
     sync_clinic_names,
 )
@@ -70,6 +74,12 @@ _DASHBOARD_STARTUP_TIMEOUT = 10.0  # ожидание готовности serve
 _DASHBOARD_STARTUP_POLL_INTERVAL = 0.05  # период опроса server.started, секунд
 _DASHBOARD_DRAIN_TIMEOUT = 10.0  # дренаж in-flight HTTP-запросов при остановке, секунд
 _DASHBOARD_SOCKET_BACKLOG = 2048  # совпадает с uvicorn.Config.backlog по умолчанию
+
+# Разброс старта discovery (PERF-TEMPO, T5): общий лимитер портала делится
+# между обнаружением врачей и обновлением талонов, поэтому обходы не должны
+# начинаться ровно в один момент после старта процесса. Разброс держим меньше
+# грейс-периода статуса задачи (120 с), иначе она успеет отметиться мёртвой.
+_DISCOVERY_START_JITTER_SECONDS = 60.0
 
 
 async def _bot_me_with_retry(
@@ -153,7 +163,39 @@ async def _start_background_tasks(
     manager.add(
         _discovery_iteration,
         name="discovery",
-        schedule=ScheduleConfig(interval=settings.DISCOVERY_INTERVAL),
+        schedule=ScheduleConfig(
+            interval=settings.DISCOVERY_INTERVAL,
+            start_jitter=(0.0, _DISCOVERY_START_JITTER_SECONDS),
+        ),
+        retry=RetryConfig(max_retries=3),
+        api=api,
+        database=database,
+        patient_id_adult=settings.DISCOVERY_PATIENT_ID_ADULT,
+        patient_id_child=settings.DISCOVERY_PATIENT_ID_CHILD,
+    )
+
+    # ── Обновление реестра клиник по требованию (PERF-CACHE, T2) ─────
+    # Разбирает очередь ``trigger_clinic_scan()``: список врачей клиники
+    # отдаётся пользователю из БД сразу, а просроченный реестр обходит эта задача.
+    manager.add(
+        _clinic_refresh_iteration,
+        name="clinic_refresh",
+        schedule=ScheduleConfig(interval=CLINIC_REFRESH_INTERVAL_SECONDS),
+        retry=RetryConfig(max_retries=3),
+        api=api,
+        database=database,
+        patient_id_adult=settings.DISCOVERY_PATIENT_ID_ADULT,
+        patient_id_child=settings.DISCOVERY_PATIENT_ID_CHILD,
+    )
+
+    # ── Обновление талонов клиник по требованию (PERF-CACHE, T3) ─────
+    # Экран «Выберите врача» отдаёт талоны из кэша ``clinic_slots``, а batch-обход
+    # портала разбирает эта задача. Отдельно от ``clinic_refresh``: реестр и
+    # талоны независимы, медленный обход реестра не задерживает талоны.
+    manager.add(
+        _clinic_slots_refresh_iteration,
+        name="clinic_slots_refresh",
+        schedule=ScheduleConfig(interval=CLINIC_SLOTS_REFRESH_INTERVAL_SECONDS),
         retry=RetryConfig(max_retries=3),
         api=api,
         database=database,

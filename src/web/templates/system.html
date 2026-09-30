@@ -200,6 +200,34 @@
     </p>
   </div>
   <div class="card">
+    <h2>Динамика дискавери</h2>
+    <div class="info-grid">
+      <div class="info-label">Новых врачей за 24 ч</div>
+      <div class="info-value">{{ system.discovery.doctors_added_24h }}</div>
+      <div class="info-label">Обходов за 24 ч</div>
+      <div class="info-value">{{ system.discovery.cycles_24h }}</div>
+    </div>
+    {% if system.discovery.has_history %}
+    <svg
+      class="trend__spark"
+      viewBox="0 0 100 32"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Динамика числа врачей в справочнике"
+    >
+      <polyline
+        points="{{ system.discovery.spark_points }}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      />
+    </svg>
+    {% else %}
+    <p class="text-muted">данных пока мало</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h2>Внешний API zdrav.lenreg.ru</h2>
     <div class="info-grid">
       <div class="info-label">Последняя проверка</div>

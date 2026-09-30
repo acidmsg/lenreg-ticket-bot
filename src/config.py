@@ -10,6 +10,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 CONFIG_KEY_API_TIMEOUT = "api_timeout"
 CONFIG_KEY_CHECK_INTERVAL = "check_interval"
 CONFIG_KEY_DISCOVERY_INTERVAL = "discovery_interval"
+CONFIG_KEY_DISCOVERY_RATE_PER_MINUTE = "discovery_rate_per_minute"
+CONFIG_KEY_DOCTOR_SCAN_TTL_HOURS = "doctor_scan_ttl_hours"
+CONFIG_KEY_EMPTY_CLINIC_BACKOFF_HOURS = "empty_clinic_backoff_hours"
+CONFIG_KEY_SLOT_CACHE_TTL_MINUTES = "slot_cache_ttl_minutes"
 CONFIG_KEY_MESSAGE_TTL_SECONDS = "message_ttl_seconds"
 CONFIG_KEY_CLEANUP_INTERVAL = "cleanup_interval"
 CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE = "slot_threshold_absolute"
@@ -71,6 +75,28 @@ class Settings(BaseSettings):
     # Интервал проверки в секундах
     CHECK_INTERVAL: int = 300
     DISCOVERY_INTERVAL: int = 1800  # 30 минут
+
+    # Темп портальных обходов discovery (PERF-TEMPO, T5): максимум вызовов
+    # портала в минуту на общей ветке специальности → врачи → точечные талоны.
+    # Лимитер создаётся при старте клиента, поэтому значение меняется без
+    # релиза — правкой параметра в БД и рестартом (откат 5 → 20 и обратно).
+    # Портал мягко тормозит после серии быстрых вызовов, темп держим осторожным.
+    DISCOVERY_RATE_PER_MINUTE: int = 20
+
+    # TTL реестра врачей: клиника, синхронизированная свежее этого срока,
+    # пропускается повторным обходом (PERF-CACHE). Правится без релиза через БД.
+    DOCTOR_SCAN_TTL_HOURS: int = 12
+
+    # Бэкофф клиник без врачей (PERF-BACKOFF, T6): если обход клиники вернул
+    # 0 врачей, повторный плановый обход — не раньше этого срока (часы).
+    # Частые пустые обходы не тратят портальные вызовы впустую.
+    EMPTY_CLINIC_BACKOFF_HOURS: int = 24
+
+    # TTL кэша талонов (T3): экран «Выберите врача» отдаёт талоны из БД, а
+    # просроченный кэш обновляет фоновый цикл. Минуты; 15 — компромисс между
+    # свежестью номерков и числом портальных обходов (цикл мониторинга слотов
+    # у бота — отдельный и здесь не затрагивается).
+    SLOT_CACHE_TTL_MINUTES: int = 15
 
     # Интервал проверки здоровья Telegram-шлюза (UX-7): пинг Bot API
     # дешёвым getWebhookInfo, минуты. 60 с — состояние на сводке свежее
@@ -321,6 +347,13 @@ async def load_config_from_db(database) -> None:
             CONFIG_KEY_API_TIMEOUT: ("API_TIMEOUT", float),
             CONFIG_KEY_CHECK_INTERVAL: ("CHECK_INTERVAL", int),
             CONFIG_KEY_DISCOVERY_INTERVAL: ("DISCOVERY_INTERVAL", int),
+            CONFIG_KEY_DISCOVERY_RATE_PER_MINUTE: ("DISCOVERY_RATE_PER_MINUTE", int),
+            CONFIG_KEY_DOCTOR_SCAN_TTL_HOURS: ("DOCTOR_SCAN_TTL_HOURS", int),
+            CONFIG_KEY_EMPTY_CLINIC_BACKOFF_HOURS: (
+                "EMPTY_CLINIC_BACKOFF_HOURS",
+                int,
+            ),
+            CONFIG_KEY_SLOT_CACHE_TTL_MINUTES: ("SLOT_CACHE_TTL_MINUTES", int),
             CONFIG_KEY_MESSAGE_TTL_SECONDS: ("MESSAGE_TTL_SECONDS", int),
             CONFIG_KEY_CLEANUP_INTERVAL: ("CLEANUP_INTERVAL", int),
             CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE: ("SLOT_THRESHOLD_ABSOLUTE", int),

@@ -38,10 +38,14 @@ from src.config import (
     CONFIG_KEY_DISCOVERY_INTERVAL,
     CONFIG_KEY_DISCOVERY_PATIENT_ADULT,
     CONFIG_KEY_DISCOVERY_PATIENT_CHILD,
+    CONFIG_KEY_DISCOVERY_RATE_PER_MINUTE,
+    CONFIG_KEY_DOCTOR_SCAN_TTL_HOURS,
+    CONFIG_KEY_EMPTY_CLINIC_BACKOFF_HOURS,
     CONFIG_KEY_ENVIRONMENT,
     CONFIG_KEY_ERROR_NOTIFY_ENABLED,
     CONFIG_KEY_MESSAGE_TTL_SECONDS,
     CONFIG_KEY_REFERER_URL,
+    CONFIG_KEY_SLOT_CACHE_TTL_MINUTES,
     CONFIG_KEY_SLOT_COMPACT_THRESHOLD,
     CONFIG_KEY_SLOT_DETAIL_THRESHOLD,
     CONFIG_KEY_SLOT_THRESHOLD_ABSOLUTE,
@@ -133,6 +137,66 @@ PARAMS: dict[str, ParamSpec] = {
         settings_attr="DISCOVERY_INTERVAL",
         min_value=60,
         max_value=86400,
+    ),
+    CONFIG_KEY_DISCOVERY_RATE_PER_MINUTE: ParamSpec(
+        key=CONFIG_KEY_DISCOVERY_RATE_PER_MINUTE,
+        title="Темп обхода портала (discovery)",
+        description=(
+            "Максимум вызовов портала в минуту на ветке поиска врачей и "
+            "обновления талонов: специальности, врачи, точечные талоны."
+        ),
+        kind="int",
+        group="Мониторинг",
+        apply_mode="restart",
+        settings_attr="DISCOVERY_RATE_PER_MINUTE",
+        min_value=1,
+        max_value=120,
+        change_warning=(
+            "Выше ~86 вызовов/мин портал мягко тормозит ответы, а при "
+            "агрессивном темпе возможен 429/403 — повышайте осторожно."
+        ),
+    ),
+    CONFIG_KEY_DOCTOR_SCAN_TTL_HOURS: ParamSpec(
+        key=CONFIG_KEY_DOCTOR_SCAN_TTL_HOURS,
+        title="Срок годности реестра врачей",
+        description=(
+            "Клиника, обновлённая свежее этого срока, пропускается повторным "
+            "обходом, часы."
+        ),
+        kind="int",
+        group="Мониторинг",
+        apply_mode="next_cycle",
+        settings_attr="DOCTOR_SCAN_TTL_HOURS",
+        min_value=1,
+        max_value=168,
+    ),
+    CONFIG_KEY_EMPTY_CLINIC_BACKOFF_HOURS: ParamSpec(
+        key=CONFIG_KEY_EMPTY_CLINIC_BACKOFF_HOURS,
+        title="Бэкофф клиник без врачей",
+        description=(
+            "Клиника, обход которой не вернул врачей, повторно обходится не "
+            "раньше этого срока, часы."
+        ),
+        kind="int",
+        group="Мониторинг",
+        apply_mode="next_cycle",
+        settings_attr="EMPTY_CLINIC_BACKOFF_HOURS",
+        min_value=1,
+        max_value=168,
+    ),
+    CONFIG_KEY_SLOT_CACHE_TTL_MINUTES: ParamSpec(
+        key=CONFIG_KEY_SLOT_CACHE_TTL_MINUTES,
+        title="Срок годности кэша талонов",
+        description=(
+            "Экран «Выберите врача» отдаёт талоны из кэша не старше этого "
+            "срока; просроченный кэш обновляет фоновый цикл, минуты."
+        ),
+        kind="int",
+        group="Мониторинг",
+        apply_mode="next_cycle",
+        settings_attr="SLOT_CACHE_TTL_MINUTES",
+        min_value=1,
+        max_value=1440,
     ),
     CONFIG_KEY_API_TIMEOUT: ParamSpec(
         key=CONFIG_KEY_API_TIMEOUT,

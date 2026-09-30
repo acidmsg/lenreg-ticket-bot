@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 from loguru import logger
 
@@ -218,6 +219,55 @@ class ClinicRepository(BaseRepository):
         )
         rows = await cursor.fetchall()
         return [row["clinic_id"] for row in rows]
+
+    async def mark_clinic_synced(
+        self, clinic_id: str, doctors_count: int, ts: float | None = None
+    ) -> None:
+        """Ставит метку последней успешной синхронизации реестра врачей клиники.
+
+        ``doctors_synced_at`` — момент успеха (по умолчанию текущее время),
+        ``doctors_count`` — сколько врачей получено в обходе. Здесь же ведётся
+        ``empty_sync_streak`` (PERF-BACKOFF, T6): пустой обход увеличивает
+        счётчик подряд идущих пустых синков, непустой сбрасывает его в 0.
+        Вызывается только после полностью пройденного обхода клиники.
+        """
+        timestamp = time.time() if ts is None else ts
+        await self._c.execute(
+            "UPDATE clinics SET doctors_synced_at = ?, doctors_count = ?, "
+            "empty_sync_streak = CASE WHEN ? > 0 THEN 0 "
+            "ELSE empty_sync_streak + 1 END "
+            "WHERE clinic_id = ?",
+            (timestamp, doctors_count, doctors_count, clinic_id),
+        )
+        await self._c.commit()
+
+    async def get_clinic_sync_state(self, clinic_id: str) -> tuple[float, int]:
+        """Возвращает состояние синхронизации реестра: (метка, число врачей).
+
+        Для неизвестной клиники возвращает ``(0.0, 0)`` — метка «никогда».
+        """
+        cursor = await self._c.execute(
+            "SELECT doctors_synced_at, doctors_count FROM clinics WHERE clinic_id = ?",
+            (clinic_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return (0.0, 0)
+        return (float(row["doctors_synced_at"] or 0), int(row["doctors_count"] or 0))
+
+    async def get_clinic_empty_streak(self, clinic_id: str) -> int:
+        """Счётчик подряд идущих пустых синков клиники (PERF-BACKOFF, T6).
+
+        Для неизвестной клиники возвращает 0.
+        """
+        cursor = await self._c.execute(
+            "SELECT empty_sync_streak FROM clinics WHERE clinic_id = ?",
+            (clinic_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return 0
+        return int(row["empty_sync_streak"] or 0)
 
     async def get_clinic_doctor_count(self, clinic_id: str) -> int:
         """Возвращает количество врачей в клинике."""

@@ -85,8 +85,9 @@ def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
 # Бюджеты блокирующей работы пользовательских запросов. Клиент (Mini App)
 # сдаётся через 20 с, поэтому портальные операции в самом запросе ограничены:
 # не уложились — отдаём то, что есть, а обновление уходит в фон.
+# Талоны (T3) в запросе не опрашиваются вовсе — читаются из кэша clinic_slots,
+# поэтому отдельного бюджета слотов нет.
 DISCOVERY_TIMEOUT_SECONDS = 6.0
-SLOTS_TIMEOUT_SECONDS = 6.0
 
 
 class PatientUpdateRequest(BaseModel):
@@ -214,6 +215,53 @@ def _get_api(request: Request):
             "Добавьте его при регистрации роутера в app.py."
         )
     return api
+
+
+async def _trigger_stale_clinic_refresh(db: DatabaseManager, clinic_id: str) -> None:
+    """Ставит в фон обновление реестра, если он просрочен для этой клиники (T2).
+
+    Список врачей отдаётся из БД немедленно: портальный обход только
+    ставится в очередь через ``refresh_clinic_if_stale()`` и выполняется
+    фоновой задачей. Свежая клиника обхода не запускает.
+    """
+    from src.services.doctor_discovery import refresh_clinic_if_stale
+
+    await refresh_clinic_if_stale(db._db, clinic_id)
+
+
+async def _trigger_stale_clinic_slots_refresh(
+    db: DatabaseManager, clinic_id: str, doctor_ids: list[str] | None = None
+) -> None:
+    """Ставит в фон обновление талонов, если кэш просрочен или пуст (T3–T4).
+
+    Экран «Выберите врача» отдаёт талоны из БД немедленно: портальный обход
+    только ставится в очередь через ``refresh_clinic_slots_if_stale()`` и
+    выполняется фоновой задачей ``clinic_slots_refresh``. Свежий кэш обхода не
+    запускает. ``doctor_ids`` — врачи, видимые на экране после фильтра
+    специальности: при непустом кэше обновляются точечно только они; ``None`` —
+    полный batch клиники (bootstrap-путь).
+    """
+    from src.services.doctor_discovery import refresh_clinic_slots_if_stale
+
+    await refresh_clinic_slots_if_stale(db._db, clinic_id, doctor_ids=doctor_ids)
+
+
+async def _load_cached_slots(
+    db: DatabaseManager, clinic_id: str
+) -> dict[str, dict[str, Any]]:
+    """Читает талоны клиники из кэша ``clinic_slots``, индексируя по doctor_id.
+
+    Пустая строка ``nearest_date`` в кэше означает «даты нет»; в ответе API
+    это ``null``, поэтому приводим к ``None`` (контракт ответа не меняется).
+    """
+    cached = await db.get_clinic_slots(clinic_id)
+    return {
+        row["doctor_id"]: {
+            "free_tickets": int(row.get("free_tickets", 0)),
+            "nearest_date": row.get("nearest_date") or None,
+        }
+        for row in cached
+    }
 
 
 async def _find_patient_id(
@@ -818,10 +866,11 @@ async def get_available_doctors(
         description="ID специальности (опционально; не указан — все врачи клиники)",
     ),
 ) -> dict[str, Any] | JSONResponse:
-    """Список врачей в поликлинике (из БД + API для слотов).
+    """Список врачей в поликлинике (реестр из БД + талоны из кэша).
 
     Имена врачей и специальности — из таблицы ``doctors`` (как у бота).
-    Слоты (CountFreeTicket, NearestDate) — живой запрос к API zdrav.lenreg.ru.
+    Талоны (CountFreeTicket, NearestDate) — из кэша ``clinic_slots`` (T3):
+    экран не ждёт портал, а просроченный/пустой кэш обновляет фоновый цикл.
     Если врачей в БД нет — срабатывает on-demand discovery (аналогично боту).
     """
     db = _get_db(request)
@@ -830,6 +879,10 @@ async def get_available_doctors(
 
     # 1. Получаем врачей из БД
     doctors_dict = await db.get_doctors_for_clinic(clinic_id)
+
+    # 1a. Реестр клиники просрочен — список отдаётся из БД сразу, а обновление
+    #     реестра уходит в фон: пользователь не ждёт портал.
+    await _trigger_stale_clinic_refresh(db, clinic_id)
 
     # 2. Если врачей нет — on-demand discovery
     #    (аналогично common._discover_doctors_on_demand в боте)
@@ -881,67 +934,28 @@ async def get_available_doctors(
     except Exception:
         logger.exception("Ошибка получения данных мониторинга для uid={}", telegram_id)
 
-    # 4. Получаем свежие слоты из API (один batch-запрос)
-    slots_map: dict[str, dict[str, Any]] = {}
-    try:
-        if specialty_id:
-            # Конкретная специальность — один запрос
-            api_doctors = await asyncio.wait_for(
-                api.fetch_all_doctors(
-                    specialty_id=specialty_id,
-                    patient_id=patient_id,
-                    clinic_id=clinic_id,
-                    limiter=api.limiter,
-                ),
-                timeout=SLOTS_TIMEOUT_SECONDS,
-            )
-        else:
-            # Все специальности — batch-запрос
-            api_doctors = await asyncio.wait_for(
-                api.fetch_all_doctors_for_clinic(
-                    patient_id=patient_id,
-                    clinic_id=clinic_id,
-                    limiter=api.limiter,
-                ),
-                timeout=SLOTS_TIMEOUT_SECONDS,
-            )
-        for doc in api_doctors:
-            doc_id = str(doc.get("IdDoc", ""))
-            if doc_id:
-                slots_map[doc_id] = {
-                    "free_tickets": int(doc.get("CountFreeTicket", 0)),
-                    "nearest_date": doc.get("NearestDate"),
-                }
-    except TimeoutError:
-        logger.warning(
-            "Слоты для clinic_id={} не получены за {} с — отдаём врачей без слотов",
-            clinic_id,
-            SLOTS_TIMEOUT_SECONDS,
-        )
-    except httpx.TimeoutException:
-        logger.warning(
-            "Таймаут API слотов для clinic_id={}, возвращаем врачей без слотов",
-            clinic_id,
-        )
-    except httpx.NetworkError:
-        logger.warning(
-            "Сетевая ошибка API слотов для clinic_id={}, возвращаем врачей без слотов",
-            clinic_id,
-        )
-    except Exception:
-        logger.exception(
-            "Ошибка получения слотов для clinic_id={}, возвращаем врачей без слотов",
-            clinic_id,
-        )
+    # 4. Видимые врачи (после фильтра специальности) — только их талоны нужно
+    #    обновлять точечно: K вызовов портала вместо обхода всей клиники (T4).
+    #    Без фильтра список не сужаем — идёт полный batch (bootstrap).
+    visible_ids = [
+        doc_id
+        for doc_id, doc_info in doctors_dict.items()
+        if not specialty_id or doc_info.get("specialty", "") == specialty_id
+    ]
 
-    # 5. Формируем ответ: врачи из БД + слоты из API + флаг is_monitored
+    # 5. Талоны (CountFreeTicket/NearestDate) — ТОЛЬКО из кэша ``clinic_slots``
+    #    (T3). Портал в HTTP-обработчике не опрашивается: просроченный или
+    #    пустой кэш обновляет фоновая задача, а ответ отдаётся моментально.
+    await _trigger_stale_clinic_slots_refresh(
+        db, clinic_id, visible_ids if specialty_id else None
+    )
+    slots_map = await _load_cached_slots(db, clinic_id)
+
+    # 6. Формируем ответ: врачи из БД + талоны из кэша + флаг is_monitored
     doctors: list[dict[str, Any]] = []
-    for doc_id, doc_info in doctors_dict.items():
+    for doc_id in visible_ids:
+        doc_info = doctors_dict[doc_id]
         doc_specialty = doc_info.get("specialty", "")
-
-        # Фильтр по specialty_id: точное совпадение по имени специальности
-        if specialty_id and doc_specialty != specialty_id:
-            continue
 
         slots = slots_map.get(doc_id, {})
         free_tickets = int(slots.get("free_tickets", 0))

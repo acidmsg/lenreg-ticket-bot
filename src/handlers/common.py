@@ -71,7 +71,11 @@ from src.keyboards.inline import (
     get_patient_selection,
     get_slot_grid_keyboard,
 )
-from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
+from src.services.doctor_discovery import (
+    _get_clinic_type_from_db,
+    fetch_specialties,
+    refresh_clinic_if_stale,
+)
 from src.services.export import (
     _build_ticket_payload,
     export_booking_barcode_png,
@@ -674,6 +678,9 @@ async def select_clinic(
         await db.add_confirmed_clinic(uid, p_id, int(clinic_id))
 
     doctors_list = await db.get_doctors_for_clinic(clinic_id)
+    # T2: список врачей отдаётся из БД сразу, просроченный реестр клиники
+    # обновляется фоновой задачей (та же точка «захода в клинику», что в Mini App).
+    await refresh_clinic_if_stale(db._db, clinic_id)
     monitored = user_data["monitoring"].get(p_id, {})
     clinic_name = await db.get_clinic_name(clinic_id)
 

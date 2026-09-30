@@ -32,6 +32,14 @@ BACKUPS_WARN_BYTES = 2 * 1024 * 1024 * 1024
 # Возраст самого свежего бэкапа, часы: после этого уровня — предупреждение.
 BACKUP_STALE_HOURS = 48.0
 
+# Окно истории discovery: точки справочника за неделю и итоги за сутки.
+DISCOVERY_HISTORY_HOURS = 24 * 7
+DISCOVERY_RECENT_HOURS = 24
+# Размер окна инлайнового SVG-графика (viewBox 0 0 100 32).
+SPARK_WIDTH = 100.0
+SPARK_HEIGHT = 32.0
+SPARK_PAD = 2.0
+
 BACKUP_CATEGORIES = ("daily", "weekly", "monthly", "manual")
 # Ревизия git меняется редко: кэшируем, чтобы не звать subprocess на каждый запрос.
 REVISION_CACHE_TTL_SECONDS = 300.0
@@ -221,6 +229,49 @@ def backups_reason(backups: dict[str, Any]) -> str | None:
     return None
 
 
+def _spark_points(points: list[dict[str, Any]]) -> str:
+    """Координаты ломаной ``doctors_total`` для инлайнового SVG-графика.
+
+    Значения раскладываются по оси X равномерно, по оси Y — нормируются
+    к min/max с отступом ``SPARK_PAD``. Возвращает строку ``x,y x,y ...``
+    в системе viewBox ``0 0 100 32``; пустая строка — точек нет.
+    """
+    if not points:
+        return ""
+    values = [int(point["doctors_total"]) for point in points]
+    minimum, maximum = min(values), max(values)
+    span = maximum - minimum
+    step = SPARK_WIDTH / (len(values) - 1) if len(values) > 1 else 0.0
+    coords: list[str] = []
+    for index, value in enumerate(values):
+        x = SPARK_WIDTH / 2 if len(values) == 1 else index * step
+        if span == 0:
+            y = SPARK_HEIGHT / 2
+        else:
+            usable = SPARK_HEIGHT - 2 * SPARK_PAD
+            y = SPARK_HEIGHT - SPARK_PAD - (value - minimum) / span * usable
+        coords.append(f"{x:.1f},{y:.1f}")
+    return " ".join(coords)
+
+
+async def discovery_snapshot(db: Any) -> dict[str, Any]:
+    """Динамика discovery: точки справочника за неделю и итоги за сутки.
+
+    Секция показывает, что обходы идут регулярно, а сам справочник врачей
+    меняется редко: общее число врачей и прирост новых по часам.
+    """
+    history = await db.get_discovery_history(DISCOVERY_HISTORY_HOURS)
+    since = int(time.time() - DISCOVERY_RECENT_HOURS * 3600)
+    recent = [point for point in history if point["bucket_ts"] >= since]
+    return {
+        "points": history,
+        "spark_points": _spark_points(history),
+        "doctors_added_24h": sum(int(point["doctors_added"]) for point in recent),
+        "cycles_24h": sum(int(point["discovery_cycles"]) for point in recent),
+        "has_history": len(history) >= 2,
+    }
+
+
 async def redis_snapshot() -> dict[str, Any]:
     """Состояние Redis: подключение и память.
 
@@ -400,6 +451,7 @@ async def collect_system_snapshot(
     return {
         **sync_part,
         "redis": await redis_snapshot(),
+        "discovery": await discovery_snapshot(db),
         "schedule": await schedule_snapshot(db),
         "uptime_seconds": round(float(uptime_seconds), 1),
     }

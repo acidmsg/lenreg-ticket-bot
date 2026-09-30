@@ -315,6 +315,131 @@ CREATE TABLE IF NOT EXISTS favorite_clinics (
     logger.info("Миграция v15: избранные клиники аккаунта (favorite_clinics)")
 
 
+async def migrate_v16_metrics_doctors(db) -> None:
+    """Динамика справочника врачей в почасовых метриках (PERF-OBS).
+
+    Таблица ``metrics_hourly`` (миграция v13) хранила счётчики трендов; для
+    наблюдения за обходами discovery добавляются колонки: сколько врачей
+    всего в справочнике, сколько новых обнаружено и сколько циклов прошло.
+    Миграция идемпотентна: наличие колонки проверяется через ``PRAGMA table_info``.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(metrics_hourly)")
+    existing_columns = {row[1] for row in await cursor.fetchall()}
+
+    new_columns = {
+        "doctors_total": "INTEGER NOT NULL DEFAULT 0",
+        "doctors_added": "INTEGER NOT NULL DEFAULT 0",
+        "discovery_cycles": "INTEGER NOT NULL DEFAULT 0",
+    }
+    added: list[str] = []
+    for column_name, definition in new_columns.items():
+        if column_name in existing_columns:
+            continue
+        await c.execute(
+            f"ALTER TABLE metrics_hourly ADD COLUMN {column_name} {definition}"
+        )
+        added.append(column_name)
+
+    await c.commit()
+    logger.info(
+        "Миграция v16: динамика discovery в metrics_hourly (добавлено: {})", added
+    )
+
+
+async def migrate_v17_clinic_sync_state(db) -> None:
+    """Состояние синхронизации реестра врачей по клиникам (PERF-CACHE).
+
+    ``doctors_synced_at`` хранит момент последнего успешного обхода клиники,
+    ``doctors_count`` — сколько врачей было получено в том обходе. Повторный
+    обход пропускает клиники, обновлённые свежее TTL (см. doctor_scan_ttl_hours).
+    Миграция идемпотентна: наличие колонки проверяется через ``PRAGMA table_info``.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(clinics)")
+    existing_columns = {row[1] for row in await cursor.fetchall()}
+
+    new_columns = {
+        "doctors_synced_at": "REAL NOT NULL DEFAULT 0",
+        "doctors_count": "INTEGER NOT NULL DEFAULT 0",
+    }
+    added: list[str] = []
+    for column_name, definition in new_columns.items():
+        if column_name in existing_columns:
+            continue
+        await c.execute(f"ALTER TABLE clinics ADD COLUMN {column_name} {definition}")
+        added.append(column_name)
+
+    await c.commit()
+    logger.info("Миграция v17: состояние синхронизации врачей (добавлено: {})", added)
+
+
+async def migrate_v18_clinic_slots(db) -> None:
+    """Кэш талонов (слотов) по клиникам (PERF-CACHE, T3).
+
+    ``clinic_slots`` хранит талоны (``CountFreeTicket``/``NearestDate``)
+    отдельно от реестра врачей (``doctors``): реестр живёт долго
+    (``doctor_scan_ttl_hours``), а талоны меняются часто и обновляются своим
+    коротким TTL (``slot_cache_ttl_minutes``). Экран «Выберите врача» отдаёт
+    талоны из этой таблицы, не дожидаясь портала. Миграция идемпотентна:
+    таблица создаётся через ``CREATE TABLE IF NOT EXISTS``.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    await c.executescript("""
+CREATE TABLE IF NOT EXISTS clinic_slots (
+    clinic_id     TEXT NOT NULL,
+    doctor_id     TEXT NOT NULL,
+    free_tickets  INTEGER NOT NULL DEFAULT 0,
+    nearest_date  TEXT NOT NULL DEFAULT '',
+    updated_at    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (clinic_id, doctor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_clinic_slots_clinic ON clinic_slots(clinic_id);
+""")
+    await c.commit()
+    logger.info("Миграция v18: создана таблица clinic_slots (кэш талонов)")
+
+
+async def migrate_v19_clinic_empty_sync_streak(db) -> None:
+    """Счётчик подряд идущих пустых синков клиники (PERF-BACKOFF, T6).
+
+    ``empty_sync_streak`` — сколько подряд обходов клиники вернули 0 врачей;
+    успешный непустой синк сбрасывает счётчик в 0. Клиники с ненулевым
+    счётчиком обходятся по бэкоффу (``empty_clinic_backoff_hours``) реже, чем
+    по обычному TTL, — частые пустые обходы не тратят портальные вызовы
+    впустую. Миграция идемпотентна: наличие колонки проверяется через
+    ``PRAGMA table_info``.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(clinics)")
+    existing_columns = {row[1] for row in await cursor.fetchall()}
+
+    new_columns = {
+        "empty_sync_streak": "INTEGER NOT NULL DEFAULT 0",
+    }
+    added: list[str] = []
+    for column_name, definition in new_columns.items():
+        if column_name in existing_columns:
+            continue
+        await c.execute(f"ALTER TABLE clinics ADD COLUMN {column_name} {definition}")
+        added.append(column_name)
+
+    await c.commit()
+    logger.info("Миграция v19: бэкофф клиник без врачей (добавлено: {})", added)
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -328,4 +453,8 @@ MIGRATIONS = [
     (13, migrate_v13_metrics_hourly),
     (14, migrate_v14_user_state),
     (15, migrate_v15_favorite_clinics),
+    (16, migrate_v16_metrics_doctors),
+    (17, migrate_v17_clinic_sync_state),
+    (18, migrate_v18_clinic_slots),
+    (19, migrate_v19_clinic_empty_sync_streak),
 ]

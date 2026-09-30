@@ -50,6 +50,12 @@ class DoctorRepository(BaseRepository):
         )
         await self._c.commit()
 
+    async def get_total_doctor_count(self) -> int:
+        """Общее число врачей в справочнике."""
+        cursor = await self._c.execute("SELECT COUNT(*) AS cnt FROM doctors")
+        row = await cursor.fetchone()
+        return row["cnt"] if row else 0
+
     async def search_doctors_by_name(self, query: str, limit: int = 20) -> list[dict]:
         """Поиск врачей по подстроке в имени (глобально, по всем клиникам).
 
