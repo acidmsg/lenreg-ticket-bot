@@ -1739,7 +1739,9 @@ async def book_confirm_section(
                     parse_mode="Markdown",
                 )
         except Exception:
-            logger.debug("Не удалось показать сообщение «запись уже выполняется»")
+            logger.opt(exception=True).warning(
+                "Не удалось показать сообщение «запись уже выполняется»"
+            )
 
     elif result.error and result.error.IdError == 39:
         # Слот занят — кнопка «Назад к слотам»

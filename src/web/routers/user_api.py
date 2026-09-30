@@ -2078,6 +2078,7 @@ async def book_appointment(
             # Предыдущая запись ещё выполняется (защита от конкурентных запросов)
             return JSONResponse(
                 status_code=409,
+                headers={"Retry-After": "2"},
                 content={
                     "success": False,
                     "error": "busy",

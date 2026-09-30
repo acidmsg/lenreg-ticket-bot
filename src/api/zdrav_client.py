@@ -632,8 +632,18 @@ class ZdravClient:
         а сразу возвращает ``SignupResponse(success=False)`` с ``detail="busy"``
         — аналог клиентской защиты ``ajaxBusy`` на портале. Это исключает
         двойное бронирование одного талона из бота и Mini App.
+        Атомарность: лок захватывается через ``asyncio.wait_for`` с нулевым
+        окном ожидания, а не через проверку ``locked()`` + ``async with`` —
+        проверка-затем-действие не атомарна и ломается, если между ними
+        появится ``await``.
+
+        Лок общий для инстанса (все пациенты и клиники): для однопользовательского
+        бота это норма; при многопользовательском режиме стоит перейти на лок
+        по слоту (``appointment_id``).
         """
-        if self._book_lock.locked():
+        try:
+            await asyncio.wait_for(self._book_lock.acquire(), timeout=0.01)
+        except TimeoutError:
             logger.warning(
                 "Бронирование отклонено (busy): предыдущая запись ещё идёт "
                 "(clinic={} patient={} slot={})",
@@ -645,10 +655,12 @@ class ZdravClient:
                 success=False,
                 error=SignupError(detail="busy"),
             )
-        async with self._book_lock:
+        try:
             return await self._book_appointment_request(
                 clinic_id, patient_id, appointment_id, history_id, referral_id
             )
+        finally:
+            self._book_lock.release()
 
     async def _book_appointment_request(
         self,
