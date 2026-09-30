@@ -161,8 +161,12 @@ export function renderAddDoctor(container) {
       renderItem: renderDoctorItem,
       // Догрузка цифр без потери скорости: первый список мгновенный, после
       // отрисовки дорисовываем талоны видимых врачей без действий пользователя.
+      // Если талоны ещё не свежие (``slots_fresh === false``), вместо списка
+      // сначала показываем скелетон — на нулях загрузку не отличить от «нет
+      // талонов». Скелетон снимается, как только ответ вернёт свежие данные.
       onRender: (container, state) => {
-        if (hasPendingSlots(state)) {
+        if (slotsRefreshDone) return;
+        if (slotsSkeletonPending(state) || hasPendingSlots(state)) {
           startSlotsRefresh(container, state);
         }
       },
@@ -456,6 +460,25 @@ const SLOTS_REFRESH_MAX_ATTEMPTS = 5;
 let slotsRefreshGeneration = 0;
 
 /**
+ * Догрузка талонов для текущего списка шага 3 уже завершена.
+ *
+ * Сбрасывается при каждой перезагрузке списка врачей (`loadDoctors`):
+ * новый вход на шаг или новый поисковый запрос — это новый список, и для
+ * него свежесть талонов нужно проверять заново, а не наследовать флаг
+ * предыдущего списка.
+ */
+let slotsRefreshDone = false;
+
+/**
+ * Число строк-заглушек в скелетоне шага 3.
+ *
+ * Скелетон показывает «идёт загрузка» на нулях: пока талоны не свежие,
+ * цифры не отличимы от «талонов нет». Пять-шесть строк — привычная высота
+ * списка врачей, чтобы подмена на настоящий список не «дёргала» вёрстку.
+ */
+const SLOTS_SKELETON_ROWS = 6;
+
+/**
  * Ставит предпрогрев талонов клиники «выстрелил-и-забыл» (шаг 3).
  *
  * Вызывается при выборе клиники (или врача из глобального поиска) до
@@ -513,6 +536,174 @@ function hasPendingSlots(state) {
 }
 
 /**
+ * Свежие ли талоны по ответу API (шаг 3, скелетон).
+ *
+ * Сервер отдаёт аддитивное поле ``slots_fresh``: ``false`` — кэша нет или он
+ * просрочен, и нули ещё не отличить от «талонов нет». Поле отсутствует (старый
+ * ответ/тест) — считаем свежими: скелетон не показываем, чтобы не менять
+ * поведение без явного сигнала.
+ *
+ * @param {object} data — ответ GET /doctors/available
+ * @returns {boolean} — можно ли доверять цифрам
+ */
+export function isSlotsFresh(data) {
+  return data?.slots_fresh !== false;
+}
+
+/** Нужен ли скелетон: в элементах шага есть несвежие врачи. */
+function slotsSkeletonPending(state) {
+  return (state?.stepData || []).some(
+    (item) => !item?._monitored && item?._slotsFresh === false,
+  );
+}
+
+/**
+ * Скелетон списка врачей: строки-заглушки с бегущим градиентом.
+ *
+ * Переиспользует существующие классы темы (``.skeleton`` и его вариации,
+ * ``@keyframes shimmer``) — без новых библиотек и цветов. Строки намеренно без
+ * класса ``.stepper-item``: скелетон некликабелен и не участвует в клиентской
+ * фильтрации, пока не сменён настоящим списком.
+ *
+ * @param {number} [rows] — число строк (5–6)
+ * @returns {string} HTML скелетона
+ */
+export function buildSlotsSkeleton(rows = SLOTS_SKELETON_ROWS) {
+  const count = Math.max(5, Math.min(6, Number(rows) || SLOTS_SKELETON_ROWS));
+  const items = Array.from(
+    { length: count },
+    () => `
+      <li class="list__item" aria-hidden="true">
+        <div class="list__item-content">
+          <div class="skeleton skeleton--title"></div>
+          <div class="skeleton skeleton--text"></div>
+          <div class="skeleton skeleton--chip"></div>
+        </div>
+      </li>`,
+  ).join("");
+  return `<ul class="list list--skeleton" aria-busy="true">${items}</ul>`;
+}
+
+/**
+ * Показывает скелетон вместо списка, пока талоны не свежие.
+ *
+ * Настоящий список не выбрасывается: он прячется атрибутом ``hidden`` вместе
+ * со своими обработчиками кликов, а скелетон встаёт в поток. Так раскрытие
+ * списка позже — это снятие атрибута, без перепривязки событий.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {number} [rows] — число строк скелетона
+ */
+function renderSlotsSkeleton(container, rows) {
+  const contentEl = container?.querySelector("#stepper-content");
+  if (!contentEl || contentEl.querySelector(".list--skeleton")) return;
+  const listEl = contentEl.querySelector("ul.list");
+  if (!listEl) return;
+  listEl.hidden = true;
+  listEl.insertAdjacentHTML("afterend", buildSlotsSkeleton(rows));
+}
+
+/**
+ * Раскрывает настоящий список врачей и снимает скелетон.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а (элементы шага)
+ * @param {object} data — свежий ответ GET /doctors/available
+ */
+function revealSlots(container, state, data) {
+  const contentEl = container?.querySelector("#stepper-content");
+  contentEl?.querySelector(".list--skeleton")?.remove();
+  // Предупреждения догрузки снимаются вместе со скелетоном: список раскрыт
+  // по свежим данным, и старый баннер об ошибке был бы враньём.
+  contentEl?.querySelector("[data-slots-retry-notice]")?.remove();
+  contentEl?.querySelector("[data-slots-error]")?.remove();
+  const listEl = contentEl?.querySelector("ul.list");
+  if (listEl) listEl.hidden = false;
+  if (data) applyRefreshedSlots(container, state, data);
+  state._slotsRefreshDone = true;
+  slotsRefreshDone = true;
+}
+
+/**
+ * Разметка кнопки «Повторить» для догрузки талонов.
+ *
+ * @returns {string} HTML кнопки
+ */
+function slotsRetryButton() {
+  return (
+    '<button class="btn btn--primary" data-slots-retry type="button">' +
+    `${lucideIcon("refresh-cw", 16)} Повторить</button>`
+  );
+}
+
+/**
+ * Показывает честное состояние ошибки вместо молчаливых нулей.
+ *
+ * Ошибка сети/API при догрузке больше не съедается: пользователь видит
+ * «не удалось получить актуальные талоны» и может повторить попытку.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а
+ */
+function renderSlotsError(container, state) {
+  const contentEl = container?.querySelector("#stepper-content");
+  if (!contentEl) return;
+  // Разметка списка НЕ выбрасывается: «Повторить» должно раскрыть её снова,
+  // поэтому состояние ошибки — надстройка над списком, а не замена шага.
+  const listEl = contentEl.querySelector("ul.list");
+  if (listEl) listEl.hidden = true;
+  contentEl.querySelector(".list--skeleton")?.remove();
+  if (contentEl.querySelector("[data-slots-error]")) return;
+  contentEl.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="slots-retry" data-slots-error>
+      <span class="slots-retry__text">Не удалось получить актуальные талоны</span>
+      ${slotsRetryButton()}
+    </div>`,
+  );
+  bindSlotsRetry(container, state);
+}
+
+/**
+ * Баннер «Повторить» над списком, когда бюджет попыток исчерпан.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а
+ */
+function renderSlotsRetryNotice(container, state) {
+  const contentEl = container?.querySelector("#stepper-content");
+  if (!contentEl || contentEl.querySelector("[data-slots-retry-notice]")) return;
+  contentEl.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="slots-retry" data-slots-retry-notice>
+      <span class="slots-retry__text">Не удалось получить актуальные талоны</span>
+      ${slotsRetryButton()}
+    </div>`,
+  );
+  bindSlotsRetry(container, state);
+}
+
+/**
+ * Привязывает кнопку «Повторить» к повторному запуску догрузки талонов.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а
+ */
+function bindSlotsRetry(container, state) {
+  container?.querySelectorAll("[data-slots-retry]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state._slotsRefreshDone = false;
+      slotsRefreshDone = false;
+      if (typeof state.loadStepData === "function") {
+        state.loadStepData(state.steps?.[state.currentStep]);
+      } else {
+        startSlotsRefresh(container, state);
+      }
+    });
+  });
+}
+
+/**
  * Дорисовывает цифры талонов в уже отрисованном списке врачей (шаг 3).
  *
  * Обновляет только подзаголовок видимого элемента — без полного
@@ -560,9 +751,13 @@ export function applyRefreshedSlots(container, state, data) {
  * Инициирует догрузку цифр талонов видимых врачей без действий пользователя.
  *
  * Короткий поллинг в ограниченном окне: повторный запрос с `refresh=1` ждёт
- * свежий кэш талонов на сервере и возвращает обновлённые значения. Цикл
- * останавливается, когда все видимые врачи получили цифры, либо по концу окна.
- * Ошибки и пустые ответы молча пропускаются — экран остаётся как есть.
+ * свежий кэш талонов на сервере и возвращает обновлённые значения.
+ *
+ * Если талоны в первом ответе были не свежие (`slots_fresh === false`), список
+ * закрыт скелетоном: он снимается, когда ответ вернёт свежие цифры
+ * (`slots_fresh === true`) либо когда бюджет попыток исчерпан. Ошибка сети/API
+ * больше не глотается — показываем «Повторить» (для скелетона — целый экран
+ * ошибки, для уже отрисованного списка — баннер над ним).
  *
  * @param {HTMLElement} container — контейнер stepper'а
  * @param {object} state — состояние stepper'а
@@ -570,6 +765,7 @@ export function applyRefreshedSlots(container, state, data) {
  * @param {Function} [options.get] — функция GET-запроса
  * @param {number} [options.windowMs] — окно догрузки, мс
  * @param {number} [options.intervalMs] — интервал запросов, мс
+ * @param {number} [options.maxAttempts] — предел запросов за одно открытие
  */
 export function startSlotsRefresh(container, state, options = {}) {
   const {
@@ -581,6 +777,10 @@ export function startSlotsRefresh(container, state, options = {}) {
 
   const params = buildAvailabilityParams(state?.selections || []);
   if (!params.clinic_id || !params.patient_id) return;
+
+  // Скелетон показываем сразу: он закрывает нули, пока не знаем, есть ли талоны.
+  const skeleton = slotsSkeletonPending(state);
+  if (skeleton) renderSlotsSkeleton(container);
 
   const generation = ++slotsRefreshGeneration;
   const stepIndex = state.currentStep;
@@ -596,17 +796,38 @@ export function startSlotsRefresh(container, state, options = {}) {
   const tick = async () => {
     if (isStale()) return;
     attempts += 1;
-    let data = null;
+    let data;
     try {
       data = await get("/doctors/available", { ...params, refresh: 1 });
     } catch {
-      // Данные не пришли — тихо пробуем ещё раз в пределах окна.
+      if (isStale()) return;
+      // Ошибка сети/API больше не молчит: показываем честное состояние и «Повторить».
+      state._slotsRefreshDone = true;
+      if (skeleton) renderSlotsError(container, state);
+      else renderSlotsRetryNotice(container, state);
+      return;
     }
     if (isStale()) return;
-    if (data) applyRefreshedSlots(container, state, data);
-    if (!hasPendingSlots(state)) return;
-    if (attempts >= maxAttempts) return;
-    if (Date.now() - startedAt >= windowMs) return;
+
+    if (skeleton) {
+      // Свежие талоны пришли — раскрываем настоящий список с цифрами.
+      if (isSlotsFresh(data)) {
+        revealSlots(container, state, data);
+        return;
+      }
+    } else {
+      if (data) applyRefreshedSlots(container, state, data);
+      if (!hasPendingSlots(state)) return;
+    }
+
+    if (attempts >= maxAttempts || Date.now() - startedAt >= windowMs) {
+      // Бюджет исчерпан: скелетон не висит бесконечно — показываем список с
+      // честным состоянием и даём повторить догрузку вручную.
+      state._slotsRefreshDone = true;
+      if (skeleton) revealSlots(container, state, data);
+      renderSlotsRetryNotice(container, state);
+      return;
+    }
     setTimeout(tick, intervalMs);
   };
 
@@ -621,11 +842,15 @@ export function startSlotsRefresh(container, state, options = {}) {
  * @returns {Promise<Array<{value: object, label: string, subtitle: string}>>}
  */
 async function loadDoctors(selections = []) {
+  // Список перечитывается на каждый вход на шаг и на каждый поисковый запрос:
+  // новый список — догрузка талонов разрешена заново.
+  slotsRefreshDone = false;
   const params = buildAvailabilityParams(selections);
   // Если нет clinic_id — не вызываем API (гонка при быстром переключении)
   if (!params.clinic_id) return [];
   const data = await apiGet("/doctors/available", params);
   const doctors = data.doctors || [];
+  const fresh = isSlotsFresh(data);
 
   // Получаем текущие мониторинги пользователя, чтобы пометить уже отслеживаемых врачей
   let monitoredDoctorIds = new Set();
@@ -647,6 +872,8 @@ async function loadDoctors(selections = []) {
     specialty: d.specialty_name || "",
     subtitle: doctorSubtitle(d),
     _monitored: monitoredDoctorIds.has(String(d.doctor_id)),
+    // Признак свежести талонов: пока ``false`` — рисуем скелетон и догружаем.
+    _slotsFresh: fresh,
   }));
 }
 

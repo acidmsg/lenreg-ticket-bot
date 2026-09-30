@@ -699,6 +699,29 @@ body {
   }
 }
 
+/* Скелетон списка врачей (шаг 3): заглушки некликабельны, пока не сменены
+   настоящим списком. Класс тот же ``.skeleton`` с бегущим градиентом. */
+.list--skeleton {
+  pointer-events: none;
+}
+
+/* Баннер «Повторить» над списком, когда талоны не удалось догрузить. */
+.slots-retry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-sm);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.slots-retry__text {
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+}
+
 @keyframes pulse {
   0%,
   100% {

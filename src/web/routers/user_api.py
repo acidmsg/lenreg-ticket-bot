@@ -278,6 +278,35 @@ async def _load_cached_slots(
     return _index_cached_slots(cached)
 
 
+async def _clinic_slots_fresh(
+    db: DatabaseManager, clinic_id: str, doctor_ids: list[str]
+) -> bool:
+    """Свежи ли талоны клиники для видимых врачей (шаг 3, скелетон).
+
+    Признак для фронта: пока он ``False``, список рисуется скелетоном, потому
+    что нули кэша ещё нельзя отличить от «талонов нет». Свежесть — та же, что у
+    фонового сигнала ``refresh_clinic_slots_if_stale``: кэш ``clinic_slots`` не
+    пуст и записан не позже TTL ``slot_cache_ttl_minutes``. При непустом
+    ``doctor_ids`` учитывается самый старый видимый врач — без записи он делает
+    набор просроченным; пустой список — свежесть всей клиники.
+
+    Ошибка чтения настроек/БД — ``False``: лишний скелетон безопаснее, чем
+    выдача нулей под видом свежих данных.
+    """
+    from src.services.doctor_discovery import clinic_slots_are_stale
+
+    try:
+        stale = await clinic_slots_are_stale(
+            db._db, clinic_id, doctor_ids=doctor_ids or None
+        )
+    except Exception:
+        logger.exception(
+            "Не удалось определить свежесть талонов clinic_id={}", clinic_id
+        )
+        return False
+    return not stale
+
+
 async def _await_fresh_slots(
     db: DatabaseManager,
     clinic_id: str,
@@ -941,6 +970,11 @@ async def get_available_doctors(
     мгновенно как обычно, а повторный запрос с флагом дожидается свежего кэша
     в ограниченном окне (``SLOTS_REFRESH_WAIT_SECONDS``) и отдаёт обновлённые
     значения. Не дождались — отдаём то, что есть, без ошибки.
+
+    Поле ``slots_fresh`` сообщает фронту, свежие ли талоны видимых врачей:
+    ``false`` — кэша нет или он просрочен, и нули ещё не отличить от «талонов
+    нет», поэтому шаг 3 показывает скелетон и догружает числа через
+    ``refresh=1``.
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -1032,6 +1066,11 @@ async def get_available_doctors(
     else:
         slots_map = await _load_cached_slots(db, clinic_id)
 
+    # 5a. Признак свежести талонов для фронта: пока он ``False``, шаг 3 рисует
+    #     скелетон и догружает числа через ``refresh=1``. Существующие поля
+    #     ответа не меняются — поле аддитивное.
+    slots_fresh = await _clinic_slots_fresh(db, clinic_id, visible_ids)
+
     # 6. Формируем ответ: врачи из БД + талоны из кэша + флаг is_monitored
     doctors: list[dict[str, Any]] = []
     for doc_id in visible_ids:
@@ -1063,6 +1102,7 @@ async def get_available_doctors(
     return {
         "clinic_id": clinic_id,
         "specialty_id": specialty_id,
+        "slots_fresh": slots_fresh,
         "doctors": doctors,
     }
 
