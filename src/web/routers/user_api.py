@@ -85,9 +85,16 @@ def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
 # Бюджеты блокирующей работы пользовательских запросов. Клиент (Mini App)
 # сдаётся через 20 с, поэтому портальные операции в самом запросе ограничены:
 # не уложились — отдаём то, что есть, а обновление уходит в фон.
-# Талоны (T3) в запросе не опрашиваются вовсе — читаются из кэша clinic_slots,
-# поэтому отдельного бюджета слотов нет.
+# Талоны (T3) в первом кадре запроса не опрашиваются вовсе — читаются из кэша
+# clinic_slots, поэтому отдельного бюджета слотов нет.
 DISCOVERY_TIMEOUT_SECONDS = 6.0
+
+# Догрузка цифр без потери скорости (шаг 3, `refresh=1`). Первый ответ экрана
+# остаётся мгновенным; повторный запрос с `refresh=1` ждёт свежий кэш талонов
+# ограниченное окно, чтобы фронт дорисовал числа без действий пользователя.
+# Окно мало́ и не блокирует UI: не дождались — отдаём то, что есть, без ошибок.
+SLOTS_REFRESH_WAIT_SECONDS = 2.5
+SLOTS_REFRESH_POLL_SECONDS = 0.5
 
 
 class PatientUpdateRequest(BaseModel):
@@ -246,15 +253,14 @@ async def _trigger_stale_clinic_slots_refresh(
     await refresh_clinic_slots_if_stale(db._db, clinic_id, doctor_ids=doctor_ids)
 
 
-async def _load_cached_slots(
-    db: DatabaseManager, clinic_id: str
+def _index_cached_slots(
+    cached: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Читает талоны клиники из кэша ``clinic_slots``, индексируя по doctor_id.
+    """Индексирует строки кэша талонов по ``doctor_id`` для ответа API.
 
     Пустая строка ``nearest_date`` в кэше означает «даты нет»; в ответе API
     это ``null``, поэтому приводим к ``None`` (контракт ответа не меняется).
     """
-    cached = await db.get_clinic_slots(clinic_id)
     return {
         row["doctor_id"]: {
             "free_tickets": int(row.get("free_tickets", 0)),
@@ -262,6 +268,57 @@ async def _load_cached_slots(
         }
         for row in cached
     }
+
+
+async def _load_cached_slots(
+    db: DatabaseManager, clinic_id: str
+) -> dict[str, dict[str, Any]]:
+    """Читает талоны клиники из кэша ``clinic_slots``, индексируя по doctor_id."""
+    cached = await db.get_clinic_slots(clinic_id)
+    return _index_cached_slots(cached)
+
+
+async def _await_fresh_slots(
+    db: DatabaseManager,
+    clinic_id: str,
+    doctor_ids: list[str],
+    *,
+    since: float,
+    window_seconds: float,
+) -> dict[str, dict[str, Any]]:
+    """Ждёт в ограниченном окне появления свежего кэша талонов (шаг 3).
+
+    Повторный запрос с ``refresh=1`` не должен отдавать нули, пока фон ещё не
+    записал свежие талоны: ждём запись кэша с ``updated_at >= since`` (``since``
+    — момент постановки фонового обновления). Как только свежая запись
+    появилась хотя бы по одному видимому врачу — отдаём весь текущий кэш.
+
+    Окно ограничено ``window_seconds`` секунд, опрос — ``SLOTS_REFRESH_POLL_SECONDS``.
+    Не дождались — возвращаем то, что есть в кэше (возможно, пусто): никаких
+    ошибок и без блокировки UI дольше окна.
+
+    Args:
+        db: Менеджер БД (кэш ``clinic_slots``).
+        clinic_id: ID клиники.
+        doctor_ids: Видимые врачи; пустой список — любой врач клиники.
+        since: Момент постановки фонового обновления (``time.time()``).
+        window_seconds: Максимальное время ожидания, в секундах.
+    """
+    wanted = {str(d) for d in doctor_ids}
+    deadline = time_module.time() + window_seconds
+    cached = await db.get_clinic_slots(clinic_id)
+    while True:
+        fresh = [
+            row
+            for row in cached
+            if float(row.get("updated_at") or 0) >= since
+            and (not wanted or str(row.get("doctor_id")) in wanted)
+        ]
+        if fresh or time_module.time() >= deadline:
+            return _index_cached_slots(cached)
+        remaining = deadline - time_module.time()
+        await asyncio.sleep(min(SLOTS_REFRESH_POLL_SECONDS, max(remaining, 0.0)))
+        cached = await db.get_clinic_slots(clinic_id)
 
 
 async def _find_patient_id(
@@ -865,6 +922,13 @@ async def get_available_doctors(
         None,
         description="ID специальности (опционально; не указан — все врачи клиники)",
     ),
+    refresh: bool = Query(
+        False,
+        description=(
+            "1 — догрузка цифр: поставить обновление талонов и подождать "
+            "свежий кэш в ограниченном окне (первый кадр остаётся мгновенным)"
+        ),
+    ),
 ) -> dict[str, Any] | JSONResponse:
     """Список врачей в поликлинике (реестр из БД + талоны из кэша).
 
@@ -872,6 +936,11 @@ async def get_available_doctors(
     Талоны (CountFreeTicket, NearestDate) — из кэша ``clinic_slots`` (T3):
     экран не ждёт портал, а просроченный/пустой кэш обновляет фоновый цикл.
     Если врачей в БД нет — срабатывает on-demand discovery (аналогично боту).
+
+    ``refresh=1`` — догрузка цифр без потери скорости: первый ответ отдаётся
+    мгновенно как обычно, а повторный запрос с флагом дожидается свежего кэша
+    в ограниченном окне (``SLOTS_REFRESH_WAIT_SECONDS``) и отдаёт обновлённые
+    значения. Не дождались — отдаём то, что есть, без ошибки.
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -946,10 +1015,22 @@ async def get_available_doctors(
     # 5. Талоны (CountFreeTicket/NearestDate) — ТОЛЬКО из кэша ``clinic_slots``
     #    (T3). Портал в HTTP-обработчике не опрашивается: просроченный или
     #    пустой кэш обновляет фоновая задача, а ответ отдаётся моментально.
+    #    С ``refresh=1`` (догрузка цифр) дожидаемся свежей записи кэша в
+    #    ограниченном окне — первый кадр без флага остаётся мгновенным.
+    refresh_started = time_module.time()
     await _trigger_stale_clinic_slots_refresh(
         db, clinic_id, visible_ids if specialty_id else None
     )
-    slots_map = await _load_cached_slots(db, clinic_id)
+    if refresh:
+        slots_map = await _await_fresh_slots(
+            db,
+            clinic_id,
+            visible_ids,
+            since=refresh_started,
+            window_seconds=SLOTS_REFRESH_WAIT_SECONDS,
+        )
+    else:
+        slots_map = await _load_cached_slots(db, clinic_id)
 
     # 6. Формируем ответ: врачи из БД + талоны из кэша + флаг is_monitored
     doctors: list[dict[str, Any]] = []
@@ -984,6 +1065,27 @@ async def get_available_doctors(
         "specialty_id": specialty_id,
         "doctors": doctors,
     }
+
+
+@router.post("/clinics/{clinic_id}/slots/preheat", response_model=None)
+async def preheat_clinic_slots(
+    request: Request,
+    clinic_id: str,
+) -> dict[str, Any]:
+    """Предпрогрев талонов клиники при её выборе (шаг «Выбор поликлиники»).
+
+    «Выстрелил-и-забыл»: сигнал только ставит обновление талонов клиники в
+    фоновую очередь (``refresh_clinic_slots_if_stale`` без списка врачей —
+    полный batch клиники), а ответ отдаётся сразу. Свежий кэш обхода не
+    запускает и не тратит бюджет портала зря. Портал в обработчике не
+    опрашивается, поэтому выбор клиники не тормозит.
+
+    Цель — к моменту отрисовки шага «Выберите врача» цифры уже были тёплыми:
+    экран дорисовывает их через ``refresh=1`` без действий пользователя.
+    """
+    db = _get_db(request)
+    await _trigger_stale_clinic_slots_refresh(db, clinic_id)
+    return {"status": "ok", "clinic_id": clinic_id}
 
 
 @router.get("/doctors/search", response_model=None)

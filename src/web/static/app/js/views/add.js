@@ -136,6 +136,10 @@ export function renderAddDoctor(container) {
           step.searchPlaceholder = "Поиск клиники...";
         }
       },
+      // Предпрогрев при выборе: и клиника из списка, и врач глобального
+      // поиска несут clinic_id в value. Сигнал «выстрелил-и-забыл» уходит
+      // до перехода на шаг 3, чтобы цифры были тёплыми к отрисовке списка.
+      onSelect: (item) => preheatClinicSlots(item?.value?.clinic_id),
       loadData: async (selections) => {
         if (steps[1].searchMode === "doctors") {
           return await searchDoctorsGlobally(selections);
@@ -155,10 +159,22 @@ export function renderAddDoctor(container) {
       searchPlaceholder: "Поиск по имени или специальности...",
       loadData: loadDoctors,
       renderItem: renderDoctorItem,
+      // Догрузка цифр без потери скорости: первый список мгновенный, после
+      // отрисовки дорисовываем талоны видимых врачей без действий пользователя.
+      onRender: (container, state) => {
+        if (hasPendingSlots(state)) {
+          startSlotsRefresh(container, state);
+        }
+      },
     },
     {
       title: "Выбор талона",
       description: "Отметьте время в календаре или перейдите к слежению",
+      // Шаг интерактивный, а не список выбора: единственный элемент — панель
+      // шага (календарь либо состояние «талонов нет»), поэтому type: "widget"
+      // запрещает автопереход по единственному элементу. Решение — за
+      // пользователем: «Запись» (после выбора слота) или «Следить».
+      type: "widget",
       // Переход («Следить») и действие («Запись») ведут на экран подтверждения:
       // режим фиксируется до перехода, сам экран — следующий шаг мастера.
       nextLabel: "Следить",
@@ -413,6 +429,191 @@ async function toggleClinicFavorite(button) {
 }
 
 /**
+ * Окно догрузки цифр талонов после отрисовки шага 3 (мс).
+ *
+ * Ограничивает короткий поллинг: не дождались свежего кэша — оставляем
+ * то, что есть, без ошибок на экране (владелец карточки MA-STEP3-SLOTS).
+ * Окно с запасом к фоновой очереди талонов: полный batch клиники — это
+ * десяток вызовов портала, а очередь разбирается раз в 2 с.
+ */
+const SLOTS_REFRESH_WINDOW_MS = 25000;
+
+/** Интервал повторных запросов догрузки талонов (мс). */
+const SLOTS_REFRESH_INTERVAL_MS = 3000;
+
+/**
+ * Предел запросов догрузки за одно открытие шага.
+ *
+ * У врача может честно не быть талонов: 0 — это данные, а не «ещё не знаем»,
+ * и по одному этому признаку цикл не отличит «кэш не обновился» от «талонов
+ * нет». Поэтому вместо полного окна — ограниченное число запросов: цифры
+ * успевают прийти, а сервер не держит ожидание свежего кэша на каждом тике
+ * до конца окна (каждый запрос `refresh=1` ждёт до 2.5 с).
+ */
+const SLOTS_REFRESH_MAX_ATTEMPTS = 5;
+
+/** Поколение догрузки: новый рендер/шаг отменяет прежние циклы. */
+let slotsRefreshGeneration = 0;
+
+/**
+ * Ставит предпрогрев талонов клиники «выстрелил-и-забыл» (шаг 3).
+ *
+ * Вызывается при выборе клиники (или врача из глобального поиска) до
+ * перехода на шаг «Выберите врача»: сигнал сразу ставит обновление талонов
+ * клиники в фоновую очередь, чтобы к отрисовке списка цифры были тёплыми.
+ * Ошибки предпрогрева не влияют на экран и молча игнорируются.
+ *
+ * @param {string|number} clinicId — ID выбранной клиники
+ */
+export function preheatClinicSlots(clinicId) {
+  const id = String(clinicId || "").trim();
+  if (!id) return;
+  // «Выстрелил-и-забыл»: ответ не нужен, ошибки не показываем.
+  apiPost(`/clinics/${encodeURIComponent(id)}/slots/preheat`).catch(() => {});
+}
+
+/**
+ * Собирает query-параметры списка врачей из выборов мастера.
+ *
+ * @param {Array<{value: object}>} [selections=[]] — выборы предыдущих шагов
+ * @returns {{patient_id?: string, clinic_id?: string}}
+ */
+function buildAvailabilityParams(selections = []) {
+  const params = {};
+  // Шаг 0: пациент
+  if (selections.length > 0 && selections[0]?.value) {
+    const patient = selections[0].value;
+    params.patient_id = patient.patient_id || patient.id;
+  }
+  // Шаг 1: поликлиника
+  if (selections.length > 1 && selections[1]?.value) {
+    const clinic = selections[1].value;
+    params.clinic_id = clinic.clinic_id || clinic.id;
+  }
+  return params;
+}
+
+/**
+ * Подзаголовок врача со числом свободных номерков.
+ *
+ * @param {object} doctor — объект врача из API
+ * @returns {string} текст подзаголовка
+ */
+function doctorSubtitle(doctor) {
+  return doctor?.free_tickets !== undefined
+    ? `Свободных номерков: ${doctor.free_tickets}`
+    : "";
+}
+
+/** Есть ли в списке врачи без цифр талонов (для запуска догрузки). */
+function hasPendingSlots(state) {
+  return (state?.stepData || []).some(
+    (item) => !item?._monitored && Number(item?.value?.free_tickets) === 0,
+  );
+}
+
+/**
+ * Дорисовывает цифры талонов в уже отрисованном списке врачей (шаг 3).
+ *
+ * Обновляет только подзаголовок видимого элемента — без полного
+ * перерисовывания списка: не сбрасываются скролл, поиск и выделение.
+ * Отслеживаемые врачи не трогаются: у их карточек иной подзаголовок.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а (stepData — элементы шага)
+ * @param {object} data — ответ повторного запроса (поле doctors)
+ * @returns {number} — сколько врачей обновилось
+ */
+export function applyRefreshedSlots(container, state, data) {
+  const doctors = data?.doctors || [];
+  const items = state?.stepData || [];
+  if (!doctors.length || !items.length) return 0;
+
+  const byId = new Map(doctors.map((d) => [String(d.doctor_id), d]));
+  let updated = 0;
+
+  items.forEach((item, index) => {
+    if (item?._monitored) return;
+    const fresh = byId.get(String(item?.value?.doctor_id));
+    if (!fresh) return;
+    const value = item.value;
+    if (
+      value.free_tickets === fresh.free_tickets &&
+      value.nearest_date === fresh.nearest_date
+    ) {
+      return;
+    }
+    value.free_tickets = fresh.free_tickets;
+    value.nearest_date = fresh.nearest_date;
+    item.subtitle = doctorSubtitle(fresh);
+    updated += 1;
+    const node = container?.querySelector(
+      `.stepper-item[data-index="${index}"] .list__item-subtitle`,
+    );
+    if (node) node.textContent = item.subtitle;
+  });
+
+  return updated;
+}
+
+/**
+ * Инициирует догрузку цифр талонов видимых врачей без действий пользователя.
+ *
+ * Короткий поллинг в ограниченном окне: повторный запрос с `refresh=1` ждёт
+ * свежий кэш талонов на сервере и возвращает обновлённые значения. Цикл
+ * останавливается, когда все видимые врачи получили цифры, либо по концу окна.
+ * Ошибки и пустые ответы молча пропускаются — экран остаётся как есть.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ * @param {object} state — состояние stepper'а
+ * @param {object} [options={}] — параметры (для тестов)
+ * @param {Function} [options.get] — функция GET-запроса
+ * @param {number} [options.windowMs] — окно догрузки, мс
+ * @param {number} [options.intervalMs] — интервал запросов, мс
+ */
+export function startSlotsRefresh(container, state, options = {}) {
+  const {
+    get = apiGet,
+    windowMs = SLOTS_REFRESH_WINDOW_MS,
+    intervalMs = SLOTS_REFRESH_INTERVAL_MS,
+    maxAttempts = SLOTS_REFRESH_MAX_ATTEMPTS,
+  } = options;
+
+  const params = buildAvailabilityParams(state?.selections || []);
+  if (!params.clinic_id || !params.patient_id) return;
+
+  const generation = ++slotsRefreshGeneration;
+  const stepIndex = state.currentStep;
+  const startedAt = Date.now();
+  let attempts = 0;
+
+  // Цикл жив, пока актуален: не перерисован шаг и не переключён экран.
+  const isStale = () =>
+    generation !== slotsRefreshGeneration ||
+    state.currentStep !== stepIndex ||
+    !container?.isConnected;
+
+  const tick = async () => {
+    if (isStale()) return;
+    attempts += 1;
+    let data = null;
+    try {
+      data = await get("/doctors/available", { ...params, refresh: 1 });
+    } catch {
+      // Данные не пришли — тихо пробуем ещё раз в пределах окна.
+    }
+    if (isStale()) return;
+    if (data) applyRefreshedSlots(container, state, data);
+    if (!hasPendingSlots(state)) return;
+    if (attempts >= maxAttempts) return;
+    if (Date.now() - startedAt >= windowMs) return;
+    setTimeout(tick, intervalMs);
+  };
+
+  setTimeout(tick, intervalMs);
+}
+
+/**
  * Загружает список доступных врачей для выбранной поликлиники
  * (по всем специальностям одновременно).
  *
@@ -420,17 +621,7 @@ async function toggleClinicFavorite(button) {
  * @returns {Promise<Array<{value: object, label: string, subtitle: string}>>}
  */
 async function loadDoctors(selections = []) {
-  const params = {};
-  // Шаг 0: пациент
-  if (selections.length > 0 && selections[0]?.value) {
-    const patient = selections[0].value;
-    params.patient_id = patient.patient_id || patient.id;
-  }
-  // Шаг 1: поликлиника (после пациента [0])
-  if (selections.length > 1 && selections[1]?.value) {
-    const clinic = selections[1].value;
-    params.clinic_id = clinic.clinic_id || clinic.id;
-  }
+  const params = buildAvailabilityParams(selections);
   // Если нет clinic_id — не вызываем API (гонка при быстром переключении)
   if (!params.clinic_id) return [];
   const data = await apiGet("/doctors/available", params);
@@ -454,10 +645,7 @@ async function loadDoctors(selections = []) {
     value: d,
     label: extractDoctorName(d) || "Неизвестный врач",
     specialty: d.specialty_name || "",
-    subtitle:
-      d.free_tickets !== undefined
-        ? `Свободных номерков: ${d.free_tickets}`
-        : "",
+    subtitle: doctorSubtitle(d),
     _monitored: monitoredDoctorIds.has(String(d.doctor_id)),
   }));
 }
@@ -723,7 +911,7 @@ function renderStep4Block(availability) {
 
   if (total === 0) {
     // Номерков нет: календарь не нужен, слежение доступно кнопкой «Следить» в футере.
-    return `<div class="confirm-note confirm-note--danger">Талонов нет — можно следить за появлением.</div>`;
+    return `<div class="confirm-note confirm-note--danger">Талонов сейчас нет — нажмите «Следить», чтобы отслеживать появление.</div>`;
   }
 
   return `

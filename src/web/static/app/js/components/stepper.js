@@ -298,10 +298,15 @@ function updateStepperContent(container, state) {
   const isLastStep = state.currentStep === state.steps.length - 1;
   const currentStepDef = state.steps[state.currentStep];
 
-  // Widget-шаг: рендерим напрямую, не как список
+  // Widget-шаг: рендерим напрямую, не как список. Хук onRender вызывается и
+  // здесь — интерактивному шагу нужно инициализировать содержимое после
+  // вставки DOM (например, календарь выбора талона на шаге 4).
   const isWidget = currentStepDef.type === "widget";
   if (isWidget && state.stepData.length > 0) {
     contentEl.innerHTML = currentStepDef.renderItem(state.stepData[0]);
+    if (typeof currentStepDef.onRender === "function") {
+      currentStepDef.onRender(container, state);
+    }
     setupStepperSearch(container, state);
     return;
   }
@@ -354,17 +359,27 @@ function updateStepperContent(container, state) {
         }
         items.forEach((i) => i.classList.remove("stepper-item--selected"));
         item.classList.add("stepper-item--selected");
+        // Хук выбора элемента: шаг может отреагировать до перехода
+        // (например, предпрогрев талонов выбранной клиники).
+        if (typeof currentStepDef.onSelect === "function") {
+          currentStepDef.onSelect(state.stepData[index], index);
+        }
         state.advanceStep(index);
       }
     });
   });
 
-  const isWidgetAuto = currentStepDef.type === "widget";
+  // Автопереход по единственному элементу — только для шагов-списков: когда
+  // пациент/поликлиника/врач в списке один, выбор очевиден. Шаг-виджет
+  // (type: "widget") интерактивен: его единственный элемент — не «выбор из
+  // списка», а сама панель шага (календарь, подтверждение), поэтому
+  // автопереход ему запрещён всегда — решение принимает пользователь.
+  const isWidgetStep = currentStepDef.type === "widget";
   if (
+    !isWidgetStep &&
     state.stepData.length === 1 &&
     items.length === 1 &&
-    state._currentSearchMode !== "doctors" &&
-    !isWidgetAuto
+    state._currentSearchMode !== "doctors"
   ) {
     items[0].classList.add("stepper-item--selected");
     setTimeout(() => {
@@ -477,7 +492,7 @@ function setupStepperSearch(container, state) {
  *
  * @param {object} options — параметры stepper
  * @param {HTMLElement} options.container — DOM-элемент для рендеринга
- * @param {Array<{title: string, description: string, loadData: Function, renderItem: Function, searchPlaceholder?: string, actionLabel?: string, onAction?: Function, nextLabel?: string, onNext?: Function, onRender?: Function}>} options.steps — массив шагов
+ * @param {Array<{title: string, description: string, loadData: Function, renderItem: Function, type?: string, searchPlaceholder?: string, actionLabel?: string, onAction?: Function, nextLabel?: string, onNext?: Function, onRender?: Function, onSelect?: Function}>} options.steps — массив шагов; `type: "widget"` — интерактивный шаг без списка (автопереход по единственному элементу и клики по `.stepper-item` к нему не применяются, кнопка перехода активна, `onRender` вызывается после вставки содержимого)
  * @param {Function} options.onComplete — колбэк при завершении (вызывается с выбранными значениями)
  * @param {Function} [options.onCancel] — колбэк при отмене
  * @returns {object} объект управления stepper
