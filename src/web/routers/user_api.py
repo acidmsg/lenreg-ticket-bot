@@ -238,7 +238,7 @@ async def _trigger_stale_clinic_refresh(db: DatabaseManager, clinic_id: str) -> 
 
 async def _trigger_stale_clinic_slots_refresh(
     db: DatabaseManager, clinic_id: str, doctor_ids: list[str] | None = None
-) -> None:
+) -> bool:
     """Ставит в фон обновление талонов, если кэш просрочен или пуст (T3–T4).
 
     Экран «Выберите врача» отдаёт талоны из БД немедленно: портальный обход
@@ -247,10 +247,14 @@ async def _trigger_stale_clinic_slots_refresh(
     запускает. ``doctor_ids`` — врачи, видимые на экране после фильтра
     специальности: при непустом кэше обновляются точечно только они; ``None`` —
     полный batch клиники (bootstrap-путь).
+
+    Returns:
+        True — обновление поставлено в очередь (есть чего ждать);
+        False — кэш свежий или очередь недоступна.
     """
     from src.services.doctor_discovery import refresh_clinic_slots_if_stale
 
-    await refresh_clinic_slots_if_stale(db._db, clinic_id, doctor_ids=doctor_ids)
+    return await refresh_clinic_slots_if_stale(db._db, clinic_id, doctor_ids=doctor_ids)
 
 
 def _index_cached_slots(
@@ -278,17 +282,18 @@ async def _load_cached_slots(
     return _index_cached_slots(cached)
 
 
-async def _clinic_slots_fresh(
-    db: DatabaseManager, clinic_id: str, doctor_ids: list[str]
-) -> bool:
-    """Свежи ли талоны клиники для видимых врачей (шаг 3, скелетон).
+async def _clinic_slots_fresh(db: DatabaseManager, clinic_id: str) -> bool:
+    """Свеж ли кэш талонов клиники целиком (шаг 3, скелетон).
 
     Признак для фронта: пока он ``False``, список рисуется скелетоном, потому
-    что нули кэша ещё нельзя отличить от «талонов нет». Свежесть — та же, что у
-    фонового сигнала ``refresh_clinic_slots_if_stale``: кэш ``clinic_slots`` не
-    пуст и записан не позже TTL ``slot_cache_ttl_minutes``. При непустом
-    ``doctor_ids`` учитывается самый старый видимый врач — без записи он делает
-    набор просроченным; пустой список — свежесть всей клиники.
+    что нули кэша ещё нельзя отличить от «талонов нет». Свежесть — на уровне
+    КЛИНИКИ: кэш ``clinic_slots`` не пуст и ``max(updated_at)`` в пределах TTL
+    ``slot_cache_ttl_minutes``.
+
+    Отсутствие записи у отдельного врача — честный ноль («талонов нет»), а не
+    несвежесть: batch-обход ``sync_clinic_slots`` проходит клинику целиком и
+    записывает всех, кому портал отдал талоны. Точечный нюанс T4 (обход одной
+    специальности) для пользовательского флага не применяется.
 
     Ошибка чтения настроек/БД — ``False``: лишний скелетон безопаснее, чем
     выдача нулей под видом свежих данных.
@@ -296,9 +301,7 @@ async def _clinic_slots_fresh(
     from src.services.doctor_discovery import clinic_slots_are_stale
 
     try:
-        stale = await clinic_slots_are_stale(
-            db._db, clinic_id, doctor_ids=doctor_ids or None
-        )
+        stale = await clinic_slots_are_stale(db._db, clinic_id)
     except Exception:
         logger.exception(
             "Не удалось определить свежесть талонов clinic_id={}", clinic_id
@@ -969,12 +972,13 @@ async def get_available_doctors(
     ``refresh=1`` — догрузка цифр без потери скорости: первый ответ отдаётся
     мгновенно как обычно, а повторный запрос с флагом дожидается свежего кэша
     в ограниченном окне (``SLOTS_REFRESH_WAIT_SECONDS``) и отдаёт обновлённые
-    значения. Не дождались — отдаём то, что есть, без ошибки.
+    значения. Ожидание включается только когда обновление реально поставлено в
+    очередь, а кэш клиники при этом пуст или просрочен; свежий кэш отдаётся
+    сразу. Не дождались — отдаём то, что есть, без ошибки.
 
-    Поле ``slots_fresh`` сообщает фронту, свежие ли талоны видимых врачей:
-    ``false`` — кэша нет или он просрочен, и нули ещё не отличить от «талонов
-    нет», поэтому шаг 3 показывает скелетон и догружает числа через
-    ``refresh=1``.
+    Поле ``slots_fresh`` сообщает фронту, свеж ли кэш талонов клиники: ``false``
+    — кэша нет или он просрочен, и нули ещё не отличить от «талонов нет»,
+    поэтому шаг 3 показывает скелетон и догружает числа через ``refresh=1``.
     """
     db = _get_db(request)
     api = _get_api(request)
@@ -1052,10 +1056,14 @@ async def get_available_doctors(
     #    С ``refresh=1`` (догрузка цифр) дожидаемся свежей записи кэша в
     #    ограниченном окне — первый кадр без флага остаётся мгновенным.
     refresh_started = time_module.time()
-    await _trigger_stale_clinic_slots_refresh(
+    enqueued = await _trigger_stale_clinic_slots_refresh(
         db, clinic_id, visible_ids if specialty_id else None
     )
-    if refresh:
+    # Свежесть клиники решает, есть ли смысл ждать: при свежем кэше цифры уже
+    # готовы, ждать нечего (окно ожидания выжигало 2.5 с впустую). Ждём только
+    # когда обновление реально поставлено в очередь, а кэш пуст или просрочен.
+    clinic_fresh = await _clinic_slots_fresh(db, clinic_id)
+    if refresh and enqueued and not clinic_fresh:
         slots_map = await _await_fresh_slots(
             db,
             clinic_id,
@@ -1063,13 +1071,14 @@ async def get_available_doctors(
             since=refresh_started,
             window_seconds=SLOTS_REFRESH_WAIT_SECONDS,
         )
+        clinic_fresh = await _clinic_slots_fresh(db, clinic_id)
     else:
         slots_map = await _load_cached_slots(db, clinic_id)
 
     # 5a. Признак свежести талонов для фронта: пока он ``False``, шаг 3 рисует
     #     скелетон и догружает числа через ``refresh=1``. Существующие поля
     #     ответа не меняются — поле аддитивное.
-    slots_fresh = await _clinic_slots_fresh(db, clinic_id, visible_ids)
+    slots_fresh = clinic_fresh
 
     # 6. Формируем ответ: врачи из БД + талоны из кэша + флаг is_monitored
     doctors: list[dict[str, Any]] = []
