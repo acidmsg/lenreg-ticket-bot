@@ -57,13 +57,15 @@ async def send_or_update_rich_message(
     photo_path: Path | None = None,
     reply_markup=None,
     old_message: Message | None = None,
+    rich_message_no_media: InputRichMessage | None = None,
 ) -> Message | None:
     """Удалить старое → отправить rich-сообщение → сохранить msg_id.
 
-    Тот же паттерн, что у :func:`send_or_update_message`. Если ``send_rich_
-    message`` недоступен (ошибка Telegram API), выполняется деградация к
-    обычной отправке (``fallback_text`` + ``photo_path``), чтобы
-    функциональность экрана сохранилась.
+    Тот же паттерн, что у :func:`send_or_update_message`. Деградация
+    ступенчатая: rich с медиа → rich без медиа-блока (например, Telegram
+    отвергает картинку: ``IMAGE_PROCESS_FAILED``) → обычная отправка
+    (``fallback_text`` + ``photo_path``), чтобы функциональность экрана
+    сохранилась.
     """
     uid = str(chat_id)
 
@@ -76,6 +78,7 @@ async def send_or_update_rich_message(
         with contextlib.suppress(Exception):
             await old_message.delete()
 
+    new_msg: Message | None = None
     try:
         new_msg = await bot.send_rich_message(
             chat_id,
@@ -84,10 +87,27 @@ async def send_or_update_rich_message(
         )
     except (TelegramAPIError, AttributeError, TypeError) as exc:
         logger.warning(
-            "send_rich_message недоступен ({}), fallback на обычное: {}",
+            "send_rich_message с медиа не удался ({}): {}",
             type(exc).__name__,
             exc,
         )
+
+    if new_msg is None and rich_message_no_media is not None:
+        try:
+            new_msg = await bot.send_rich_message(
+                chat_id,
+                rich_message=rich_message_no_media,
+                reply_markup=reply_markup,
+            )
+            logger.info("rich-сообщение отправлено без медиа-блока")
+        except (TelegramAPIError, AttributeError, TypeError) as exc:
+            logger.warning(
+                "send_rich_message без медиа не удался ({}): {}",
+                type(exc).__name__,
+                exc,
+            )
+
+    if new_msg is None:
         new_msg = await _send_plain_message(
             bot, chat_id, fallback_text, photo_path, reply_markup
         )

@@ -451,6 +451,7 @@ async def _send_main_screen(
 
     photo_path = get_nav_image_path("patient")
     rich_message = build_main_screen_rich(patients, monitoring, photo_path)
+    rich_message_no_media = build_main_screen_rich(patients, monitoring, None)
     return await send_or_update_rich_message(
         bot,
         msg.chat.id,
@@ -462,6 +463,7 @@ async def _send_main_screen(
         photo_path=photo_path,
         reply_markup=reply_markup,
         old_message=old_message,
+        rich_message_no_media=rich_message_no_media,
     )
 
 
