@@ -61,7 +61,7 @@ def _monitoring_details(p_name: str, doctors: dict[str, Any]) -> InputRichBlockD
     return InputRichBlockDetails(
         summary=_("monitoring-patient-summary").format(name=p_name, count=len(doctors)),
         blocks=[InputRichBlockList(items=items)],
-        is_open=True,
+        is_open=False,
     )
 
 
