@@ -1,224 +1,16 @@
 """
-Сервис экспорта данных мониторинга в CSV и JSON.
+Сервис экспорта данных записи (талон): PNG, PDF, ICS.
 
-Предоставляет функции для выгрузки истории мониторинга слотов
-для последующего анализа пользователем.
+Используется публичным маршрутом ``/api/export/...`` Mini App. Экспорт
+мониторинга и генерация штрих-кода талона удалены вместе с бот-поверхностью.
 """
 
-import csv
 import io
-import json
-import time
-from datetime import UTC
 from typing import Any
 
-import aiofiles
 from loguru import logger
 
-from src.database.manager import DatabaseManager
-from src.database.types import BookingEntry, PatientInfo
-from src.i18n import _
-
-
-async def _collect_export_data(
-    db_manager: DatabaseManager, user_id: int
-) -> tuple[str, dict[str, Any], dict[str, Any], dict[str, str]]:
-    """Собирает общие данные для экспорта: patients, monitoring, clinic_names.
-
-    Returns:
-        (uid, patients, monitoring, clinic_names)
-    Raises:
-        ValueError: Если у пользователя нет данных для экспорта.
-    """
-    uid = str(user_id)
-    user_data = await db_manager.get_user_data(uid)
-    patients = user_data.get("patients", {})
-    monitoring = user_data.get("monitoring", {})
-
-    if not patients and not monitoring:
-        raise ValueError(_("export-no-data-error"))
-
-    clinic_names = await db_manager.get_all_clinic_names()
-    return uid, patients, monitoring, clinic_names
-
-
-async def export_monitoring_csv(db_manager: DatabaseManager, user_id: int) -> str:
-    """
-    Экспорт данных мониторинга пользователя в CSV.
-
-    Собирает историю мониторинга из таблицы monitoring_log, а также
-    текущую конфигурацию мониторинга (пациенты + врачи).
-
-    Args:
-        db_manager: Менеджер базы данных.
-        user_id: Telegram ID пользователя.
-
-    Returns:
-        Путь к временному CSV-файлу.
-
-    Raises:
-        ValueError: Если у пользователя нет данных для экспорта.
-    """
-    uid, patients, monitoring, clinic_names = await _collect_export_data(
-        db_manager, user_id
-    )
-
-    # Создаём временный CSV-файл
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(
-        [
-            _("export-csv-header-patient"),
-            _("export-csv-header-specialty"),
-            _("export-csv-header-doctor"),
-            _("export-csv-header-clinic"),
-            _("export-csv-header-slot"),
-            _("export-csv-header-status"),
-            _("export-csv-header-timestamp"),
-        ]
-    )
-
-    # Текущая конфигурация мониторинга (пациенты и врачи)
-    now_str = _format_timestamp(time.time())
-    rows_written = 0
-
-    for p_id, doctors in monitoring.items():
-        raw_p = patients.get(p_id)
-        if raw_p is None:
-            continue
-        p_info: PatientInfo = raw_p
-        p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
-
-        for _d_id, d_info in doctors.items():
-            if isinstance(d_info, dict):
-                d_name = d_info.get("name", "")
-                doctor_specialty = d_info.get("specialty", "")
-                clinic_id = d_info.get("clinic_id", "")
-            else:
-                d_name = str(d_info)
-                doctor_specialty = ""
-                clinic_id = ""
-
-            clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
-
-            writer.writerow(
-                [
-                    p_name,
-                    doctor_specialty,
-                    d_name,
-                    clinic_name,
-                    "",
-                    _("export-status-active"),
-                    now_str,
-                ]
-            )
-            rows_written += 1
-
-    # Асинхронная запись временного файла
-    import os
-    import tempfile
-
-    fd, filepath = tempfile.mkstemp(suffix=".csv")
-    os.close(fd)
-    async with aiofiles.open(filepath, mode="w", newline="", encoding="utf-8-sig") as f:
-        await f.write(buffer.getvalue())
-
-    logger.info(
-        "CSV-экспорт для uid={}: {} строк",
-        uid,
-        rows_written,
-    )
-
-    return filepath
-
-
-async def export_monitoring_json(db_manager: DatabaseManager, user_id: int) -> str:
-    """
-    Экспорт данных мониторинга пользователя в JSON.
-
-    Args:
-        db_manager: Менеджер базы данных.
-        user_id: Telegram ID пользователя.
-
-    Returns:
-        Путь к временному JSON-файлу.
-
-    Raises:
-        ValueError: Если у пользователя нет данных для экспорта.
-    """
-    uid, patients, monitoring, clinic_names = await _collect_export_data(
-        db_manager, user_id
-    )
-
-    # Собираем структуру
-    export_data: dict[str, Any] = {
-        "user_id": user_id,
-        "exported_at": _format_timestamp(time.time()),
-        "patients": [],
-    }
-
-    for p_id, doctors in monitoring.items():
-        raw_p = patients.get(p_id)
-        if raw_p is None:
-            continue
-        p_info: PatientInfo = raw_p
-        p_name = p_info.get("alias") or p_info.get("fio", _("patient-fallback-name"))
-
-        patient_entry: dict[str, Any] = {
-            "patient_id": p_id,
-            "patient_name": p_name,
-            "doctors": [],
-        }
-
-        for d_id, d_info in doctors.items():
-            if isinstance(d_info, dict):
-                d_name = d_info.get("name", "")
-                doctor_specialty = d_info.get("specialty", "")
-                clinic_id = d_info.get("clinic_id", "")
-            else:
-                d_name = str(d_info)
-                doctor_specialty = ""
-                clinic_id = ""
-
-            clinic_name = clinic_names.get(clinic_id, "") if clinic_id else ""
-
-            doctor_entry: dict[str, Any] = {
-                "doctor_id": d_id,
-                "doctor_name": d_name,
-                "specialty": doctor_specialty,
-                "clinic_name": clinic_name,
-                "status": _("export-status-active"),
-            }
-            patient_entry["doctors"].append(doctor_entry)
-
-        export_data["patients"].append(patient_entry)
-
-    # Создаём временный JSON-файл (асинхронно)
-    import os
-    import tempfile
-
-    fd, filepath = tempfile.mkstemp(suffix=".json")
-    os.close(fd)
-    json_content = json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
-    async with aiofiles.open(filepath, mode="w", encoding="utf-8") as f:
-        await f.write(json_content)
-
-    logger.info(
-        "JSON-экспорт для uid={}: {} пациентов",
-        uid,
-        len(export_data["patients"]),
-    )
-
-    return filepath
-
-
-def _format_timestamp(ts: float) -> str:
-    """Форматирует timestamp в читаемую дату/время."""
-    from datetime import datetime
-
-    dt = datetime.fromtimestamp(ts, tz=UTC)
-    return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-
+from src.database.types import BookingEntry
 
 # ── Экспорт бронирований (Фаза 3 рефакторинга UX) ──────────────
 
@@ -396,53 +188,10 @@ def export_booking_png(
         y += line_height
 
     # Конвертируем в PNG-байты
-    import io
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
-
-
-def _build_ticket_payload(booking: BookingEntry) -> str:
-    """Номер талона для штрих-кода: appointment_id, иначе booking_id."""
-    appointment_id = booking.get("appointment_id", "")
-    if appointment_id:
-        return appointment_id
-    return booking.get("booking_id", "")
-
-
-def export_booking_barcode_png(booking: BookingEntry) -> bytes:
-    """Генерирует PNG со штрих-кодом талона (Code 128).
-
-    Args:
-        booking: Данные записи (BookingEntry TypedDict).
-
-    Returns:
-        PNG-изображение со штрих-кодом в виде байтов.
-
-    Raises:
-        ImportError: Если python-barcode не установлен.
-    """
-    import barcode
-    from barcode.writer import ImageWriter
-
-    payload = _build_ticket_payload(booking)
-    ticket = barcode.get("code128", payload, writer=ImageWriter())
-
-    buffer = io.BytesIO()
-    ticket.write(
-        buffer,
-        options={
-            "module_width": 0.3,
-            "module_height": 15.0,
-            "quiet_zone": 2.0,
-            "write_text": False,
-            "dpi": 300,
-            "background": "white",
-            "foreground": "black",
-        },
-    )
-    return buffer.getvalue()
 
 
 def export_booking_pdf(
@@ -467,7 +216,6 @@ def export_booking_pdf(
 
 def _export_booking_pdf_reportlab(booking: "BookingEntry") -> bytes:
     """PDF через reportlab (русский текст через встроенный шрифт)."""
-    import io
 
     from reportlab.lib.pagesizes import A6
     from reportlab.pdfgen import canvas as rl_canvas

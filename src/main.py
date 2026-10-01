@@ -35,6 +35,7 @@ from src.services.background import (
     ScheduleConfig,
     publish_active_manager,
 )
+from src.services.bot_menu import setup_bot_menu
 from src.services.cleanup import _cleanup_iteration
 from src.services.dns_watchdog import DnsWatchdogState, dns_watchdog_loop
 from src.services.doctor_discovery import (
@@ -714,13 +715,9 @@ async def bootstrap_bot(
     dp.update.outer_middleware(ActivityLogMiddleware())
 
     # Регистрация роутеров.
-    # filter_setup — первым: его state-scoped хендлеры ввода фильтра должны иметь
-    # приоритет над общими текстовыми хендлерами остальных роутеров (T-21, §9.9).
-    from src.handlers import common, filter_setup, registration
+    from src.handlers import common
 
-    dp.include_router(filter_setup.router)
     dp.include_router(common.router)
-    dp.include_router(registration.router)
 
     # Регистрация роутера Mini App (если включено)
     if settings.MINI_APP_ENABLED:
@@ -740,6 +737,8 @@ async def bootstrap_bot(
         # Username нужен deep-link'ам уведомлений (t.me/<bot>?startapp=…) и
         # разрешается один раз: bot.me() уже закеширован проверкой выше.
         await resolve_bot_username(bot)
+        # CUT-1: меню команд и кнопка меню чата — из кода, а не из BotFather.
+        await setup_bot_menu(bot)
 
     return bot, dp
 

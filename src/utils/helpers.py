@@ -10,7 +10,6 @@ import json
 import re
 import time as time_module
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import datetime, time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs
@@ -18,9 +17,9 @@ from urllib.parse import parse_qs
 from loguru import logger
 
 if TYPE_CHECKING:
-    from src.api.models import AppointmentSlot, DateInfo
+    from src.api.models import DateInfo
 
-from src.i18n import _, _data
+from src.i18n import _data
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
@@ -399,24 +398,6 @@ def format_notification_text(
     )
 
 
-# ── Резолв слота записи (§11.1.1 дизайна записи) ───────────────
-
-
-@dataclass(frozen=True)
-class SlotDateTime:
-    """Нормализованные дата и время слота для карточки, клавиатуры и записи.
-
-    Атрибуты:
-        appointment_id: Идентификатор слота из ответа API.
-        date: Дата в формате «ДД.ММ.ГГГГ».
-        time: Время в формате «ЧЧ:ММ».
-    """
-
-    appointment_id: str
-    date: str
-    time: str
-
-
 def format_slot_date(date_start: DateInfo) -> str:
     """Собирает дату слота в формате «ДД.ММ.ГГГГ» из полей ``DateInfo``.
 
@@ -433,81 +414,6 @@ def format_slot_date(date_start: DateInfo) -> str:
     if not (date_start.day and date_start.month and date_start.year):
         return ""
     return f"{date_start.day.zfill(2)}.{date_start.month.zfill(2)}.{date_start.year}"
-
-
-def resolve_slot_datetime(
-    slots: list[AppointmentSlot], appointment_id: str
-) -> SlotDateTime | None:
-    """Ищет слот по ``appointment_id`` и нормализует его дату и время.
-
-    Единая точка резолва слота для шагов записи (§11.1.1): производные дата
-    и время берутся из свежего ответа ``check_slots()``, а не из
-    ``callback_data`` (инвариант §11.1.2). Ожидаемый идентификатор замедляет
-    O(n) поиск, но список слотов одного врача невелик.
-
-    Args:
-        slots: Список слотов из ``CheckSlotsResult.slots``.
-        appointment_id: Идентификатор слота из callback.
-
-    Returns:
-        ``SlotDateTime`` найденного слота либо ``None``, если слот исчез
-        из свежего ответа или его дата неполна.
-    """
-    for slot in slots:
-        if slot.id != appointment_id:
-            continue
-        slot_date = format_slot_date(slot.date_start)
-        if not slot_date:
-            return None
-        return SlotDateTime(
-            appointment_id=slot.id,
-            date=slot_date,
-            time=slot.date_start.time,
-        )
-    return None
-
-
-# ── Форматирование сообщений бронирования ──────────────────────
-
-
-def format_booking_card(
-    doctor_name: str,
-    specialty: str,
-    date: str,
-    time: str,
-    patient_name: str,
-    clinic_name: str = "",
-) -> str:
-    """Собирает локализованный текст карточки подтверждения записи.
-
-    Порядок строк фиксирован (booking_ux_refactoring.md §11.2): врач,
-    специальность, клиника, дата и время, пациент. Строки с пустыми
-    значениями специальности и клиники опускаются целиком вместе с эмодзи,
-    поэтому значения должны приходить уже нормализованными
-    (``shorten_fio`` / ``shorten_specialty`` / ``alias or fio``).
-
-    Args:
-        doctor_name: ФИО врача в отображаемом виде («Иванов И. И.»).
-        specialty: Отображаемое название специальности (пусто — врач-«кабинет»).
-        date: Дата слота в формате «ДД.ММ.ГГГГ».
-        time: Время слота в формате «ЧЧ:ММ».
-        patient_name: Отображаемое имя пациента (псевдоним или ФИО).
-        clinic_name: Название клиники (опционально).
-
-    Returns:
-        Готовый текст карточки подтверждения для inline-сообщения.
-    """
-    booking_lines = [
-        _("booking-confirm-doctor").format(doctor=doctor_name),
-        _("booking-confirm-specialty").format(specialty=specialty) if specialty else "",
-        _("booking-confirm-clinic").format(clinic=clinic_name) if clinic_name else "",
-        _("booking-confirm-datetime").format(date=date, time=time),
-        _("booking-confirm-patient").format(patient=patient_name),
-    ]
-    card = "\n".join(line for line in booking_lines if line)
-    return (
-        f"📋 {_('booking-confirm-title')}\n\n{card}\n\n{_('booking-confirm-question')}"
-    )
 
 
 # ── Единый формат ошибок (T-19) ──────────────────────────────
