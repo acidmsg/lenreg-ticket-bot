@@ -263,15 +263,13 @@ body {
   padding-right: 0;
 }
 
-/* Карточка занимает всю ширину: без боковых границ и скруглений,
-   разделитель между карточками — только нижняя граница. */
+/* Карточка занимает всю ширину: без боковых границ и скруглений.
+   Вертикальный отступ между карточками сохраняется (margin-bottom из .card). */
 .app-content--flush .card {
   border-radius: 0;
   border-left: none;
   border-right: none;
-  margin-bottom: 0;
   box-shadow: none;
-  border-bottom: 1px solid var(--color-border);
 }
 
 /* === Карточки === */
@@ -1444,11 +1442,6 @@ body {
 .stepper-item--monitored {
   opacity: 0.5;
   user-select: none;
-}
-
-/* === Карточка отслеживаемого врача на главном экране (зелёный индикатор) === */
-.doctor-card.doctor-card--monitored {
-  border-left: 3px solid var(--status-available);
 }
 
 /* Компактная метка времени последнего обновления данных по врачу */
