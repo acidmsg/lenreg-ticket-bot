@@ -256,6 +256,24 @@ body {
   padding: var(--space-2xl);
 }
 
+/* === Полноширинные карточки («Мониторинг» и «Записи») ===
+   Контейнер без боковых отступов: карточки идут от края до края окна. */
+.app-content--flush {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Карточка занимает всю ширину: без боковых границ и скруглений,
+   разделитель между карточками — только нижняя граница. */
+.app-content--flush .card {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  margin-bottom: 0;
+  box-shadow: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
 /* === Карточки === */
 .card {
   background-color: var(--color-bg-secondary);

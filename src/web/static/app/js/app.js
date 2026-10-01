@@ -119,7 +119,7 @@ function buildRouteHTML(route) {
     case "doctors":
       content = `
         ${renderHeader("Мониторинг", state.history.length > 0, userName)}
-        <div class="app-content" id="doctors-content"></div>
+        <div class="app-content app-content--flush" id="doctors-content"></div>
       `;
       break;
     case "add":
@@ -155,7 +155,7 @@ function buildRouteHTML(route) {
     case "bookings":
       content = `
         ${renderHeader("Мои записи", true, userName)}
-        <div class="app-content" id="bookings-content"></div>
+        <div class="app-content app-content--flush" id="bookings-content"></div>
       `;
       break;
     case "bookings-archive":
