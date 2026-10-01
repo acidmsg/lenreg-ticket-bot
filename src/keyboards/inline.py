@@ -19,23 +19,23 @@ def _mini_app_available() -> bool:
 
 
 def _add_open_app_button(builder: InlineKeyboardBuilder, startapp: str = "") -> None:
-    """Добавляет кнопку «Открыть в приложении»: deep-link либо web_app.
+    """Добавляет кнопку «Открыть в приложении».
 
-    При известном username (см. :func:`get_bot_username`) ставится ссылка
-    ``https://t.me/<bot>?startapp=<startapp>``: Telegram откроет Mini App сразу
-    на нужном экране. Без username (тесты, офлайн, режим стенда) — прежняя
-    web_app-кнопка без параметров.
+    С payload (уведомления) — deep-link ``https://t.me/<bot>?startapp=<payload>``:
+    Telegram открывает Mini App сразу на нужном экране. Без payload (точка входа
+    ``/start``) — web_app-кнопка с ``MINI_APP_URL``: голый ``https://t.me/<bot>``
+    открывает чат с ботом, а не приложение.
 
     Args:
         builder: Строитель клавиатуры, в который добавляется кнопка.
         startapp: Payload deep-link'а (например, ``slots_<p_id>_<d_id>``).
     """
     bot_username = get_bot_username()
-    if bot_username:
-        url = f"https://t.me/{bot_username}"
-        if startapp:
-            url = f"{url}?startapp={startapp}"
-        builder.button(text=_("btn-open-mini-app"), url=url)
+    if startapp and bot_username:
+        builder.button(
+            text=_("btn-open-mini-app"),
+            url=f"https://t.me/{bot_username}?startapp={startapp}",
+        )
     else:
         builder.button(
             text=_("btn-open-mini-app"),
