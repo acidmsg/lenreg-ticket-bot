@@ -193,8 +193,10 @@ export function createSlotCard({ date, slots, clinicId = "" }) {
  * @param {boolean} booking.is_archived — признак архива
  * @returns {string} HTML-строка карточки бронирования
  */
-export function createBookingCard(booking) {
+export function createBookingCard(booking, options = {}) {
   const bookingId = escapeHtml(booking.booking_id || "");
+  const pastClass = options.past ? " booking-card--past" : "";
+  const undatedClass = options.undated ? " booking-card--undated" : "";
   const doctorName = escapeHtml(booking.doctor_name || "—");
   const specialty = escapeHtml(booking.specialty || "");
   const clinicName = escapeHtml(booking.clinic_name || "—");
@@ -224,7 +226,7 @@ export function createBookingCard(booking) {
     : "";
 
   return `
-    <div class="card booking-card" data-booking-id="${bookingId}">
+    <div class="card booking-card${pastClass}${undatedClass}" data-booking-id="${bookingId}">
       <div class="booking-card__header">
         <span class="lucide-icon">${lucideIcon("user-round", 18)}</span>
         <span class="booking-card__doctor">${doctorName}</span>

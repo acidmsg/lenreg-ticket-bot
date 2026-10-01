@@ -9,6 +9,138 @@ import { lucideIcon } from "../components/icon.js";
 import { apiGet } from "../api.js";
 import { buildGoogleCalendarUrl } from "../calendar.js";
 
+/** Период синхронизации со временем: пересчёт границы «прошедшая/актуальная». */
+const TIME_SYNC_INTERVAL_MS = 30_000;
+
+/** Текущий список и контейнер — нужны периодическому пересчёту класса. */
+const timeSyncState = { timer: null, container: null, bookings: null };
+
+/**
+ * Разбирает дату («ДД.ММ.ГГГГ») и время («ЧЧ:ММ») записи в `Date`.
+ *
+ * @param {object} booking — запись из `GET /api/user/bookings`
+ * @returns {Date|null} момент приёма; `null`, если дата или время не сохранены
+ */
+export function bookingInstant(booking) {
+  const date = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(booking.date || "");
+  const time = /^(\d{2}):(\d{2})$/.exec(booking.time || "");
+  if (!date || !time) return null;
+  const instant = new Date(
+    Number(date[3]),
+    Number(date[2]) - 1,
+    Number(date[1]),
+    Number(time[1]),
+    Number(time[2]),
+  );
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}
+
+/**
+ * Делит записи на прошедшие и актуальные, сортируя каждую группу по времени.
+ *
+ * @param {Array<object>} bookings — записи пользователя
+ * @param {Date} [now] — текущий момент (параметр для тестов)
+ * @returns {{past: Array<object>, upcoming: Array<object>, unknown: Array<object>}}
+ */
+export function orderBookings(bookings, now = new Date()) {
+  const dated = [];
+  const unknown = [];
+  for (const booking of bookings) {
+    const instant = bookingInstant(booking);
+    if (instant) dated.push({ booking, instant });
+    else unknown.push(booking);
+  }
+  dated.sort((a, b) => a.instant - b.instant);
+  return {
+    past: dated.filter((x) => x.instant < now).map((x) => x.booking),
+    upcoming: dated.filter((x) => x.instant >= now).map((x) => x.booking),
+    unknown,
+  };
+}
+
+/**
+ * HTML карточек: прошедшие сверху и тусклые, следом актуальные, в конце — без даты.
+ *
+ * @param {Array<object>} bookings — записи пользователя
+ * @param {Date} now — текущий момент
+ * @returns {string} разметка карточек
+ */
+function bookingsCardsHtml(bookings, now) {
+  const { past, upcoming, unknown } = orderBookings(bookings, now);
+  return [
+    ...past.map((b) => createBookingCard(b, { past: true })),
+    ...upcoming.map((b) => createBookingCard(b)),
+    ...unknown.map((b) => createBookingCard(b, { undated: true })),
+  ].join("");
+}
+
+/**
+ * Пересчитывает класс «прошедшая» по текущему времени, не пересобирая список:
+ * скролл и обработчики сохраняются.
+ */
+function applyPastFlags() {
+  const { container, bookings } = timeSyncState;
+  if (!container) return;
+  if (!container.isConnected) {
+    // Экран закрыт — снимаем интервал и отпускаем отсоединённое DOM-дерево.
+    stopTimeSync();
+    return;
+  }
+  if (!bookings) return;
+  const now = new Date();
+  const byId = new Map(bookings.map((b) => [String(b.booking_id), b]));
+  container.querySelectorAll(".booking-card").forEach((card) => {
+    const booking = byId.get(card.dataset.bookingId);
+    const instant = booking ? bookingInstant(booking) : null;
+    card.classList.toggle(
+      "booking-card--past",
+      Boolean(instant && instant < now),
+    );
+  });
+}
+
+/** Запускает периодическую синхронизацию времени для открытого списка. */
+function startTimeSync(container, bookings) {
+  stopTimeSync();
+  timeSyncState.container = container;
+  timeSyncState.bookings = bookings;
+  timeSyncState.timer = setInterval(applyPastFlags, TIME_SYNC_INTERVAL_MS);
+}
+
+/** Останавливает синхронизацию (пустой список или уход с экрана). */
+function stopTimeSync() {
+  if (timeSyncState.timer !== null) {
+    clearInterval(timeSyncState.timer);
+  }
+  timeSyncState.timer = null;
+  timeSyncState.container = null;
+  timeSyncState.bookings = null;
+}
+
+/**
+ * Прокручивает список так, чтобы первая актуальная запись была сверху экрана.
+ *
+ * @param {HTMLElement} container — прокручиваемый контейнер экрана
+ */
+function scrollToFirstUpcoming(container) {
+  // Скроллим только когда сверху есть прошедшие: иначе список остаётся сверху.
+  if (!container.querySelector(".booking-card--past")) return;
+  const first = container.querySelector(
+    ".booking-card:not(.booking-card--past):not(.booking-card--undated)",
+  );
+  if (!first) return;
+  const offset =
+    first.getBoundingClientRect().top -
+    container.getBoundingClientRect().top +
+    container.scrollTop;
+  if (offset > 0) container.scrollTop = offset;
+}
+
+// Возврат в приложение из свёрнутого состояния — пересчитываем границу сразу.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) applyPastFlags();
+});
+
 /**
  * Рендерит список активных записей пользователя.
  *
@@ -33,15 +165,22 @@ export async function renderBookingsList(container) {
         </div>
       `;
     } else {
-      const cards = bookings.map((b) => createBookingCard(b)).join("");
       container.innerHTML = `
-        <div class="bookings-list">${cards}</div>
+        <div class="bookings-list">${bookingsCardsHtml(bookings, new Date())}</div>
         <div class="bookings-archive-link">
           <button class="btn btn--sm btn--ghost" id="btn-view-archive">
             <span class="lucide-icon">${lucideIcon("archive", 14)}</span> Архив записей
           </button>
         </div>
       `;
+    }
+
+    if (bookings.length > 0) {
+      // Экран открывается на первой актуальной записи; прошедшие — скроллом вверх.
+      scrollToFirstUpcoming(container);
+      startTimeSync(container, bookings);
+    } else {
+      stopTimeSync();
     }
 
     // Привязываем обработчики экспорта

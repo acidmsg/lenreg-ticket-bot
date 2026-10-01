@@ -2398,6 +2398,11 @@ body {
   background: var(--color-surface);
 }
 
+/* Прошедшая запись: остаётся в списке, но приглушена (disabled-стиль). */
+.booking-card--past {
+  opacity: 0.5;
+}
+
 .booking-card__header {
   display: flex;
   align-items: center;
