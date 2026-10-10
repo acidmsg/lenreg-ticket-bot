@@ -71,7 +71,7 @@ export function buildBookingConfirmMessage(booking) {
     booking.date
       ? `📅 ${escapeHtml(booking.date)} в ${escapeHtml(booking.time)}`
       : "",
-    booking.patient ? `👤 Пациент: ${escapeHtml(booking.patient)}` : "",
+    booking.patient ? `👤 ${escapeHtml(booking.patient)}` : "",
   ];
 
   const card = rows.filter((row) => row !== "").join("\n");

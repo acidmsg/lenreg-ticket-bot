@@ -126,7 +126,7 @@ export function buildGoogleCalendarUrl(booking = {}) {
     doctor,
   );
   const details = [
-    booking.patient_name ? `Пациент: ${booking.patient_name}` : "",
+    booking.patient_name ? String(booking.patient_name) : "",
     booking.clinic_name ? `Клиника: ${booking.clinic_name}` : "",
     booking.specialty ? `Специальность: ${booking.specialty}` : "",
   ]

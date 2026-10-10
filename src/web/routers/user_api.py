@@ -2416,6 +2416,7 @@ async def book_appointment(
                 "clinic_name": clinic_name,
                 "date": slot_date,
                 "time": slot_time,
+                "patient_name": patient_name,
             },
         )
         return success_body

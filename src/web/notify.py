@@ -35,6 +35,8 @@ def _format(booking: dict[str, Any]) -> str:
         lines.append(
             "📅 " + str(booking["date"]) + " в " + str(booking.get("time", ""))
         )
+    if booking.get("patient_name"):
+        lines.append("👤 " + str(booking["patient_name"]))
     return "\n".join(lines)
 
 

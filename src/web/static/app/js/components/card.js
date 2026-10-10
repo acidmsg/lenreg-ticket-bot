@@ -222,7 +222,7 @@ export function createBookingCard(booking, options = {}) {
   const calendarDisabled = hasSchedule ? "" : " disabled";
 
   const patientLine = patientName
-    ? `<div class="booking-card__patient"><span class="lucide-icon">${lucideIcon("user", 14)}</span> Пациент: ${patientName}</div>`
+    ? `<div class="booking-card__patient"><span class="lucide-icon">${lucideIcon("user", 14)}</span> ${patientName}</div>`
     : "";
 
   return `
