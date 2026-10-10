@@ -175,6 +175,9 @@ class BookingEntry(TypedDict):
     is_archived: int
     """0 = активная, 1 = архивная."""
 
+    status: str
+    """Состояние записи: pending | confirmed | failed."""
+
 
 class AuditLogEntry(TypedDict):
     """Запись журнала действий администратора (таблица audit_log)."""

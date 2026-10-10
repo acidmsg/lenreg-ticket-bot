@@ -14,6 +14,13 @@
 import { apiPost } from "../api.js";
 import { refreshDoctorSlots } from "./monitoring.js";
 import { escapeHtml } from "./escape.js";
+import {
+  acquireBookingLock,
+  clearBookingIntent,
+  releaseBookingLock,
+  setBookingIntent,
+} from "./booking-lock.js";
+import { hideBookingOverlay, showBookingOverlay } from "./booking-overlay.js";
 
 /** Формат времени слота, ожидаемый контрактом `POST /book` (ЧЧ:ММ). */
 export const SLOT_TIME_PATTERN = /^\d{2}:\d{2}$/;
@@ -122,6 +129,12 @@ function handleBookingError(errorCode, detail) {
 
   let message;
   switch (errorCode) {
+    case "already_booked":
+      message = "✅ Эта запись уже оформлена.";
+      break;
+    case "busy":
+      message = "⏳ Запись уже выполняется. Подождите пару секунд.";
+      break;
     case "slot_taken":
       message = "❌ Этот талон уже занят. Выберите другое время.";
       break;
@@ -218,6 +231,22 @@ export async function bookSlot({
     window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
   }
 
+  // Мьютекс: второй тап или возврат во время операции не запускает запись заново.
+  if (!acquireBookingLock()) {
+    if (window.showToast) {
+      window.showToast("⏳ Запись уже выполняется…", "info");
+    }
+    return { success: false, error: "busy" };
+  }
+  setBookingIntent({
+    appointmentId,
+    clinicId,
+    patientId,
+    doctorId,
+    at: Date.now(),
+  });
+  showBookingOverlay("Оформляем запись…");
+
   try {
     const result = await apiPost("/book", {
       clinic_id: clinicId,
@@ -231,11 +260,17 @@ export async function bookSlot({
     });
 
     if (result.success) {
+      clearBookingIntent();
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
       }
       if (window.showToast) {
-        window.showToast("✅ Вы успешно записаны!", "success");
+        window.showToast(
+          result.already_booked
+            ? "✅ Эта запись уже оформлена."
+            : "✅ Вы успешно записаны!",
+          "success",
+        );
       }
       // Инвалидация кэша слотов: забронированный талон не должен висеть в UI.
       if (monitoringId) {
@@ -250,10 +285,16 @@ export async function bookSlot({
 
     const errorCode = result.error || "unknown";
     const detail = result.detail || "Неизвестная ошибка";
+    // Ответ получен — исход определён, интент больше не нужен.
+    clearBookingIntent();
     handleBookingError(errorCode, detail);
     return { success: false, error: errorCode, detail };
   } catch (error) {
+    // Исход неизвестен (сеть/таймаут) — интент оставляем для сверки при возврате.
     handleBookingError("network", error.message);
     return { success: false, error: "network", detail: error.message };
+  } finally {
+    releaseBookingLock();
+    hideBookingOverlay();
   }
 }

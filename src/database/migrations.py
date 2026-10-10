@@ -440,6 +440,21 @@ async def migrate_v19_clinic_empty_sync_streak(db) -> None:
     logger.info("Миграция v19: бэкофф клиник без врачей (добавлено: {})", added)
 
 
+async def migrate_v20_bookings_status(db) -> None:
+    """Добавляет колонку status в bookings (pending/confirmed/failed)."""
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+    cursor = await c.execute("PRAGMA table_info(bookings)")
+    columns = {row[1] for row in await cursor.fetchall()}
+    if "status" not in columns:
+        await c.execute(
+            "ALTER TABLE bookings ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'"
+        )
+        await c.commit()
+        logger.info("Миграция v20: добавлена колонка status в bookings")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -457,4 +472,5 @@ MIGRATIONS = [
     (17, migrate_v17_clinic_sync_state),
     (18, migrate_v18_clinic_slots),
     (19, migrate_v19_clinic_empty_sync_streak),
+    (20, migrate_v20_bookings_status),
 ]

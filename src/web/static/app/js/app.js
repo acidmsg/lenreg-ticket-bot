@@ -29,6 +29,8 @@ import { initTheme } from "./theme.js";
 import { stopAllPollers } from "./utils/polling.js";
 import { lucideIcon } from "./components/icon.js";
 import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
+import { initResumeEvents, onResume } from "./utils/resume-events.js";
+import { reconcileBookingIntent } from "./utils/booking-reconcile.js";
 
 // ============================================================
 // Глобальное состояние приложения
@@ -267,6 +269,13 @@ async function render() {
  * Точка входа приложения.
  */
 function init() {
+  initResumeEvents();
+  // Возврат после фона/сети: если остался незавершённый интент — сверяем статус.
+  onResume(() => {
+    reconcileBookingIntent();
+  });
+  reconcileBookingIntent();
+
   const app = document.getElementById("app");
 
   if (!isInTelegram()) {

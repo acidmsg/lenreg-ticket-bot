@@ -154,6 +154,26 @@ class ForceCheckRequest(BaseModel):
     )
 
 
+#: Сколько секунд pending-запись считается «выполняющейся» и блокирует
+#: повторную попытку. По истечении запись не блокирует новый запрос.
+PENDING_BOOKING_TTL_SECONDS = 120
+
+#: Коды ошибок ответа POST /api/user/book — синхронно со схемой
+#: BookErrorResponse в specs/openapi.yaml.
+BOOK_ERROR_CODES: frozenset[str] = frozenset(
+    {
+        "slot_taken",
+        "busy",
+        "patient_not_found",
+        "idempotency_conflict",
+        "api_unavailable",
+        "api_timeout",
+        "forbidden",
+        "unknown",
+    }
+)
+
+
 class BookRequest(BaseModel):
     """Тело запроса на бронирование талона (POST /api/user/book)."""
 
@@ -2092,9 +2112,33 @@ async def book_appointment(
     ``patient_id`` принадлежит текущему пользователю (иначе 403, IDOR) и пара
     ``clinic_id`` + ``doctor_id`` известна справочнику (иначе 400).
     """
+    from src.web import idempotency
+
     db = _get_db(request)
     api = _get_api(request)
     telegram_id = _get_telegram_id(request)
+
+    # Идемпотентность: повтор с тем же Idempotency-Key отдаёт сохранённый
+    # терминальный ответ; тот же ключ с другими параметрами — 422.
+    idempotency_key = request.headers.get("Idempotency-Key")
+    idempotency_hash: str | None = None
+    if idempotency_key:
+        idempotency_hash = idempotency.params_hash(body.model_dump())
+        stored = idempotency.get(telegram_id, idempotency_key)
+        if stored is not None:
+            stored_hash, stored_status, stored_body = stored
+            if stored_hash != idempotency_hash:
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "success": False,
+                        "error": "idempotency_conflict",
+                        "detail": (
+                            "Idempotency-Key уже использован с другими параметрами."
+                        ),
+                    },
+                )
+            return JSONResponse(status_code=stored_status, content=stored_body)
 
     # 1. Получаем данные пользователя (имя пациента, данные врача)
     try:
@@ -2129,6 +2173,55 @@ async def book_appointment(
 
     patient_info: PatientInfo | dict[str, str] = patients.get(body.patient_id, {})
     patient_name = patient_info.get("fio", body.patient_id)
+
+    # 1d. Natural-key дедуп: повтор той же четвёрки (uid, patient_id, doctor_id,
+    # appointment_id) означает, что запись уже оформлена — например, ответ на
+    # первый запрос потерялся при обрыве связи. Возвращаем сохранённую запись
+    # как успех, не обращаясь к внешнему API: иначе повтор уходит в 409
+    # «слот занят» и пользователь не понимает, что он уже записан.
+    booking_id = f"{body.patient_id}_{body.doctor_id}_{body.appointment_id}"
+    existing_booking = await db.get_booking_by_id(booking_id)
+    if (
+        existing_booking is not None
+        and str(existing_booking["uid"]) == telegram_id
+        and not existing_booking.get("is_archived", 0)
+    ):
+        existing_status = existing_booking.get("status", "confirmed")
+        if existing_status == "pending":
+            age = time_module.time() - float(existing_booking.get("created_at", 0) or 0)
+            if age < PENDING_BOOKING_TTL_SECONDS:
+                logger.info(
+                    "Запись booking_id={} ещё оформляется (uid={})",
+                    booking_id,
+                    telegram_id,
+                )
+                return JSONResponse(
+                    status_code=409,
+                    headers={"Retry-After": "3"},
+                    content={
+                        "success": False,
+                        "error": "busy",
+                        "detail": format_error_message("busy"),
+                    },
+                )
+            # Устаревший pending не блокирует повтор — продолжаем оформление.
+        elif existing_status != "failed":
+            logger.info(
+                "Повторная запись: booking_id={} уже существует (uid={})",
+                booking_id,
+                telegram_id,
+            )
+            return {
+                "success": True,
+                "already_booked": True,
+                "booking_id": existing_booking["booking_id"],
+                "doctor_name": existing_booking["doctor_name"],
+                "specialty": existing_booking["specialty"],
+                "clinic_name": existing_booking["clinic_name"],
+                "date": existing_booking["slot_date"],
+                "time": existing_booking["slot_time"],
+                "patient_name": existing_booking["patient_name"],
+            }
 
     # 1c. Предпроверка перед записью (P3-PREBOOK): пациент должен числиться
     # в клинике записи. Дешёвая проверка с кэшем (P3-VERIFY) вместо ошибки
@@ -2195,6 +2288,31 @@ async def book_appointment(
     d_id = body.doctor_id
     doctor_name = doctor_name or d_id
     clinic_name = await db.get_clinic_name(body.clinic_id) or body.clinic_id
+
+    # 1e. Pending-запись до внешнего вызова: если процесс упадёт между успешным
+    # бронированием на портале и сохранением подтверждения, факт не потеряется.
+    slot_date = _iso_date_to_display(body.slot_date)
+    pending_booking = BookingEntry(
+        booking_id=booking_id,
+        uid=telegram_id,
+        p_id=body.patient_id,
+        d_id=d_id,
+        doctor_name=doctor_name,
+        patient_name=patient_name,
+        specialty=doctor_specialty,
+        clinic_id=body.clinic_id,
+        clinic_name=clinic_name,
+        slot_date=slot_date,
+        slot_time=body.slot_time,
+        appointment_id=body.appointment_id,
+        created_at=time_module.time(),
+        is_archived=0,
+        status="pending",
+    )
+    try:
+        await db.save_booking(pending_booking)
+    except Exception:
+        logger.exception("Не удалось сохранить pending-запись {}", booking_id)
 
     # 2. Выполняем бронирование через API
     try:
@@ -2265,14 +2383,16 @@ async def book_appointment(
                 appointment_id=body.appointment_id,
                 created_at=time_module.time(),
                 is_archived=0,
+                status="confirmed",
             )
             await db.save_booking(booking)
         except Exception as e:
             logger.error("Ошибка сохранения booking в БД: {}", e)
             # Не фейлим ответ — запись уже создана на стороне API
 
-        return {
+        success_body = {
             "success": True,
+            "already_booked": False,
             "booking_id": booking_id,
             "doctor_name": doctor_name,
             "specialty": doctor_specialty,
@@ -2281,6 +2401,24 @@ async def book_appointment(
             "time": slot_time,
             "patient_name": patient_name,
         }
+        if idempotency_key and idempotency_hash:
+            idempotency.put(
+                telegram_id, idempotency_key, idempotency_hash, 200, success_body
+            )
+        # Независимый от WebView канал: бот подтверждает запись сообщением.
+        from src.web import notify
+
+        await notify.send_booking_confirmed(
+            telegram_id,
+            {
+                "doctor_name": doctor_name,
+                "specialty": doctor_specialty,
+                "clinic_name": clinic_name,
+                "date": slot_date,
+                "time": slot_time,
+            },
+        )
+        return success_body
 
     # Ошибка — анализируем причину
     if result.error:
@@ -2304,26 +2442,38 @@ async def book_appointment(
             or "занят" in error_detail.lower()
             or "slot_taken" in error_detail.lower()
         ):
-            return JSONResponse(
-                status_code=409,
-                content={
-                    "success": False,
-                    "error": "slot_taken",
-                    "detail": format_error_message("slot_taken"),
-                },
-            )
+            try:
+                await db.update_booking_status(booking_id, "failed")
+            except Exception:
+                logger.exception("Не удалось пометить запись {} как failed", booking_id)
+            slot_body = {
+                "success": False,
+                "error": "slot_taken",
+                "detail": format_error_message("slot_taken"),
+            }
+            if idempotency_key and idempotency_hash:
+                idempotency.put(
+                    telegram_id, idempotency_key, idempotency_hash, 409, slot_body
+                )
+            return JSONResponse(status_code=409, content=slot_body)
 
         # Классификация: forbidden (HTTP 403 от API)
         detail_lower = error_detail.lower()
         if "403" in detail_lower or "заблокировало" in detail_lower:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "success": False,
-                    "error": "forbidden",
-                    "detail": format_error_message("forbidden"),
-                },
-            )
+            try:
+                await db.update_booking_status(booking_id, "failed")
+            except Exception:
+                logger.exception("Не удалось пометить запись {} как failed", booking_id)
+            forbid_body = {
+                "success": False,
+                "error": "forbidden",
+                "detail": format_error_message("forbidden"),
+            }
+            if idempotency_key and idempotency_hash:
+                idempotency.put(
+                    telegram_id, idempotency_key, idempotency_hash, 403, forbid_body
+                )
+            return JSONResponse(status_code=403, content=forbid_body)
 
         # Классификация: api_timeout / api_unavailable
         if "таймаут" in detail_lower or "timeout" in detail_lower:
@@ -2380,6 +2530,7 @@ def _serialize_booking(booking: BookingEntry) -> dict[str, Any]:
         "patient_name": booking["patient_name"],
         "created_at": created_at_iso,
         "is_archived": bool(booking.get("is_archived", 0)),
+        "status": booking.get("status", "confirmed"),
     }
 
 

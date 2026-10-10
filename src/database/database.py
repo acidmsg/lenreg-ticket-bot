@@ -524,8 +524,8 @@ class Database:
             "INSERT OR REPLACE INTO bookings "
             "(booking_id, uid, p_id, d_id, doctor_name, patient_name, "
             "specialty, clinic_id, clinic_name, slot_date, slot_time, "
-            "appointment_id, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "appointment_id, created_at, is_archived, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 booking["booking_id"],
                 booking["uid"],
@@ -541,7 +541,19 @@ class Database:
                 booking["appointment_id"],
                 booking["created_at"],
                 booking["is_archived"],
+                booking.get("status", "confirmed"),
             ),
+        )
+        await c.commit()
+
+    async def update_booking_status(self, booking_id: str, status: str) -> None:
+        """Обновляет статус записи (pending → confirmed/failed)."""
+        c = self._conn.conn
+        if c is None:
+            raise RuntimeError("Database connection not initialized")
+        await c.execute(
+            "UPDATE bookings SET status = ? WHERE booking_id = ?",
+            (status, booking_id),
         )
         await c.commit()
 
@@ -553,8 +565,9 @@ class Database:
         cursor = await c.execute(
             "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
             "specialty, clinic_id, clinic_name, slot_date, slot_time, "
-            "appointment_id, created_at, is_archived "
+            "appointment_id, created_at, is_archived, status "
             "FROM bookings WHERE uid = ? AND is_archived = 0 "
+            "AND status != 'failed' "
             "ORDER BY created_at DESC",
             (uid,),
         )
@@ -575,6 +588,7 @@ class Database:
                 appointment_id=row["appointment_id"],
                 created_at=row["created_at"],
                 is_archived=row["is_archived"],
+                status=row["status"],
             )
             for row in rows
         ]
@@ -589,8 +603,9 @@ class Database:
         cursor = await c.execute(
             "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
             "specialty, clinic_id, clinic_name, slot_date, slot_time, "
-            "appointment_id, created_at, is_archived "
+            "appointment_id, created_at, is_archived, status "
             "FROM bookings WHERE uid = ? AND is_archived = 1 "
+            "AND status != 'failed' "
             "ORDER BY created_at DESC",
             (uid,),
         )
@@ -611,6 +626,7 @@ class Database:
                 appointment_id=row["appointment_id"],
                 created_at=row["created_at"],
                 is_archived=row["is_archived"],
+                status=row["status"],
             )
             for row in rows
         ]
@@ -662,7 +678,7 @@ class Database:
         cursor = await c.execute(
             "SELECT booking_id, uid, p_id, d_id, doctor_name, patient_name, "
             "specialty, clinic_id, clinic_name, slot_date, slot_time, "
-            "appointment_id, created_at, is_archived "
+            "appointment_id, created_at, is_archived, status "
             "FROM bookings WHERE booking_id = ?",
             (booking_id,),
         )
@@ -684,6 +700,7 @@ class Database:
             appointment_id=row["appointment_id"],
             created_at=row["created_at"],
             is_archived=row["is_archived"],
+            status=row["status"],
         )
 
 

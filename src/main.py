@@ -870,6 +870,11 @@ async def main() -> None:
     session = await bootstrap_proxy()
     bot, dp = await bootstrap_bot(session, redis_client)
 
+    # Регистрируем бот для уведомлений из веб-слоя (подтверждение записи).
+    from src.web import notify
+
+    notify.set_bot(bot)
+
     # Запуск фоновых задач (только после проверки связи с Telegram)
     manager = await _start_background_tasks(bot, api, db, database)
 

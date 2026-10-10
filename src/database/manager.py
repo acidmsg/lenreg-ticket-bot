@@ -452,6 +452,10 @@ class DatabaseManager:
         """Сохраняет запись бронирования (прокси в self._db.save_booking)."""
         await self._db.save_booking(booking)
 
+    async def update_booking_status(self, booking_id: str, status: str) -> None:
+        """Обновляет статус записи (прокси в self._db.update_booking_status)."""
+        await self._db.update_booking_status(booking_id, status)
+
     async def get_user_bookings(self, uid: str) -> list[BookingEntry]:
         """Активные записи пользователя (прокси в self._db.get_user_bookings)."""
         return await self._db.get_user_bookings(uid)

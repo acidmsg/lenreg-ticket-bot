@@ -8,6 +8,7 @@ import { createBookingCard } from "../components/card.js";
 import { lucideIcon } from "../components/icon.js";
 import { apiGet } from "../api.js";
 import { buildGoogleCalendarUrl } from "../calendar.js";
+import { readBookingIntent } from "../utils/booking-lock.js";
 
 /** Период синхронизации со временем: пересчёт границы «прошедшая/актуальная». */
 const TIME_SYNC_INTERVAL_MS = 30_000;
@@ -147,13 +148,34 @@ document.addEventListener("visibilitychange", () => {
  * @param {HTMLElement} container — DOM-элемент контейнера
  * @returns {Promise<void>}
  */
+/**
+ * Оптимистичная карточка «Оформляется…» для записи в полёте (V7).
+ *
+ * Пока в localStorage есть интент, показываем пометку; сверка
+ * (utils/booking-reconcile) обновит состояние и снимет интент.
+ *
+ * @returns {string} HTML карточки
+ */
+function renderPendingBookingCard() {
+  return (
+    '<div class="bookings-card bookings-card--pending">' +
+    '<div class="bookings-card__pending">⏳ Оформляется…' +
+    '<span class="bookings-card__pending-note">Проверяем статус записи</span>' +
+    "</div></div>"
+  );
+}
+
+
 export async function renderBookingsList(container) {
   try {
     const data = await apiGet("/bookings");
     const bookings = data.bookings || [];
+    const intent = readBookingIntent();
+    const pendingCard = intent ? renderPendingBookingCard() : "";
 
     if (bookings.length === 0) {
       container.innerHTML = `
+        ${pendingCard}
         <div class="empty-state">
           <div class="empty-state__icon">${lucideIcon("calendar-x", 48)}</div>
           <p class="empty-state__text">У вас пока нет записей к врачам.</p>
@@ -166,7 +188,7 @@ export async function renderBookingsList(container) {
       `;
     } else {
       container.innerHTML = `
-        <div class="bookings-list">${bookingsCardsHtml(bookings, new Date())}</div>
+        <div class="bookings-list">${pendingCard}${bookingsCardsHtml(bookings, new Date())}</div>
         <div class="bookings-archive-link">
           <button class="btn btn--sm btn--ghost" id="btn-view-archive">
             <span class="lucide-icon">${lucideIcon("archive", 14)}</span> Архив записей
