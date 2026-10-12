@@ -28,6 +28,7 @@ from src.handlers.notifications import TelegramNotifier
 from src.i18n import setup_i18n
 from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
+from src.middleware.language import LanguageMiddleware
 from src.middleware.ratelimit import UserRateLimitMiddleware
 from src.middleware.userdata import UserDataPreloadMiddleware
 from src.services.background import (
@@ -714,6 +715,7 @@ async def bootstrap_bot(
     dp.update.outer_middleware(UserRateLimitMiddleware())
     dp.update.outer_middleware(UserDataPreloadMiddleware())
     dp.update.outer_middleware(ActivityLogMiddleware())
+    dp.update.outer_middleware(LanguageMiddleware())
 
     # Регистрация роутеров.
     from src.handlers import common
