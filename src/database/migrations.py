@@ -529,6 +529,26 @@ async def migrate_v21_naming_constitution(db) -> None:
     logger.info("Миграция v21: имена схемы приведены к конституции")
 
 
+async def migrate_v22_user_language(db) -> None:
+    """Язык интерфейса пользователя (ru/en) в user_states (i18n).
+
+    Telegram отдаёт язык клиента в language_code; храним выбор по пользователю,
+    чтобы уведомления формировались на его языке (см. src/i18n).
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    cursor = await c.execute("PRAGMA table_info(user_states)")
+    columns = {row[1] for row in await cursor.fetchall()}
+    if "language" not in columns:
+        await c.execute(
+            "ALTER TABLE user_states ADD COLUMN language TEXT NOT NULL DEFAULT ''"
+        )
+    await c.commit()
+    logger.info("Миграция v22: язык пользователя (user_states.language)")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -548,4 +568,5 @@ MIGRATIONS = [
     (19, migrate_v19_clinic_empty_sync_streak),
     (20, migrate_v20_bookings_status),
     (21, migrate_v21_naming_constitution),
+    (22, migrate_v22_user_language),
 ]

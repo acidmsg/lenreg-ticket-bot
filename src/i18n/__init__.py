@@ -16,6 +16,9 @@
 import json
 import os
 import struct
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from gettext import GNUTranslations, NullTranslations, find, translation
 from typing import Final, cast
 
@@ -27,12 +30,20 @@ DEFAULT_LANGUAGE: Final = "ru"
 # Имя директории с каталогами локалей в корне проекта
 LOCALES_DIRNAME: Final = "locales"
 
-# Текущий язык (устанавливается при старте)
+# Язык по умолчанию (устанавливается setup_i18n)
 _current_lang: str = DEFAULT_LANGUAGE
 
-# Gettext-обёртки (устанавливаются через setup_i18n)
-_translations_bot: "GNUTranslations | NullTranslations" = NullTranslations()
-_translations_data: "GNUTranslations | NullTranslations" = NullTranslations()
+# Поддерживаемые языки (каталоги locales/<code>/LC_MESSAGES)
+SUPPORTED_LANGUAGES: Final = ("ru", "en")
+
+# Каталоги по языкам: {lang: (bot, data)}
+_catalogs: dict[
+    str, tuple[GNUTranslations | NullTranslations, GNUTranslations | NullTranslations]
+] = {}
+
+# Язык текущего контекста (contextvars): позволяет собрать сообщение на языке
+# получателя, не меняя глобальный язык процесса.
+_lang_var: ContextVar[str] = ContextVar("i18n_lang", default=DEFAULT_LANGUAGE)
 
 
 def _locales_dir() -> str:
@@ -87,38 +98,94 @@ def _load_domain(
     return catalog
 
 
-def setup_i18n(lang: str) -> None:
+def _available_languages(locales_dir: str) -> list[str]:
+    """Языки каталогов locales/, ограниченные SUPPORTED_LANGUAGES (ru, en).
+
+    Поддержаны только русский и английский; любой другой language_code
+    сводится к русскому в resolve_language(). Русский всегда присутствует —
+    он fallback для остальных.
     """
-    Инициализирует gettext для указанного языка.
+    return [
+        code
+        for code in SUPPORTED_LANGUAGES
+        if os.path.isdir(os.path.join(locales_dir, code, "LC_MESSAGES"))
+    ]
 
-    Загружает два домена: 'bot' (пользовательские сообщения) и 'data'
-    (форматные строки, дни недели). Если .mo файл не найден — используется
-    NullTranslations, который возвращает msgid как есть.
 
-    Если запрошенный язык не русский — добавляет русский как fallback.
-    """
-    global _current_lang, _translations_bot, _translations_data
-    _current_lang = lang
-
-    locales_dir = _locales_dir()
-    if not os.path.isdir(locales_dir):
-        logger.warning(f"i18n: каталог локалей отсутствует — {locales_dir}")
-
+def _load_pair(
+    lang: str, locales_dir: str
+) -> tuple[GNUTranslations | NullTranslations, GNUTranslations | NullTranslations]:
+    """Загружает пару каталогов (bot, data) для языка с fallback на русский."""
     t_bot = _load_domain("bot", lang, locales_dir)
+    t_data = _load_domain("data", lang, locales_dir)
     if lang != DEFAULT_LANGUAGE:
         t_bot.add_fallback(_load_domain("bot", DEFAULT_LANGUAGE, locales_dir))
         logger.debug(
             f"i18n: домен=bot, язык={lang} — подключён fallback {DEFAULT_LANGUAGE}"
         )
-    _translations_bot = t_bot
-
-    t_data = _load_domain("data", lang, locales_dir)
-    if lang != DEFAULT_LANGUAGE:
         t_data.add_fallback(_load_domain("data", DEFAULT_LANGUAGE, locales_dir))
         logger.debug(
             f"i18n: домен=data, язык={lang} — подключён fallback {DEFAULT_LANGUAGE}"
         )
-    _translations_data = t_data
+    return t_bot, t_data
+
+
+def _catalog_for(
+    lang: str,
+) -> tuple[GNUTranslations | NullTranslations, GNUTranslations | NullTranslations]:
+    """Каталог для языка; при отсутствии — русский (или пустой)."""
+    if lang in _catalogs:
+        return _catalogs[lang]
+    return _catalogs.get(DEFAULT_LANGUAGE, (NullTranslations(), NullTranslations()))
+
+
+def setup_i18n(lang: str) -> None:
+    """Загружает каталоги всех доступных языков и задаёт язык по умолчанию.
+
+    Домены: 'bot' (сообщения) и 'data' (форматные строки, дни недели). Язык
+    конкретного сообщения выбирается через set_language()/use_language(); по
+    умолчанию — аргумент lang (обычно BOT_LANGUAGE).
+    """
+    global _current_lang
+    _current_lang = lang
+    _lang_var.set(lang)
+
+    locales_dir = _locales_dir()
+    if not os.path.isdir(locales_dir):
+        logger.warning(f"i18n: каталог локалей отсутствует — {locales_dir}")
+
+    _catalogs.clear()
+    for code in _available_languages(locales_dir):
+        _catalogs[code] = _load_pair(code, locales_dir)
+    if lang not in _catalogs:
+        _catalogs[lang] = _load_pair(lang, locales_dir)
+    logger.info(f"i18n: инициализировано, язык={lang}, доступны={sorted(_catalogs)}")
+
+
+def set_language(lang: str) -> None:
+    """Устанавливает язык текущего контекста (без смены глобального)."""
+    _lang_var.set(lang)
+
+
+@contextmanager
+def use_language(lang: str) -> Iterator[None]:
+    """Контекстный менеджер: язык сообщения на время блока."""
+    token = _lang_var.set(lang)
+    try:
+        yield
+    finally:
+        _lang_var.reset(token)
+
+
+def resolve_language(language_code: str | None) -> str:
+    """Код языка Telegram -> язык сообщения.
+
+    Русский — для русскоязычных (ru*), английский — для всех остальных
+    вариантов (en, de, fr, а также пустой/неизвестный).
+    """
+    if language_code and language_code.lower().startswith("ru"):
+        return "ru"
+    return "en"
 
 
 def _(msgid: str) -> str:
@@ -128,7 +195,7 @@ def _(msgid: str) -> str:
     Если перевод не найден — возвращает msgid как есть.
     Это основная функция для пользовательских сообщений.
     """
-    return _translations_bot.gettext(msgid)
+    return _catalog_for(_lang_var.get())[0].gettext(msgid)
 
 
 def _n(msgid1: str, msgid2: str, n: int) -> str:
@@ -142,7 +209,7 @@ def _n(msgid1: str, msgid2: str, n: int) -> str:
     Пример:
         text = _n("slots-count", "slots-count", count).format(count=count)
     """
-    return _translations_bot.ngettext(msgid1, msgid2, n)
+    return _catalog_for(_lang_var.get())[0].ngettext(msgid1, msgid2, n)
 
 
 def _data(msgid: str) -> str:
@@ -151,7 +218,7 @@ def _data(msgid: str) -> str:
 
     Используется для дней недели, меток типов данных и т.п.
     """
-    return _translations_data.gettext(msgid)
+    return _catalog_for(_lang_var.get())[1].gettext(msgid)
 
 
 def load_json_data(filename: str, lang: str | None = None) -> dict[str, str]:

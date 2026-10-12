@@ -222,6 +222,12 @@ async def cmd_start(
         await state.clear()
 
     uid = str(message.from_user.id) if message.from_user else "unknown"
+    if message.from_user is not None:
+        from src.i18n import resolve_language
+
+        await db.set_user_language(
+            uid, resolve_language(message.from_user.language_code)
+        )
     user_data = await db.get_user_data(uid)
 
     # Удаляем все предыдущие сообщения бота из чата

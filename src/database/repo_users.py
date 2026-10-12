@@ -226,3 +226,21 @@ class UserRepository(BaseRepository):
         cursor = await self._c.execute("SELECT uid FROM user_states WHERE paused = 1")
         rows = await cursor.fetchall()
         return {row["uid"] for row in rows}
+
+    async def set_user_language(self, uid: str, language: str) -> None:
+        """Сохраняет язык интерфейса пользователя (пустая строка — не задан)."""
+        await self._c.execute(
+            "INSERT INTO user_states (uid, language, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(uid) DO UPDATE SET "
+            "language = excluded.language, updated_at = excluded.updated_at",
+            (uid, language, time.time()),
+        )
+        await self._c.commit()
+
+    async def get_user_language(self, uid: str) -> str:
+        """Язык интерфейса пользователя (пустая строка — не задан)."""
+        cursor = await self._c.execute(
+            "SELECT language FROM user_states WHERE uid = ?", (uid,)
+        )
+        row = await cursor.fetchone()
+        return str(row["language"]) if row and row["language"] else ""

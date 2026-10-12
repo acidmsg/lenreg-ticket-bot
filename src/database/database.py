@@ -400,6 +400,14 @@ class Database:
         """Пользователи с приостановленным мониторингом."""
         return await self.users.get_paused_uids()
 
+    async def set_user_language(self, uid: str, language: str) -> None:
+        """Сохраняет язык интерфейса пользователя (делегирует в репозиторий)."""
+        await self.users.set_user_language(uid, language)
+
+    async def get_user_language(self, uid: str) -> str:
+        """Язык интерфейса пользователя (делегирует в репозиторий)."""
+        return await self.users.get_user_language(uid)
+
     async def delete_doctor(self, uid: str, d_id: str) -> int:
         """Удаляет врача из мониторинга пользователя."""
         return await self.monitoring.delete_doctor(uid, d_id)

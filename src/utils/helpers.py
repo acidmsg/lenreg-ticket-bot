@@ -49,15 +49,22 @@ def safe_name(value: Any) -> str:
 
 
 # ── Дни недели (сокращения для отображения) ─────────────────────
-_WEEKDAYS = [
-    _data("weekday-mon"),
-    _data("weekday-tue"),
-    _data("weekday-wed"),
-    _data("weekday-thu"),
-    _data("weekday-fri"),
-    _data("weekday-sat"),
-    _data("weekday-sun"),
-]
+def _weekday_labels() -> tuple[str, ...]:
+    """Дни недели (Пн..Вс) на языке текущего контекста.
+
+    Вызовы _data() здесь ЛИТЕРАЛЬНЫЕ (для извлечения каталога), но выполняются
+    в момент форматирования, а не на импорте модуля: setup_i18n() вызывается
+    позже, поэтому закешированные на импорте строки оставались msgid'ами.
+    """
+    return (
+        _data("weekday-mon"),
+        _data("weekday-tue"),
+        _data("weekday-wed"),
+        _data("weekday-thu"),
+        _data("weekday-fri"),
+        _data("weekday-sat"),
+        _data("weekday-sun"),
+    )
 
 
 async def load_specialty_aliases_from_db(db) -> None:
@@ -343,7 +350,7 @@ def format_slots(
         time_entries = by_date[date_obj]  # list of (time, is_new)
         times = [entry[0] for entry in time_entries]
         cnt = len(times)
-        wd = _WEEKDAYS[date_obj.weekday()]
+        wd = _weekday_labels()[date_obj.weekday()]
         date_fmt = date_obj.strftime("%d.%m")
 
         if total <= compact_threshold and cnt <= detail_threshold:

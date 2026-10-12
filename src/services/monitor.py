@@ -9,7 +9,7 @@ from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
-from src.i18n import _
+from src.i18n import _, resolve_language, use_language
 from src.services.notification_port import NotificationPort
 from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
@@ -531,10 +531,13 @@ async def _check_single_doctor(
         return
 
     # --- Шаг 8: формирование и отправка уведомления ---
-    msg = _build_notification_message(
-        p_info, d_name, doctor_specialty, header, display_slots, slots
-    )
-    await _send_notification(notifier, uid, p_id, d_id, msg, notify_type)
+    # Локаль получателя: текст и клавиатура — на языке клиента.
+    recipient_lang = resolve_language(await db.get_user_language(uid))
+    with use_language(recipient_lang):
+        msg = _build_notification_message(
+            p_info, d_name, doctor_specialty, header, display_slots, slots
+        )
+        await _send_notification(notifier, uid, p_id, d_id, msg, notify_type)
 
 
 def _cleanup_stale_empty_counts(
