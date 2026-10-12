@@ -2,6 +2,8 @@
 Telegram-специфичные утилиты: отправка/обновление сообщений, работа с клавиатурами.
 """
 
+from __future__ import annotations
+
 import contextlib
 from pathlib import Path
 
@@ -9,13 +11,13 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile, Message
 
-from src.database.manager import DatabaseManager
+from src.utils.protocols import LastMessageStore
 
 
 async def send_or_update_message(
     bot: Bot,
     chat_id: int,
-    db: DatabaseManager,
+    store: LastMessageStore,
     cache_key1: str,
     cache_key2: str,
     text: str,
@@ -33,7 +35,7 @@ async def send_or_update_message(
     """
     uid = str(chat_id)
 
-    last_msg_id = await db.get_last_message_id(uid, cache_key1, cache_key2)
+    last_msg_id = await store.get_last_message_id(uid, cache_key1, cache_key2)
     if last_msg_id:
         with contextlib.suppress(TelegramAPIError):
             await bot.delete_message(chat_id, last_msg_id)
@@ -59,5 +61,5 @@ async def send_or_update_message(
             reply_markup=reply_markup,
         )
 
-    await db.set_last_message_id(uid, cache_key1, cache_key2, new_msg.message_id)
+    await store.set_last_message_id(uid, cache_key1, cache_key2, new_msg.message_id)
     return new_msg

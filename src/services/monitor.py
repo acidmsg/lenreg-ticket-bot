@@ -2,25 +2,15 @@ import asyncio
 import json
 import random
 from collections.abc import Mapping
-from pathlib import Path
 
-import aiolimiter
-from aiogram import Bot
-from aiogram import exceptions as tg_exceptions
 from loguru import logger
 
 from src.api.zdrav_client import ZdravClient
-from src.assets.utils import get_notify_image_path
 from src.config import settings
 from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo
 from src.i18n import _
-from src.keyboards.inline import get_notification_keyboard
-from src.services.telegram_health import (
-    TELEGRAM_SEND_RATE_LIMIT,
-    TELEGRAM_SEND_RATE_PERIOD,
-    telegram_health,
-)
+from src.services.notification_port import NotificationPort
 from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
     format_notification_text,
@@ -28,137 +18,6 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
-from src.utils.telegram_utils import send_or_update_message
-
-# ── Rate limiter уведомлений Telegram (per-loop) ──────────────────────
-# Telegram Bot API: ≤ 25 сообщений/сек суммарно — параметры лимита сохраняются.
-_TELEGRAM_MAX_RATE = TELEGRAM_SEND_RATE_LIMIT
-_TELEGRAM_TIME_PERIOD = TELEGRAM_SEND_RATE_PERIOD
-
-# Реестр лимитеров по event loop'у. Ключ — сам loop (не id): id переиспользуется
-# после сборки мусора, что привело бы к ложному попаданию в чужой лимитер.
-_telegram_limiters: dict[asyncio.AbstractEventLoop, aiolimiter.AsyncLimiter] = {}
-
-
-def _prune_closed_loops() -> None:
-    """Удаляет из реестра лимитеры закрытых event loop'ов.
-
-    ``WeakKeyDictionary`` здесь неприменим: ``aiolimiter.AsyncLimiter`` хранит в
-    слоте ``_event_loop`` **сильную** ссылку на loop, поэтому значение удерживает
-    свой ключ и слабое связывание не освобождает записи. Явная очистка по
-    ``is_closed()`` делает рост структуры ограниченным числом живых loop'ов:
-    в production loop ровно один, в тестах записи прежних loop'ов удаляются при
-    следующем обращении.
-    """
-    for loop in [item for item in _telegram_limiters if item.is_closed()]:
-        del _telegram_limiters[loop]
-
-
-def _get_telegram_limiter() -> aiolimiter.AsyncLimiter:
-    """Возвращает лимитер отправки уведомлений для текущего event loop.
-
-    Лимитер — это пропускной шлюз, а не защита разделяемого состояния, поэтому
-    его допустимо создавать per-loop (в отличие от ``Lock`` и ``Event``).
-    Общая семантика 25 сообщений/с не нарушается: в production отправитель
-    уведомлений ровно один — фоновая задача мониторинга в главном event loop,
-    и она получает из реестра единственный экземпляр. В тестах каждый loop
-    получает свежий лимитер, что устраняет перепривязку ``aiolimiter`` и
-    ``RuntimeWarning`` о переиспользовании экземпляра между loop'ами.
-
-    Вызывается только из корутины: без running loop ``get_running_loop()``
-    возбуждает ``RuntimeError`` — это контракт, а не ошибка.
-    """
-    loop = asyncio.get_running_loop()
-    _prune_closed_loops()
-    limiter = _telegram_limiters.get(loop)
-    if limiter is None:
-        limiter = aiolimiter.AsyncLimiter(
-            max_rate=_TELEGRAM_MAX_RATE,
-            time_period=_TELEGRAM_TIME_PERIOD,
-        )
-        _telegram_limiters[loop] = limiter
-    return limiter
-
-
-async def _send_telegram_safe(
-    bot: Bot,
-    chat_id: int,
-    db: DatabaseManager,
-    p_id: str,
-    d_id: str,
-    text: str,
-    *,
-    photo_path: Path | None = None,
-    reply_markup=None,
-) -> bool:
-    """Отправка уведомления в Telegram с rate limiting и обработкой 429.
-
-    Обёртка над :func:`send_or_update_message`, которая:
-    - Применяет per-loop лимитер ``_get_telegram_limiter()`` (≤25 сообщений/сек
-      суммарно для отправителя).
-    - Перехватывает ``TelegramRetryAfter`` (429), ждёт ``retry_after``
-      и повторяет отправку один раз.
-    - Логирует все ошибки отправки.
-    - Пишет результат в :data:`~src.services.telegram_health.telegram_health`:
-      глубина очереди, успешные/неудачные отправки, паузы по 429 (UX-7).
-
-    Returns:
-        True если отправка успешна, False при ошибке.
-    """
-    telegram_health.queue_enter()
-    try:
-        async with _get_telegram_limiter():
-            try:
-                await send_or_update_message(
-                    bot,
-                    chat_id,
-                    db,
-                    p_id,
-                    d_id,
-                    text,
-                    photo_path=photo_path,
-                    reply_markup=reply_markup,
-                )
-            except tg_exceptions.TelegramRetryAfter as e:
-                logger.warning(
-                    "Telegram 429: retry after {:.1f}s for chat {}",
-                    e.retry_after,
-                    chat_id,
-                )
-                telegram_health.record_retry_after(e.retry_after)
-                await asyncio.sleep(e.retry_after)
-                try:
-                    await send_or_update_message(
-                        bot,
-                        chat_id,
-                        db,
-                        p_id,
-                        d_id,
-                        text,
-                        photo_path=photo_path,
-                        reply_markup=reply_markup,
-                    )
-                except Exception as e2:
-                    logger.opt(exception=True).error(
-                        "Telegram retry failed for chat {}: {}",
-                        chat_id,
-                        e2,
-                    )
-                    telegram_health.record_send_error()
-                    return False
-            except Exception as e:
-                logger.opt(exception=True).error(
-                    "Telegram send failed for chat {}: {}",
-                    chat_id,
-                    e,
-                )
-                telegram_health.record_send_error()
-                return False
-
-        telegram_health.record_send_ok()
-        return True
-    finally:
-        telegram_health.queue_exit()
 
 
 def _parse_specific_dates(monitoring_entry: MonitoringEntry) -> list[str]:
@@ -542,30 +401,20 @@ def _build_notification_message(
 
 
 async def _send_notification(
-    bot: Bot | None,
+    notifier: NotificationPort | None,
     uid: str,
-    db: DatabaseManager,
     p_id: str,
     d_id: str,
     msg: str,
     notify_type: str,
 ) -> None:
-    """Отправляет уведомление в Telegram, если передан bot.
+    """Отправляет уведомление через порт, если он передан.
 
-    При ``bot=None`` (вызов из REST API) отправка пропускается.
+    При ``notifier=None`` (вызов из REST API) отправка пропускается.
     """
-    if bot is not None:
-        photo_path = get_notify_image_path(notify_type)
-        await _send_telegram_safe(
-            bot,
-            int(uid),
-            db,
-            p_id,
-            d_id,
-            msg,
-            photo_path=photo_path,
-            reply_markup=get_notification_keyboard(p_id, d_id),
-        )
+    if notifier is None:
+        return
+    await notifier.notify(int(uid), p_id, d_id, msg, notify_type)
 
 
 async def _check_single_doctor(
@@ -578,7 +427,7 @@ async def _check_single_doctor(
     p_info: PatientInfo,
     empty_counts_lock: asyncio.Lock,
     empty_counts: dict[str, int],
-    bot: Bot | None,
+    notifier: NotificationPort | None,
     db: DatabaseManager,
     slots_cache: _SlotsFetchCache | None = None,
     *,
@@ -591,7 +440,7 @@ async def _check_single_doctor(
     Семафор ограничивает количество одновременных HTTP-запросов к API.
 
     При ``initial_sync=True`` уведомления подавляются — кэш только заполняется.
-    При ``bot=None`` уведомления не отправляются (используется из REST API).
+    При ``notifier=None`` уведомления не отправляются (используется из REST API).
     """
     # --- Шаг 1: jitter-задержка ---
     await _apply_jitter()
@@ -685,7 +534,7 @@ async def _check_single_doctor(
     msg = _build_notification_message(
         p_info, d_name, doctor_specialty, header, display_slots, slots
     )
-    await _send_notification(bot, uid, db, p_id, d_id, msg, notify_type)
+    await _send_notification(notifier, uid, p_id, d_id, msg, notify_type)
 
 
 def _cleanup_stale_empty_counts(
@@ -718,7 +567,7 @@ async def _run_patient_doctor_tasks(
     p_info: PatientInfo,
     empty_counts_lock: asyncio.Lock,
     empty_counts: dict[str, int],
-    bot: Bot,
+    notifier: NotificationPort | None,
     db: DatabaseManager,
     slots_cache: _SlotsFetchCache | None = None,
     *,
@@ -741,7 +590,7 @@ async def _run_patient_doctor_tasks(
             p_info=p_info,
             empty_counts_lock=empty_counts_lock,
             empty_counts=empty_counts,
-            bot=bot,
+            notifier=notifier,
             db=db,
             slots_cache=slots_cache,
             initial_sync=initial_sync,
@@ -761,7 +610,7 @@ async def _run_patient_doctor_tasks(
 async def _run_monitoring_iteration(
     semaphore: asyncio.Semaphore,
     api: ZdravClient,
-    bot: Bot,
+    notifier: NotificationPort | None,
     db: DatabaseManager,
     empty_counts_lock: asyncio.Lock,
     empty_counts: dict[str, int],
@@ -811,7 +660,7 @@ async def _run_monitoring_iteration(
                 p_info=p_info,
                 empty_counts_lock=empty_counts_lock,
                 empty_counts=empty_counts,
-                bot=bot,
+                notifier=notifier,
                 db=db,
                 slots_cache=slots_cache,
                 initial_sync=initial_sync,
@@ -819,7 +668,7 @@ async def _run_monitoring_iteration(
 
 
 async def monitor_loop(
-    bot: Bot,
+    notifier: NotificationPort | None,
     api: ZdravClient,
     db: DatabaseManager,
     *,
@@ -853,7 +702,7 @@ async def monitor_loop(
             await _run_monitoring_iteration(
                 semaphore=semaphore,
                 api=api,
-                bot=bot,
+                notifier=notifier,
                 db=db,
                 empty_counts_lock=empty_counts_lock,
                 empty_counts=empty_counts,
@@ -882,7 +731,7 @@ async def monitor_loop(
 
 
 async def _monitor_iteration(
-    bot: Bot,
+    notifier: NotificationPort | None,
     api: ZdravClient,
     db: DatabaseManager,
     *,
@@ -894,7 +743,7 @@ async def _monitor_iteration(
     Менеджер владеет ``while True``, sleep, retry и обработкой CancelledError.
 
     Args:
-        bot: Экземпляр Telegram-бота.
+        notifier: Порт отправки уведомлений (None — отправка не выполняется).
         api: Клиент API zdrav.lenreg.ru.
         db: Менеджер базы данных.
         state: Словарь с мутабельным состоянием между итерациями:
@@ -908,7 +757,7 @@ async def _monitor_iteration(
     await _run_monitoring_iteration(
         semaphore=state["semaphore"],
         api=api,
-        bot=bot,
+        notifier=notifier,
         db=db,
         empty_counts_lock=state["empty_counts_lock"],
         empty_counts=state["empty_counts"],
@@ -956,7 +805,7 @@ async def force_check_single_doctor(
         p_info=p_info,
         empty_counts_lock=empty_counts_lock,
         empty_counts=empty_counts,
-        bot=None,  # Без уведомлений
+        notifier=None,  # Без уведомлений
         db=db,
         initial_sync=True,
     )

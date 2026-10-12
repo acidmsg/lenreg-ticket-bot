@@ -44,9 +44,9 @@ class MetricsRepository(BaseRepository):
         bucket = int(moment // HOUR_SECONDS * HOUR_SECONDS)
         await self._c.execute(
             "INSERT INTO metrics_hourly "
-            "(bucket_ts, doctors_total, doctors_added, discovery_cycles) "
+            "(bucket_at, doctors_total, doctors_added, discovery_cycles) "
             "VALUES (?, ?, ?, 1) "
-            "ON CONFLICT(bucket_ts) DO UPDATE SET "
+            "ON CONFLICT(bucket_at) DO UPDATE SET "
             "doctors_total = excluded.doctors_total, "
             "doctors_added = metrics_hourly.doctors_added + excluded.doctors_added, "
             "discovery_cycles = metrics_hourly.discovery_cycles + 1",
@@ -63,19 +63,19 @@ class MetricsRepository(BaseRepository):
             hours: Ширина окна в часах (по умолчанию — неделя).
 
         Returns:
-            Точки по возрастанию времени: ``bucket_ts``, ``doctors_total``,
+            Точки по возрастанию времени: ``bucket_at``, ``doctors_total``,
             ``doctors_added``, ``discovery_cycles``.
         """
         since = int(time.time() - hours * HOUR_SECONDS)
         cursor = await self._c.execute(
-            "SELECT bucket_ts, doctors_total, doctors_added, discovery_cycles "
-            "FROM metrics_hourly WHERE bucket_ts >= ? ORDER BY bucket_ts",
+            "SELECT bucket_at, doctors_total, doctors_added, discovery_cycles "
+            "FROM metrics_hourly WHERE bucket_at >= ? ORDER BY bucket_at",
             (since,),
         )
         rows = await cursor.fetchall()
         return [
             {
-                "bucket_ts": row["bucket_ts"],
+                "bucket_at": row["bucket_at"],
                 "doctors_total": row["doctors_total"],
                 "doctors_added": row["doctors_added"],
                 "discovery_cycles": row["discovery_cycles"],

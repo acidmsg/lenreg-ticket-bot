@@ -37,6 +37,8 @@ import dns.exception
 import httpx
 from loguru import logger
 
+from src.utils.dns_metrics import inc_dns_fallback_switch
+
 Resolver = Callable[[], Awaitable[str | None]]
 AddressResolver = Callable[[], Awaitable[set[str] | None]]
 
@@ -218,16 +220,8 @@ class DnsFallbackTransport(httpx.AsyncBaseTransport):
             logger.warning("DNS: не удалось сохранить кэш {}: {}", self._cache_path, e)
 
     def _inc_switch_metric(self) -> None:
-        """Инкрементирует счётчик переключений на новый IP (ленивый импорт).
-
-        Импорт внутри функции: ``src.services.metrics`` косвенно тянет
-        ``src.api.zdrav_client``, поэтому импорт на уровне модуля дал бы цикл.
-        """
-        try:
-            from src.services.metrics import prometheus_metrics
-        except ImportError:  # pragma: no cover - транспорт работает и без метрик
-            return
-        prometheus_metrics.inc_dns_fallback_switch()
+        """Инкрементирует счётчик переключений на новый IP."""
+        inc_dns_fallback_switch()
 
     async def _resolve_via_authoritative_dns(self) -> set[str] | None:
         """Разрешает A-записи хоста реальным DNS-запросом в обход ``/etc/hosts``.

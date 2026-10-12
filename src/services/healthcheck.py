@@ -145,7 +145,7 @@ class _PerLoopLock:
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
-        tb: TracebackType | None,
+        _tb: TracebackType | None,
     ) -> None:
         self.for_current_loop().release()
 

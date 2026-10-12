@@ -12,8 +12,6 @@ import hmac
 from hashlib import sha256
 from typing import Any
 
-from src.config import settings
-
 # Заголовок, который проставляет фронтенд, и запасное поле формы.
 CSRF_HEADER = "X-CSRF-Token"
 CSRF_FIELD = "csrf_token"
@@ -26,17 +24,17 @@ CSRF_EXEMPT_PREFIXES = ("/api/user", "/api/export")
 
 
 def csrf_secret() -> str:
-    """Секрет для подписи токена.
+    """Секрет подписи CSRF-токена дашборда — секрет сессии.
 
-    Берём ``CSRF_TOKEN`` из конфига; если он не задан, используется секрет
-    сессий — лучше подписанный токен на общем секрете, чем отсутствие защиты
-    (пустой ``CSRF_TOKEN`` отмечается предупреждением при старте).
+    Используется только секрет сессии (WEB_DASHBOARD_SECRET_KEY). Портальный
+    CSRF_TOKEN сюда не подмешивается: у него другая роль (внешний API zdrav,
+    где значение NOTPROVIDED публично) — на общем секрете токен дашборда стал
+    бы подделываемым.
     """
     from src.web.auth_session import get_session_middleware
 
     mw = get_session_middleware()
-    session_secret = mw.secret if mw is not None else ""
-    return settings.CSRF_TOKEN or session_secret
+    return mw.secret if mw is not None else ""
 
 
 def make_csrf_token(session: str, secret: str) -> str:

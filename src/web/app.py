@@ -21,13 +21,21 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
-from src.config import Settings
+from src.config import Settings, settings
 from src.database.manager import DatabaseManager
 from src.services.healthcheck import HealthMetrics
 from src.services.metrics import PrometheusMetrics
 
 if TYPE_CHECKING:
     from src.api.zdrav_client import ZdravClient
+
+
+_NO_CACHE_HEADERS: dict[bytes, bytes] = {
+    b"cache-control": b"no-cache, no-store, must-revalidate",
+    b"cdn-cache-control": b"no-cache",
+    b"pragma": b"no-cache",
+    b"expires": b"0",
+}
 
 
 class StaticNoCacheMiddleware:
@@ -63,12 +71,73 @@ class StaticNoCacheMiddleware:
 
         async def _send(message: dict) -> None:
             if message["type"] == "http.response.start":
-                headers: dict[bytes, bytes] = dict(message.get("headers", []))
-                headers[b"cache-control"] = b"no-cache, no-store, must-revalidate"
-                headers[b"cdn-cache-control"] = b"no-cache"
-                headers[b"pragma"] = b"no-cache"
-                headers[b"expires"] = b"0"
-                message["headers"] = list(headers.items())
+                keep = tuple(_NO_CACHE_HEADERS.keys())
+                headers: list[tuple[bytes, bytes]] = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() not in keep
+                ]
+                headers.extend(_NO_CACHE_HEADERS.items())
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, _send)
+
+
+# Заголовки безопасности ко всем ответам. CSP отдаётся в режиме Report-Only:
+# политика только сообщает о нарушениях и ничего не блокирует, поэтому не ломает
+# inline-скрипты Mini App и Telegram WebView. Enforcement (frame-ancestors none,
+# X-Frame-Options) — отдельным шагом после проверки на Telegram Web, где Mini App
+# живёт в iframe web.telegram.org и жёсткий frame-ancestors его сломает.
+_CSP_REPORT_ONLY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://telegram.org; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "base-uri 'self'; object-src 'none'; "
+    "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org"
+)
+_SECURITY_HEADERS: dict[bytes, bytes] = {
+    b"content-security-policy-report-only": _CSP_REPORT_ONLY.encode(),
+    b"x-content-type-options": b"nosniff",
+    b"referrer-policy": b"strict-origin-when-cross-origin",
+    b"permissions-policy": b"geolocation=(), microphone=(), camera=()",
+    b"strict-transport-security": b"max-age=15552000",
+}
+
+
+class SecurityHeadersMiddleware:
+    """Чистый ASGI middleware: заголовки безопасности на все ответы.
+
+    Аддитивен к StaticNoCacheMiddleware и работает так же напрямую с
+    scope/receive/send (совместим с app.mount StaticFiles). Заголовки ставятся
+    через setdefault, чтобы не перетирать уже выставленные значения.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                headers: list[tuple[bytes, bytes]] = list(message.get("headers", []))
+                present = {key.lower() for key, _ in headers}
+                csp_key = (
+                    b"content-security-policy"
+                    if settings.CSP_ENFORCE
+                    else b"content-security-policy-report-only"
+                )
+                for key, value in _SECURITY_HEADERS.items():
+                    if key == b"content-security-policy-report-only":
+                        key = csp_key
+                    if key not in present:
+                        headers.append((key, value))
+                message["headers"] = headers
             await send(message)
 
         await self.app(scope, receive, _send)
@@ -304,6 +373,10 @@ def create_app(
     # не доходят до пользователей после пересборки образа.
     app.add_middleware(StaticNoCacheMiddleware)
     logger.debug("StaticNoCacheMiddleware: включен для всех ответов сервера")
+
+    # Заголовки безопасности на все ответы (CSP Report-Only и др.).
+    app.add_middleware(SecurityHeadersMiddleware)
+    logger.debug("SecurityHeadersMiddleware: заголовки безопасности добавлены")
 
     # Замер длительности запросов к API: без него в access-логе нет
     # длительностей, а оборванный клиентом запрос не попадает в журнал вовсе.

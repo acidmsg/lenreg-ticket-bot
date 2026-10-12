@@ -262,7 +262,7 @@ async def discovery_snapshot(db: Any) -> dict[str, Any]:
     """
     history = await db.get_discovery_history(DISCOVERY_HISTORY_HOURS)
     since = int(time.time() - DISCOVERY_RECENT_HOURS * 3600)
-    recent = [point for point in history if point["bucket_ts"] >= since]
+    recent = [point for point in history if point["bucket_at"] >= since]
     return {
         "points": history,
         "spark_points": _spark_points(history),

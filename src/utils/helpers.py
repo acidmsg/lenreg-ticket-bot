@@ -11,15 +11,13 @@ import re
 import time as time_module
 from collections import defaultdict
 from datetime import datetime, time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import parse_qs
 
 from loguru import logger
 
-if TYPE_CHECKING:
-    from src.api.models import DateInfo
-
 from src.i18n import _data
+from src.utils.protocols import SlotDateParts
 
 # ── Кэш псевдонимов специальностей, загружаемый из БД ────────
 _db_specialty_aliases: dict[str, str] = {}
@@ -398,8 +396,8 @@ def format_notification_text(
     )
 
 
-def format_slot_date(date_start: DateInfo) -> str:
-    """Собирает дату слота в формате «ДД.ММ.ГГГГ» из полей ``DateInfo``.
+def format_slot_date(date_start: SlotDateParts) -> str:
+    """Собирает дату слота в формате «ДД.ММ.ГГГГ» из полей ``SlotDateParts``.
 
     Внешний API возвращает ``day``, ``month`` и ``year`` строками
     ([`appointment_list.md`](specs/knowledge/appointment_list.md)); день и месяц
@@ -485,7 +483,7 @@ def _compute_init_data_hash(data_check_string: str, bot_token: str) -> str:
 def verify_telegram_init_data(
     init_data_raw: str,
     bot_token: str,
-    max_age: int = 86400,
+    max_age: int = 3600,
 ) -> tuple[bool, str | None, int | None]:
     """Проверяет HMAC-SHA256 подпись initData из Telegram Mini App.
 
@@ -501,7 +499,7 @@ def verify_telegram_init_data(
     Args:
         init_data_raw: Сырая строка initData (application/x-www-form-urlencoded).
         bot_token: Токен бота Telegram.
-        max_age: Максимальный возраст initData в секундах (по умолчанию 86400).
+        max_age: Максимальный возраст initData в секундах (по умолчанию 3600).
 
     Returns:
         (is_valid, error_message, telegram_id):

@@ -133,6 +133,31 @@ class ClinicSyncStats:
     total_doctors: int = 0
 
 
+@dataclass
+class SlotsScanTotals:
+    """Накопительная статистика полных сканов талонов клиник.
+
+    Полный обход (``sync_clinic_slots``) пишет в лог только факт перезаписи
+    кэша, поэтому сканы, не изменившие кэш, оставались незамеченными. Объект
+    считает каждый скан портала, число врачей в ответе и суммарное число
+    свободных талонов — основа для оценки окна сканирования (T3).
+    """
+
+    scans: int = 0
+    doctors: int = 0
+    tickets: int = 0
+
+    def record(self, doctors: int, tickets: int) -> None:
+        """Учитывает один скан клиники: ``doctors`` врачей, ``tickets`` талонов."""
+        self.scans += 1
+        self.doctors += doctors
+        self.tickets += tickets
+
+
+_slots_scan_totals = SlotsScanTotals()
+"""Накопитель статистики сканов талонов — растёт за время жизни процесса."""
+
+
 class _ClinicScanState:
     """Очередь точечных обновлений реестра для одного event loop'а.
 
@@ -850,6 +875,10 @@ async def sync_clinic_slots(
     выбора врача продолжит отдавать прежние талоны, а не обнулится на время
     сбоя портала.
 
+    Каждый скан (в том числе без перезаписи кэша) фиксируется DEBUG-строкой с
+    числом врачей и свободных талонов; накопительные итоги ведёт
+    ``_slots_scan_totals``.
+
     Returns:
         Сколько талонов записано (0 — кэш не тронут).
     """
@@ -885,6 +914,22 @@ async def sync_clinic_slots(
                 "nearest_date": _nearest_date_from_doctor(doc),
             }
         )
+
+    tickets_seen = sum(row["free_tickets"] for row in rows)
+    _slots_scan_totals.record(len(rows), tickets_seen)
+    # DEBUG идёт в файловый сик лога (level=DEBUG): фиксирует каждый скан
+    # портала, а не только перезапись кэша ниже. Накопительные итоги — в той
+    # же строке, чтобы история сканов читалась из лога без метрик.
+    logger.debug(
+        "Скан талонов клиники {}: врачей {}, свободных талонов {} "
+        "(накоплено: сканов {}, врачей {}, талонов {})",
+        cid,
+        len(rows),
+        tickets_seen,
+        _slots_scan_totals.scans,
+        _slots_scan_totals.doctors,
+        _slots_scan_totals.tickets,
+    )
 
     if not rows:
         logger.warning(

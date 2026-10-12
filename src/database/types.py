@@ -180,7 +180,7 @@ class BookingEntry(TypedDict):
 
 
 class AuditLogEntry(TypedDict):
-    """Запись журнала действий администратора (таблица audit_log)."""
+    """Запись журнала действий администратора (таблица audit_logs)."""
 
     id: int
     """Идентификатор записи."""

@@ -24,6 +24,7 @@ from src.api.zdrav_client import ZdravClient
 from src.config import settings
 from src.database.database import Database
 from src.database.manager import DatabaseManager
+from src.handlers.notifications import TelegramNotifier
 from src.i18n import setup_i18n
 from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
@@ -155,7 +156,7 @@ async def _start_background_tasks(
         name="monitor",
         schedule=ScheduleConfig(interval=60, jitter=(42, 85)),
         retry=RetryConfig(max_retries=3, backoff_min=2.0, backoff_max=300),
-        bot=bot,
+        notifier=TelegramNotifier(bot=bot, store=db),
         api=api,
         db=db,
         state=monitor_state,

@@ -455,6 +455,80 @@ async def migrate_v20_bookings_status(db) -> None:
         logger.info("Миграция v20: добавлена колонка status в bookings")
 
 
+async def migrate_v21_naming_constitution(db) -> None:
+    """Приведение имён схемы к конституции `.roo/rules/naming.md` (DB-CONSTITUTION).
+
+    Таблицы в единственном числе переименованы во множественное; колонки-счётчики
+    получили суффикс `_count`, устаревший суффикс `_ts` заменён на `_at`.
+    Используется `ALTER TABLE ... RENAME` (SQLite >= 3.25): без пересборки таблиц
+    и без потери данных. Миграция идемпотентна — наличие проверяется по
+    `sqlite_master` и `PRAGMA table_info`.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    async def rename_table(old: str, new: str) -> None:
+        cursor = await c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (old,)
+        )
+        if await cursor.fetchone() is not None:
+            await c.execute(f"ALTER TABLE {old} RENAME TO {new}")
+
+    async def rename_column(table: str, old: str, new: str) -> None:
+        cursor = await c.execute(f"PRAGMA table_info({table})")
+        columns = {row[1] for row in await cursor.fetchall()}
+        if old in columns and new not in columns:
+            await c.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
+
+    await rename_table("audit_log", "audit_logs")
+    await rename_table("monitoring_log", "monitoring_logs")
+    await rename_table("user_state", "user_states")
+
+    for old, new in (
+        ("api_checks", "api_check_count"),
+        ("api_errors", "api_error_count"),
+        ("slots_found", "found_slot_count"),
+        ("notifications", "notification_count"),
+        ("bucket_ts", "bucket_at"),
+    ):
+        await rename_column("metrics_hourly", old, new)
+    await rename_column("user_states", "updated_ts", "updated_at")
+
+    # Имена индексов содержали старые имена таблиц — пересоздаём.
+    for index in (
+        "idx_audit_log_ts",
+        "idx_audit_log_action",
+        "idx_audit_log_actor",
+        "idx_monitoring_log_uid",
+        "idx_monitoring_log_ts",
+        "idx_monitoring_log_ack",
+    ):
+        await c.execute(f"DROP INDEX IF EXISTS {index}")
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs (ts DESC)"
+    )
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_action "
+        "ON audit_logs (action, ts DESC)"
+    )
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs (actor, ts DESC)"
+    )
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_monitoring_logs_uid ON monitoring_logs(uid)"
+    )
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_monitoring_logs_ts ON monitoring_logs(ts)"
+    )
+    await c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_monitoring_logs_ack "
+        "ON monitoring_logs (ack_status, ts DESC)"
+    )
+    await c.commit()
+    logger.info("Миграция v21: имена схемы приведены к конституции")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -473,4 +547,5 @@ MIGRATIONS = [
     (18, migrate_v18_clinic_slots),
     (19, migrate_v19_clinic_empty_sync_streak),
     (20, migrate_v20_bookings_status),
+    (21, migrate_v21_naming_constitution),
 ]

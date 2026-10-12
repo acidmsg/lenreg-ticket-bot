@@ -1,10 +1,15 @@
+import os
 import sqlite3
 from collections.abc import Callable
 from typing import Any
 
 from loguru import logger
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 # Ключи конфигов, которые можно хранить в таблице config
 CONFIG_KEY_API_TIMEOUT = "api_timeout"
@@ -43,6 +48,47 @@ CONFIG_KEY_SCHEMA_CHECK_INTERVAL = "schema_check_interval"
 CONFIG_KEY_SCHEMA_CHECK_ENABLED = "schema_check_enabled"
 CONFIG_KEY_WEB_DASHBOARD_ENABLED = "web_dashboard_enabled"
 CONFIG_KEY_WEB_DASHBOARD_PORT = "web_dashboard_port"
+
+
+SECRET_FILE_FIELDS = (
+    "BOT_TOKEN",
+    "API_TOKEN",
+    "REDIS_PASSWORD",
+    "WEB_DASHBOARD_PASSWORD",
+    "WEB_DASHBOARD_SECRET_KEY",
+    "WEB_DASHBOARD_API_KEY",
+    "CLOUDFLARE_TUNNEL_TOKEN",
+)
+"""Поля-секреты, которые можно отдавать в контейнер файлами (<ПОЛЕ>_FILE)."""
+
+
+class SecretsFileSource(PydanticBaseSettingsSource):
+    """Источник секретов из файлов, путь к которым задан в <ПОЛЕ>_FILE.
+
+    Позволяет монтировать секреты файлами (Docker secrets, /run/secrets) и
+    указывать путь через <ПОЛЕ>_FILE — тогда значение не попадает в окружение
+    контейнера и не видно в docker inspect и /proc/1/environ. Источник стоит
+    выше env и .env: файл переопределяет переменную окружения.
+    """
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        """Не используется: значения собираются пакетно в __call__."""
+        return None, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+        for name in SECRET_FILE_FIELDS:
+            path = os.environ.get(f"{name}_FILE")
+            if not path:
+                continue
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data[name] = handle.read().strip()
+            except OSError as error:
+                logger.warning(
+                    "Не удалось прочитать секрет {} из {}: {}", name, path, error
+                )
+        return data
 
 
 class Settings(BaseSettings):
@@ -241,6 +287,9 @@ class Settings(BaseSettings):
     WEB_DASHBOARD_PASSWORD: str = ""
     # Секретный ключ для подписи сессионных cookie
     WEB_DASHBOARD_SECRET_KEY: str = ""
+    # CSP в режиме enforce (True) вместо Report-Only. Включать только после
+    # проверки в Telegram WebView — иначе можно отрезать Mini App.
+    CSP_ENFORCE: bool = False
 
     # Доверять ли X-Forwarded-For при учёте попыток входа (DASH-10).
     # По умолчанию False: заголовку можно верить только за своим прокси,
@@ -250,7 +299,7 @@ class Settings(BaseSettings):
     # === Mini App (F10) ===
     MINI_APP_ENABLED: bool = True
     MINI_APP_URL: str = ""  # Полный URL Mini App (например, https://example.com/app/)
-    MINI_APP_INITDATA_MAX_AGE: int = 86400  # 24 часа (в секундах)
+    MINI_APP_INITDATA_MAX_AGE: int = 3600  # 1 час (в секундах)
 
     # === Backup (F13) ===
     # Корневая директория для хранения бэкапов
@@ -268,7 +317,7 @@ class Settings(BaseSettings):
     # Режим восстановления: True — в контейнере (без docker compose), False — на хосте
     restore_in_container: bool = False
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, _context: Any) -> None:
         """
         Пост-инициализация: если задан REDIS_PASSWORD, встраивает его в REDIS_URL.
 
@@ -327,6 +376,23 @@ class Settings(BaseSettings):
                 "Допустимое значение: NOTPROVIDED"
             )
         return v
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Ставит файловый источник секретов выше env и .env."""
+        return (
+            init_settings,
+            SecretsFileSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+        )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

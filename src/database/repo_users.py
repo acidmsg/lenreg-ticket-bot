@@ -206,9 +206,9 @@ class UserRepository(BaseRepository):
             paused: ``True`` — мониторинг приостановлен.
         """
         await self._c.execute(
-            "INSERT INTO user_state (uid, paused, updated_ts) VALUES (?, ?, ?) "
+            "INSERT INTO user_states (uid, paused, updated_at) VALUES (?, ?, ?) "
             "ON CONFLICT(uid) DO UPDATE SET "
-            "paused = excluded.paused, updated_ts = excluded.updated_ts",
+            "paused = excluded.paused, updated_at = excluded.updated_at",
             (uid, 1 if paused else 0, time.time()),
         )
         await self._c.commit()
@@ -216,13 +216,13 @@ class UserRepository(BaseRepository):
     async def is_user_paused(self, uid: str) -> bool:
         """Приостановлен ли мониторинг пользователя."""
         cursor = await self._c.execute(
-            "SELECT paused FROM user_state WHERE uid = ?", (uid,)
+            "SELECT paused FROM user_states WHERE uid = ?", (uid,)
         )
         row = await cursor.fetchone()
         return bool(row["paused"]) if row else False
 
     async def get_paused_uids(self) -> set[str]:
         """Идентификаторы пользователей с приостановленным мониторингом."""
-        cursor = await self._c.execute("SELECT uid FROM user_state WHERE paused = 1")
+        cursor = await self._c.execute("SELECT uid FROM user_states WHERE paused = 1")
         rows = await cursor.fetchall()
         return {row["uid"] for row in rows}

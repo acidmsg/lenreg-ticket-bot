@@ -1,4 +1,4 @@
-"""Репозиторий журнала действий администратора: таблица audit_log."""
+"""Репозиторий журнала действий администратора: таблица audit_logs."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _escape_like(value: str) -> str:
 
 
 class AuditRepository(BaseRepository):
-    """Запись и выборка действий администратора (таблица audit_log)."""
+    """Запись и выборка действий администратора (таблица audit_logs)."""
 
     async def add_event(
         self,
@@ -43,7 +43,7 @@ class AuditRepository(BaseRepository):
             ts: Время события; по умолчанию — текущее.
         """
         await self._c.execute(
-            """INSERT INTO audit_log (ts, actor, action, target, payload_json)
+            """INSERT INTO audit_logs (ts, actor, action, target, payload_json)
                VALUES (?, ?, ?, ?, ?)""",
             (
                 ts if ts is not None else time.time(),
@@ -81,7 +81,7 @@ class AuditRepository(BaseRepository):
         """
         where, params = self._build_filter(actor, action, since, until, search)
         cursor = await self._c.execute(
-            "SELECT id, ts, actor, action, target, payload_json FROM audit_log "
+            "SELECT id, ts, actor, action, target, payload_json FROM audit_logs "
             f"{where} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
         )
@@ -109,7 +109,7 @@ class AuditRepository(BaseRepository):
         """Считает записи журнала с теми же фильтрами, что ``list_events``."""
         where, params = self._build_filter(actor, action, since, until, search)
         cursor = await self._c.execute(
-            f"SELECT COUNT(*) FROM audit_log {where}", params
+            f"SELECT COUNT(*) FROM audit_logs {where}", params
         )
         row = await cursor.fetchone()
         return int(row[0]) if row else 0
@@ -117,14 +117,14 @@ class AuditRepository(BaseRepository):
     async def distinct_actions(self) -> list[str]:
         """Возвращает список встречающихся в журнале кодов действий."""
         cursor = await self._c.execute(
-            "SELECT DISTINCT action FROM audit_log ORDER BY action"
+            "SELECT DISTINCT action FROM audit_logs ORDER BY action"
         )
         return [row[0] for row in await cursor.fetchall()]
 
     async def distinct_actors(self) -> list[str]:
         """Возвращает список встречающихся в журнале авторов действий."""
         cursor = await self._c.execute(
-            "SELECT DISTINCT actor FROM audit_log ORDER BY actor"
+            "SELECT DISTINCT actor FROM audit_logs ORDER BY actor"
         )
         return [row[0] for row in await cursor.fetchall() if row[0]]
 

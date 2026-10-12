@@ -111,12 +111,28 @@ poetry run python -m src.main
 
 ## Проверки кода
 
+Полный цикл блокирующих гейтов (включая MI-гейт `code_health.py --fail-under-mi 20`) — через [`Makefile`](Makefile:1) (Linux/macOS) или [`tasks.ps1`](tasks.ps1:1) (Windows). Неблокирующий полный отчёт о здоровье кода — цель `metrics`.
+
+```bash
+make lint      # ruff check src tests, mypy src, lint-imports, MI-гейт, markdownlint, ruff format --check, prettier --check
+make check     # lint + pytest (полный CI-цикл)
+make metrics   # полный отчёт radon + vulture (MI в режиме warning, неблокирующий)
+```
+
+```powershell
+.\tasks.ps1 lint
+.\tasks.ps1 check
+.\tasks.ps1 metrics
+```
+
 ### Python
 
 ```bash
 poetry install --with dev
-pytest
-ruff check src
+pytest          # гейт покрытия задан в pyproject.toml: --cov-fail-under=50 (факт — 71 %)
+ruff check src tests
+mypy src
+lint-imports    # архитектурные контракты слоёв (import-linter)
 ```
 
 ### Фронтенд Mini App (JS)

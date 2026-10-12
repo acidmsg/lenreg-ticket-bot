@@ -16,7 +16,6 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.config import settings
 from src.web.csrf import (
     make_csrf_token,
     needs_csrf,
@@ -84,10 +83,23 @@ def _verify_session(session: str, secret: str) -> str | None:
         return None
 
 
+def _password_salt() -> bytes:
+    """Соль PBKDF2 — per-install, производная от секрета дашборда.
+
+    Глобальная константа-соль одинакова у всех установок и позволяет готовить
+    радужные таблицы заранее. WEB_DASHBOARD_SECRET_KEY генерируется при
+    установке (install.sh) и уникален для инсталляции, поэтому производная от
+    него соль тоже уникальна.
+    """
+    from src.config import settings
+
+    secret = settings.WEB_DASHBOARD_SECRET_KEY or ""
+    return hashlib.sha256(f"dashboard-password-salt:{secret}".encode()).digest()[:16]
+
+
 def hash_password(password: str) -> str:
-    """Хеширует пароль через PBKDF2-SHA256."""
-    salt = b"lenreg_dashboard_salt_v1"
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
+    """Хеширует пароль через PBKDF2-SHA256 с per-install солью."""
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), _password_salt(), 100000)
     return dk.hex()
 
 
@@ -180,7 +192,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
 
         # CSRF (DASH-10): токен привязан к сессии и уходит в шаблоны, а
         # небезопасные методы без него отклоняются.
-        csrf_secret = settings.CSRF_TOKEN or self._secret
+        csrf_secret = self._secret
         request.state.csrf_token = make_csrf_token(session, csrf_secret)
 
         if needs_csrf(request.url.path, request.method):

@@ -64,6 +64,7 @@ package-mode = false
 # === Testing ===
 pytest = ">=9.0,<10.0"
 pytest-asyncio = ">=1.3,<2.0"
+pytest-cov = ">=6.0,<8.0"
 # === Linting & Formatting ===
 ruff = ">=0.4,<1.0"
 mypy = ">=1.10,<2.0"
@@ -76,6 +77,12 @@ babel = ">=2.14,<3.0"
 pre-commit = ">=4.0,<5.0"
 pre-commit-hooks = ">=6.0,<7.0"
 types-python-dateutil = "^2.9.0.20260518"
+# === Architecture linting ===
+import-linter = ">=2.0,<3.0"
+# === Code metrics ===
+radon = ">=6.0,<7.0"
+# === Dead code ===
+vulture = ">=2.14,<3.0"
 
 [tool.ruff]
 src = ["src"]
@@ -83,16 +90,136 @@ target-version = "py311"
 exclude = [".venv", "data", "logs"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "ASYNC", "N", "B", "UP", "SIM", "RUF"]
+select = ["E", "F", "I", "W", "ASYNC", "N", "B", "UP", "SIM", "RUF", "C90", "PLR0913", "PLR0915"]
 ignore = [
     "RUF001", # Разрешить кириллицу в обычных строках (String contains ambiguous Unicode character)
     "RUF002", # Разрешить кириллицу в докстрингах (Docstring contains ambiguous Unicode character)
     "RUF003", # Разрешить кириллицу в комментариях (Comment contains ambiguous Unicode character)
 ]
 
+# Пороги сложности (источник: .roo/sessions/CODE_HEALTH_BASELINE.md).
+# Блокирующий порог сложности считается ruff (C901); MI считает radon отдельно.
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-statements = 50
+
+# Ratchet: legacy-файлы с нарушениями на момент фиксации baseline (2026-10-11).
+# Игнорируются только эти файлы и только указанные коды; новые нарушения в прочих
+# файлах блокируются. Долги зарегистрированы в .roo/sessions/TECH_DEBT.md
+# (TD-028..TD-031 и другие открытые записи). При устранении долга строку удалить.
+[tool.ruff.lint.per-file-ignores]
+"src/api/dns_fallback.py" = ["PLR0913"]
+"src/api/zdrav_client.py" = ["C901", "PLR0915"]
+"src/database/database.py" = ["PLR0913"]
+"src/database/manager.py" = ["PLR0913"]
+"src/database/repo_audit.py" = ["PLR0913"]
+"src/database/repo_monitoring.py" = ["PLR0913"]
+"src/database/repo_users.py" = ["PLR0913"]
+"src/main.py" = ["PLR0913"]
+"src/services/background.py" = ["C901", "PLR0913", "PLR0915"]
+"src/services/doctor_discovery.py" = ["PLR0913"]
+"src/services/log_reader.py" = ["PLR0913"]
+"src/services/monitor.py" = ["C901", "PLR0913"]
+"src/services/params.py" = ["C901"]
+"src/services/patient_check.py" = ["PLR0913"]
+"src/services/tools.py" = ["PLR0913"]
+"src/services/user_actions.py" = ["PLR0913"]
+"src/utils/helpers.py" = ["PLR0913"]
+"src/utils/logging.py" = ["PLR0913"]
+"src/utils/telegram_utils.py" = ["PLR0913"]
+"src/web/export_token.py" = ["PLR0913"]
+"src/web/routers/api.py" = ["PLR0913"]
+"src/web/routers/backup_api.py" = ["C901", "PLR0915"]
+"src/web/routers/export_api.py" = ["PLR0913"]
+"src/web/routers/pages.py" = ["PLR0913"]
+# Вне src/ новые правила также дали срабатывания на момент фиксации baseline —
+# включены в ratchet, чтобы Phase 1 не добавляла новых отказов гейта.
+"scripts/repair_booking_doctor.py" = ["PLR0913"]
+"tests/conftest.py" = ["C901"]
+"tests/services/test_monitor.py" = ["PLR0913"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+# Контракты архитектурных границ (Фаза 2). Запуск: lint-imports.
+# Единственный источник истины о топологии — specs/ARCHITECTURE.md.
+[tool.importlinter]
+root_packages = ["src"]
+
+[[tool.importlinter.contracts]]
+name = "Database не зависит от верхних слоёв"
+type = "forbidden"
+source_modules = ["src.database"]
+forbidden_modules = [
+    "src.handlers",
+    "src.web",
+    "src.services",
+    "src.middleware",
+    "src.filters",
+    "src.keyboards",
+]
+
+[[tool.importlinter.contracts]]
+name = "Utils — самый нижний слой"
+type = "forbidden"
+source_modules = ["src.utils"]
+forbidden_modules = [
+    "src.services",
+    "src.handlers",
+    "src.web",
+    "src.middleware",
+    "src.filters",
+    "src.keyboards",
+    "src.database",
+    "src.api",
+    "src.assets",
+]
+[[tool.importlinter.contracts]]
+name = "API-клиент не зависит от прикладных слоёв"
+type = "forbidden"
+source_modules = ["src.api"]
+forbidden_modules = [
+    "src.services",
+    "src.handlers",
+    "src.web",
+    "src.middleware",
+    "src.filters",
+    "src.keyboards",
+]
+[[tool.importlinter.contracts]]
+name = "Services не зависят от транспорта"
+type = "forbidden"
+source_modules = ["src.services"]
+forbidden_modules = [
+    "src.handlers",
+    "src.web",
+    "src.middleware",
+    "src.filters",
+    "src.keyboards",
+]
+
+[[tool.importlinter.contracts]]
+name = "Handlers не зависят от web"
+type = "forbidden"
+source_modules = ["src.handlers"]
+forbidden_modules = ["src.web"]
+
+# Отчёт по мёртвому коду (Фаза 5). Неблокирующий: запуск через scripts/code_health.py.
+[tool.vulture]
+# Анализируется только src/: tests/ и scripts/ содержат вспомогательный код,
+# который vulture ошибочно помечает как неиспользуемый.
+paths = ["src"]
+# __init__.py содержат реэкспорты (public API пакетов), которые vulture
+# считает неиспользуемыми при импорте через пакет.
+exclude = ["**/__init__.py"]
+# 80 отсекает шум слабых срабатываний (weakly-private, unused properties).
+min_confidence = 80
+# Крупные находки первыми — информативнее для триажа.
+sort_by_size = true
 
 [tool.mypy]
 # Таргет совпадает с рантаймом образа (python:3.12-slim). При 3.11 mypy не может
@@ -123,7 +250,16 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-v", "--tb=short", "--strict-markers"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    # Гейт покрытия (Фаза 3): единый источник для Makefile, tasks.ps1, run_tests.py.
+    # Фактическое покрытие на 2026-10-11: 71%.
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-fail-under=50",
+]
 pythonpath = ["."]
 filterwarnings = [
     # pytest-asyncio использует устаревшие asyncio.set_event_loop_policy /

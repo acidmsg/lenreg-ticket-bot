@@ -82,6 +82,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      # Секреты файлами (опция install.sh): <ПОЛЕ>_FILE в .env указывает на
+      # /run/secrets/<name>. Каталог может быть пуст — тогда секреты в .env.
+      - ./secrets:/run/secrets:ro
       # Скрипты (backup.sh, restore.sh, backup_healthcheck.sh) запечены в образ
       # через Dockerfile (COPY scripts/ scripts/). Bind-mount не используется,
       # чтобы пустая host-директория не затеняла baked-in скрипты.
@@ -97,7 +100,9 @@ services:
       retries: 3
     ports:
       - "127.0.0.1:9090:9090"
-      - "${WEB_DASHBOARD_PORT:-8080}:8080"
+      # Публикация дашборда: loopback по умолчанию (публичный вход — отдельный
+      # слой: cloudflared или caddy, см. профили ниже).
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_DASHBOARD_PORT:-8080}:8080"
     networks:
       - lenreg_ticket_network
     deploy:
@@ -109,10 +114,60 @@ services:
           cpus: "0.25"
           memory: 128M
 
+  # ===========================================================================
+  # Caddy — reverse-proxy с автоматическим TLS (профиль caddy)
+  # ===========================================================================
+  # Публичный вход для машин без Cloudflare: Caddy сам получает сертификат
+  # Let's Encrypt на CADDY_DOMAIN и проксирует на bot:8080 по внутренней сети.
+  # Запускается только при COMPOSE_PROFILES=caddy.
+  caddy:
+    profiles:
+      - caddy
+    image: caddy:2-alpine
+    container_name: lenreg_ticket_caddy
+    restart: unless-stopped
+    depends_on:
+      - bot
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN}
+      CADDY_EMAIL: ${CADDY_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - lenreg_ticket_network
+
+  # ===========================================================================
+  # cloudflared — Cloudflare Tunnel (профиль cloudflared)
+  # ===========================================================================
+  # Публичный вход через Cloudflare: туннель в общей сети достаёт bot:8080
+  # напрямую, порт на хост публиковать не нужно. Запускается только при
+  # COMPOSE_PROFILES=cloudflared. Токен — CLOUDFLARE_TUNNEL_TOKEN из .env.
+  cloudflared:
+    profiles:
+      - cloudflared
+    image: cloudflare/cloudflared:latest
+    container_name: lenreg_ticket_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - bot
+    networks:
+      - lenreg_ticket_network
+
+
 volumes:
   redis_data:
     driver: local
   qdrant_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 networks:
