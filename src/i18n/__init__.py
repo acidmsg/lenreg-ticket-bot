@@ -180,11 +180,11 @@ def use_language(lang: str) -> Iterator[None]:
 def resolve_language(language_code: str | None) -> str:
     """Код языка Telegram -> язык сообщения.
 
-    Русский — для русскоязычных (ru*), английский — для всех остальных
-    вариантов (en, de, fr, а также пустой/неизвестный).
+    Неизвестный (пустой/None) язык — русский (дефолт бота, аудитория ru);
+    ru* — русский; любой другой код (en, de, fr, ...) — английский.
     """
-    if language_code and language_code.lower().startswith("ru"):
-        return "ru"
+    if not language_code or language_code.lower().startswith("ru"):
+        return DEFAULT_LANGUAGE
     return "en"
 
 
