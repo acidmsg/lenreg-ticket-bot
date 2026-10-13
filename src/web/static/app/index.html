@@ -63,13 +63,8 @@
   </head>
   <body>
     <div id="app"></div>
-    <!-- components/*.js подключаются графом ES-модулей из js/app.js
-         (в т.ч. components/filter-modal.js), отдельные теги не нужны -->
-    <script src="/static/app/js/utils/escape.js"></script>
-    <script src="/static/app/js/utils/doctor.js"></script>
-    <script src="/static/app/js/utils/dom.js"></script>
-    <script src="/static/app/js/utils/monitoring.js"></script>
-    <script src="/static/app/js/utils/ui.js"></script>
+    <!-- Весь JS (utils/*, components/*) подключается графом ES-модулей из
+         js/app.js — отдельные теги не нужны. -->
     <script type="module" src="js/app.js?v=6"></script>
   </body>
 </html>

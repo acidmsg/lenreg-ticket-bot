@@ -287,9 +287,9 @@ class Settings(BaseSettings):
     WEB_DASHBOARD_PASSWORD: str = ""
     # Секретный ключ для подписи сессионных cookie
     WEB_DASHBOARD_SECRET_KEY: str = ""
-    # CSP в режиме enforce (True) вместо Report-Only. Включать только после
-    # проверки в Telegram WebView — иначе можно отрезать Mini App.
-    CSP_ENFORCE: bool = False
+    # CSP в режиме enforce (True) вместо Report-Only. Включено по умолчанию:
+    # проверено headless-браузером 2026-10-13 — блокировок ресурсов Mini App нет.
+    CSP_ENFORCE: bool = True
 
     # Доверять ли X-Forwarded-For при учёте попыток входа (DASH-10).
     # По умолчанию False: заголовку можно верить только за своим прокси,
