@@ -7,11 +7,13 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="app-version" content="6" />
+    <meta name="app-version" content="7" />
     <title>Мониторинг</title>
     <link rel="stylesheet" href="/static/app/vendor/vanilla-calendar.min.css" />
-    <link rel="stylesheet" href="css/style.css?v=6" />
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/style.css?v=7" />
+    <!-- SDK Telegram хостим у себя: внешний telegram.org на Android может не отдаваться,
+         а блокирующий тег в <head> тогда оставляет пустой экран. -->
+    <script src="/static/app/vendor/telegram-web-app.js"></script>
     <script>
       // Тема применяется до первой отрисовки, чтобы не мигало: сохранённый режим
       // (system/dark/light), для системного — colorScheme Telegram, затем ОС.
@@ -65,6 +67,51 @@
     <div id="app"></div>
     <!-- Весь JS (utils/*, components/*) подключается графом ES-модулей из
          js/app.js — отдельные теги не нужны. -->
-    <script type="module" src="js/app.js?v=6"></script>
+    <script>
+      // Диагностика старта: если модуль приложения не запустился, вместо пустого
+      // экрана показываем причину. Ловим ошибки загрузки ресурсов, ошибки
+      // сценариев и «тишину» — когда за 8 с приложение так и не отрисовалось.
+      (function () {
+        var shown = false;
+
+        function fail(message) {
+          if (shown) return;
+          var app = document.getElementById("app");
+          if (!app || app.childElementCount > 0) return;
+          shown = true;
+          app.innerHTML =
+            '<div style="padding:24px;font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif">' +
+            '<p style="margin:0 0 8px;font-weight:600">Приложение не загрузилось</p>' +
+            '<p style="margin:0;opacity:.75;white-space:pre-wrap"></p></div>';
+          app.querySelector("p:last-child").textContent = String(message);
+        }
+
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event.target;
+            if (target && target !== window && target.tagName) {
+              fail("Не загрузился ресурс: " + (target.src || target.href));
+              return;
+            }
+            fail(
+              (event.message || "Ошибка сценария") +
+                (event.filename ? "\n" + event.filename + ":" + event.lineno : "")
+            );
+          },
+          true
+        );
+
+        window.addEventListener("unhandledrejection", function (event) {
+          var reason = event.reason;
+          fail("Сбой при запуске: " + ((reason && reason.message) || reason));
+        });
+
+        setTimeout(function () {
+          fail("Сценарий приложения не запустился за 8 секунд.");
+        }, 8000);
+      })();
+    </script>
+    <script type="module" src="js/app.js?v=7"></script>
   </body>
 </html>
