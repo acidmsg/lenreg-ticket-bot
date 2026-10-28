@@ -309,6 +309,29 @@ async def api_search(request: Request) -> dict[str, Any]:
     return await search_all(request.app.state.db, query)
 
 
+@router.get("/dashboard/slot-history")
+async def api_slot_history(request: Request) -> dict[str, Any]:
+    """История сканов талонов клиники для графика на «Системе»."""
+    clinic_id = request.query_params.get("clinic_id", "").strip()
+    if not clinic_id:
+        return {
+            "clinic_id": "",
+            "hours": 0,
+            "points": [],
+            "error": "clinic_id is required",
+        }
+    raw_hours = request.query_params.get("hours", str(24 * 30))
+    try:
+        hours = int(raw_hours)
+    except ValueError:
+        hours = 24 * 30
+    hours = max(1, min(hours, 24 * 90))
+    points = await request.app.state.db.get_clinic_slot_scan_summary(
+        clinic_id, hours=hours
+    )
+    return {"clinic_id": clinic_id, "hours": hours, "points": points}
+
+
 @router.get("/dashboard/export/users.csv")
 async def api_export_users(request: Request) -> Response:
     """Выгрузка пользователей с числом пациентов и цепочек мониторинга."""

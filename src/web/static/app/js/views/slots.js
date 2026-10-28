@@ -31,6 +31,11 @@ export {
 } from "../utils/booking.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
+import {
+  hideSystemButtons,
+  showMainButton,
+  showSecondaryButton,
+} from "../utils/telegram-buttons.js";
 
 /**
  * Рендерит экран слотов в указанный контейнер.
@@ -40,6 +45,7 @@ import { lucideIcon } from "../components/icon.js";
  */
 export async function renderSlots(container, params) {
   if (!container) return;
+  hideSystemButtons();
 
   const monitoringId = params?.monitoringId || "";
   const direct = params?.direct || null;
@@ -76,6 +82,7 @@ export async function renderSlots(container, params) {
     if (slots.length === 0) {
       html += renderNoSlots();
     } else {
+      html += renderNearestBanner(slots);
       html += renderSlotsPickerLayout();
     }
 
@@ -87,10 +94,12 @@ export async function renderSlots(container, params) {
     // Гибридный режим: календарь слотов + панель выбранной даты.
     // При недоступности VanillaCalendar — откат к плоскому списку.
     if (slots.length > 0) {
-      const onSelect = (slot) => handleSlotBooking(slot, params);
+      const onSelect = (slot, chip) => selectSlot(slot, chip, container, params);
+      const onDayChange = () => clearSlotSelection(container);
       const calendarReady = initSlotsPicker(container, {
         slots,
         onSelect,
+        onDayChange,
         fallbackClinicId: data.clinic_id || "",
       });
       if (!calendarReady) {
@@ -100,6 +109,12 @@ export async function renderSlots(container, params) {
         }
         bindSlotsPickerChips(container, onSelect);
       }
+
+      // Вторичное действие всегда доступно на экране номерков.
+      showSecondaryButton({
+        text: "Продолжить слежение",
+        onClick: () => navigate("doctors"),
+      });
     }
   } catch (error) {
     // 502/504 — внешний сервис клиники недоступен: показываем единое понятное
@@ -111,6 +126,65 @@ export async function renderSlots(container, params) {
       renderSlots(container, params),
     );
   }
+}
+
+
+/**
+ * Рендерит баннер с ближайшим свободным талоном.
+ *
+ * @param {Array<{date: string, time: string}>} slots — свободные слоты
+ * @returns {string} HTML-строка баннера или пустая строка
+ */
+function renderNearestBanner(slots) {
+  if (!slots || slots.length === 0) return "";
+
+  const sorted = [...slots].sort((a, b) =>
+    `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+  );
+  const first = sorted[0];
+  if (!first || !first.date || !first.time) return "";
+
+  const rawDate = String(first.date || "");
+  let day;
+  let month;
+  let year;
+  const iso = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dot = rawDate.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else if (dot) {
+    day = Number(dot[1]);
+    month = Number(dot[2]);
+    year = Number(dot[3]);
+  } else {
+    return "";
+  }
+  const dt = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((dt - today) / 86400000);
+  const months = [
+    "янв", "фев", "мар", "апр", "мая", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+  ];
+
+  let dayLabel;
+  if (diffDays === 0) dayLabel = "сегодня";
+  else if (diffDays === 1) dayLabel = "завтра";
+  else if (diffDays === 2) dayLabel = "послезавтра";
+  else if (diffDays > 2 && diffDays <= 7) dayLabel = `через ${diffDays} дн.`;
+  else dayLabel = `${day} ${months[month - 1] || ""}`;
+
+  const cabinet = first.cabinet || first.office || first.room || "";
+  const cabinetLabel = cabinet ? ` • каб. ${cabinet}` : "";
+
+  return `
+    <div class="nearest-banner">
+      <span>Ближайший: ${dayLabel}, ${first.time}${cabinetLabel}</span>
+    </div>
+  `;
 }
 
 /**
@@ -198,39 +272,24 @@ function renderNoSlots() {
  * @returns {string} HTML блока пациентов
  */
 function renderPatientsBlock(patients, monitoringId = "") {
-  const patientsHtml = patients
+  const items = patients
     .map((p) => {
       const active = p.entryId && p.entryId === monitoringId;
-      return `
-      <li class="monitoring-patient${active ? " monitoring-patient--active" : ""}">
-        <span class="monitoring-patient__icon">${lucideIcon("user", 16)}</span>
-        <button
-          class="monitoring-patient__switch"
-          data-entry-id="${escapeHtml(p.entryId)}"
-          data-patient-name="${escapeHtml(p.name)}"
-          aria-pressed="${active ? "true" : "false"}"
-          title="Записаться на этого пациента"
-        >${escapeHtml(p.name)}</button>
-        <button
-          class="monitoring-patient__delete"
-          data-entry-id="${escapeHtml(p.entryId)}"
-          data-patient-name="${escapeHtml(p.name)}"
-          title="Удалить мониторинг для этого пациента"
-        >${lucideIcon("trash-2", 16)}</button>
-      </li>`;
+      return `<button
+        class="segmented__item${active ? " segmented__item--active" : ""}"
+        data-entry-id="${escapeHtml(p.entryId)}"
+        role="tab"
+        aria-selected="${active ? "true" : "false"}"
+      >${escapeHtml(p.name)}</button>`;
     })
     .join("");
 
   return `
-    <div class="slots-patients">
-      <div class="monitoring-patients__title"><span class="lucide-icon">${lucideIcon("users", 14)}</span> Пациенты — выберите, на кого записывать:</div>
-      <ul class="monitoring-patients">
-        ${patientsHtml}
-      </ul>
+    <div class="segmented slots-patients" role="tablist" aria-label="Пациент">
+      ${items}
     </div>
   `;
 }
-
 /**
  * Асинхронный обработчик нажатия на кнопку принудительной проверки слотов.
  *
@@ -377,11 +436,13 @@ function bindSlotDeletePatientButtons(container, patients, params) {
  * @param {object} params — параметры маршрута
  */
 function bindPatientSwitches(container, patients, params) {
-  container.querySelectorAll(".monitoring-patient__switch").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      handlePatientSwitch(btn, container, params);
-    });
+  const block = container.querySelector(".slots-patients");
+  if (!block) return;
+  block.addEventListener("click", (event) => {
+    const btn = event.target.closest(".segmented__item");
+    if (!btn) return;
+    event.stopPropagation();
+    handlePatientSwitch(btn, container, params);
   });
 }
 
@@ -401,6 +462,7 @@ async function handlePatientSwitch(btn, container, params) {
   btn.blur(); // убираем :active/:focus после клика (мобильное залипание)
   const entryId = btn.getAttribute("data-entry-id");
   if (!entryId) return;
+  if (btn.classList.contains("segmented__item--active")) return;
 
   const direct = params?.direct;
   if (entryId === params?.monitoringId) return; // уже выбран — ничего не делаем
@@ -427,7 +489,98 @@ function bindSlotEvents(container, patients, params) {
   bindSlotRefreshButtons(container);
   bindSlotDeletePatientButtons(container, patients, params);
   bindPatientSwitches(container, patients, params);
-  bindSlotsPickerChips(container, (slot) => handleSlotBooking(slot, params));
+  bindSlotsPickerChips(container, (slot, chip) =>
+    selectSlot(slot, chip, container, params),
+  );
+}
+
+/**
+ * Запоминает выбранный слот и показывает системную MainButton.
+ *
+ * @param {object} slot — выбранный слот
+ * @param {HTMLElement|null} chip — кнопка слота
+ * @param {HTMLElement} container — контейнер экрана
+ * @param {object} params — параметры маршрута
+ */
+function selectSlot(slot, chip, container, params) {
+  if (!slot) return;
+  container._selectedSlot = slot;
+
+  container.querySelectorAll(".slot-chip--selected").forEach((el) => {
+    el.classList.remove("slot-chip--selected");
+  });
+  if (chip) chip.classList.add("slot-chip--selected");
+
+  window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.();
+
+  showMainButton({
+    text: `Записаться на ${formatSlotLabel(slot)}`,
+    onClick: () => bookSelectedSlot(container, params),
+  });
+  showSecondaryButton({
+    text: "Продолжить слежение",
+    onClick: () => navigate("doctors"),
+  });
+}
+
+/**
+ * Сбрасывает выбранный слот при смене дня.
+ *
+ * @param {HTMLElement} container — контейнер экрана
+ */
+function clearSlotSelection(container) {
+  container._selectedSlot = null;
+  container.querySelectorAll(".slot-chip--selected").forEach((el) => {
+    el.classList.remove("slot-chip--selected");
+  });
+  hideSystemButtons();
+  showSecondaryButton({
+    text: "Продолжить слежение",
+    onClick: () => navigate("doctors"),
+  });
+}
+
+/**
+ * Запускает бронирование выбранного слота.
+ *
+ * @param {HTMLElement} container — контейнер экрана
+ * @param {object} params — параметры маршрута
+ */
+async function bookSelectedSlot(container, params) {
+  const slot = container._selectedSlot;
+  if (!slot) return;
+  hideSystemButtons();
+  await handleSlotBooking(slot, params);
+}
+
+/**
+ * Форматирует дату и время слота для MainButton.
+ *
+ * @param {object} slot — слот с date и time
+ * @returns {string} «16 окт, 10:20»
+ */
+function formatSlotLabel(slot) {
+  const months = [
+    "янв", "фев", "мар", "апр", "мая", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+  ];
+  const raw = String(slot?.date || "");
+  let day;
+  let monthIndex;
+  if (raw.includes("-")) {
+    const parts = raw.split("-");
+    day = Number(parts[2]);
+    monthIndex = Number(parts[1]) - 1;
+  } else if (raw.includes(".")) {
+    const parts = raw.split(".");
+    day = Number(parts[0]);
+    monthIndex = Number(parts[1]) - 1;
+  } else {
+    return slot?.time || "";
+  }
+  if (!day || monthIndex < 0) return slot?.time || "";
+  const month = months[monthIndex] || "";
+  return `${day} ${month}, ${slot.time}`;
 }
 
 /**

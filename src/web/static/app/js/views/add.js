@@ -120,14 +120,14 @@ export function renderAddDoctor(container) {
       renderItem: renderPatientItem,
     },
     {
-      title: "Поиск врача",
+      title: "Какой врач нужен?",
       description: `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`,
       searchPlaceholder: "Фамилия, имя или отчество...",
       searchMode: "doctors",
       onSearchModeChange: (mode) => {
         const step = steps[1];
         if (mode === "doctors") {
-          step.title = "Поиск врача";
+          step.title = "Какой врач нужен?";
           step.description = `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
           step.searchPlaceholder = "Фамилия, имя или отчество...";
         } else {

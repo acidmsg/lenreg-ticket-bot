@@ -102,7 +102,14 @@ services:
       - "127.0.0.1:9090:9090"
       # Публикация дашборда: loopback по умолчанию (публичный вход — отдельный
       # слой: cloudflared или caddy, см. профили ниже).
+      # TD-035: origin публикуется только на loopback. Хостовый cloudflared
+      # обращается к http://localhost:8080; резолв localhost зависит от /etc/hosts
+      # и резолвера (127.0.0.1 или ::1), поэтому порт публикуется на обоих
+      # loopback-адресах. Адреса переопределяются через .env (WEB_BIND_ADDR,
+      # WEB_BIND_ADDR_V6); чтобы отключить IPv6-маппинг, значение меняют на
+      # неиспользуемый loopback-адрес того же семейства вручную.
       - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_DASHBOARD_PORT:-8080}:8080"
+      - "${WEB_BIND_ADDR_V6:-[::1]}:${WEB_DASHBOARD_PORT:-8080}:8080"
     networks:
       - lenreg_ticket_network
     deploy:
@@ -158,7 +165,6 @@ services:
       - bot
     networks:
       - lenreg_ticket_network
-
 
 volumes:
   redis_data:

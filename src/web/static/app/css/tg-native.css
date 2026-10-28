@@ -1,0 +1,640 @@
+/*
+ * Telegram-native слой оформления Mini App.
+ * Подключается после style.css и переводит интерфейс на системные
+ * переменные Telegram: фон, секции, текст, подсказки, кнопки.
+ * Собственные цветовые темы остаются только для смысловых статусов.
+ */
+
+:root {
+  --tg-bg: var(--tg-theme-bg-color, #ffffff);
+  --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+  --tg-section-bg: var(--tg-theme-section-bg-color, #ffffff);
+  --tg-text: var(--tg-theme-text-color, #000000);
+  --tg-hint: var(--tg-theme-hint-color, #8e8e93);
+  --tg-link: var(--tg-theme-link-color, #2481cc);
+  --tg-button: var(--tg-theme-button-color, #2481cc);
+  --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --tg-separator: var(--tg-theme-section-separator-color, rgb(60 60 67 / 12%));
+  --tg-destructive: var(--tg-theme-destructive-text-color, #ff3b30);
+  --tg-accent-text: var(--tg-theme-accent-text-color, var(--tg-link));
+  --tg-safe-top: var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --tg-safe-bottom: var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --tg-content-top: var(--tg-content-safe-area-inset-top, 0px);
+  --tg-section-radius: 16px;
+  --tg-row-gap: 10px;
+}
+
+/* Перекрываем собственные темы: цвета берутся из Telegram. */
+:root,
+[data-theme="light"],
+[data-theme="dark"] {
+  --color-bg-primary: var(--tg-bg);
+  --color-bg-secondary: var(--tg-section-bg);
+  --color-bg-tertiary: var(--tg-secondary-bg);
+  --color-text-primary: var(--tg-text);
+  --color-text-secondary: var(--tg-hint);
+  --color-text-tertiary: var(--tg-hint);
+  --color-accent: var(--tg-button);
+  --color-accent-rgb: 36, 129, 204;
+  --color-accent-text: var(--tg-button-text);
+  --color-accent-hover: var(--tg-button);
+  --color-border: var(--tg-separator);
+  --color-border-strong: color-mix(in srgb, var(--tg-hint) 40%, transparent);
+  --color-monitoring: var(--tg-link);
+  --color-monitoring-border: color-mix(in srgb, var(--tg-link) 14%, transparent);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --radius-md: 12px;
+  --radius-lg: var(--tg-section-radius);
+  --radius-xl: 20px;
+  --font-xl: 26px;
+  --font-2xl: 30px;
+}
+
+html,
+body {
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+}
+
+body {
+  min-height: var(--tg-viewport-stable-height, 100vh);
+}
+
+/* Своя шапка больше не нужна: навигацию даёт Telegram. */
+.app-header {
+  display: none !important;
+}
+
+.app-view {
+  min-height: var(--tg-viewport-stable-height, 100vh);
+}
+
+.app-content {
+  padding: 12px 0 calc(78px + var(--tg-safe-bottom));
+  background-color: var(--tg-bg);
+}
+
+/* Заголовок экрана — крупным текстом в контенте. */
+.screen-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(var(--tg-safe-top) + var(--tg-content-top) + 14px) 16px 10px;
+}
+
+.screen-head__action {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.screen-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-button);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.screen-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--tg-text);
+}
+
+.screen-subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--tg-hint);
+}
+
+/* === Главная: сводка === */
+.home-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.summary-tile {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--tg-secondary-bg);
+}
+
+.summary-tile__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.summary-tile__label {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--tg-hint);
+}
+
+/* === Секции списка === */
+.list-section {
+  padding: 0 16px 6px;
+}
+
+.list-section__title {
+  margin: 0;
+  padding: 10px 4px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--tg-hint);
+}
+
+.list-section--waiting .list-section__title {
+  color: var(--tg-hint);
+}
+
+/* === Карточки и строки врачей === */
+.card {
+  margin-bottom: var(--tg-row-gap);
+  border: none;
+  border-radius: var(--tg-section-radius);
+  background-color: var(--tg-section-bg);
+  box-shadow: none;
+}
+
+.app-content--flush {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.app-content--flush .card {
+  border-radius: var(--tg-section-radius);
+  border: none;
+  box-shadow: none;
+}
+
+.doctor-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--tg-section-radius);
+  background: var(--tg-section-bg);
+  transition: background-color 120ms ease;
+}
+
+.doctor-row:active {
+  background: color-mix(in srgb, var(--tg-hint) 10%, var(--tg-section-bg));
+}
+
+.doctor-row__avatar {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-hint);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.doctor-row__avatar--available {
+  background: color-mix(in srgb, #34c759 18%, var(--tg-section-bg));
+  color: #1f9d55;
+}
+
+.doctor-row__avatar--filtered {
+  background: color-mix(in srgb, #ff9f0a 18%, var(--tg-section-bg));
+  color: #c77700;
+}
+
+.doctor-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.doctor-row__name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--tg-text);
+}
+
+.doctor-row__meta {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--tg-hint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doctor-row__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.doctor-row__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.doctor-row__chevron {
+  margin-left: auto;
+  color: var(--tg-hint);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.doctor-row__status--available {
+  color: var(--status-available, #34c759);
+}
+
+.doctor-row__status--filtered {
+  color: #ff9f0a;
+}
+
+.doctor-row__status--waiting {
+  color: var(--tg-hint);
+}
+
+.doctor-row__patients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.doctor-row__patient {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.doctor-row__patient .lucide-icon {
+  color: var(--tg-hint);
+}
+
+.doctor-row .doctor-card__checked {
+  display: none;
+}
+
+.doctor-row .doctor-row__actions,
+.doctor-row .monitoring-patient__filter,
+.doctor-row .monitoring-patient__delete {
+  display: none;
+}
+
+.doctor-row__more {
+  display: flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tg-hint);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.doctor-row__more:active {
+  background: var(--tg-secondary-bg);
+}
+
+.doctor-row__checked {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--tg-hint);
+}
+
+/* Старые элементы карточки, если где-то ещё используются. */
+.doctor-card__checked {
+  font-size: 11px;
+  color: var(--tg-hint);
+}
+
+/* === Нижняя навигация: три вкладки с подписями === */
+.tabbar {
+  height: auto;
+  padding: 6px 0 calc(6px + var(--tg-safe-bottom));
+  border-top: 1px solid var(--tg-separator);
+  background: color-mix(in srgb, var(--tg-section-bg) 92%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.tabbar__item {
+  flex-direction: column;
+  gap: 3px;
+  height: auto;
+  padding: 4px 0 2px;
+  color: var(--tg-hint);
+}
+
+.tabbar__item--active {
+  color: var(--tg-button);
+}
+
+.tabbar__icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.tabbar__label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* === Кнопки в стиле Telegram === */
+.btn {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.btn--primary {
+  background-color: var(--tg-button);
+  color: var(--tg-button-text);
+}
+
+.btn--secondary {
+  border: none;
+  background-color: var(--tg-secondary-bg);
+  color: var(--tg-text);
+}
+
+.btn--text {
+  color: var(--tg-link);
+}
+
+/* === Ближайший талон === */
+.nearest-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #34c759 14%, var(--tg-section-bg));
+  color: #1f9d55;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* === Метка результата в мастере === */
+.result-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.result-tag--available {
+  background: color-mix(in srgb, #34c759 16%, var(--tg-section-bg));
+  color: #1f9d55;
+}
+
+.result-tag--none {
+  background: var(--tg-secondary-bg);
+  color: var(--tg-hint);
+}
+
+.stepper__alt-action {
+  display: none;
+}
+
+/* === Сегментированный переключатель (пациенты, режим поиска) === */
+.segmented {
+  display: flex;
+  gap: 4px;
+  margin: 0 16px 12px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--tg-secondary-bg);
+}
+
+.segmented__item {
+  flex: 1;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tg-hint);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.segmented__item--active {
+  background: var(--tg-section-bg);
+  color: var(--tg-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+/* === Номерки: лента дней и сетка времени === */
+.day-strip {
+  display: flex;
+  gap: 8px;
+  padding: 2px 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.day-chip {
+  display: flex;
+  flex: 0 0 62px;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 0;
+  border: none;
+  border-radius: 14px;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-text);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.day-chip--active {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+
+.day-chip__weekday {
+  font-size: 11px;
+  line-height: 1.2;
+  opacity: 0.72;
+}
+
+.day-chip__day {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.day-chip__count {
+  font-size: 11px;
+  line-height: 1.2;
+  opacity: 0.78;
+}
+
+.slot-group__times {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.slot-chip {
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.slot-chip:active {
+  background: color-mix(in srgb, var(--tg-button) 18%, var(--tg-secondary-bg));
+}
+
+.btn[hidden] {
+  display: none !important;
+}
+
+.slot-chip--selected {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+
+.slot-group {
+  padding: 0 16px 12px;
+}
+
+.slot-group__date {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-hint);
+}
+
+/* === Мастер: полоса прогресса вместо точек === */
+.stepper-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: calc(100% + 32px);
+  margin: 0 -16px 14px;
+}
+
+.stepper-progress__track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--tg-secondary-bg);
+}
+
+.stepper-progress__fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--tg-button);
+  transition: width 180ms ease;
+}
+
+.stepper-progress__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tg-hint);
+}
+
+.stepper__title {
+  margin: 0 0 4px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.stepper__description {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--tg-hint);
+}
+
+.stepper__content {
+  padding: 0;
+}
+
+.stepper__actions {
+  padding-bottom: calc(var(--tg-safe-bottom) + 4px);
+}
+
+/* === Поля поиска === */
+.search-bar__input {
+  border: none;
+  border-radius: 12px;
+  background: var(--tg-secondary-bg);
+  color: var(--tg-text);
+}
+
+/* === Смысловые статусы === */
+.status--available {
+  color: var(--status-available, #34c759);
+}
+
+.monitoring-patient,
+.list__item {
+  border-radius: 12px;
+}
+
+/* Полноэкранный режим: учитываем устойчивую высоту вьюпорта. */
+@media (display-mode: standalone) {
+  .app-content {
+    padding-bottom: calc(78px + var(--tg-safe-bottom));
+  }
+}

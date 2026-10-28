@@ -7,11 +7,7 @@
 
 import { lucideIcon } from "./icon.js";
 import { escapeHtml, escapeAttr } from "../utils/escape.js";
-import {
-  renderFilterBadge,
-  hasActiveFilter,
-  formatIsoDate,
-} from "./filter-modal.js";
+import { hasActiveFilter, formatIsoDate } from "./filter-modal.js";
 
 /**
  * Создаёт HTML карточки врача со списком отслеживающих пациентов.
@@ -36,33 +32,30 @@ export function createDoctorCard({
   matchingFreeTickets = 0,
   patients = [],
   filter = null,
+  nearestDate = "",
+  nearestTime = "",
   monitoringId = "",
   isMonitored = false,
 }) {
-  const statusInfo = getStatusInfo();
-
-  // Список пациентов с кнопками удаления
-  // data-entry-id на карточке = entryId первого пациента (для навигации в слоты)
   const firstEntryId = patients.length > 0 ? patients[0].entryId : "";
 
   const patientsHtml =
     patients.length > 0
-      ? `
-      <ul class="monitoring-patients">
+      ? `<div class="doctor-row__patients">
         ${patients
           .map(
             (p) => `
-          <li class="monitoring-patient">
-            <span class="monitoring-patient__icon">${lucideIcon("user", 16)}</span>
-            <span class="monitoring-patient__name">${escapeHtml(p.name)}</span>
+          <span class="doctor-row__patient">
+            <span class="lucide-icon">${lucideIcon("user", 13)}</span>
+            <span class="doctor-row__patient-name" title="${escapeHtml(p.name)}">${escapeHtml(shortPatientName(p.name))}</span>
             <span
               class="monitoring-patient__filter"
               data-entry-id="${escapeHtml(p.entryId)}"
               data-patient-name="${escapeHtml(p.name)}"
-              title="Настроить фильтр отслеживания"
+              title="Настроить фильтр"
               role="button"
               tabindex="0"
-            >${lucideIcon("sliders-horizontal", 16)}</span>
+            >${lucideIcon("sliders-horizontal", 14)}</span>
             <span
               class="monitoring-patient__delete"
               data-entry-id="${escapeHtml(p.entryId)}"
@@ -70,26 +63,23 @@ export function createDoctorCard({
               title="Удалить мониторинг для этого пациента"
               role="button"
               tabindex="0"
-            >${lucideIcon("trash-2", 16)}</span>
-            ${renderFilterBadge(p.filter ?? filter)}
-          </li>`,
+            >${lucideIcon("x", 14)}</span>
+          </span>`,
           )
           .join("")}
-      </ul>`
+      </div>`
       : "";
 
   // Селект пациента (P2-BOOKFLOW): при нескольких пациентах запись начинается
   // с явного выбора в карточке — всплывающий выбор при клике убран.
   const patientSelectHtml =
     patients.length > 1
-      ? `
-      <label class="doctor-card__patient-picker">
-        <span class="doctor-card__patient-picker-label">Пациент</span>
-        <select class="doctor-card__patient-select">
+      ? `<label class="doctor-card__patient-picker">
+        <select class="doctor-card__patient-select" aria-label="Пациент">
           ${patients
             .map(
               (p) =>
-                `<option value="${escapeAttr(p.entryId)}">${escapeHtml(p.name)}</option>`,
+                `<option value="${escapeHtml(p.entryId)}">${escapeHtml(p.name)}</option>`,
             )
             .join("")}
         </select>
@@ -99,42 +89,196 @@ export function createDoctorCard({
   // CSS-класс для отслеживаемого врача
   const monitoredClass = isMonitored ? " doctor-card--monitored" : "";
 
-  // Футер карточки: при заданном фильтре — цветовая индикация слотов (§7.3),
-  // без фильтра — прежний статус номерков (поведение не меняется).
-  const footerHtml =
-    renderSlotsIndicator({ freeTickets, matchingFreeTickets, filter }) ||
-    renderStatusFooter(status, freeTickets);
+  // Строка статуса: главное — есть ли талоны и сколько.
+  const statusLine = buildStatusLine({
+    status,
+    freeTickets,
+    matchingFreeTickets,
+    filter,
+    nearestDate,
+    nearestTime,
+  });
+
+  // Тон аватара: зелёный — есть талоны, оранжевый — есть, но не под фильтр.
+  let avatarModifier = "";
+  if (statusLine.toneClass.includes("available")) {
+    avatarModifier = " doctor-row__avatar--available";
+  } else if (statusLine.toneClass.includes("filtered")) {
+    avatarModifier = " doctor-row__avatar--filtered";
+  }
 
   return `
-    <div class="card doctor-card${monitoredClass}" data-entry-id="${escapeHtml(firstEntryId)}">
-      <div class="card__header">
-        <div>
-          <div class="card__title">${escapeHtml(doctorName)}</div>
-          <div class="card__subtitle">${escapeHtml(specialty)}</div>
+    <div class="card doctor-card doctor-row${monitoredClass}" data-entry-id="${escapeHtml(firstEntryId)}" data-patients="${escapeAttr(JSON.stringify(patients))}">
+      <div class="doctor-row__avatar${avatarModifier}" aria-hidden="true">${escapeHtml(buildInitials(doctorName))}</div>
+      <div class="doctor-row__body">
+        <div class="doctor-row__name" title="${escapeHtml(doctorName)}">${escapeHtml(shortDoctorName(doctorName))}</div>
+        <div class="doctor-row__meta">${escapeHtml(specialty)}${clinicName ? ` · ${escapeHtml(clinicName)}` : ""}</div>
+        <div class="doctor-row__status ${statusLine.toneClass}">
+          <span class="doctor-row__status-dot" aria-hidden="true"></span>
+          <span>${escapeHtml(statusLine.text)}</span>
+          <span class="doctor-row__chevron" aria-hidden="true">›</span>
         </div>
-        <div class="card__header-actions">
-          <span class="doctor-card__checked" title="Время последнего обновления данных"></span>
-          <button
-            class="btn--refresh"
-            data-monitoring-id="${escapeHtml(monitoringId)}"
-            title="Проверить номерки"
-            aria-label="Принудительная проверка номерков"
-          >${lucideIcon("refresh-cw", 20)}</button>
-          ${
-            statusInfo.html
-              ? `<span class="status ${statusInfo.class}${statusInfo.pulseClass ? " " + statusInfo.pulseClass : ""}">
-            ${statusInfo.html}
-          </span>`
-              : ""
-          }
-        </div>
+        ${patientsHtml}
+        ${patientSelectHtml}
+        <span class="doctor-card__checked" title="Время последнего обновления данных"></span>
       </div>
-      ${patientSelectHtml}
-      ${patientsHtml}
-      <div class="card__meta"><span class="lucide-icon">${lucideIcon("hospital", 14)}</span> ${escapeHtml(clinicName)}</div>
-      ${footerHtml}
+      <div class="doctor-row__actions" aria-hidden="true">
+        <button
+          class="btn--refresh"
+          data-monitoring-id="${escapeHtml(monitoringId)}"
+          title="Проверить номерки"
+          aria-label="Принудительная проверка номерков"
+        >${lucideIcon("refresh-cw", 18)}</button>
+      </div>
+      <button
+        class="doctor-row__more"
+        data-entry-id="${escapeHtml(firstEntryId)}"
+        aria-label="Действия с врачом"
+      >⋯</button>
     </div>
   `;
+}
+
+/**
+ * Собирает инициалы врача для аватара.
+ *
+ * @param {string} name — ФИО врача
+ * @returns {string} одна-две буквы
+ */
+/**
+ * Сокращает ФИО врача до «Фамилия И. О.».
+ *
+ * @param {string} name — полное ФИО
+ * @returns {string} короткое имя
+ */
+function shortDoctorName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name;
+  return `${parts[0]} ${parts.slice(1).map((p) => p[0] + ".").join(" ")}`;
+}
+
+/**
+ * Оставляет в метке пациента только имя.
+ *
+ * @param {string} name — полное ФИО пациента
+ * @returns {string} имя
+ */
+function shortPatientName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2 ? parts[1] : name;
+}
+
+function buildInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\\s+/)
+    .filter(Boolean);
+  const first = parts[0] ? parts[0][0] : "";
+  const second = parts[1] ? parts[1][0] : "";
+  return (first + second).toUpperCase() || "?";
+}
+
+/**
+ * Формирует текстовую строку статуса номерков.
+ *
+ * @param {object} options — состояние слотов
+ * @returns {{ text: string, toneClass: string }} текст и CSS-класс тона
+ */
+function buildStatusLine({
+  status,
+  freeTickets,
+  matchingFreeTickets,
+  filter,
+  nearestDate,
+  nearestTime,
+}) {
+  const total = Number(freeTickets) || 0;
+  const matching = Number(matchingFreeTickets ?? freeTickets) || 0;
+  const nearest = formatNearestDate(nearestDate, nearestTime);
+  const suffix = nearest ? ` · ближайший ${nearest}` : "";
+
+  if (status === "checking" || !status) {
+    return { text: "Идёт проверка номерков…", toneClass: "doctor-row__status--waiting" };
+  }
+
+  if (total === 0) {
+    return { text: "Номерков нет", toneClass: "doctor-row__status--waiting" };
+  }
+
+  if (hasActiveFilter(filter) && matching === 0) {
+    return {
+      text: `Есть ${total} ${pluralTickets(total)}, но не под фильтр${suffix}`,
+      toneClass: "doctor-row__status--filtered",
+    };
+  }
+
+  const count = hasActiveFilter(filter) ? matching : total;
+  return {
+    text: `${count} ${pluralTickets(count)}${suffix}`,
+    toneClass: "doctor-row__status--available",
+  };
+}
+
+/**
+ * Форматирует ближайшую дату относительно сегодняшнего дня.
+ *
+ * @param {string} dateStr — дата в формате ДД.ММ.ГГГГ или ГГГГ-ММ-ДД
+ * @param {string} [timeStr=""] — время
+ * @returns {string} «завтра, 9:40» или пустая строка
+ */
+function formatNearestDate(dateStr, timeStr = "") {
+  const raw = String(dateStr || "").trim();
+  if (!raw) return "";
+
+  let day;
+  let month;
+  let year;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dot = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else if (dot) {
+    day = Number(dot[1]);
+    month = Number(dot[2]);
+    year = Number(dot[3]);
+  } else {
+    return "";
+  }
+  if (!day || !month || !year) return "";
+
+  const dt = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((dt - today) / 86400000);
+  const months = [
+    "янв", "фев", "мар", "апр", "мая", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+  ];
+
+  let label;
+  if (diff === 0) label = "сегодня";
+  else if (diff === 1) label = "завтра";
+  else if (diff === 2) label = "послезавтра";
+  else if (diff > 2 && diff <= 7) label = `через ${diff} дн.`;
+  else label = `${day} ${months[month - 1] || ""}`;
+
+  return timeStr ? `${label}, ${timeStr}` : label;
+}
+
+/**
+ * Склоняет слово «талон» по числу.
+ *
+ * @param {number} count — количество
+ * @returns {string} форма слова
+ */
+function pluralTickets(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "талон";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "талона";
+  return "талонов";
 }
 
 /**
@@ -357,22 +501,6 @@ export function renderStatusFooter(status, freeTickets) {
         <span class="lucide-icon">${lucideIcon("circle-x", 14)}</span>
         <span style="color: var(--color-danger); opacity: 0.7;">Номерков на данный момент нет</span>
       </div>`;
-}
-
-/**
- * Возвращает информацию о статусе для отображения.
- *
- * @returns {{ class: string, html: string, pulseClass?: string }}
- */
-function getStatusInfo() {
-  // Все статусы показывают одинаково: зелёная мигающая точка + «мониторинг».
-  // Информация о наличии/отсутствии номерков — только в футере карточки.
-  return {
-    class: "status--checking",
-    html: `<span class="status__dot status__dot--active status__pulse"></span>
-      <span class="status__label">мониторинг</span>`,
-    pulseClass: "status__pulse",
-  };
 }
 
 /**

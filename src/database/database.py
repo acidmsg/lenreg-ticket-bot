@@ -352,6 +352,36 @@ class Database:
         """Возвращает свежесть кэша талонов клиники (прокси в SlotsRepository)."""
         return await self.slots.get_clinic_slots_state(clinic_id)
 
+    async def record_clinic_slot_scan(
+        self,
+        clinic_id: str,
+        *,
+        doctor_count: int,
+        free_ticket_count: int,
+        ts: float | None = None,
+    ) -> None:
+        """Записывает агрегат полного скана талонов клиники."""
+        return await self.slots.record_clinic_slot_scan(
+            clinic_id,
+            doctor_count=doctor_count,
+            free_ticket_count=free_ticket_count,
+            ts=ts,
+        )
+
+    async def get_clinic_slot_scan_history(
+        self, clinic_id: str, *, hours: int = 24 * 30, limit: int = 5000
+    ) -> list[dict[str, Any]]:
+        """Возвращает сырые точки сканов клиники."""
+        return await self.slots.get_clinic_slot_scan_history(
+            clinic_id, hours=hours, limit=limit
+        )
+
+    async def get_clinic_slot_scan_summary(
+        self, clinic_id: str, *, hours: int = 24 * 30
+    ) -> list[dict[str, Any]]:
+        """Возвращает почасовую агрегацию сканов клиники."""
+        return await self.slots.get_clinic_slot_scan_summary(clinic_id, hours=hours)
+
     # ── Конфигурация ────────────────────────────────────────
 
     async def get_config(self, key: str, default: str = "") -> str:

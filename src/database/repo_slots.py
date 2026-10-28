@@ -162,3 +162,81 @@ class SlotsRepository(BaseRepository):
         )
         row = await cursor.fetchone()
         return float(row["ts"] or 0) if row else 0.0
+
+    async def record_clinic_slot_scan(
+        self,
+        clinic_id: str,
+        *,
+        doctor_count: int,
+        free_ticket_count: int,
+        ts: float | None = None,
+    ) -> None:
+        """Записывает агрегат одного полного скана талонов клиники.
+
+        История нужна для аналитики всплесков: ``clinic_slots`` хранит
+        только последний снимок, а эта таблица — временной ряд.
+        """
+        timestamp = time.time() if ts is None else ts
+        c = self._c
+        try:
+            await c.execute(
+                "INSERT INTO clinic_slot_scans "
+                "(clinic_id, scanned_at, doctor_count, free_ticket_count) "
+                "VALUES (?, ?, ?, ?)",
+                (str(clinic_id), timestamp, int(doctor_count), int(free_ticket_count)),
+            )
+            await c.commit()
+        except Exception:
+            await c.rollback()
+            raise
+
+    async def get_clinic_slot_scan_history(
+        self, clinic_id: str, *, hours: int = 24 * 30, limit: int = 5000
+    ) -> list[dict[str, Any]]:
+        """Возвращает сырые точки сканов клиники за последние ``hours`` часов."""
+        since = time.time() - hours * 3600
+        cursor = await self._c.execute(
+            "SELECT scanned_at, doctor_count, free_ticket_count "
+            "FROM clinic_slot_scans "
+            "WHERE clinic_id = ? AND scanned_at >= ? "
+            "ORDER BY scanned_at ASC LIMIT ?",
+            (str(clinic_id), since, limit),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "scanned_at": float(row["scanned_at"] or 0),
+                "doctor_count": int(row["doctor_count"] or 0),
+                "free_ticket_count": int(row["free_ticket_count"] or 0),
+            }
+            for row in rows
+        ]
+
+    async def get_clinic_slot_scan_summary(
+        self, clinic_id: str, *, hours: int = 24 * 30
+    ) -> list[dict[str, Any]]:
+        """Возвращает почасовую агрегацию сканов клиники за ``hours`` часов."""
+        since = time.time() - hours * 3600
+        cursor = await self._c.execute(
+            "SELECT CAST(scanned_at / 3600 AS INTEGER) * 3600 AS bucket_at, "
+            "MAX(free_ticket_count) AS max_free_ticket_count, "
+            "MIN(free_ticket_count) AS min_free_ticket_count, "
+            "AVG(free_ticket_count) AS avg_free_ticket_count, "
+            "MAX(doctor_count) AS doctor_count, COUNT(*) AS scan_count "
+            "FROM clinic_slot_scans "
+            "WHERE clinic_id = ? AND scanned_at >= ? "
+            "GROUP BY bucket_at ORDER BY bucket_at ASC",
+            (str(clinic_id), since),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "bucket_at": int(row["bucket_at"] or 0),
+                "max_free_ticket_count": int(row["max_free_ticket_count"] or 0),
+                "min_free_ticket_count": int(row["min_free_ticket_count"] or 0),
+                "avg_free_ticket_count": float(row["avg_free_ticket_count"] or 0),
+                "doctor_count": int(row["doctor_count"] or 0),
+                "scan_count": int(row["scan_count"] or 0),
+            }
+            for row in rows
+        ]

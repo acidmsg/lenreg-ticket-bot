@@ -85,3 +85,28 @@ export function renderHeader(title, showBack = false, userName = "") {
     </header>
   `;
 }
+
+/**
+ * Рендерит заголовок экрана в контенте — вместо собственной шапки.
+ *
+ * @param {string} title — заголовок экрана
+ * @param {string} [subtitle=""] — пояснение под заголовком
+ * @returns {string} HTML-строка заголовка
+ */
+export function renderScreenTitle(title, subtitle = "", actionHtml = "") {
+  const subtitleHtml = subtitle
+    ? `<p class="screen-subtitle">${escapeHtml(subtitle)}</p>`
+    : "";
+  const action = actionHtml
+    ? `<div class="screen-head__action">${actionHtml}</div>`
+    : "";
+  return `
+    <header class="screen-head">
+      <div>
+        <h1 class="screen-title">${escapeHtml(title)}</h1>
+        ${subtitleHtml}
+      </div>
+      ${action}
+    </header>
+  `;
+}

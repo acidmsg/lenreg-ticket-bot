@@ -549,6 +549,38 @@ async def migrate_v22_user_language(db) -> None:
     logger.info("Миграция v22: язык пользователя (user_states.language)")
 
 
+async def migrate_v23_clinic_slot_scans(db) -> None:
+    """История полных сканов талонов клиники (аналитика всплесков).
+
+    ``clinic_slots`` хранит только последний снимок: каждая запись
+    перезаписывается. Для ответа на вопрос «когда появляются талоны» нужна
+    история агрегатов по клинике, а не текущее состояние. Таблица пишется
+    из ``sync_clinic_slots()`` и не участвует в выдаче талонов пользователю.
+    Миграция идемпотентна: ``CREATE TABLE IF NOT EXISTS``.
+    """
+    c = db._conn
+    if c is None:
+        raise RuntimeError("Database connection not initialized")
+
+    await c.executescript(
+        """
+CREATE TABLE IF NOT EXISTS clinic_slot_scans (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    clinic_id         TEXT NOT NULL,
+    scanned_at        REAL NOT NULL DEFAULT 0,
+    doctor_count      INTEGER NOT NULL DEFAULT 0,
+    free_ticket_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_clinic_slot_scans_clinic_ts
+    ON clinic_slot_scans (clinic_id, scanned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clinic_slot_scans_ts
+    ON clinic_slot_scans (scanned_at DESC);
+"""
+    )
+    await c.commit()
+    logger.info("Миграция v23: создана таблица clinic_slot_scans (история сканов)")
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -569,4 +601,5 @@ MIGRATIONS = [
     (20, migrate_v20_bookings_status),
     (21, migrate_v21_naming_constitution),
     (22, migrate_v22_user_language),
+    (23, migrate_v23_clinic_slot_scans),
 ]

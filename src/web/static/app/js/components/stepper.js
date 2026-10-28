@@ -11,6 +11,12 @@
 
 import { lucideIcon } from "./icon.js";
 import { escapeHtml } from "../utils/escape.js";
+import { isInTelegram } from "../auth.js";
+import {
+  hideSystemButtons,
+  hideSecondaryButton,
+  showMainButton,
+} from "../utils/telegram-buttons.js";
 
 // ═══════════════════════════════════════════════════════════════
 // Хелперы построения HTML (чистые функции, без замыканий)
@@ -66,15 +72,18 @@ function buildItemsHTML(items, renderItem) {
  * @returns {string}
  */
 function buildStepperProgress(steps, currentStep) {
-  return steps
-    .map((_, i) => {
-      let cls = "stepper__dot";
-      if (i < currentStep) cls += " stepper__dot--done";
-      else if (i === currentStep) cls += " stepper__dot--current";
-      else cls += " stepper__dot--future";
-      return `<span class="${cls}"></span>`;
-    })
-    .join("");
+  const total = steps.length || 1;
+  const stepNumber = Math.min(currentStep + 1, total);
+  const percent = Math.round((stepNumber / total) * 100);
+
+  return `
+    <div class="stepper-progress">
+      <div class="stepper-progress__track">
+        <div class="stepper-progress__fill" style="width: ${percent}%"></div>
+      </div>
+      <div class="stepper-progress__label">Шаг ${stepNumber} из ${total}</div>
+    </div>
+  `;
 }
 
 /**
@@ -137,6 +146,15 @@ function buildStepperHTML(steps, currentStep, opts) {
       ? buildSearchBarHTML(searchPlaceholder)
       : "";
 
+  const effectiveMode = searchMode || "doctors";
+  const modeHtml =
+    searchPlaceholder !== undefined
+      ? `<div class="segmented stepper-mode">
+          <button class="segmented__item${effectiveMode === "doctors" ? " segmented__item--active" : ""}" id="stepper-mode-doctors" type="button">По фамилии</button>
+          <button class="segmented__item${effectiveMode === "clinics" ? " segmented__item--active" : ""}" id="stepper-mode-clinics" type="button">По поликлинике</button>
+        </div>`
+      : "";
+
   const clinicLinkHtml =
     searchMode === "doctors"
       ? `<div class="stepper__alt-action">
@@ -169,6 +187,7 @@ function buildStepperHTML(steps, currentStep, opts) {
       <div class="stepper__progress">${progressHtml}</div>
       <h2 class="stepper__title">${escapeHtml(displayTitle)}</h2>
       <p class="stepper__description">${displayDesc}</p>
+      ${modeHtml}
       ${searchHtml}
       ${clinicLinkHtml}
       <div class="stepper__content" id="stepper-content">${contentHTML}</div>
@@ -188,6 +207,52 @@ function buildStepperHTML(steps, currentStep, opts) {
 // ═══════════════════════════════════════════════════════════════
 
 /**
+ * Синхронизирует системную MainButton с основной кнопкой stepper'а.
+ *
+ * @param {HTMLElement} container — контейнер stepper'а
+ */
+function syncSystemButtons(container) {
+  if (!container || !container.isConnected) return;
+
+  if (!isInTelegram()) {
+    hideSystemButtons();
+    return;
+  }
+
+  const actionBtn = document.getElementById("stepper-action");
+  const nextBtn = document.getElementById("stepper-next");
+  const primary = actionBtn || nextBtn;
+
+  if (!primary) {
+    hideSystemButtons();
+    return;
+  }
+
+  // Своя основная кнопка больше не нужна: её роль играет MainButton.
+  if (!primary.hidden) primary.hidden = true;
+  hideSecondaryButton();
+  showMainButton({
+    text: primary.textContent.trim(),
+    disabled: primary.disabled,
+    onClick: () => {
+      if (!primary.disabled) primary.click();
+    },
+  });
+
+  // Следим за disabled: шаг может включать кнопку после выбора элемента.
+  if (!container._tgObserver) {
+    container._tgObserver = new MutationObserver(() =>
+      syncSystemButtons(container),
+    );
+    container._tgObserver.observe(container, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["disabled"],
+    });
+  }
+}
+
+/**
  * Привязывает обработчики кнопок навигации (Back, Cancel, Next, Switch Clinics).
  *
  * @param {HTMLElement} container — контейнер stepper'а
@@ -198,6 +263,34 @@ function bindStepperNavigation(container, state) {
   const cancelBtn = document.getElementById("stepper-cancel");
   const nextBtn = document.getElementById("stepper-next");
 
+  const switchSearchMode = (mode) => {
+    if (state._currentSearchMode === mode) return;
+    const step = state.steps[state.currentStep];
+    state._currentSearchMode = mode;
+    step.searchMode = mode;
+    if (mode === "clinics") {
+      step.title = "Выбор поликлиники";
+      step.description = "Выберите поликлинику из списка";
+      step.searchPlaceholder = "Поиск клиники...";
+    } else {
+      step.title = "Какой врач нужен?";
+      step.description = `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
+      step.searchPlaceholder = "Фамилия, имя или отчество...";
+    }
+    if (typeof step.onSearchModeChange === "function") {
+      step.onSearchModeChange(mode);
+    }
+    state.stepData = [];
+    state.render();
+  };
+
+  document
+    .getElementById("stepper-mode-doctors")
+    ?.addEventListener("click", () => switchSearchMode("doctors"));
+  document
+    .getElementById("stepper-mode-clinics")
+    ?.addEventListener("click", () => switchSearchMode("clinics"));
+
   if (backBtn) {
     backBtn.addEventListener("click", () => {
       // Если мы в режиме clinics (переключились с doctors) — возврат в doctors
@@ -205,7 +298,7 @@ function bindStepperNavigation(container, state) {
         state._currentSearchMode = "doctors";
         const clinicStep = state.steps[state.currentStep];
         clinicStep.searchMode = "doctors";
-        clinicStep.title = "Поиск врача";
+        clinicStep.title = "Какой врач нужен?";
         clinicStep.description = `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
         clinicStep.searchPlaceholder = "Фамилия, имя или отчество...";
         state.stepData = [];
@@ -393,6 +486,7 @@ function updateStepperContent(container, state) {
   }
 
   setupStepperSearch(container, state);
+  syncSystemButtons(container);
 }
 
 /**
@@ -564,7 +658,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     let displayDesc = step.description;
     if (state.currentStep === 1 && state._currentSearchMode !== null) {
       const isClinicMode = state._currentSearchMode === "clinics";
-      displayTitle = isClinicMode ? "Выбор поликлиники" : "Поиск врача";
+      displayTitle = isClinicMode ? "Выбор поликлиники" : "Какой врач нужен?";
       displayDesc = isClinicMode
         ? "Выберите поликлинику из списка"
         : `${lucideIcon("search", 14)} Начните вводить фамилию, имя или отчество врача`;
@@ -591,6 +685,7 @@ export function createStepper({ container, steps, onComplete, onCancel }) {
     });
 
     bindStepperNavigation(container, state);
+    syncSystemButtons(container);
     loadStepData(step);
   }
 

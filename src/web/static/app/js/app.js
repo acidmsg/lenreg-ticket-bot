@@ -7,7 +7,6 @@
 
 import {
   isInTelegram,
-  getUserInfo,
   getInitDataError,
   getStartParam,
 } from "./auth.js";
@@ -22,12 +21,13 @@ import {
   renderPatientEditForm,
 } from "./views/patients.js";
 import { renderBookingsList, renderArchiveList } from "./views/bookings.js";
-import { renderHeader } from "./components/header.js";
+import { renderScreenTitle } from "./components/header.js";
 import { renderTabbar, bindTabbar } from "./components/tabbar.js";
 import { openThemeSheet } from "./components/theme-sheet.js";
 import { initTheme } from "./theme.js";
 import { stopAllPollers } from "./utils/polling.js";
 import { lucideIcon } from "./components/icon.js";
+import { hideSystemButtons } from "./utils/telegram-buttons.js";
 import "./components/toast.js"; // Сайд-эффект: устанавливает window.showToast
 import { initResumeEvents, onResume } from "./utils/resume-events.js";
 import { reconcileBookingIntent } from "./utils/booking-reconcile.js";
@@ -112,57 +112,51 @@ function setupBackButton(route) {
  * @returns {string} HTML-разметка
  */
 function buildRouteHTML(route) {
-  const userInfo = getUserInfo();
-  const userName = userInfo ? userInfo.first_name || "Пользователь" : "";
-
   let content;
 
   switch (route) {
     case "doctors":
       content = `
-        ${renderHeader("Мониторинг", state.history.length > 0, userName)}
         <div class="app-content app-content--flush" id="doctors-content"></div>
       `;
       break;
     case "add":
       content = `
-        ${renderHeader("Поиск врача", true, userName)}
         <div class="app-view" id="add-content"></div>
       `;
       break;
     case "slots":
       content = `
-        ${renderHeader("Номерки", true, userName)}
         <div class="app-content" id="slots-content"></div>
       `;
       break;
     case "patients":
       content = `
-        ${renderHeader("Пациенты", true, userName)}
+        ${renderScreenTitle("Пациенты")}
         <div class="app-content" id="patients-content"></div>
       `;
       break;
     case "patient-add":
       content = `
-        ${renderHeader("Новый пациент", true, userName)}
+        ${renderScreenTitle("Новый пациент")}
         <div class="app-view" id="patient-add-content"></div>
       `;
       break;
     case "patient-edit":
       content = `
-        ${renderHeader("Правка пациента", true, userName)}
+        ${renderScreenTitle("Правка пациента")}
         <div class="app-view" id="patient-edit-content"></div>
       `;
       break;
     case "bookings":
       content = `
-        ${renderHeader("Мои записи", true, userName)}
+        ${renderScreenTitle("Мои записи")}
         <div class="app-content app-content--flush" id="bookings-content"></div>
       `;
       break;
     case "bookings-archive":
       content = `
-        ${renderHeader("Архив", true, userName)}
+        ${renderScreenTitle("Архив")}
         <div class="app-content" id="archive-content"></div>
       `;
       break;
@@ -190,6 +184,8 @@ function bindHeaderEvents(app) {
   if (themeBtn) {
     themeBtn.addEventListener("click", openThemeSheet);
   }
+
+
 }
 
 /**
@@ -253,10 +249,8 @@ async function render() {
   bindHeaderEvents(app);
   bindTabbar(app);
 
-  // Скрываем MainButton — больше не используется ни на одном экране
-  if (isInTelegram() && window.Telegram?.WebApp?.MainButton) {
-    window.Telegram.WebApp.MainButton.hide();
-  }
+  // Скрываем системные кнопки перед рендером нового экрана.
+  hideSystemButtons();
 
   await renderRouteContent(route);
 }
@@ -304,8 +298,13 @@ function init() {
     goBack();
   });
 
-  // Главная кнопка — не показываем на главном экране
-  tg.MainButton.hide();
+  // Системные кнопки скрыты до явного показа на экране.
+  hideSystemButtons();
+
+  // Длинные списки не должны закрывать Mini App вертикальным свайпом.
+  if (typeof tg.disableVerticalSwipes === "function") {
+    tg.disableVerticalSwipes();
+  }
 
   // Если initData пуст (например, открыто напрямую, а не через кнопку бота) —
   // показываем понятное сообщение вместо попытки загрузить данные

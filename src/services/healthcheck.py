@@ -24,6 +24,7 @@ from src.config import settings
 from src.database.manager import DatabaseManager
 from src.i18n import _
 from src.services.background import describe_background_tasks, is_task_alive
+from src.services.pressure import collect_pressure_snapshot
 from src.utils.redis import get_redis
 
 
@@ -278,7 +279,8 @@ async def healthcheck_loop(bot: Bot, api: ZdravClient, db: DatabaseManager) -> N
                 f"Redis: {redis_status} | "
                 f"Users: {stats['total_users']} | "
                 f"Patients: {stats['total_patients']} | "
-                f"Monitored: {stats['total_monitored_doctors']}"
+                f"Monitored: {stats['total_monitored_doctors']} | "
+                f"PSI: {collect_pressure_snapshot().get('status', 'unavailable')}"
             )
 
             # Пауза до следующего цикла

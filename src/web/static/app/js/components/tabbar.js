@@ -15,10 +15,9 @@ import { navigate } from "../app.js";
  * Первым идёт главный экран — список отслеживаемых врачей.
  */
 const TAB_ITEMS = [
-  { route: "doctors", icon: "stethoscope", label: "Мониторинг" },
+  { route: "doctors", icon: "stethoscope", label: "Слежение" },
+  { route: "bookings", icon: "calendar", label: "Записи" },
   { route: "patients", icon: "users", label: "Пациенты" },
-  { route: "bookings", icon: "calendar", label: "Мои записи" },
-  { route: "add", icon: "circle-plus", label: "Поиск врача" },
 ];
 
 /**
@@ -28,7 +27,7 @@ const TAB_ITEMS = [
 const ROUTE_TO_TAB = {
   doctors: "doctors",
   slots: "doctors",
-  add: "add",
+  add: "doctors",
   patients: "patients",
   "patient-add": "patients",
   "patient-edit": "patients",
@@ -56,7 +55,7 @@ export function renderTabbar(route) {
           data-route="${item.route}"
           aria-label="${escapeHtml(item.label)}"
           ${ariaCurrent}
-        ><span class="tabbar__icon">${lucideIcon(item.icon, 24)}</span></button>`;
+        ><span class="tabbar__icon">${lucideIcon(item.icon, 24)}</span><span class="tabbar__label">${escapeHtml(item.label)}</span></button>`;
   }).join("");
 
   return `

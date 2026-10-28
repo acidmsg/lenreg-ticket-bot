@@ -74,12 +74,19 @@ docker compose down
 
 **Настройка файрвола (UFW):**
 
+Порт дашборда (8080) наружу не открывается: он публикуется только на loopback
+(`WEB_BIND_ADDR` = `127.0.0.1`, `WEB_BIND_ADDR_V6` = `[::1]`), а публичный вход
+обеспечивает Cloudflare Tunnel (или профиль `caddy`). Разрешающие правила UFW для
+8080 не нужны.
+
 ```bash
-sudo ufw allow 8080/tcp
-sudo ufw reload
+# Проверка: правил для 8080 быть не должно
+sudo ufw status
 ```
 
-При использовании Cloudflare Proxy порт веб-дашборда должен быть из списка поддерживаемых: `80`, `8080`, `8880`, `2052`, `2082`, `2086`, `2095` (HTTP).
+При использовании Cloudflare Proxy (без туннеля) порт origin должен быть из списка
+поддерживаемых: `80`, `8080`, `8880`, `2052`, `2082`, `2086`, `2095` (HTTP). Для
+Cloudflare Tunnel ограничение не действует: ingress идёт на `http://localhost:8080`.
 
 </details>
 
@@ -111,10 +118,10 @@ poetry run python -m src.main
 
 ## Проверки кода
 
-Полный цикл блокирующих гейтов (включая MI-гейт `code_health.py --fail-under-mi 20`) — через [`Makefile`](Makefile:1) (Linux/macOS) или [`tasks.ps1`](tasks.ps1:1) (Windows). Неблокирующий полный отчёт о здоровье кода — цель `metrics`.
+Полный цикл блокирующих гейтов (MI-гейт `code_health.py --fail-under-mi 20` и гейт мёртвого кода `python -m vulture src`) — через [`Makefile`](Makefile:1) (Linux/macOS) или [`tasks.ps1`](tasks.ps1:1) (Windows). Неблокирующий полный отчёт о здоровье кода — цель `metrics`.
 
 ```bash
-make lint      # ruff check src tests, mypy src, lint-imports, MI-гейт, markdownlint, ruff format --check, prettier --check
+make lint      # ruff check src tests, mypy src, lint-imports, MI-гейт, vulture, markdownlint, ruff format --check, prettier --check
 make check     # lint + pytest (полный CI-цикл)
 make metrics   # полный отчёт radon + vulture (MI в режиме warning, неблокирующий)
 ```
@@ -133,6 +140,7 @@ pytest          # гейт покрытия задан в pyproject.toml: --cov-
 ruff check src tests
 mypy src
 lint-imports    # архитектурные контракты слоёв (import-linter)
+python -m vulture src  # гейт мёртвого кода, конфигурация [tool.vulture]
 ```
 
 ### Фронтенд Mini App (JS)
@@ -144,6 +152,28 @@ npm ci          # установка dev-зависимостей
 npm run lint:js # ESLint
 npm test        # Jest-тесты
 ```
+
+## Соглашения о коммитах
+
+Заголовок коммита — Conventional Commits (`<type>: <description>`): английский язык, нижний регистр,
+без завершающей точки, до 72 символов; перечень типов — в [`.roo/rules/naming.md`](.roo/rules/naming.md:1).
+
+Тело коммита обязательно и отвечает на три вопроса:
+
+- **Почему** — причина изменения: дефект, требование, риск.
+- **Что изменено** — перечень затронутых модулей, таблиц и документов.
+- **Как проверено** — выполненные проверки: команды гейтов, тесты, ручной сценарий.
+
+```text
+feat: add clinic slot scans history
+
+Почему: не было истории сканов, аналитика всплесков талонов невозможна.
+Что изменено: миграция v23 (clinic_slot_scans), repo_slots.sync_clinic_slots, тесты.
+Как проверено: pytest tests/database/test_repo_slots.py; make lint.
+```
+
+Коммит без тела или с незаполненным любым из трёх блоков не принимается: три пункта — минимальный
+проверяемый состав сообщения.
 
 ## Лицензия
 

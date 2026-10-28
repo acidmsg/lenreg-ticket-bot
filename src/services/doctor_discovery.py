@@ -917,6 +917,16 @@ async def sync_clinic_slots(
 
     tickets_seen = sum(row["free_tickets"] for row in rows)
     _slots_scan_totals.record(len(rows), tickets_seen)
+    # История агрегатов для аналитики всплесков: ошибка записи не должна
+    # срывать обновление кэша талонов.
+    try:
+        await database.record_clinic_slot_scan(
+            cid, doctor_count=len(rows), free_ticket_count=tickets_seen
+        )
+    except Exception as e:
+        logger.opt(exception=True).warning(
+            "Не удалось записать историю скана клиники {}: {}", cid, e
+        )
     # DEBUG идёт в файловый сик лога (level=DEBUG): фиксирует каждый скан
     # портала, а не только перезапись кэша ниже. Накопительные итоги — в той
     # же строке, чтобы история сканов читалась из лога без метрик.

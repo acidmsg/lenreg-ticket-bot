@@ -20,6 +20,8 @@ from typing import Any
 
 from loguru import logger
 
+from src.services.pressure import collect_pressure_snapshot
+
 # ── Пороги для уровней ok / warn / crit ───────────────────────
 # Доля свободного места на диске, ниже которой статус становится жёлтым/красным.
 DISK_FREE_WARN_PERCENT = 20.0
@@ -452,6 +454,7 @@ async def collect_system_snapshot(
         **sync_part,
         "redis": await redis_snapshot(),
         "discovery": await discovery_snapshot(db),
+        "pressure": collect_pressure_snapshot(),
         "schedule": await schedule_snapshot(db),
         "uptime_seconds": round(float(uptime_seconds), 1),
     }

@@ -12,6 +12,7 @@ import { openFilterModal } from "../components/filter-modal.js";
 import { renderError } from "../utils/error.js";
 import { refreshDoctorSlots } from "../utils/monitoring.js";
 import { startPolling } from "../utils/polling.js";
+import { showMainButton } from "../utils/telegram-buttons.js";
 import { showConfirm } from "../utils/ui.js";
 import { lucideIcon } from "../components/icon.js";
 import { navigate } from "../app.js";
@@ -24,15 +25,61 @@ const AUTO_REFRESH_INTERVAL_MS = 45000;
  *
  * @param {HTMLElement} container — DOM-элемент для рендеринга
  */
+/**
+ * Загружает врачей и количество активных записей для сводки.
+ *
+ * @returns {Promise<{doctors: Array, bookingsCount: number}>}
+ */
+async function loadHomeData() {
+  const [doctorsData, bookingsData] = await Promise.all([
+    apiGet("/doctors"),
+    apiGet("/bookings").catch(() => ({ bookings: [] })),
+  ]);
+  const doctors = doctorsData.doctors || [];
+
+  const clinicIds = [
+    ...new Set(doctors.map((d) => d.clinic_id).filter(Boolean)),
+  ];
+  const availableData = await Promise.all(
+    clinicIds.map((clinicId) =>
+      apiGet(
+        `/doctors/available?clinic_id=${encodeURIComponent(clinicId)}`,
+      ).catch(() => ({ doctors: [] })),
+    ),
+  );
+  const nearestByDoctor = {};
+  for (const response of availableData) {
+    for (const doctor of response.doctors || []) {
+      if (doctor.doctor_id && doctor.nearest_date) {
+        nearestByDoctor[doctor.doctor_id] = {
+          date: doctor.nearest_date || "",
+          time: doctor.nearest_time || "",
+        };
+      }
+    }
+  }
+
+  return {
+    doctors,
+    bookingsCount: (bookingsData?.bookings || []).length,
+    nearestByDoctor,
+  };
+}
+
 export async function renderDoctors(container) {
   if (!container) return;
+
+  // Системная кнопка добавления врача на главном экране.
+  showMainButton({
+    text: "Отслеживать врача",
+    onClick: () => navigate("add"),
+  });
 
   // Показываем скелетон загрузки
   container.innerHTML = renderSkeletons();
 
   try {
-    const data = await apiGet("/doctors");
-    const doctors = data.doctors || [];
+    const { doctors, bookingsCount, nearestByDoctor } = await loadHomeData();
 
     if (doctors.length === 0) {
       container.innerHTML = renderEmpty();
@@ -40,8 +87,16 @@ export async function renderDoctors(container) {
       return;
     }
 
-    container.innerHTML = renderDoctorList(doctors);
-    container.dataset.signature = listSignature(doctors);
+    container.innerHTML = renderDoctorList(
+      doctors,
+      bookingsCount,
+      nearestByDoctor,
+    );
+    container.dataset.signature = listSignature(
+      doctors,
+      bookingsCount,
+      nearestByDoctor,
+    );
     updateCheckedLabels(container, new Date());
     bindDoctorEvents(container, doctors);
 
@@ -69,8 +124,7 @@ export async function renderDoctors(container) {
 async function refreshDoctorList(container) {
   if (!container || !container.isConnected) return;
 
-  const data = await apiGet("/doctors");
-  const doctors = data.doctors || [];
+  const { doctors, bookingsCount, nearestByDoctor } = await loadHomeData();
 
   if (doctors.length === 0) {
     if (container.dataset.signature !== "") {
@@ -81,9 +135,13 @@ async function refreshDoctorList(container) {
     return;
   }
 
-  const signature = listSignature(doctors);
+  const signature = listSignature(doctors, bookingsCount, nearestByDoctor);
   if (signature !== container.dataset.signature) {
-    container.innerHTML = renderDoctorList(doctors);
+    container.innerHTML = renderDoctorList(
+      doctors,
+      bookingsCount,
+      nearestByDoctor,
+    );
     container.dataset.signature = signature;
     bindDoctorEvents(container, doctors);
   }
@@ -96,8 +154,8 @@ async function refreshDoctorList(container) {
  * @param {Array} doctors — массив врачей из API
  * @returns {string} подпись состояния
  */
-function listSignature(doctors) {
-  return JSON.stringify(doctors);
+function listSignature(doctors, bookingsCount = 0, nearestByDoctor = {}) {
+  return JSON.stringify({ doctors, bookingsCount, nearestByDoctor });
 }
 
 /**
@@ -172,7 +230,7 @@ function renderEmpty() {
  * @param {Array} doctors — массив врачей из API
  * @returns {string} HTML списка врачей
  */
-function renderDoctorList(doctors) {
+function renderDoctorList(doctors, bookingsCount = 0, nearestByDoctor = {}) {
   // Группировка по doctor_id
   const grouped = {};
   doctors.forEach((doctor) => {
@@ -187,6 +245,8 @@ function renderDoctorList(doctors) {
         // поэтому фильтр и счётчик «под фильтр» тоже берутся у первого (§7.3).
         matchingFreeTickets: doctor.matching_free_tickets || 0,
         filter: doctor.filter || null,
+        nearestDate: nearestByDoctor[doctor.doctor_id]?.date || "",
+        nearestTime: nearestByDoctor[doctor.doctor_id]?.time || "",
         patients: [],
       };
     }
@@ -199,12 +259,12 @@ function renderDoctorList(doctors) {
     });
   });
 
-  const cards = Object.values(grouped)
-    .map((group) => {
-      // monitoringId — от первого пациента в группе
-      const monitoringId =
-        group.patients.length > 0 ? group.patients[0].entryId : "";
-      return createDoctorCard({
+  const entries = Object.values(grouped).map((group) => {
+    // monitoringId — от первого пациента в группе
+    const monitoringId = group.patients.length > 0 ? group.patients[0].entryId : "";
+    return {
+      hasTickets: Number(group.freeTickets) > 0,
+      html: createDoctorCard({
         doctorName: group.doctorName,
         specialty: group.specialty,
         clinicName: group.clinicName,
@@ -212,15 +272,50 @@ function renderDoctorList(doctors) {
         freeTickets: group.freeTickets,
         matchingFreeTickets: group.matchingFreeTickets,
         filter: group.filter,
+        nearestDate: group.nearestDate,
+        nearestTime: group.nearestTime,
         patients: group.patients,
         monitoringId: monitoringId,
         isMonitored: true,
-      });
-    })
-    .join("");
+      }),
+    };
+  });
+
+  const available = entries.filter((entry) => entry.hasTickets);
+  const waiting = entries.filter((entry) => !entry.hasTickets);
+
+  // Сводка сверху: сколько врачей с талонами, сколько ждём.
+  const summary = `
+    <div class="home-summary">
+      <div class="summary-tile">
+        <div class="summary-tile__value">${available.length}</div>
+        <div class="summary-tile__label">есть талоны</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile__value">${entries.length}</div>
+        <div class="summary-tile__label">на слежении</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile__value">${bookingsCount}</div>
+        <div class="summary-tile__label">запись</div>
+      </div>
+    </div>`;
+
+  const buildSection = (title, items, modifier = "") => {
+    if (items.length === 0) return "";
+    return `
+      <section class="list-section ${modifier}">
+        <h2 class="list-section__title">${title}</h2>
+        ${items.map((entry) => entry.html).join("")}
+      </section>`;
+  };
 
   return `
-    <div class="doctors-list">${cards}</div>
+    <div class="doctors-list">
+      ${summary}
+      ${buildSection("Есть талоны", available)}
+      ${buildSection("Ждём талоны", waiting, "list-section--waiting")}
+    </div>
   `;
 }
 
@@ -229,12 +324,13 @@ function renderDoctorList(doctors) {
  *
  * @param {HTMLElement} btn — кнопка refresh
  */
-async function handleDoctorRefresh(btn) {
-  const monitoringId = btn.getAttribute("data-monitoring-id");
+async function handleDoctorRefresh(btn, monitoringIdOverride = "") {
+  const monitoringId =
+    monitoringIdOverride || btn?.getAttribute("data-monitoring-id");
   if (!monitoringId) return;
 
   // Показываем анимацию загрузки
-  btn.classList.add("btn--refresh--loading");
+  if (btn) btn.classList.add("btn--refresh--loading");
 
   try {
     const result = await refreshDoctorSlots(monitoringId);
@@ -268,7 +364,7 @@ async function handleDoctorRefresh(btn) {
       alert(`Ошибка проверки: ${error.message}`);
     }
   } finally {
-    btn.classList.remove("btn--refresh--loading");
+    if (btn) btn.classList.remove("btn--refresh--loading");
   }
 }
 
@@ -322,6 +418,9 @@ async function handleDoctorDelete(btn, container) {
 function bindDoctorCardClick(container, doctors) {
   container.querySelectorAll(".doctor-card").forEach((card) => {
     card.addEventListener("click", async (e) => {
+      if (card._swiped) return;
+      if (e.target.closest(".doctor-row__more")) return;
+
       // Не реагируем на клики по кнопкам удаления пациентов, настройки
       // фильтра и кнопке обновления
       if (e.target.closest(".monitoring-patient__delete")) return;
@@ -405,6 +504,112 @@ function bindFilterButtons(container, doctors) {
 }
 
 /**
+ * Открывает нативное меню действий для карточки врача.
+ *
+ * @param {HTMLElement} card — карточка врача
+ * @param {Array} doctors — массив врачей
+ * @param {HTMLElement} container — контейнер списка
+ */
+function openDoctorActions(card, doctors, container) {
+  const patients = findPatientsForCard(card, doctors);
+  if (!patients.length) return;
+
+  const select = card.querySelector(".doctor-card__patient-select");
+  const entryId =
+    select?.value || card.getAttribute("data-entry-id") || patients[0].entryId;
+  const patient = patients.find((p) => p.entryId === entryId) || patients[0];
+  const doctor = doctors.find((item) => item.monitoring_id === entryId);
+  const tg = window.Telegram?.WebApp;
+  if (typeof tg?.showPopup !== "function") return;
+
+  tg.HapticFeedback?.impactOccurred?.("light");
+  tg.showPopup(
+    {
+      title: doctor ? extractDoctorName(doctor) : "Действия",
+      message: patient.name ? `Пациент: ${patient.name}` : "",
+      buttons: [
+        { id: "filter", type: "default", text: "Фильтр" },
+        { id: "delete", type: "destructive", text: "Удалить" },
+        { id: "refresh", type: "default", text: "Проверить" },
+      ],
+    },
+    (buttonId) => {
+      if (buttonId === "filter") {
+        openFilterModal({
+          monitoringId: entryId,
+          doctorName: doctor ? extractDoctorName(doctor) : "",
+          patientName: patient.name || "",
+          filter: doctor ? doctor.filter || null : null,
+          onChanged: () => renderDoctors(container),
+        });
+      } else if (buttonId === "delete") {
+        const temp = document.createElement("span");
+        temp.setAttribute("data-entry-id", entryId);
+        temp.setAttribute("data-patient-name", patient.name || "");
+        handleDoctorDelete(temp, container);
+      } else if (buttonId === "refresh") {
+        handleDoctorRefresh(null, entryId);
+      }
+    },
+  );
+}
+
+/**
+ * Привязывает кнопки «⋯» к меню действий.
+ *
+ * @param {HTMLElement} container — контейнер списка
+ * @param {Array} doctors — массив врачей
+ */
+function bindDoctorMenu(container, doctors) {
+  container.querySelectorAll(".doctor-row__more").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const card = btn.closest(".doctor-card");
+      if (card) openDoctorActions(card, doctors, container);
+    });
+  });
+}
+
+/**
+ * Свайп влево по строке врача открывает меню действий.
+ *
+ * @param {HTMLElement} container — контейнер списка
+ * @param {Array} doctors — массив врачей
+ */
+function bindDoctorSwipe(container, doctors) {
+  container.querySelectorAll(".doctor-row").forEach((row) => {
+    let startX = 0;
+    let startY = 0;
+
+    row.addEventListener(
+      "touchstart",
+      (event) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        startX = touch.clientX;
+        startY = touch.clientY;
+        row._swiped = false;
+      },
+      { passive: true },
+    );
+
+    row.addEventListener("touchend", (event) => {
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (dx < -60 && Math.abs(dy) < 40) {
+        row._swiped = true;
+        openDoctorActions(row, doctors, container);
+        setTimeout(() => {
+          row._swiped = false;
+        }, 400);
+      }
+    });
+  });
+}
+
+/**
  * Привязывает обработчики событий для списка врачей.
  *
  * @param {HTMLElement} container — контейнер со списком
@@ -415,6 +620,8 @@ function bindDoctorEvents(container, doctors) {
   bindDoctorRefreshButtons(container);
   bindDoctorDeleteButtons(container);
   bindFilterButtons(container, doctors);
+  bindDoctorMenu(container, doctors);
+  bindDoctorSwipe(container, doctors);
   bindPatientSelects(container, doctors);
 }
 
@@ -451,6 +658,16 @@ function bindPatientSelects(container, doctors) {
  * @returns {Array<{name: string, patientId: string, entryId: string}>}
  */
 function findPatientsForCard(card, doctors) {
+  const raw = card.getAttribute("data-patients");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Повреждённый атрибут — используем старый расчёт по индексу.
+    }
+  }
+
   const cardIndex = Array.from(card.parentElement.children).indexOf(card);
 
   // Группируем врачей так же, как в renderDoctorList

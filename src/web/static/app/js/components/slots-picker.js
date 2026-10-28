@@ -12,7 +12,6 @@
  * @module components/slots-picker
  */
 
-import { createSlotsCalendar } from "./calendar.js";
 import { createSlotCard } from "./card.js";
 
 /**
@@ -23,6 +22,9 @@ import { createSlotCard } from "./card.js";
  * @returns {Object<string, Array<{time: string, appointmentId: string, clinicId: string}>>}
  *   карта «дата → слоты»
  */
+/** Дни недели для ленты дат. */
+const WEEKDAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+
 export function groupSlotsByDate(slots, fallbackClinicId = "") {
   const grouped = {};
   (slots || []).forEach((slot) => {
@@ -48,7 +50,7 @@ export function groupSlotsByDate(slots, fallbackClinicId = "") {
 export function renderSlotsPickerLayout(rootId = "slots") {
   return `
     <div class="slots-layout">
-      <div class="slots-layout__calendar" id="${rootId}-calendar"></div>
+      <div class="day-strip" id="${rootId}-calendar" role="tablist" aria-label="Дни с номерами"></div>
       <div class="slots-layout__panel" id="${rootId}-panel"></div>
     </div>
   `;
@@ -105,12 +107,15 @@ export function renderSlotList(slots, fallbackClinicId = "") {
 export function bindSlotsPickerChips(root, onSelect) {
   root.querySelectorAll(".slot-chip--clickable").forEach((chip) => {
     chip.addEventListener("click", () => {
-      onSelect({
-        date: chip.getAttribute("data-slot-date") || "",
-        time: chip.getAttribute("data-slot-time") || "",
-        appointmentId: chip.getAttribute("data-appointment-id") || "",
-        clinicId: chip.getAttribute("data-clinic-id") || "",
-      });
+      onSelect(
+        {
+          date: chip.getAttribute("data-slot-date") || "",
+          time: chip.getAttribute("data-slot-time") || "",
+          appointmentId: chip.getAttribute("data-appointment-id") || "",
+          clinicId: chip.getAttribute("data-clinic-id") || "",
+        },
+        chip,
+      );
     });
   });
 }
@@ -128,39 +133,52 @@ export function bindSlotsPickerChips(root, onSelect) {
  */
 export function initSlotsPicker(
   root,
-  { slots, onSelect, rootId = "slots", fallbackClinicId = "" },
+  { slots, onSelect, rootId = "slots", fallbackClinicId = "", onDayChange = null },
 ) {
-  if (typeof VanillaCalendar !== "function") return false;
-
-  const calendarEl = root.querySelector(`#${rootId}-calendar`);
+  const stripEl = root.querySelector(`#${rootId}-calendar`);
   const panelEl = root.querySelector(`#${rootId}-panel`);
-  if (!calendarEl || !panelEl) return false;
+  if (!stripEl || !panelEl) return false;
 
   const grouped = groupSlotsByDate(slots, fallbackClinicId);
   const dates = Object.keys(grouped).sort();
   if (dates.length === 0) return false;
 
-  const slotCounts = {};
-  dates.forEach((date) => {
-    slotCounts[date] = grouped[date].length;
-  });
+  let selectedDate = dates[0];
 
-  const renderPanel = (date) => {
-    // Клик по недоступной дате сбрасывает selectedDates в null —
-    // панель при этом не трогаем, чтобы не терять текущий выбор.
-    if (!date) return;
-    panelEl.innerHTML = renderSlotsPanel(grouped, date);
+  const render = () => {
+    stripEl.innerHTML = dates
+      .map((date) => {
+        const parts = date.split("-");
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2]),
+        );
+        const weekday = WEEKDAYS[dt.getDay()] || "";
+        const day = String(dt.getDate());
+        const count = grouped[date].length;
+        const active = date === selectedDate ? " day-chip--active" : "";
+        return `<button type="button" class="day-chip${active}" data-date="${date}" aria-pressed="${date === selectedDate}">
+          <span class="day-chip__weekday">${weekday}</span>
+          <span class="day-chip__day">${day}</span>
+          <span class="day-chip__count">${count}</span>
+        </button>`;
+      })
+      .join("");
+
+    panelEl.innerHTML = renderSlotsPanel(grouped, selectedDate);
     panelEl.classList.add("slots-layout__panel--open");
     bindSlotsPickerChips(panelEl, onSelect);
   };
 
-  const calendar = createSlotsCalendar(calendarEl, {
-    slotDates: dates,
-    slotCounts,
-    onSelect: renderPanel,
+  stripEl.addEventListener("click", (event) => {
+    const chip = event.target.closest(".day-chip");
+    if (!chip) return;
+    if (typeof onDayChange === "function") onDayChange();
+    selectedDate = chip.getAttribute("data-date") || selectedDate;
+    render();
   });
-  if (!calendar) return false;
 
-  renderPanel(calendar.selectedDates[0] || dates[0]);
+  render();
   return true;
 }

@@ -296,4 +296,111 @@
     {% endif %}
   </div>
 </div>
+
+  <div class="card">
+    <h2>История талонов</h2>
+    <p class="text-muted">
+      Почасовая история полных сканов Discovery. Введите ID клиники.
+    </p>
+    <form id="slot-history-form" class="form-row">
+      <input
+        id="slot-history-clinic"
+        name="clinic_id"
+        inputmode="numeric"
+        placeholder="ID клиники"
+        required
+      />
+      <button type="submit">Показать</button>
+    </form>
+    <div id="slot-history-result" class="text-muted"></div>
+  </div>
+  <script>
+    (() => {
+      const form = document.getElementById("slot-history-form");
+      const result = document.getElementById("slot-history-result");
+      if (!form || !result) return;
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const clinic = document.getElementById("slot-history-clinic").value.trim();
+        if (!clinic) return;
+        result.textContent = "Загрузка…";
+        try {
+          const response = await fetch(
+            "/api/dashboard/slot-history?clinic_id=" +
+              encodeURIComponent(clinic) +
+              "&hours=720"
+          );
+          const data = await response.json();
+          if (!data.points || data.points.length === 0) {
+            result.textContent = "За 30 дней сканов нет.";
+            return;
+          }
+          const rows = data.points
+            .map((point) => {
+              const when = new Date(point.bucket_at * 1000).toLocaleString(
+                "ru-RU"
+              );
+              return (
+                "<tr><td>" +
+                when +
+                "</td><td>" +
+                point.min_free_ticket_count +
+                "–" +
+                point.max_free_ticket_count +
+                "</td><td>" +
+                point.scan_count +
+                "</td></tr>"
+              );
+            })
+            .join("");
+          result.innerHTML =
+            '<table class="table"><thead><tr><th>Час</th><th>Талонов</th>' +
+            "<th>Сканов</th></tr></thead><tbody>" +
+            rows +
+            "</tbody></table>";
+        } catch (error) {
+          result.textContent = "Не удалось загрузить историю.";
+        }
+      });
+    })();
+  </script>
+  <div class="card">
+    <h2>Давление ресурсов (PSI)</h2>
+    <p class="text-muted">
+      cgroup v2 контейнера: /sys/fs/cgroup/{cpu,memory,io}.pressure.
+    </p>
+    {% if system.pressure.status == "ok" %}
+    <table class="table">
+      <thead>
+        <tr><th>Ресурс</th><th>some avg10</th><th>full avg10</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>CPU</td>
+          {% if system.pressure.cpu.status == "ok" %}
+          <td>{{ "%.2f"|format(system.pressure.cpu.some.avg10) }}%</td>
+          <td>{{ "%.2f"|format(system.pressure.cpu.full.avg10) }}%</td>
+          {% else %}<td>—</td><td>—</td>{% endif %}
+        </tr>
+        <tr>
+          <td>Память</td>
+          {% if system.pressure.memory.status == "ok" %}
+          <td>{{ "%.2f"|format(system.pressure.memory.some.avg10) }}%</td>
+          <td>{{ "%.2f"|format(system.pressure.memory.full.avg10) }}%</td>
+          {% else %}<td>—</td><td>—</td>{% endif %}
+        </tr>
+        <tr>
+          <td>Диск</td>
+          {% if system.pressure.io.status == "ok" %}
+          <td>{{ "%.2f"|format(system.pressure.io.some.avg10) }}%</td>
+          <td>{{ "%.2f"|format(system.pressure.io.full.avg10) }}%</td>
+          {% else %}<td>—</td><td>—</td>{% endif %}
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">PSI недоступен: cgroup v2 pressure-файлы не найдены.</p>
+    {% endif %}
+  </div>
+
 {% endblock %}
