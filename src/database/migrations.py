@@ -1,22 +1,109 @@
 """
 Миграции схемы БД.
 
-Каждая миграция — async callable(db: Database) -> None.
+Каждая миграция — async callable(db: DatabaseConnection) -> None.
 Номер версии хранится в таблице schema_version.
+
+Однотипные миграции строятся на общем каркасе:
+
+- `run_ddl_migration()` — DDL-скрипт (``CREATE TABLE`` / ``CREATE INDEX``),
+  commit и запись в лог;
+- `run_statement_migration()` — одно выражение без проверки существования
+  (``ALTER TABLE ... ADD COLUMN``), commit и запись в лог;
+- `add_missing_columns()` — идемпотентное добавление колонок: набор
+  существующих читается через ``PRAGMA table_info``.
+
 Добавление новой миграции:
-1. Написать async-функцию migrate_vN_...
+1. Написать async-функцию migrate_vN_... на одном из каркасов выше
 2. Добавить (N, migrate_vN_...) в список MIGRATIONS
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from loguru import logger
 
+if TYPE_CHECKING:
+    import aiosqlite
 
-async def migrate_v1_initial_schema(db) -> None:
-    """Создание всех таблиц (initial schema)."""
-    c = db._conn
-    if c is None:
+    from src.database.connection import DatabaseConnection
+
+
+# ── Общий каркас миграций ─────────────────────────────────────────────
+
+
+def _require_connection(db: DatabaseConnection) -> aiosqlite.Connection:
+    """Возвращает активное соединение или падает, если оно не открыто."""
+    connection = db._conn
+    if connection is None:
         raise RuntimeError("Database connection not initialized")
-    await c.executescript("""
+    return connection
+
+
+async def _column_names(connection: aiosqlite.Connection, table: str) -> set[str]:
+    """Имена существующих колонок таблицы (``PRAGMA table_info``)."""
+    cursor = await connection.execute(f"PRAGMA table_info({table})")
+    return {row[1] for row in await cursor.fetchall()}
+
+
+async def run_ddl_migration(
+    db: DatabaseConnection, script: str, *, version: int, message: str
+) -> None:
+    """Каркас DDL-миграции: выполнение скрипта, commit и запись в лог.
+
+    Скрипт обязан быть идемпотентным (``CREATE TABLE/INDEX IF NOT EXISTS``),
+    чтобы повторный прогон миграции не падал.
+    """
+    connection = _require_connection(db)
+    await connection.executescript(script)
+    await connection.commit()
+    logger.info("Миграция v{}: {}", version, message)
+
+
+async def run_statement_migration(
+    db: DatabaseConnection, statement: str, *, version: int, message: str
+) -> None:
+    """Каркас миграции из одного выражения: выполнение, commit и запись в лог."""
+    connection = _require_connection(db)
+    await connection.execute(statement)
+    await connection.commit()
+    logger.info("Миграция v{}: {}", version, message)
+
+
+async def add_missing_columns(
+    db: DatabaseConnection,
+    table: str,
+    columns: dict[str, str],
+    *,
+    version: int,
+    message: str,
+) -> list[str]:
+    """Идемпотентно добавляет недостающие колонки таблицы.
+
+    SQLite не поддерживает ``ALTER TABLE ... ADD COLUMN IF NOT EXISTS``,
+    поэтому существующие колонки читаются через ``PRAGMA table_info``, а
+    ``ALTER TABLE`` выполняется только для отсутствующих. Возвращает список
+    фактически добавленных колонок.
+    """
+    connection = _require_connection(db)
+    existing = await _column_names(connection, table)
+    added: list[str] = []
+    for column_name, definition in columns.items():
+        if column_name in existing:
+            continue
+        await connection.execute(
+            f"ALTER TABLE {table} ADD COLUMN {column_name} {definition}"
+        )
+        added.append(column_name)
+    await connection.commit()
+    logger.info("Миграция v{}: {} (добавлено: {})", version, message, added)
+    return added
+
+
+# ── Миграции ─────────────────────────────────────────────────────────
+
+_INITIAL_SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS user_last_messages (
 uid                 TEXT NOT NULL,
 p_id                TEXT NOT NULL,
@@ -67,16 +154,17 @@ CREATE TABLE IF NOT EXISTS specialty_aliases (
 full_name           TEXT PRIMARY KEY,
 short_name          TEXT NOT NULL DEFAULT ''
 );
-""")
-    await c.commit()
+"""
 
 
-async def migrate_v6_monitoring_log(db) -> None:
-    """Создаёт таблицу monitoring_log для истории изменений слотов."""
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    await c.executescript("""
+async def migrate_v1_initial_schema(db: DatabaseConnection) -> None:
+    """Создание всех таблиц (initial schema)."""
+    await run_ddl_migration(
+        db, _INITIAL_SCHEMA_DDL, version=1, message="создана начальная схема"
+    )
+
+
+_MONITORING_LOG_DDL = """
 CREATE TABLE IF NOT EXISTS monitoring_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     uid         TEXT NOT NULL,
@@ -92,27 +180,27 @@ CREATE TABLE IF NOT EXISTS monitoring_log (
 );
 CREATE INDEX IF NOT EXISTS idx_monitoring_log_uid ON monitoring_log(uid);
 CREATE INDEX IF NOT EXISTS idx_monitoring_log_ts ON monitoring_log(ts);
-""")
-    await c.commit()
-    logger.info("Миграция v6: создана таблица monitoring_log")
+"""
 
 
-async def migrate_v7_add_date_column(db) -> None:
+async def migrate_v6_monitoring_log(db: DatabaseConnection) -> None:
+    """Создаёт таблицу monitoring_log для истории изменений слотов."""
+    await run_ddl_migration(
+        db, _MONITORING_LOG_DDL, version=6, message="создана таблица monitoring_log"
+    )
+
+
+async def migrate_v7_add_date_column(db: DatabaseConnection) -> None:
     """Добавляет колонку date в таблицу user_monitoring."""
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    await c.execute("ALTER TABLE user_monitoring ADD COLUMN date TEXT DEFAULT ''")
-    await c.commit()
-    logger.info("Миграция v7: добавлена колонка date в user_monitoring")
+    await run_statement_migration(
+        db,
+        "ALTER TABLE user_monitoring ADD COLUMN date TEXT DEFAULT ''",
+        version=7,
+        message="добавлена колонка date в user_monitoring",
+    )
 
 
-async def migrate_v8_create_bookings(db) -> None:
-    """Создаёт таблицу bookings для хранения записей на приём."""
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    await c.executescript("""
+_BOOKINGS_DDL = """
 CREATE TABLE IF NOT EXISTS bookings (
     booking_id     TEXT PRIMARY KEY,
     uid            TEXT NOT NULL,
@@ -132,51 +220,38 @@ CREATE TABLE IF NOT EXISTS bookings (
 
 CREATE INDEX IF NOT EXISTS idx_bookings_uid ON bookings(uid);
 CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at);
-""")
-    await c.commit()
-    logger.info("Миграция v8: создана таблица bookings")
+"""
 
 
-async def migrate_v9_add_monitoring_filters(db) -> None:
+async def migrate_v8_create_bookings(db: DatabaseConnection) -> None:
+    """Создаёт таблицу bookings для хранения записей на приём."""
+    await run_ddl_migration(
+        db, _BOOKINGS_DDL, version=8, message="создана таблица bookings"
+    )
+
+
+async def migrate_v9_add_monitoring_filters(db: DatabaseConnection) -> None:
     """Добавляет колонки фильтра отслеживания в таблицу ``user_monitoring``.
 
     Миграция идемпотентна: перед ``ALTER TABLE`` проверяется наличие колонки
     через ``PRAGMA table_info`` (SQLite не поддерживает ``ADD COLUMN IF NOT EXISTS``).
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(user_monitoring)")
-    existing_columns = {row["name"] for row in await cursor.fetchall()}
-
-    new_columns: dict[str, str] = {
-        "date_from": "TEXT DEFAULT ''",
-        "date_to": "TEXT DEFAULT ''",
-        "time_from": "TEXT DEFAULT ''",
-        "time_to": "TEXT DEFAULT ''",
-        "specific_dates": "TEXT DEFAULT '[]'",
-    }
-
-    added: list[str] = []
-    for column_name, definition in new_columns.items():
-        if column_name in existing_columns:
-            continue
-        await c.execute(
-            f"ALTER TABLE user_monitoring ADD COLUMN {column_name} {definition}"
-        )
-        added.append(column_name)
-
-    await c.commit()
-    logger.info("Миграция v9: колонки фильтра user_monitoring (добавлено: {})", added)
+    await add_missing_columns(
+        db,
+        "user_monitoring",
+        {
+            "date_from": "TEXT DEFAULT ''",
+            "date_to": "TEXT DEFAULT ''",
+            "time_from": "TEXT DEFAULT ''",
+            "time_to": "TEXT DEFAULT ''",
+            "specific_dates": "TEXT DEFAULT '[]'",
+        },
+        version=9,
+        message="колонки фильтра user_monitoring",
+    )
 
 
-async def migrate_v10_create_audit_log(db) -> None:
-    """Создание журнала действий администратора (DASH-2)."""
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    await c.executescript("""
+_AUDIT_LOG_DDL = """
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts REAL NOT NULL,
@@ -187,74 +262,57 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log (ts DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log (action, ts DESC);
-""")
-    await c.commit()
-    logger.info("Миграция v10: создана таблица audit_log")
+"""
 
 
-async def migrate_v11_audit_actor_index(db) -> None:
+async def migrate_v10_create_audit_log(db: DatabaseConnection) -> None:
+    """Создание журнала действий администратора (DASH-2)."""
+    await run_ddl_migration(
+        db, _AUDIT_LOG_DDL, version=10, message="создана таблица audit_log"
+    )
+
+
+async def migrate_v11_audit_actor_index(db: DatabaseConnection) -> None:
     """Индекс по автору действий в журнале (DASH-2).
 
     Страница /audit-log фильтрует по actor и строит список авторов
     (``distinct_actors``) — без индекса это full table scan.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    await c.execute(
-        "CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log (actor, ts DESC)"
+    await run_statement_migration(
+        db,
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log (actor, ts DESC)",
+        version=11,
+        message="индекс idx_audit_log_actor",
     )
-    await c.commit()
-    logger.info("Миграция v11: индекс idx_audit_log_actor")
 
 
-async def migrate_v12_monitoring_log_ack(db) -> None:
+async def migrate_v12_monitoring_log_ack(db: DatabaseConnection) -> None:
     """Статус подтверждения алертов в monitoring_log (DASH-5).
 
     Шум отделяется от нового: каждая запись получает состояние
     ``new`` / ``acked`` / ``resolved`` плюс кто и когда подтвердил.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(monitoring_log)")
-    existing_columns = {row[1] for row in await cursor.fetchall()}
-
-    new_columns = {
-        "ack_status": "TEXT NOT NULL DEFAULT 'new'",
-        "acked_by": "TEXT NOT NULL DEFAULT ''",
-        "acked_ts": "REAL NOT NULL DEFAULT 0",
-    }
-    added: list[str] = []
-    for column_name, definition in new_columns.items():
-        if column_name in existing_columns:
-            continue
-        await c.execute(
-            f"ALTER TABLE monitoring_log ADD COLUMN {column_name} {definition}"
-        )
-        added.append(column_name)
-
-    await c.execute(
-        "CREATE INDEX IF NOT EXISTS idx_monitoring_log_ack "
-        "ON monitoring_log (ack_status, ts DESC)"
+    await add_missing_columns(
+        db,
+        "monitoring_log",
+        {
+            "ack_status": "TEXT NOT NULL DEFAULT 'new'",
+            "acked_by": "TEXT NOT NULL DEFAULT ''",
+            "acked_ts": "REAL NOT NULL DEFAULT 0",
+        },
+        version=12,
+        message="подтверждение алертов",
     )
-    await c.commit()
-    logger.info("Миграция v12: подтверждение алертов (добавлено: {})", added)
+    await run_statement_migration(
+        db,
+        "CREATE INDEX IF NOT EXISTS idx_monitoring_log_ack "
+        "ON monitoring_log (ack_status, ts DESC)",
+        version=12,
+        message="индекс idx_monitoring_log_ack",
+    )
 
 
-async def migrate_v13_metrics_hourly(db) -> None:
-    """Почасовые агрегаты метрик для трендов на сводке (DASH-6).
-
-    Счётчики процесса (проверки API, ошибки, латентность, найденные слоты,
-    уведомления) накапливаются по часам: спарклайны строятся по истории,
-    а не по мгновенным значениям, и переживают перезапуск дашборда.
-    """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    await c.executescript("""
+_METRICS_HOURLY_DDL = """
 CREATE TABLE IF NOT EXISTS metrics_hourly (
     bucket_ts     INTEGER PRIMARY KEY,
     api_checks    INTEGER NOT NULL DEFAULT 0,
@@ -266,56 +324,70 @@ CREATE TABLE IF NOT EXISTS metrics_hourly (
     notifications INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_hourly_bucket ON metrics_hourly(bucket_ts);
-""")
-    await c.commit()
-    logger.info("Миграция v13: создана таблица metrics_hourly")
+"""
 
 
-async def migrate_v14_user_state(db) -> None:
-    """Состояние пользователя: пауза мониторинга (DASH-8).
+async def migrate_v13_metrics_hourly(db: DatabaseConnection) -> None:
+    """Почасовые агрегаты метрик для трендов на сводке (DASH-6).
 
-    Пауза — это состояние, а не удаление мониторинга: при возобновлении
-    цепочки пациент-врач остаются на месте.
+    Счётчики процесса (проверки API, ошибки, латентность, найденные слоты,
+    уведомления) накапливаются по часам: спарклайны строятся по истории,
+    а не по мгновенным значениям, и переживают перезапуск дашборда.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
+    await run_ddl_migration(
+        db, _METRICS_HOURLY_DDL, version=13, message="создана таблица metrics_hourly"
+    )
 
-    await c.executescript("""
+
+_USER_STATE_DDL = """
 CREATE TABLE IF NOT EXISTS user_state (
     uid        TEXT PRIMARY KEY,
     paused     INTEGER NOT NULL DEFAULT 0,
     updated_ts REAL NOT NULL DEFAULT 0
 );
-""")
-    await c.commit()
-    logger.info("Миграция v14: состояние пользователя (пауза мониторинга)")
+"""
 
 
-async def migrate_v15_favorite_clinics(db) -> None:
-    """Избранные клиники аккаунта (P4-FAV).
+async def migrate_v14_user_state(db: DatabaseConnection) -> None:
+    """Состояние пользователя: пауза мониторинга (DASH-8).
 
-    Привязка — к аккаунту (``uid``), не к пациенту: набор «своих» клиник один
-    на аккаунт и показывается первым при выборе клиники и поиске врача.
-    Повторная вставка пары (uid, clinic_id) ничего не меняет — ключ первичный.
+    Пауза — это состояние, а не удаление мониторинга: при возобновлении
+    цепочки пациент-врач остаются на месте.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
+    await run_ddl_migration(
+        db,
+        _USER_STATE_DDL,
+        version=14,
+        message="состояние пользователя (пауза мониторинга)",
+    )
 
-    await c.executescript("""
+
+_FAVORITE_CLINICS_DDL = """
 CREATE TABLE IF NOT EXISTS favorite_clinics (
     uid         TEXT NOT NULL,
     clinic_id   TEXT NOT NULL,
     created_at  REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (uid, clinic_id)
 );
-""")
-    await c.commit()
-    logger.info("Миграция v15: избранные клиники аккаунта (favorite_clinics)")
+"""
 
 
-async def migrate_v16_metrics_doctors(db) -> None:
+async def migrate_v15_favorite_clinics(db: DatabaseConnection) -> None:
+    """Избранные клиники аккаунта (P4-FAV).
+
+    Привязка — к аккаунту (``uid``), не к пациенту: набор «своих» клиник один
+    на аккаунт и показывается первым при выборе клиники и поиске врача.
+    Повторная вставка пары (uid, clinic_id) ничего не меняет — ключ первичный.
+    """
+    await run_ddl_migration(
+        db,
+        _FAVORITE_CLINICS_DDL,
+        version=15,
+        message="избранные клиники аккаунта (favorite_clinics)",
+    )
+
+
+async def migrate_v16_metrics_doctors(db: DatabaseConnection) -> None:
     """Динамика справочника врачей в почасовых метриках (PERF-OBS).
 
     Таблица ``metrics_hourly`` (миграция v13) хранила счётчики трендов; для
@@ -323,34 +395,20 @@ async def migrate_v16_metrics_doctors(db) -> None:
     всего в справочнике, сколько новых обнаружено и сколько циклов прошло.
     Миграция идемпотентна: наличие колонки проверяется через ``PRAGMA table_info``.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(metrics_hourly)")
-    existing_columns = {row[1] for row in await cursor.fetchall()}
-
-    new_columns = {
-        "doctors_total": "INTEGER NOT NULL DEFAULT 0",
-        "doctors_added": "INTEGER NOT NULL DEFAULT 0",
-        "discovery_cycles": "INTEGER NOT NULL DEFAULT 0",
-    }
-    added: list[str] = []
-    for column_name, definition in new_columns.items():
-        if column_name in existing_columns:
-            continue
-        await c.execute(
-            f"ALTER TABLE metrics_hourly ADD COLUMN {column_name} {definition}"
-        )
-        added.append(column_name)
-
-    await c.commit()
-    logger.info(
-        "Миграция v16: динамика discovery в metrics_hourly (добавлено: {})", added
+    await add_missing_columns(
+        db,
+        "metrics_hourly",
+        {
+            "doctors_total": "INTEGER NOT NULL DEFAULT 0",
+            "doctors_added": "INTEGER NOT NULL DEFAULT 0",
+            "discovery_cycles": "INTEGER NOT NULL DEFAULT 0",
+        },
+        version=16,
+        message="динамика discovery в metrics_hourly",
     )
 
 
-async def migrate_v17_clinic_sync_state(db) -> None:
+async def migrate_v17_clinic_sync_state(db: DatabaseConnection) -> None:
     """Состояние синхронизации реестра врачей по клиникам (PERF-CACHE).
 
     ``doctors_synced_at`` хранит момент последнего успешного обхода клиники,
@@ -358,43 +416,19 @@ async def migrate_v17_clinic_sync_state(db) -> None:
     обход пропускает клиники, обновлённые свежее TTL (см. doctor_scan_ttl_hours).
     Миграция идемпотентна: наличие колонки проверяется через ``PRAGMA table_info``.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(clinics)")
-    existing_columns = {row[1] for row in await cursor.fetchall()}
-
-    new_columns = {
-        "doctors_synced_at": "REAL NOT NULL DEFAULT 0",
-        "doctors_count": "INTEGER NOT NULL DEFAULT 0",
-    }
-    added: list[str] = []
-    for column_name, definition in new_columns.items():
-        if column_name in existing_columns:
-            continue
-        await c.execute(f"ALTER TABLE clinics ADD COLUMN {column_name} {definition}")
-        added.append(column_name)
-
-    await c.commit()
-    logger.info("Миграция v17: состояние синхронизации врачей (добавлено: {})", added)
+    await add_missing_columns(
+        db,
+        "clinics",
+        {
+            "doctors_synced_at": "REAL NOT NULL DEFAULT 0",
+            "doctors_count": "INTEGER NOT NULL DEFAULT 0",
+        },
+        version=17,
+        message="состояние синхронизации врачей",
+    )
 
 
-async def migrate_v18_clinic_slots(db) -> None:
-    """Кэш талонов (слотов) по клиникам (PERF-CACHE, T3).
-
-    ``clinic_slots`` хранит талоны (``CountFreeTicket``/``NearestDate``)
-    отдельно от реестра врачей (``doctors``): реестр живёт долго
-    (``doctor_scan_ttl_hours``), а талоны меняются часто и обновляются своим
-    коротким TTL (``slot_cache_ttl_minutes``). Экран «Выберите врача» отдаёт
-    талоны из этой таблицы, не дожидаясь портала. Миграция идемпотентна:
-    таблица создаётся через ``CREATE TABLE IF NOT EXISTS``.
-    """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    await c.executescript("""
+_CLINIC_SLOTS_DDL = """
 CREATE TABLE IF NOT EXISTS clinic_slots (
     clinic_id     TEXT NOT NULL,
     doctor_id     TEXT NOT NULL,
@@ -404,12 +438,28 @@ CREATE TABLE IF NOT EXISTS clinic_slots (
     PRIMARY KEY (clinic_id, doctor_id)
 );
 CREATE INDEX IF NOT EXISTS idx_clinic_slots_clinic ON clinic_slots(clinic_id);
-""")
-    await c.commit()
-    logger.info("Миграция v18: создана таблица clinic_slots (кэш талонов)")
+"""
 
 
-async def migrate_v19_clinic_empty_sync_streak(db) -> None:
+async def migrate_v18_clinic_slots(db: DatabaseConnection) -> None:
+    """Кэш талонов (слотов) по клиникам (PERF-CACHE, T3).
+
+    ``clinic_slots`` хранит талоны (``CountFreeTicket``/``NearestDate``)
+    отдельно от реестра врачей (``doctors``): реестр живёт долго
+    (``doctor_scan_ttl_hours``), а талоны меняются часто и обновляются своим
+    коротким TTL (``slot_cache_ttl_minutes``). Экран «Выберите врача» отдаёт
+    талоны из этой таблицы, не дожидаясь портала. Миграция идемпотентна:
+    таблица создаётся через ``CREATE TABLE IF NOT EXISTS``.
+    """
+    await run_ddl_migration(
+        db,
+        _CLINIC_SLOTS_DDL,
+        version=18,
+        message="создана таблица clinic_slots (кэш талонов)",
+    )
+
+
+async def migrate_v19_clinic_empty_sync_streak(db: DatabaseConnection) -> None:
     """Счётчик подряд идущих пустых синков клиники (PERF-BACKOFF, T6).
 
     ``empty_sync_streak`` — сколько подряд обходов клиники вернули 0 врачей;
@@ -419,43 +469,27 @@ async def migrate_v19_clinic_empty_sync_streak(db) -> None:
     впустую. Миграция идемпотентна: наличие колонки проверяется через
     ``PRAGMA table_info``.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(clinics)")
-    existing_columns = {row[1] for row in await cursor.fetchall()}
-
-    new_columns = {
-        "empty_sync_streak": "INTEGER NOT NULL DEFAULT 0",
-    }
-    added: list[str] = []
-    for column_name, definition in new_columns.items():
-        if column_name in existing_columns:
-            continue
-        await c.execute(f"ALTER TABLE clinics ADD COLUMN {column_name} {definition}")
-        added.append(column_name)
-
-    await c.commit()
-    logger.info("Миграция v19: бэкофф клиник без врачей (добавлено: {})", added)
+    await add_missing_columns(
+        db,
+        "clinics",
+        {"empty_sync_streak": "INTEGER NOT NULL DEFAULT 0"},
+        version=19,
+        message="бэкофф клиник без врачей",
+    )
 
 
-async def migrate_v20_bookings_status(db) -> None:
+async def migrate_v20_bookings_status(db: DatabaseConnection) -> None:
     """Добавляет колонку status в bookings (pending/confirmed/failed)."""
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-    cursor = await c.execute("PRAGMA table_info(bookings)")
-    columns = {row[1] for row in await cursor.fetchall()}
-    if "status" not in columns:
-        await c.execute(
-            "ALTER TABLE bookings ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'"
-        )
-        await c.commit()
-        logger.info("Миграция v20: добавлена колонка status в bookings")
+    await add_missing_columns(
+        db,
+        "bookings",
+        {"status": "TEXT NOT NULL DEFAULT 'confirmed'"},
+        version=20,
+        message="колонка status в bookings",
+    )
 
 
-async def migrate_v21_naming_constitution(db) -> None:
+async def migrate_v21_naming_constitution(db: DatabaseConnection) -> None:
     """Приведение имён схемы к конституции `.roo/rules/naming.md` (DB-CONSTITUTION).
 
     Таблицы в единственном числе переименованы во множественное; колонки-счётчики
@@ -464,9 +498,7 @@ async def migrate_v21_naming_constitution(db) -> None:
     и без потери данных. Миграция идемпотентна — наличие проверяется по
     `sqlite_master` и `PRAGMA table_info`.
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
+    c = _require_connection(db)
 
     async def rename_table(old: str, new: str) -> None:
         cursor = await c.execute(
@@ -529,41 +561,22 @@ async def migrate_v21_naming_constitution(db) -> None:
     logger.info("Миграция v21: имена схемы приведены к конституции")
 
 
-async def migrate_v22_user_language(db) -> None:
+async def migrate_v22_user_language(db: DatabaseConnection) -> None:
     """Язык интерфейса пользователя (ru/en) в user_states (i18n).
 
     Telegram отдаёт язык клиента в language_code; храним выбор по пользователю,
     чтобы уведомления формировались на его языке (см. src/i18n).
     """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    cursor = await c.execute("PRAGMA table_info(user_states)")
-    columns = {row[1] for row in await cursor.fetchall()}
-    if "language" not in columns:
-        await c.execute(
-            "ALTER TABLE user_states ADD COLUMN language TEXT NOT NULL DEFAULT ''"
-        )
-    await c.commit()
-    logger.info("Миграция v22: язык пользователя (user_states.language)")
+    await add_missing_columns(
+        db,
+        "user_states",
+        {"language": "TEXT NOT NULL DEFAULT ''"},
+        version=22,
+        message="язык пользователя (user_states.language)",
+    )
 
 
-async def migrate_v23_clinic_slot_scans(db) -> None:
-    """История полных сканов талонов клиники (аналитика всплесков).
-
-    ``clinic_slots`` хранит только последний снимок: каждая запись
-    перезаписывается. Для ответа на вопрос «когда появляются талоны» нужна
-    история агрегатов по клинике, а не текущее состояние. Таблица пишется
-    из ``sync_clinic_slots()`` и не участвует в выдаче талонов пользователю.
-    Миграция идемпотентна: ``CREATE TABLE IF NOT EXISTS``.
-    """
-    c = db._conn
-    if c is None:
-        raise RuntimeError("Database connection not initialized")
-
-    await c.executescript(
-        """
+_CLINIC_SLOT_SCANS_DDL = """
 CREATE TABLE IF NOT EXISTS clinic_slot_scans (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     clinic_id         TEXT NOT NULL,
@@ -576,9 +589,23 @@ CREATE INDEX IF NOT EXISTS idx_clinic_slot_scans_clinic_ts
 CREATE INDEX IF NOT EXISTS idx_clinic_slot_scans_ts
     ON clinic_slot_scans (scanned_at DESC);
 """
+
+
+async def migrate_v23_clinic_slot_scans(db: DatabaseConnection) -> None:
+    """История полных сканов талонов клиники (аналитика всплесков).
+
+    ``clinic_slots`` хранит только последний снимок: каждая запись
+    перезаписывается. Для ответа на вопрос «когда появляются талоны» нужна
+    история агрегатов по клинике, а не текущее состояние. Таблица пишется
+    из ``sync_clinic_slots()`` и не участвует в выдаче талонов пользователю.
+    Миграция идемпотентна: ``CREATE TABLE IF NOT EXISTS``.
+    """
+    await run_ddl_migration(
+        db,
+        _CLINIC_SLOT_SCANS_DDL,
+        version=23,
+        message="создана таблица clinic_slot_scans (история сканов)",
     )
-    await c.commit()
-    logger.info("Миграция v23: создана таблица clinic_slot_scans (история сканов)")
 
 
 # Упорядоченный список миграций: (version, async_callable)

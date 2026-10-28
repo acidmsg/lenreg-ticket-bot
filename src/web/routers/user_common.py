@@ -13,7 +13,9 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from src.database.manager import DatabaseManager
+from src.database.types import PatientInfo
 from src.utils.helpers import format_error_message
+from src.web.types import PatientViewRow
 
 
 def _get_telegram_id(request: Request) -> str:
@@ -62,11 +64,11 @@ def _normalize_bday_display(value: Any) -> str:
     return text
 
 
-def _serialize_patients(patients: dict[str, Any]) -> list[dict[str, Any]]:
-    """Сериализует словарь пациентов в список словарей для JSON-ответа."""
-    result: list[dict[str, Any]] = []
+def _serialize_patients(patients: dict[str, PatientInfo]) -> list[PatientViewRow]:
+    """Сериализует словарь пациентов в список строк формы ``PatientViewRow``."""
+    result: list[PatientViewRow] = []
     for p_id, p_info in patients.items():
-        entry: dict[str, Any] = {
+        entry: PatientViewRow = {
             "patient_id": p_id,
             "fio": p_info.get("fio", ""),
             "bday": _normalize_bday_display(p_info.get("bday", "")),

@@ -2,6 +2,8 @@ import asyncio
 import json
 import random
 from collections.abc import Mapping
+from datetime import date, time
+from typing import NamedTuple
 
 from loguru import logger
 
@@ -49,6 +51,126 @@ def has_slot_filters(monitoring_entry: MonitoringEntry) -> bool:
     )
 
 
+class _ParsedSlot(NamedTuple):
+    """Разобранный слот: исходная строка, строковая дата, дата и время."""
+
+    raw: str
+    date_str: str
+    slot_date: date
+    slot_time: time | None
+
+
+class _SlotFilters(NamedTuple):
+    """Нормализованные фильтры слотов из записи мониторинга."""
+
+    date_from: str
+    date_to: str
+    time_from: str
+    time_to: str
+    specific_dates: list[str]
+
+
+def _parse_date_bound(raw: str) -> date | None:
+    """Разбирает границу диапазона дат.
+
+    Returns:
+        Дата или None, если граница не задана либо записана некорректно.
+    """
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _parse_time_bound(raw: str) -> time | None:
+    """Разбирает границу диапазона времени.
+
+    Returns:
+        Время или None, если граница не задана либо записана некорректно.
+    """
+    if not raw:
+        return None
+    try:
+        return time.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _parse_slot_value(slot_str: str) -> _ParsedSlot | None:
+    """Разбирает слот формата ``"YYYY-MM-DD в HH:MM"``.
+
+    Returns:
+        Разобранный слот или None, если строка не поддаётся разбору.
+    """
+    parts = slot_str.split(" в ")
+    date_str = parts[0].strip()
+    time_str = parts[1].strip() if len(parts) > 1 else ""
+
+    try:
+        slot_date = date.fromisoformat(date_str)
+    except ValueError:
+        # Невозможно распарсить дату — пропускаем слот (не должны доходить сюда)
+        return None
+
+    slot_time: time | None = None
+    if time_str:
+        try:
+            slot_time = time.fromisoformat(time_str)
+        except ValueError:
+            return None
+
+    return _ParsedSlot(slot_str, date_str, slot_date, slot_time)
+
+
+def _build_slot_filters(monitoring_entry: MonitoringEntry) -> _SlotFilters:
+    """Извлекает и нормализует фильтры слотов из записи мониторинга."""
+    return _SlotFilters(
+        date_from=str(monitoring_entry.get("date_from", "") or ""),
+        date_to=str(monitoring_entry.get("date_to", "") or ""),
+        time_from=str(monitoring_entry.get("time_from", "") or ""),
+        time_to=str(monitoring_entry.get("time_to", "") or ""),
+        specific_dates=_parse_specific_dates(monitoring_entry),
+    )
+
+
+def _is_inside_date_range(slot_date: date, filters: _SlotFilters) -> bool:
+    """Проверяет попадание даты слота в интервал ``[date_from, date_to]``."""
+    lower = _parse_date_bound(filters.date_from)
+    if lower is not None and slot_date < lower:
+        return False
+    upper = _parse_date_bound(filters.date_to)
+    return not (upper is not None and slot_date > upper)
+
+
+def _is_inside_time_range(slot_time: time | None, filters: _SlotFilters) -> bool:
+    """Проверяет попадание времени слота в интервал ``[time_from, time_to]``."""
+    if slot_time is None:
+        return True
+    lower = _parse_time_bound(filters.time_from)
+    if lower is not None and slot_time < lower:
+        return False
+    upper = _parse_time_bound(filters.time_to)
+    return not (upper is not None and slot_time > upper)
+
+
+def _matches_specific_dates(slot_date_str: str, filters: _SlotFilters) -> bool:
+    """Проверяет, входит ли дата слота в список конкретных дат (если он задан)."""
+    if not filters.specific_dates:
+        return True
+    return slot_date_str in filters.specific_dates
+
+
+def _slot_matches_filters(slot: _ParsedSlot, filters: _SlotFilters) -> bool:
+    """Проверяет слот по всем заданным фильтрам в исходном порядке."""
+    return (
+        _is_inside_date_range(slot.slot_date, filters)
+        and _is_inside_time_range(slot.slot_time, filters)
+        and _matches_specific_dates(slot.date_str, filters)
+    )
+
+
 def filter_slots_by_user_prefs(
     slots: list[str],
     monitoring_entry: MonitoringEntry,
@@ -71,66 +193,14 @@ def filter_slots_by_user_prefs(
     if not has_slot_filters(monitoring_entry):
         return slots
 
-    date_from: str = str(monitoring_entry.get("date_from", "") or "")
-    date_to: str = str(monitoring_entry.get("date_to", "") or "")
-    time_from: str = str(monitoring_entry.get("time_from", "") or "")
-    time_to: str = str(monitoring_entry.get("time_to", "") or "")
-    specific_dates = _parse_specific_dates(monitoring_entry)
-
-    from datetime import date, time
-
+    filters = _build_slot_filters(monitoring_entry)
     filtered: list[str] = []
     for slot_str in slots:
-        # Парсим слот: "YYYY-MM-DD в HH:MM"
-        try:
-            parts = slot_str.split(" в ")
-            slot_date_str = parts[0].strip()
-            slot_time_str = parts[1].strip() if len(parts) > 1 else ""
-
-            slot_date = date.fromisoformat(slot_date_str)
-            slot_time = time.fromisoformat(slot_time_str) if slot_time_str else None
-        except (ValueError, IndexError):
-            # Невозможно распарсить — пропускаем слот (не должны доходить сюда)
+        parsed_slot = _parse_slot_value(slot_str)
+        if parsed_slot is None:
             continue
-
-        # Фильтр по дате
-        if date_from:
-            try:
-                df = date.fromisoformat(date_from)
-                if slot_date < df:
-                    continue
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                dt = date.fromisoformat(date_to)
-                if slot_date > dt:
-                    continue
-            except ValueError:
-                pass
-
-        # Фильтр по времени
-        if time_from and slot_time:
-            try:
-                tf = time.fromisoformat(time_from)
-                if slot_time < tf:
-                    continue
-            except ValueError:
-                pass
-        if time_to and slot_time:
-            try:
-                tt = time.fromisoformat(time_to)
-                if slot_time > tt:
-                    continue
-            except ValueError:
-                pass
-
-        # Фильтр по конкретным датам
-        if specific_dates and slot_date_str not in specific_dates:
-            continue
-
-        filtered.append(slot_str)
-
+        if _slot_matches_filters(parsed_slot, filters):
+            filtered.append(slot_str)
     return filtered
 
 

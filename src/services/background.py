@@ -29,7 +29,7 @@ import random
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 from loguru import logger
 from prometheus_client import Counter, Gauge, Histogram
@@ -309,6 +309,27 @@ class BackgroundTask:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Чистые хелперы цикла задачи
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _backoff_delay(retry: RetryConfig, consecutive_errors: int) -> float:
+    """Задержка перед повтором итерации: exponential backoff с потолком.
+
+    Args:
+        retry: Параметры retry задачи.
+        consecutive_errors: Номер текущей ошибки в цепочке (1-based).
+
+    Returns:
+        Задержка в секундах: ``min(backoff_min * base ** (n - 1), backoff_max)``.
+    """
+    attempt_index = consecutive_errors - 1
+    return min(
+        retry.backoff_min * (retry.backoff_base**attempt_index), retry.backoff_max
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BackgroundTaskManager — центральный реестр фоновых задач
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -492,6 +513,8 @@ class BackgroundTaskManager:
 
         Бесконечный цикл: выполнить итерацию → sleep/jitter → повторить.
         При ошибке: retry с backoff → если исчерпан → watchdog → CRASHED.
+        Каждый шаг вынесен в отдельный хелпер с единственной ответственностью;
+        здесь остаётся только управление переходами между шагами.
         """
         first_iteration = True
         while not task._stop_event.is_set():
@@ -503,7 +526,8 @@ class BackgroundTaskManager:
 
             # ── RUNNING: выполнение итерации ─────────────────────────
             task.state = TaskState.RUNNING
-            task._last_run_start = time.monotonic()
+            started_at = time.monotonic()
+            task._last_run_start = started_at
 
             try:
                 await task._coro_fn(**task._coro_kwargs)
@@ -511,153 +535,215 @@ class BackgroundTaskManager:
                 task.state = TaskState.STOPPING
                 break
             except Exception as exc:
-                # ── Ошибка в итерации ───────────────────────────────
-                task._iterations += 1
-                task._failures += 1
-                task._consecutive_errors += 1
-
-                if task._metrics:
-                    task._metrics.iterations.labels(
-                        task=task.name, status="error"
-                    ).inc()
-                    task._metrics.errors_consecutive.labels(task=task.name).set(
-                        task._consecutive_errors
-                    )
-
-                # Логируем с exc_info только первую ошибку в цепочке
-                max_retries_display = task.retry.max_retries if task.retry else "?"
-                if not task._first_error_logged:
-                    logger.opt(exception=True).warning(
-                        f"Task '{task.name}': iteration failed "
-                        f"(attempt {task._consecutive_errors}/"
-                        f"{max_retries_display}): {exc}"
-                    )
-                    task._first_error_logged = True
-                else:
-                    logger.warning(
-                        f"Task '{task.name}': iteration failed "
-                        f"(attempt {task._consecutive_errors}/"
-                        f"{max_retries_display}): {exc}"
-                    )
-
-                # ── RETRY с backoff ─────────────────────────────────
-                if (
-                    task.retry is not None
-                    and task._consecutive_errors <= task.retry.max_retries
-                ):
-                    task.state = TaskState.RETRYING
-                    attempt_index = task._consecutive_errors - 1  # 0-based
-                    delay = min(
-                        task.retry.backoff_min
-                        * (task.retry.backoff_base**attempt_index),
-                        task.retry.backoff_max,
-                    )
-                    logger.warning(
-                        f"Task '{task.name}': retrying in {delay:.1f}s "
-                        f"(attempt {task._consecutive_errors}/{task.retry.max_retries})"
-                    )
-                    try:
-                        await asyncio.wait_for(task._stop_event.wait(), timeout=delay)
-                        # Стоп-событие установлено во время backoff
-                        if task._stop_event.is_set():
-                            task.state = TaskState.STOPPING
-                            break
-                    except TimeoutError:
-                        # Backoff истёк — продолжаем цикл (retry)
-                        continue
-                    except asyncio.CancelledError:
-                        task.state = TaskState.STOPPING
-                        break
-                else:
-                    # ── Retry исчерпан (или нет retry) → CRASHED ─────
-                    task.state = TaskState.CRASHED
-                    task._restarts += 1
-
-                    if task._metrics:
-                        task._metrics.restarts.labels(task=task.name).inc()
-
-                    # Watchdog: скользящее окно
-                    if task.watchdog is not None:
-                        now = time.monotonic()
-                        task._restart_timestamps.append(now)
-                        cutoff = now - task.watchdog.restart_window
-                        task._restart_timestamps = [
-                            t for t in task._restart_timestamps if t > cutoff
-                        ]
-                        restart_count = len(task._restart_timestamps)
-
-                        if restart_count <= task.watchdog.max_restarts:
-                            logger.warning(
-                                f"Task '{task.name}': crashed, restarting "
-                                f"(restart {restart_count}/"
-                                f"{task.watchdog.max_restarts} "
-                                f"in {task.watchdog.restart_window:.0f}s"
-                                f" window)"
-                            )
-                            task.state = TaskState.RUNNING
-                            task._first_error_logged = False
-                            continue  # Немедленный перезапуск
-
-                    # Watchdog превышен или отсутствует
-                    if task.retry is not None:
-                        logger.critical(
-                            f"Task '{task.name}': max retries "
-                            f"({task.retry.max_retries}) exceeded, CRASHED"
-                        )
-                    if task.watchdog is not None:
-                        logger.critical(
-                            f"Task '{task.name}': max restarts "
-                            f"({task.watchdog.max_restarts}) in "
-                            f"{task.watchdog.restart_window:.0f}s exceeded, CRASHED"
-                        )
+                # ── Ошибка: учёт, затем retry или watchdog ───────────
+                self._record_failure(task, exc)
+                if not await self._recover_from_failure(task):
                     break
             else:
-                # ── Успешная итерация ────────────────────────────────
-                task._last_run_duration = time.monotonic() - task._last_run_start
-                task._iterations += 1
-                task._successes += 1
-
-                if task._metrics:
-                    task._metrics.iterations.labels(
-                        task=task.name, status="success"
-                    ).inc()
-                    task._metrics.duration.labels(task=task.name).observe(
-                        task._last_run_duration
-                    )
-
-                # Сброс счётчика последовательных ошибок после успеха
-                task._consecutive_errors = 0
-                task._first_error_logged = False
-                if task._metrics:
-                    task._metrics.errors_consecutive.labels(task=task.name).set(0)
-
-                logger.trace(
-                    f"Task '{task.name}': iteration #{task._iterations} OK "
-                    f"({task._last_run_duration:.1f}s)"
-                )
-
-                # ── SLEEPING: ожидание между итерациями ──────────────
-                task.state = TaskState.SLEEPING
-
-                if task.schedule.jitter is not None:
-                    sleep_time = random.uniform(*task.schedule.jitter)
-                else:
-                    sleep_time = task.schedule.interval
-
-                try:
-                    await asyncio.wait_for(task._stop_event.wait(), timeout=sleep_time)
-                    # Стоп-событие установлено во время сна
-                    if task._stop_event.is_set():
-                        task.state = TaskState.STOPPING
-                        break
-                except TimeoutError:
-                    # Сон истёк — следующая итерация
-                    continue
-                except asyncio.CancelledError:
-                    task.state = TaskState.STOPPING
+                # ── Успех: учёт, затем пауза между итерациями ───────
+                self._record_success(task, started_at)
+                if not await self._sleep_between_iterations(task):
                     break
 
-        # ── Пост-цикл: финализация состояния ─────────────────────────────
+        self._finalize_task(task)
+
+    # ── Шаги цикла задачи ────────────────────────────────────────────────
+
+    @staticmethod
+    def _record_failure(task: BackgroundTask, exc: Exception) -> None:
+        """Учитывает провал итерации: счётчики, метрики и лог ошибки.
+
+        Args:
+            task: Фоновая задача, чья итерация упала.
+            exc: Исключение, прервавшее итерацию.
+        """
+        task._iterations += 1
+        task._failures += 1
+        task._consecutive_errors += 1
+
+        if task._metrics:
+            task._metrics.iterations.labels(task=task.name, status="error").inc()
+            task._metrics.errors_consecutive.labels(task=task.name).set(
+                task._consecutive_errors
+            )
+
+        max_retries_display = task.retry.max_retries if task.retry else "?"
+        message = (
+            f"Task '{task.name}': iteration failed "
+            f"(attempt {task._consecutive_errors}/{max_retries_display}): {exc}"
+        )
+        # Трассировку логируем только для первой ошибки в цепочке.
+        if task._first_error_logged:
+            logger.warning(message)
+            return
+        logger.opt(exception=True).warning(message)
+        task._first_error_logged = True
+
+    @staticmethod
+    def _record_success(task: BackgroundTask, started_at: float) -> None:
+        """Учитывает успешную итерацию: длительность, счётчики, метрики и лог.
+
+        Args:
+            task: Фоновая задача.
+            started_at: Момент старта итерации (``time.monotonic()``).
+        """
+        task._last_run_duration = time.monotonic() - started_at
+        task._iterations += 1
+        task._successes += 1
+
+        if task._metrics:
+            task._metrics.iterations.labels(task=task.name, status="success").inc()
+            task._metrics.duration.labels(task=task.name).observe(
+                task._last_run_duration
+            )
+            task._metrics.errors_consecutive.labels(task=task.name).set(0)
+
+        # Успех сбрасывает цепочку последовательных ошибок.
+        task._consecutive_errors = 0
+        task._first_error_logged = False
+
+        logger.trace(
+            f"Task '{task.name}': iteration #{task._iterations} OK "
+            f"({task._last_run_duration:.1f}s)"
+        )
+
+    async def _recover_from_failure(self, task: BackgroundTask) -> bool:
+        """Реакция на ошибку итерации: retry с backoff либо watchdog-перезапуск.
+
+        Returns:
+            ``True`` — цикл задачи продолжается; ``False`` — задача остановлена.
+        """
+        retry = task.retry
+        if retry is not None and task._consecutive_errors <= retry.max_retries:
+            return await self._await_retry_backoff(task, retry)
+        return self._handle_crash(task)
+
+    @staticmethod
+    async def _await_retry_backoff(task: BackgroundTask, retry: RetryConfig) -> bool:
+        """Выжидает exponential backoff перед повторной итерацией.
+
+        Args:
+            task: Фоновая задача.
+            retry: Параметры retry; вызывающий код гарантирует, что они заданы.
+
+        Returns:
+            ``True`` — backoff истёк, итерацию надо повторить; ``False`` —
+            задача остановлена стоп-событием или отменой.
+        """
+        task.state = TaskState.RETRYING
+        delay = _backoff_delay(retry, task._consecutive_errors)
+        logger.warning(
+            f"Task '{task.name}': retrying in {delay:.1f}s "
+            f"(attempt {task._consecutive_errors}/{retry.max_retries})"
+        )
+        try:
+            await asyncio.wait_for(task._stop_event.wait(), timeout=delay)
+        except TimeoutError:
+            # Backoff истёк — повторяем итерацию.
+            return True
+        except asyncio.CancelledError:
+            task.state = TaskState.STOPPING
+            return False
+        # ``wait_for`` без исключения завершается только по ``stop_event``.
+        if task._stop_event.is_set():
+            task.state = TaskState.STOPPING
+            return False
+        return True
+
+    def _handle_crash(self, task: BackgroundTask) -> bool:
+        """Переводит задачу в CRASHED и пытается перезапустить её через watchdog.
+
+        Returns:
+            ``True`` — watchdog разрешил перезапуск; ``False`` — задача
+            остановлена окончательно.
+        """
+        task.state = TaskState.CRASHED
+        task._restarts += 1
+
+        if task._metrics:
+            task._metrics.restarts.labels(task=task.name).inc()
+
+        if self._try_watchdog_restart(task):
+            # Немедленный перезапуск: следующая итерация без паузы.
+            return True
+
+        if task.retry is not None:
+            logger.critical(
+                f"Task '{task.name}': max retries "
+                f"({task.retry.max_retries}) exceeded, CRASHED"
+            )
+        if task.watchdog is not None:
+            logger.critical(
+                f"Task '{task.name}': max restarts "
+                f"({task.watchdog.max_restarts}) in "
+                f"{task.watchdog.restart_window:.0f}s exceeded, CRASHED"
+            )
+        return False
+
+    @staticmethod
+    def _try_watchdog_restart(task: BackgroundTask) -> bool:
+        """Проверяет лимит watchdog в скользящем окне и разрешает перезапуск.
+
+        Returns:
+            ``True`` — перезапуск разрешён, задача возвращена в RUNNING;
+            ``False`` — watchdog отключён или лимит перезапусков исчерпан.
+        """
+        watchdog = task.watchdog
+        if watchdog is None:
+            return False
+
+        now = time.monotonic()
+        task._restart_timestamps.append(now)
+        cutoff = now - watchdog.restart_window
+        task._restart_timestamps = [
+            stamp for stamp in task._restart_timestamps if stamp > cutoff
+        ]
+        restart_count = len(task._restart_timestamps)
+        if restart_count > watchdog.max_restarts:
+            return False
+
+        logger.warning(
+            f"Task '{task.name}': crashed, restarting "
+            f"(restart {restart_count}/{watchdog.max_restarts} "
+            f"in {watchdog.restart_window:.0f}s window)"
+        )
+        task.state = TaskState.RUNNING
+        task._first_error_logged = False
+        return True
+
+    @staticmethod
+    async def _sleep_between_iterations(task: BackgroundTask) -> bool:
+        """Выжидает паузу между итерациями: jitter или фиксированный интервал.
+
+        Returns:
+            ``True`` — пауза истекла, пора запускать следующую итерацию;
+            ``False`` — задача остановлена стоп-событием или отменой.
+        """
+        task.state = TaskState.SLEEPING
+
+        jitter = task.schedule.jitter
+        if jitter is not None:
+            sleep_time = random.uniform(*jitter)
+        else:
+            sleep_time = task.schedule.interval
+
+        try:
+            await asyncio.wait_for(task._stop_event.wait(), timeout=sleep_time)
+        except TimeoutError:
+            # Сон истёк — следующая итерация.
+            return True
+        except asyncio.CancelledError:
+            task.state = TaskState.STOPPING
+            return False
+        # ``wait_for`` без исключения завершается только по ``stop_event``.
+        if task._stop_event.is_set():
+            task.state = TaskState.STOPPING
+            return False
+        return True
+
+    @staticmethod
+    def _finalize_task(task: BackgroundTask) -> None:
+        """Фиксирует финальное состояние задачи после выхода из цикла."""
         if task.state == TaskState.STOPPING or (
             task._stop_event.is_set() and task.state != TaskState.CRASHED
         ):
@@ -749,14 +835,51 @@ def get_active_manager() -> BackgroundTaskManager | None:
     return _active_manager
 
 
-def describe_background_tasks() -> list[dict[str, Any]]:
+class BackgroundTaskRow(TypedDict):
+    """Снапшот статуса фоновой задачи для дашборда (``describe_background_tasks()``).
+
+    Форма зафиксирована ``TypedDict``, потому что структура читается
+    шаблонами Jinja2 и роутерами дашборда по строковым ключам: опечатка в
+    имени поля иначе проявилась бы только в рантайме.
+    """
+
+    name: str
+    """Имя задачи (``monitor``, ``discovery`` и т.п.)."""
+
+    state: str
+    """Состояние жизненного цикла (``TaskState.value``)."""
+
+    health: str
+    """Код здоровья задачи (``HEALTH_*``)."""
+
+    alive: bool
+    """Задача жива (нет проблем с расписанием)."""
+
+    iterations: int
+    """Число выполненных итераций."""
+
+    failures: int
+    """Общее число ошибок итераций."""
+
+    consecutive_errors: int
+    """Ошибки подряд (сбрасывается после успешной итерации)."""
+
+    restarts: int
+    """Число перезапусков watchdog'ом."""
+
+    last_run_ago: int | None
+    """Секунды с прошлого запуска (``None`` — итераций ещё не было)."""
+
+    period: int
+    """Период задачи (интервал плюс максимальный джиттер), секунды."""
+
+
+def describe_background_tasks() -> list[BackgroundTaskRow]:
     """Собирает честный статус всех зарегистрированных фоновых задач.
 
     Returns:
-        Список словарей с ключами ``name``, ``state``, ``health``, ``alive``,
-        ``iterations``, ``failures``, ``consecutive_errors``, ``restarts``,
-        ``last_run_ago`` (секунды; ``None`` — итераций ещё не было).
-        Пустой список, если менеджер не опубликован.
+        Список снапшотов с ключами ``BackgroundTaskRow``. Пустой список,
+        если менеджер не опубликован.
     """
     manager = get_active_manager()
     if manager is None:
@@ -765,7 +888,7 @@ def describe_background_tasks() -> list[dict[str, Any]]:
     now_monotonic = time.monotonic()
     now_wall = time.time()
 
-    tasks: list[dict[str, Any]] = []
+    tasks: list[BackgroundTaskRow] = []
     for name, status in manager.status().items():
         health = describe_task_health(
             status, now_monotonic=now_monotonic, now_wall=now_wall
@@ -807,6 +930,7 @@ __all__ = [
     "HEALTH_STOPPED",
     "BackgroundTask",
     "BackgroundTaskManager",
+    "BackgroundTaskRow",
     "RetryConfig",
     "ScheduleConfig",
     "TaskState",

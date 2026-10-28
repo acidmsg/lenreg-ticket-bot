@@ -28,6 +28,7 @@ from src.web.routers.user_common import (
     _get_telegram_id,
     _monitoring_id_to_parts,
 )
+from src.web.types import PreheatResponse, UserSlotsResponse
 
 router = APIRouter()
 
@@ -176,7 +177,7 @@ async def get_slots(
     patient_id: str | None = Query(
         None, description="ID пациента (режим прямой записи)"
     ),
-) -> dict[str, Any] | JSONResponse:
+) -> UserSlotsResponse | JSONResponse:
     """Свободные слоты врача: по мониторингу либо для прямой записи.
 
     Два режима: ``monitoring_id`` (врач из мониторинга пользователя) либо тройка
@@ -254,7 +255,7 @@ async def get_slots(
 async def preheat_clinic_slots(
     request: Request,
     clinic_id: str,
-) -> dict[str, Any]:
+) -> PreheatResponse:
     """Предпрогрев талонов клиники при её выборе (шаг «Выбор поликлиники»).
 
     «Выстрелил-и-забыл»: сигнал только ставит обновление талонов клиники в

@@ -23,6 +23,7 @@ from loguru import logger
 
 from src.config import settings
 from src.web.routers._shared import build_live_payload
+from src.web.types import DashboardLivePayload, DashboardStreamError
 
 router = APIRouter()
 
@@ -66,6 +67,7 @@ async def dashboard_stream(
         """
         sent = 0
         while True:
+            payload: DashboardLivePayload | DashboardStreamError
             try:
                 payload = await build_live_payload(db, prometheus_metrics, templates)
             except Exception as exc:

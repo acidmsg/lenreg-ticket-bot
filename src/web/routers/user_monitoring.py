@@ -26,6 +26,7 @@ from src.web.routers.user_common import (
     _get_telegram_id,
     _monitoring_id_to_parts,
 )
+from src.web.types import MonitoringFilterView
 
 router = APIRouter()
 
@@ -232,16 +233,17 @@ async def update_monitoring_filter(
             content={"detail": "Внутренняя ошибка сервера"},
         )
 
+    filter_view: MonitoringFilterView = {
+        "date_from": filter_data["date_from"],
+        "date_to": filter_data["date_to"],
+        "time_from": filter_data["time_from"],
+        "time_to": filter_data["time_to"],
+        "specific_dates": cleaned_dates,
+    }
     return {
         "status": "ok",
         "monitoring_id": monitoring_id,
-        "filter": {
-            "date_from": filter_data["date_from"],
-            "date_to": filter_data["date_to"],
-            "time_from": filter_data["time_from"],
-            "time_to": filter_data["time_to"],
-            "specific_dates": cleaned_dates,
-        },
+        "filter": filter_view,
     }
 
 

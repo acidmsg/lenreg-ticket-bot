@@ -411,6 +411,10 @@ class ParamError(ValueError):
 def parse_value(spec: ParamSpec, raw: str) -> Any:
     """Преобразует строку из формы/БД в типизированное значение.
 
+    Разбор делегируется ветке по типу параметра: ``bool`` → ``_parse_bool()``,
+    ``int``/``float`` → ``_parse_number()``, ``enum`` → ``_parse_enum()``,
+    остальные строки → ``_parse_text()``.
+
     Args:
         spec: Описание параметра.
         raw: Сырое значение.
@@ -424,35 +428,85 @@ def parse_value(spec: ParamSpec, raw: str) -> Any:
     text = (raw or "").strip()
 
     if spec.kind == "bool":
-        low = text.lower()
-        if low in _BOOL_TRUE:
-            return True
-        if low in _BOOL_FALSE:
-            return False
-        raise ParamError("Ожидается логическое значение (1/0, true/false).")
-
+        return _parse_bool(text)
     if spec.kind in ("int", "float"):
-        try:
-            number: Any = int(text) if spec.kind == "int" else float(text)
-        except ValueError as exc:
-            kind = "целое число" if spec.kind == "int" else "число"
-            raise ParamError(f"Ожидается {kind}.") from exc
-        if isinstance(number, float) and not math.isfinite(number):
-            raise ParamError("Значение должно быть конечным числом.")
-        if spec.min_value is not None and number < spec.min_value:
-            raise ParamError(f"Минимум: {spec.min_value}.")
-        if spec.max_value is not None and number > spec.max_value:
-            raise ParamError(f"Максимум: {spec.max_value}.")
-        return number
-
+        return _parse_number(spec, text)
     if spec.kind == "enum":
-        if text not in spec.choices:
-            raise ParamError(f"Допустимые значения: {', '.join(spec.choices)}.")
-        return text
+        return _parse_enum(spec, text)
+    return _parse_text(spec, text)
 
+
+def _parse_bool(text: str) -> bool:
+    """Разбирает логическое значение по наборам допустимых подписей.
+
+    Raises:
+        ParamError: Подпись не входит ни в набор «истина», ни в набор «ложь».
+    """
+    low = text.lower()
+    if low in _BOOL_TRUE:
+        return True
+    if low in _BOOL_FALSE:
+        return False
+    raise ParamError("Ожидается логическое значение (1/0, true/false).")
+
+
+def _parse_number(spec: ParamSpec, text: str) -> int | float:
+    """Разбирает число, проверяет конечность и попадание в границы.
+
+    Raises:
+        ParamError: Текст не число, число не конечно или выходит за границы.
+    """
+    number = _coerce_number(spec.kind, text)
+    if isinstance(number, float) and not math.isfinite(number):
+        raise ParamError("Значение должно быть конечным числом.")
+    _ensure_number_bounds(spec, number)
+    return number
+
+
+def _coerce_number(kind: str, text: str) -> int | float:
+    """Приводит текст к ``int`` или ``float`` по типу параметра.
+
+    Raises:
+        ParamError: Текст не является числом ожидаемого вида.
+    """
+    try:
+        return int(text) if kind == "int" else float(text)
+    except ValueError as exc:
+        expected = "целое число" if kind == "int" else "число"
+        raise ParamError(f"Ожидается {expected}.") from exc
+
+
+def _ensure_number_bounds(spec: ParamSpec, number: float) -> None:
+    """Проверяет попадание числа в границы ``min_value``/``max_value``.
+
+    Raises:
+        ParamError: Число меньше минимума или больше максимума.
+    """
+    if spec.min_value is not None and number < spec.min_value:
+        raise ParamError(f"Минимум: {spec.min_value}.")
+    if spec.max_value is not None and number > spec.max_value:
+        raise ParamError(f"Максимум: {spec.max_value}.")
+
+
+def _parse_enum(spec: ParamSpec, text: str) -> str:
+    """Проверяет значение по списку допустимых вариантов ``choices``.
+
+    Raises:
+        ParamError: Значение отсутствует в списке допустимых.
+    """
+    if text not in spec.choices:
+        raise ParamError(f"Допустимые значения: {', '.join(spec.choices)}.")
+    return text
+
+
+def _parse_text(spec: ParamSpec, text: str) -> str:
+    """Разбирает строковое значение и проверяет его формат.
+
+    Raises:
+        ParamError: Пустое значение опасного параметра или неверный формат.
+    """
     if text == "" and spec.danger:
         raise ParamError("Пустое значение для этого параметра запрещено.")
-
     if text:
         _validate_str_format(spec.key, text)
     return text
@@ -641,6 +695,10 @@ _THRESHOLD_ORDER: tuple[tuple[str, str], ...] = (
 async def _cross_validate(db: Any, spec: ParamSpec, value: Any) -> None:
     """Проверяет согласованность связанных параметров.
 
+    Для каждой пары порогов из ``_THRESHOLD_ORDER``, в которую входит
+    проверяемый параметр, берётся действующее значение второго параметра
+    (``_counterpart_value()``) и проверяется порядок (``_ensure_threshold_order()``).
+
     Raises:
         ParamError: Значение нарушает взаимное ограничение пары порогов.
     """
@@ -648,31 +706,65 @@ async def _cross_validate(db: Any, spec: ParamSpec, value: Any) -> None:
     for lower_key, upper_key in _THRESHOLD_ORDER:
         if spec.key not in (lower_key, upper_key):
             continue
-        other_key = upper_key if spec.key == lower_key else lower_key
-        other_spec = PARAMS.get(other_key)
+        counterpart_key = _threshold_counterpart_key(spec.key, lower_key, upper_key)
+        other_spec = PARAMS.get(counterpart_key)
         if other_spec is None:
             continue
-        other_raw = stored.get(other_key)
-        if other_raw is None and other_spec.settings_attr is not None:
-            other_raw = _format(_settings_value(other_spec))
-        if other_raw is None:
-            other_raw = other_spec.db_default
-        if other_raw is None:
+        other_value = _counterpart_value(stored, other_spec)
+        if other_value is None:
             continue
-        try:
-            other_value = parse_value(other_spec, str(other_raw))
-        except ParamError:
-            continue
-        if spec.key == lower_key and value > other_value:
+        _ensure_threshold_order(spec, value, lower_key, other_spec, other_value)
+
+
+def _threshold_counterpart_key(key: str, lower_key: str, upper_key: str) -> str:
+    """Ключ второго параметра пары порогов."""
+    return upper_key if key == lower_key else lower_key
+
+
+def _counterpart_value(stored: dict[str, Any], other_spec: ParamSpec) -> Any:
+    """Действующее значение второго параметра пары: БД → .env → дефолт БД.
+
+    Returns:
+        Разобранное значение либо ``None``, если источника нет или значение
+        некорректно — тогда взаимное ограничение не проверяется.
+    """
+    raw = stored.get(other_spec.key)
+    if raw is None and other_spec.settings_attr is not None:
+        raw = _format(_settings_value(other_spec))
+    if raw is None:
+        raw = other_spec.db_default
+    if raw is None:
+        return None
+    try:
+        return parse_value(other_spec, str(raw))
+    except ParamError:
+        return None
+
+
+def _ensure_threshold_order(
+    spec: ParamSpec,
+    value: Any,
+    lower_key: str,
+    other_spec: ParamSpec,
+    other_value: Any,
+) -> None:
+    """Проверяет, что меньший порог не превышает больший.
+
+    Raises:
+        ParamError: Порядок порогов нарушен.
+    """
+    if spec.key == lower_key:
+        if value > other_value:
             raise ParamError(
                 f"Значение должно быть не больше порога "
                 f"«{other_spec.title}» ({other_value})."
             )
-        if spec.key == upper_key and value < other_value:
-            raise ParamError(
-                f"Значение должно быть не меньше порога "
-                f"«{other_spec.title}» ({other_value})."
-            )
+        return
+    if value < other_value:
+        raise ParamError(
+            f"Значение должно быть не меньше порога "
+            f"«{other_spec.title}» ({other_value})."
+        )
 
 
 async def set_param(

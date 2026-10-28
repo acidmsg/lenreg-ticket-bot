@@ -3,7 +3,12 @@ name = "lenreg-ticket-bot"
 version = "1.0.0"
 description = "Telegram-бот для мониторинга доступных талонов (слотов) на портале zdrav.lenreg.ru."
 readme = "README.md"
-requires-python = ">=3.11,<4.0"
+# Верхняя граница <3.15 отражает реальный предел стека: aiogram (жёсткая
+# зависимость) объявляет python <3.15. Без этого ограничения poetry-lock
+# держал вторую ветку (python >= 3.15) с устаревшими aiogram 3.22.0 и
+# aiohttp 3.12.15, из-за чего сканеры видели 5 high-advisories по aiohttp.
+# Карточка 28ab4e34 (deps security), см. .roo/sessions/TECH_DEBT.md.
+requires-python = ">=3.11,<3.15"
 license = "ISC"
 authors = [
     { name = "acidmsg" }
@@ -51,7 +56,10 @@ dependencies = [
     # === File Locking (Cross-platform) ===
     "portalocker>=4.0,<5.0",
     # === Image Processing & PDF Export (Booking Export) ===
-    "pillow>=11.0,<13.0",
+    # Верхняя граница поднята с <13.0 до <14.0: Pillow 12.3.0 уязвим
+    # (5 critical / 30 high advisories), исправление только в 13.0.0.
+    # Карточка 28ab4e34 (deps security), см. .roo/sessions/TECH_DEBT.md.
+    "pillow>=13.0,<14.0",
     "reportlab>=4.0,<5.0",
     "python-barcode>=0.15.1,<1.0",
     "dnspython (>=2.8.0,<3.0.0)",
@@ -119,11 +127,12 @@ max-statements = 50
 "src/database/repo_monitoring.py" = ["PLR0913"]
 "src/database/repo_users.py" = ["PLR0913"]
 "src/main.py" = ["PLR0913"]
-"src/services/background.py" = ["C901", "PLR0913", "PLR0915"]
+"src/services/background.py" = ["PLR0913"]
 "src/services/doctor_discovery.py" = ["PLR0913"]
 "src/services/log_reader.py" = ["PLR0913"]
-"src/services/monitor.py" = ["C901", "PLR0913"]
-"src/services/params.py" = ["C901"]
+"src/services/monitor.py" = ["PLR0913"]
+# "src/services/params.py" — ratchet снят: `parse_value()` и `_cross_validate()`
+# разбиты на мелкие функции, C901 по файлу не срабатывает.
 "src/services/patient_check.py" = ["PLR0913"]
 "src/services/tools.py" = ["PLR0913"]
 "src/services/user_actions.py" = ["PLR0913"]
@@ -208,7 +217,9 @@ type = "forbidden"
 source_modules = ["src.handlers"]
 forbidden_modules = ["src.web"]
 
-# Отчёт по мёртвому коду (Фаза 5). Неблокирующий: запуск через scripts/code_health.py.
+# Мёртвый код (vulture). Единый источник конфигурации: секцию читают и
+# блокирующий гейт (`python -m vulture src` в lint/check, CI-job `lint`,
+# pre-commit hook `vulture`), и неблокирующий отчёт scripts/code_health.py.
 [tool.vulture]
 # Анализируется только src/: tests/ и scripts/ содержат вспомогательный код,
 # который vulture ошибочно помечает как неиспользуемый.
@@ -216,10 +227,22 @@ paths = ["src"]
 # __init__.py содержат реэкспорты (public API пакетов), которые vulture
 # считает неиспользуемыми при импорте через пакет.
 exclude = ["**/__init__.py"]
-# 80 отсекает шум слабых срабатываний (weakly-private, unused properties).
+# Политика confidence: 80. Срабатывания 100 % — реальные кандидаты в мёртвый код
+# (для них работает whitelist ниже). Срабатывания 60 % — шум: поля Pydantic-моделей
+# (заполняются валидатором по имени), динамически подключаемые роутеры и импорты
+# внутри функций, используемые только для side-effect регистрации.
 min_confidence = 80
 # Крупные находки первыми — информативнее для триажа.
 sort_by_size = true
+# Узкий whitelist ложноположительных срабатываний: каждое имя объяснено.
+ignore_names = [
+  # pydantic-settings: обязательный именованный параметр хука
+  # `settings_customise_sources(source, init_settings, env_settings,
+  # dotenv_settings, file_secret_settings)`. Pydantic вызывает его по имени
+  # сигнатуры, поэтому vulture видит неиспользуемую переменную (100 %).
+  # Удаление параметра ломает поддержку секретов из файла (secrets_dir).
+  "file_secret_settings",
+]
 
 [tool.mypy]
 # Таргет совпадает с рантаймом образа (python:3.12-slim). При 3.11 mypy не может

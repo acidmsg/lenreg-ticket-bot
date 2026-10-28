@@ -8,15 +8,23 @@
 import time
 from typing import Any
 
+from fastapi.templating import Jinja2Templates
+
 from src.config import settings
-from src.services.background import describe_background_tasks
+from src.database.manager import DatabaseManager
+from src.services.background import BackgroundTaskRow, describe_background_tasks
 from src.services.healthcheck import metrics as health_metrics_module
 from src.services.healthcheck import metrics_lock
 from src.services.telegram_health import telegram_health
+from src.web.types import (
+    DashboardClinicRow,
+    DashboardLivePayload,
+    DashboardUserRow,
+)
 
 
 async def get_summary_data(
-    db: Any,
+    db: DatabaseManager,
     prometheus_metrics: Any,
 ) -> dict[str, Any]:
     """Сбор сырых данных для сводки дашборда.
@@ -66,11 +74,11 @@ async def get_summary_data(
 
 
 def get_users_data(
-    db: Any,
+    db: DatabaseManager,
     limit: int | None = None,
     offset: int = 0,
     search: str | None = None,
-) -> list[dict[str, Any]]:
+) -> list[DashboardUserRow]:
     """Сбор данных пользователей из БД.
 
     Args:
@@ -80,11 +88,11 @@ def get_users_data(
         search: Строка поиска по uid (None — без фильтрации).
 
     Returns:
-        Список словарей с полями uid, patient_count, monitoring_count, last_activity_ts.
+        Список строк формы ``DashboardUserRow``.
     """
     db_data = db.data
 
-    users: list[dict[str, Any]] = []
+    users: list[DashboardUserRow] = []
     for uid, u_info in db_data.items():
         # Фильтрация по поиску
         if search and search.lower() not in uid.lower():
@@ -120,7 +128,7 @@ def get_users_data(
     return users
 
 
-def render_partial(templates: Any, name: str, **context: Any) -> str:
+def render_partial(templates: Jinja2Templates, name: str, **context: object) -> str:
     """Рендерит Jinja2-партиал в строку.
 
     Используется SSE-потоком: блоки сводки отдаются уже готовым HTML, чтобы
@@ -135,13 +143,13 @@ def render_partial(templates: Any, name: str, **context: Any) -> str:
         HTML-строка партиала.
     """
     env = templates.env
-    ctx: dict[str, Any] = {"macros": env.get_template("macros.html").module}
+    ctx: dict[str, object] = {"macros": env.get_template("macros.html").module}
     ctx.update(context)
     return str(env.get_template(name).render(**ctx))
 
 
 def next_scan_seconds(
-    background_tasks: list[dict[str, Any]] | None,
+    background_tasks: list[BackgroundTaskRow] | None,
 ) -> int | None:
     """Сколько секунд до следующего скана врачей.
 
@@ -159,15 +167,18 @@ def next_scan_seconds(
     monitor = next(
         (task for task in background_tasks if task.get("name") == "monitor"), None
     )
-    if not monitor or monitor.get("last_run_ago") is None:
+    if monitor is None:
         return None
-    period = int(monitor.get("period") or 0)
+    last_run_ago = monitor["last_run_ago"]
+    if last_run_ago is None:
+        return None
+    period = int(monitor["period"] or 0)
     if period <= 0:
         return None
-    return max(0, period - int(monitor["last_run_ago"]))
+    return max(0, period - int(last_run_ago))
 
 
-def planner_status(background_tasks: list[dict[str, Any]]) -> str:
+def planner_status(background_tasks: list[BackgroundTaskRow]) -> str:
     """Короткая строка о фоновых задачах для сводки.
 
     Полный виджет живёт на странице «Система»; сводка показывает одну строку,
@@ -218,10 +229,10 @@ def _format_ts_dt(ts: int) -> str:
 
 
 async def build_live_payload(
-    db: Any,
+    db: DatabaseManager,
     prometheus_metrics: Any,
-    templates: Any,
-) -> dict[str, Any]:
+    templates: Jinja2Templates,
+) -> DashboardLivePayload:
     """Собирает снапшот для SSE-обновления страниц дашборда.
 
     Returns:
@@ -267,15 +278,15 @@ async def build_live_payload(
     }
 
 
-async def get_clinics_data(db: Any) -> list[dict[str, Any]]:
+async def get_clinics_data(db: DatabaseManager) -> list[DashboardClinicRow]:
     """Сбор данных клиник из БД.
 
     Returns:
-        Список словарей с полями clinic_id, name, type, city, is_active, doctor_count.
+        Список строк формы ``DashboardClinicRow``.
     """
     clinics = await db._db.get_active_clinics()
 
-    result: list[dict[str, Any]] = []
+    result: list[DashboardClinicRow] = []
     for clinic in clinics:
         doctor_count = await db.get_clinic_doctor_count(clinic["clinic_id"])
         result.append(

@@ -18,8 +18,9 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from src.api.zdrav_client import ZdravClient
 from src.database.manager import DatabaseManager
-from src.database.types import MonitoringEntry, PatientInfo
+from src.database.types import DoctorEntry, MonitoringEntry, PatientInfo
 from src.services.doctor_catalog import (
     CatalogContext,
     DoctorCatalogQuery,
@@ -42,6 +43,14 @@ from src.web.routers.user_slots import (
     _clinic_slots_fresh,
     _load_cached_slots,
     _trigger_stale_clinic_slots_refresh,
+)
+from src.web.types import (
+    AvailableDoctorsResponse,
+    ForceCheckResponse,
+    ForceCheckSlotView,
+    MonitoringFilterView,
+    TrackedDoctorsResponse,
+    TrackedDoctorView,
 )
 
 router = APIRouter()
@@ -110,7 +119,7 @@ def _parse_cache_status(cached_value: Any) -> tuple[str, int]:
     return ("checking", 0)
 
 
-def _serialize_monitoring_filter(entry: MonitoringEntry) -> dict[str, Any]:
+def _serialize_monitoring_filter(entry: MonitoringEntry) -> MonitoringFilterView:
     """Сериализует фильтр отслеживания записи мониторинга для JSON-ответа (§9.8).
 
     Поле ``specific_dates`` хранится в БД JSON-строкой и возвращается списком.
@@ -128,11 +137,11 @@ def _serialize_monitoring_filter(entry: MonitoringEntry) -> dict[str, Any]:
     }
 
 
-@router.get("/doctors")
+@router.get("/doctors", response_model=None)
 async def get_doctors(
     request: Request,
     patient_id: str | None = Query(None, description="Фильтр по пациенту"),
-) -> dict[str, Any]:
+) -> TrackedDoctorsResponse:
     """Список отслеживаемых врачей со статусом слотов.
 
     Читает актуальный статус из Redis-кэша мониторинга (ключ
@@ -149,7 +158,7 @@ async def get_doctors(
 
     user_data = await db.get_user_data(telegram_id)
 
-    doctors_list: list[dict[str, Any]] = []
+    doctors_list: list[TrackedDoctorView] = []
     monitoring = user_data.get("monitoring", {})
 
     for p_id, doctors in monitoring.items():
@@ -366,11 +375,11 @@ async def remove_doctor(
 
 
 async def _ensure_doctors(
-    api: Any,
+    api: ZdravClient,
     db: DatabaseManager,
-    doctors_dict: dict[str, Any],
+    doctors_dict: dict[str, DoctorEntry],
     query: DoctorCatalogQuery,
-) -> dict[str, Any]:
+) -> dict[str, DoctorEntry]:
     """Возвращает врачей клиники; при пустом реестре запускает discovery.
 
     Discovery-ветки живут в web-слое (``services`` не зависит от ``handlers``).
@@ -467,7 +476,7 @@ async def get_available_doctors(
             "свежий кэш в ограниченном окне (первый кадр остаётся мгновенным)"
         ),
     ),
-) -> dict[str, Any] | JSONResponse:
+) -> AvailableDoctorsResponse:
     """Список врачей в поликлинике (реестр из БД + талоны из кэша).
 
     Имена врачей и специальности — из таблицы ``doctors`` (как у бота).
@@ -581,7 +590,7 @@ async def search_doctors(
 async def force_check_doctor(
     request: Request,
     body: ForceCheckRequest,
-) -> dict[str, Any] | JSONResponse:
+) -> ForceCheckResponse | JSONResponse:
     """Принудительная проверка слотов врача (живой запрос к API zdrav.lenreg.ru).
 
     Делегирует в сервисный слой :func:`src.services.monitor.force_check_single_doctor`,
@@ -645,7 +654,7 @@ async def force_check_doctor(
     specialty = d_info.get("specialty", "")
     clinic_name = await db.get_clinic_name(clinic_id) or clinic_id
 
-    slots: list[dict[str, str]] = []
+    slots: list[ForceCheckSlotView] = []
     if slots_raw:
         for slot_str in slots_raw:
             parts = slot_str.split(" в ", 1)

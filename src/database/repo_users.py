@@ -10,6 +10,7 @@ import time
 from loguru import logger
 
 from src.database.base_repo import BaseRepository
+from src.database.repo_monitoring import MonitoringRepository
 from src.database.types import (
     LastMessageEntry,
     MonitoringEntry,
@@ -169,32 +170,12 @@ class UserRepository(BaseRepository):
     async def _get_user_monitoring(
         self, uid: str
     ) -> dict[str, dict[str, MonitoringEntry]]:
-        """Возвращает словарь мониторинга пользователя (для агрегации в get_user)."""
-        cursor = await self._c.execute(
-            "SELECT p_id, d_id, name, clinic_id, specialty, date, "
-            "date_from, date_to, time_from, time_to, specific_dates "
-            "FROM user_monitoring WHERE uid = ?",
-            (uid,),
-        )
-        rows = await cursor.fetchall()
-        result: dict[str, dict[str, MonitoringEntry]] = {}
-        for row in rows:
-            p_id = row["p_id"]
-            if p_id not in result:
-                result[p_id] = {}
-            entry: MonitoringEntry = {
-                "name": row["name"],
-                "clinic_id": row["clinic_id"],
-                "specialty": row["specialty"],
-                "date": row["date"],
-                "date_from": row["date_from"] or "",
-                "date_to": row["date_to"] or "",
-                "time_from": row["time_from"] or "",
-                "time_to": row["time_to"] or "",
-                "specific_dates": row["specific_dates"] or "[]",
-            }
-            result[p_id][row["d_id"]] = entry
-        return result
+        """Возвращает словарь мониторинга пользователя (для агрегации в get_user).
+
+        Делегирует в ``MonitoringRepository``: единственная реализация чтения
+        мониторинга живёт в репозитории мониторинга.
+        """
+        return await MonitoringRepository(self._db_conn).get_user_monitoring(uid)
 
     # ── Состояние пользователя (DASH-8) ─────────────────────
 

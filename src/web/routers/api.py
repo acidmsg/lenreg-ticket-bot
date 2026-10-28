@@ -341,9 +341,9 @@ async def api_export_users(request: Request) -> Response:
     for user in users:
         rows.append(
             [
-                _csv_safe(user.get("uid", "")),
-                _csv_safe(user.get("patients_count", 0)),
-                _csv_safe(user.get("monitoring_count", 0)),
+                _csv_safe(user["uid"]),
+                _csv_safe(user["patient_count"]),
+                _csv_safe(user["monitoring_count"]),
             ]
         )
     await log_action(

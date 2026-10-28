@@ -138,11 +138,9 @@ class ClinicRepository(BaseRepository):
 
     async def get_clinic_name(self, clinic_id: str) -> str | None:
         """Возвращает название клиники по ID или None."""
-        cursor = await self._c.execute(
-            "SELECT name FROM clinics WHERE clinic_id = ?", (clinic_id,)
+        return await self._fetch_text_value(
+            "SELECT name FROM clinics WHERE clinic_id = ?", (clinic_id,), "name"
         )
-        row = await cursor.fetchone()
-        return row["name"] if row else None
 
     async def get_all_clinic_names(self) -> dict[str, str]:
         """Возвращает словарь {clinic_id: name} для всех клиник."""
@@ -152,11 +150,9 @@ class ClinicRepository(BaseRepository):
 
     async def get_clinic_type(self, clinic_id: str) -> str | None:
         """Возвращает тип клиники (adult/child/all)."""
-        cursor = await self._c.execute(
-            "SELECT type FROM clinics WHERE clinic_id = ?", (clinic_id,)
+        return await self._fetch_text_value(
+            "SELECT type FROM clinics WHERE clinic_id = ?", (clinic_id,), "type"
         )
-        row = await cursor.fetchone()
-        return row["type"] if row else None
 
     async def get_clinic_discovery_patients(self, clinic_id: str) -> tuple[str, str]:
         """
