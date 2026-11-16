@@ -295,8 +295,124 @@ msgid "monitoring-reset-error"
 msgstr "❌ Не удалось сбросить мониторинг: {reason}"
 
 #: src/services/screen_render.py
-msgid "screen-title"
-msgstr "📊 Сводка мониторинга"
+msgid "screen-v2-title"
+msgstr "📊 Экран мониторинга"
+
+#: src/services/screen_render.py
+msgid "screen-v2-status"
+msgstr "Проверено: {ago} · следующий цикл ~{eta}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-never-checked"
+msgstr "Проверка ещё не выполнялась"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-now"
+msgstr "только что"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-minutes"
+msgstr "{minutes} мин назад"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-hours"
+msgstr "{hours} ч назад"
+
+#: src/services/screen_render.py
+msgid "screen-v2-eta-minutes"
+msgstr "{minutes} мин"
+
+#: src/services/screen_render.py
+msgid "screen-v2-api-ok"
+msgstr "API портала: доступен"
+
+#: src/services/screen_render.py
+msgid "screen-v2-api-down"
+msgstr "Портал недоступен — проверю снова в {time}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-check-errors"
+msgstr "⚠️ Ошибок проверки: {count} — данные могли устареть"
+
+#: src/services/screen_render.py
+msgid "screen-v2-pairs"
+msgstr "Пар в слежении: {count} · пациентов: {patients}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-new-header"
+msgstr "🆕 Новые талоны ({count})"
+
+#: src/services/screen_render.py
+msgid "screen-v2-doctor-row"
+msgstr "{marker} {doctor} — {slots}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-doctor-no-slots"
+msgstr "номерков нет"
+
+#: src/services/screen_render.py
+msgid "screen-v2-has-slots"
+msgstr "есть талоны"
+
+#: src/services/screen_render.py
+msgid "screen-v2-data-pending"
+msgstr "данные обновятся после следующей проверки"
+
+#: src/services/screen_render.py
+msgid "screen-v2-more-pairs"
+msgstr "… ещё {count} пар"
+
+#: src/services/screen_render.py
+msgid "screen-v2-bookings-header"
+msgstr "📅 Ближайшая запись"
+
+#: src/services/screen_render.py
+msgid "screen-v2-booking-row"
+msgstr "{date} {time} · {doctor} · {patient}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-context"
+msgstr "👥 Пациенты: {patients} · избранных клиник: {favorites}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-footer-hint"
+msgstr "Открыть приложение — номерки, фильтры, запись."
+
+#: src/services/screen_render.py
+msgid "screen-v2-empty-monitoring"
+msgstr "Пациенты добавлены, но ни один врач не отслеживается."
+
+#: src/services/screen_render.py
+msgid "screen-v2-empty-slots"
+msgstr "Свободных номерков сейчас нет — следим дальше."
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-title"
+msgstr "👋 Добро пожаловать в Талоны ЛенРег"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-body"
+msgstr "Я проверяю свободные талоны в поликлиниках и присылаю уведомление, когда они появляются. Этот экран заменит поток сообщений: здесь всегда актуальная сводка."
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-steps-header"
+msgstr "Что нужно сделать:"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-1"
+msgstr "Добавьте пациента — ФИО и дату рождения"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-2"
+msgstr "Выберите клинику и врача"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-3"
+msgstr "Включите слежение — экран начнёт обновляться сам"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-footer"
+msgstr "Проверка запускается каждые {minutes} минут."
 
 #: src/services/screen_render.py
 msgid "screen-patient-header"
@@ -314,6 +430,22 @@ msgstr "•"
 msgid "screen-slot-indent"
 msgstr "   ─ "
 
-#: src/services/screen_render.py
-msgid "screen-more-events"
-msgstr "… и ещё {count} событий"
+#: src/keyboards/inline.py
+msgid "btn-screen-add-patient"
+msgstr "➕ Добавить пациента"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-add-doctor"
+msgstr "➕ Выбрать врача"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-slots"
+msgstr "📆 Слоты: {doctor}"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-bookings"
+msgstr "📆 Мои записи"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-open-app"
+msgstr "🌐 Открыть приложение"

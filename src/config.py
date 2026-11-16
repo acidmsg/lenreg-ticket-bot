@@ -240,6 +240,10 @@ class Settings(BaseSettings):
     # Простой экрана без активного мониторинга, после которого запись удаляется
     # планировщиком очистки (30 дней).
     SCREEN_STALE_SECONDS: int = 2592000
+    # Период проверки живости сообщения-экрана: раз в N секунд сервис делает
+    # эхо-правку тем же текстом, чтобы обнаружить ручную очистку чата при
+    # неизменном состоянии (0 — проверка при каждом обновлении).
+    SCREEN_PROBE_INTERVAL_SEC: int = 600
 
     # === Error notifications (M2) ===
     # Enable/disable error notifications globally (synced to DB)

@@ -125,6 +125,18 @@ class UserRepository(BaseRepository):
             result[row["p_id"]] = p_info
         return result
 
+    async def count_patients(self, uid: str) -> int:
+        """Возвращает число пациентов пользователя одним ``COUNT(*)``.
+
+        Дешёвая альтернатива :meth:`get_user_patients` для счётчиков экрана:
+        не читает ФИО, даты рождения и подтверждённые клиники.
+        """
+        cursor = await self._c.execute(
+            "SELECT COUNT(*) AS total FROM user_patients WHERE uid = ?", (uid,)
+        )
+        row = await cursor.fetchone()
+        return int(row["total"]) if row else 0
+
     async def add_patient(
         self,
         uid: str,

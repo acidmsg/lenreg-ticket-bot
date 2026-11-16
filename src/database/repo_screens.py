@@ -15,8 +15,13 @@ from src.database.types import ScreenRecord
 
 # Список колонок вынесен в константу, чтобы SELECT-запросы не расходились.
 _COLUMNS = (
-    "uid, kind, chat_id, msg_id, content_type, render_hash, last_seen_ts, updated_at"
+    "uid, kind, chat_id, msg_id, content_type, render_hash, last_seen_ts, "
+    "updated_at, last_check_at, check_count, error_count, last_event_at, "
+    "new_events_count"
 )
+
+# Значения колонок в порядке _COLUMNS — источник для INSERT и UPDATE.
+_PLACEHOLDERS = ", ".join("?" for _ in range(13))
 
 
 def _row_to_record(row: Row) -> ScreenRecord:
@@ -30,6 +35,11 @@ def _row_to_record(row: Row) -> ScreenRecord:
         "render_hash": str(row["render_hash"]),
         "last_seen_ts": int(row["last_seen_ts"]),
         "updated_at": int(row["updated_at"]),
+        "last_check_at": int(row["last_check_at"]),
+        "check_count": int(row["check_count"]),
+        "error_count": int(row["error_count"]),
+        "last_event_at": int(row["last_event_at"]),
+        "new_events_count": int(row["new_events_count"]),
     }
     return record
 
@@ -56,14 +66,19 @@ class ScreenRepository(BaseRepository):
         """
         await self._c.execute(
             "INSERT INTO user_chat_screen "
-            f"({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            f"({_COLUMNS}) VALUES ({_PLACEHOLDERS}) "
             "ON CONFLICT(uid, kind) DO UPDATE SET "
             "chat_id = excluded.chat_id, "
             "msg_id = excluded.msg_id, "
             "content_type = excluded.content_type, "
             "render_hash = excluded.render_hash, "
             "last_seen_ts = excluded.last_seen_ts, "
-            "updated_at = excluded.updated_at",
+            "updated_at = excluded.updated_at, "
+            "last_check_at = excluded.last_check_at, "
+            "check_count = excluded.check_count, "
+            "error_count = excluded.error_count, "
+            "last_event_at = excluded.last_event_at, "
+            "new_events_count = excluded.new_events_count",
             (
                 record["uid"],
                 record["kind"],
@@ -73,6 +88,11 @@ class ScreenRepository(BaseRepository):
                 record["render_hash"],
                 record["last_seen_ts"],
                 record["updated_at"],
+                record["last_check_at"],
+                record["check_count"],
+                record["error_count"],
+                record["last_event_at"],
+                record["new_events_count"],
             ),
         )
         await self._c.commit()

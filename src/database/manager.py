@@ -120,6 +120,29 @@ class DatabaseManager:
             self._data_cache[uid]["last_messages"] = {}
         return self._data_cache[uid]
 
+    async def count_patients(self, uid: str) -> int:
+        """Число пациентов пользователя.
+
+        Если данные пользователя уже загружены в кэш, лишнего запроса нет:
+        пациенты читаются из того же словаря, который отдаёт
+        :meth:`get_user_data`. Запрос к БД выполняется только для uid, которых
+        в кэше нет (например, при обращении к чужому профилю из дашборда).
+        """
+        uid = str(uid)
+        cached = self._data_cache.get(uid)
+        if cached is not None:
+            return len(cached.get("patients", {}))
+        return await self._db.count_patients(uid)
+
+    async def count_favorites(self, uid: str) -> int:
+        """Число избранных клиник аккаунта.
+
+        Избранное не входит в кэш данных пользователя (``_data_cache``), поэтому
+        счётчик берётся одним ``COUNT(*)`` по ``favorite_clinics``; запрос идёт
+        по первичному ключу ``(uid, clinic_id)``.
+        """
+        return await self._db.count_favorites(uid)
+
     async def _replace_patients(
         self, uid: str, patients: dict[str, PatientInfo]
     ) -> None:
@@ -478,6 +501,21 @@ class DatabaseManager:
     async def get_user_bookings(self, uid: str) -> list[BookingEntry]:
         """Активные записи пользователя (прокси в self._db.get_user_bookings)."""
         return await self._db.get_user_bookings(uid)
+
+    async def list_upcoming_bookings(
+        self, uid: str, now_ts: float, limit: int = 3
+    ) -> list[BookingEntry]:
+        """Ближайшие активные записи: сортировка по дате и времени приёма.
+
+        Args:
+            uid: Идентификатор пользователя.
+            now_ts: Текущее Unix-время (от него считается «сегодня»).
+            limit: Максимальное число записей.
+
+        Returns:
+            Записи, приём по которым ещё не прошёл, в порядке приближения.
+        """
+        return await self._db.list_upcoming_bookings(uid, now_ts, limit)
 
     async def get_user_bookings_archive(self, uid: str) -> list[BookingEntry]:
         """Возвращает архивные записи пользователя (прокси)."""

@@ -49,6 +49,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/acidmsg/lenreg-ticket-bot/main
 | `SCREEN_TEXT_LIMIT`         | Жёсткий лимит текста Telegram (символы)                    | `4096`                |
 | `SCREEN_TEXT_SOFT_LIMIT`    | Мягкий лимит с хвостом «ещё N событий»                     | `3500`                |
 | `SCREEN_STALE_SECONDS`      | Простой экрана без мониторинга до удаления, сек            | `2592000` (30 дней)   |
+| `SCREEN_PROBE_INTERVAL_SEC` | Период проверки живости сообщения-экрана, сек              | `600`                 |
 
 `SCREEN_ENABLED=false` — точка отката: бот снова присылает отдельное уведомление на каждую
 пару «пациент — врач» и не использует таблицу `user_chat_screen`.

@@ -33,6 +33,19 @@ class FavoriteRepository(BaseRepository):
         rows = await cursor.fetchall()
         return [str(row["clinic_id"]) for row in rows]
 
+    async def count_favorites(self, uid: str) -> int:
+        """Возвращает число избранных клиник аккаунта одним ``COUNT(*)``.
+
+        В кэше пользователя (``DatabaseManager._data_cache``) избранного нет,
+        поэтому счётчик для экрана берётся из таблицы; запрос идёт по
+        первичному ключу ``(uid, clinic_id)`` и не читает строки целиком.
+        """
+        cursor = await self._c.execute(
+            "SELECT COUNT(*) AS total FROM favorite_clinics WHERE uid = ?", (uid,)
+        )
+        row = await cursor.fetchone()
+        return int(row["total"]) if row else 0
+
     async def add(self, uid: str, clinic_id: str) -> bool:
         """Добавляет клинику в избранное аккаунта.
 

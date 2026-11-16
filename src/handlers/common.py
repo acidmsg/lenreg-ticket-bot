@@ -7,6 +7,7 @@
 
 import asyncio
 import contextlib
+import time
 
 from aiogram import Bot, Router
 from aiogram.filters import Command
@@ -23,8 +24,9 @@ from src.i18n import _
 from src.keyboards.inline import get_app_entry_keyboard
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from src.services.healthcheck import format_status_report
-from src.services.screen_collect import build_screen_items
+from src.services.screen_collect import build_screen_items, nearest_booking_summary
 from src.services.screen_port import ScreenServicePort
+from src.services.screen_render import ScreenContext
 from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
@@ -200,36 +202,58 @@ async def _restart_screen(
     message: Message,
     uid: str,
     user_data: UserData,
+    db: DatabaseManager,
 ) -> bool:
-    """Сбрасывает прежний экран и тихо создаёт новый по текущему мониторингу.
+    """Гарантирует живой экран по текущему мониторингу, не теряя состояние.
 
     Экран — единственное сообщение чата при ``SCREEN_ENABLED=true``, поэтому
-    приветствие не отправляется: вместо него приходит сводка. Создание идёт
-    без звука (``disable_notification=True`` выставляет сервис, так как новых
-    событий нет), чтобы каждая команда ``/start`` не спамила уведомлением.
+    приветствие не отправляется: вместо него приходит сводка. Обновление идёт
+    через :meth:`ScreenServicePort.ensure_screen`:
+
+    - запись экрана **не сносится**: ``discard_screen`` вызывается только при
+      выключенном экране (точка отката), иначе терялись бы ``last_seen_ts`` и
+      маркеры новизны;
+    - при неизменном состоянии сервис делает проверку живости сообщения и
+      восстанавливает экран после ручной очистки чата;
+    - новых событий при ``/start`` нет, поэтому отправка идёт без звука.
+
+    Контекст заполняется локальными данными: пациенты и мониторинг уже
+    загружены в ``user_data``, число избранных клиник и ближайшая запись
+    читаются из БД. Внешний портал не опрашивается, поэтому
+    ``api_available`` остаётся ``None`` (доступность неизвестна), а
+    ``last_check_at`` берётся из записи экрана в сервисе.
 
     Args:
         screen_service: Сервис экрана (внедряется через ``start_polling``);
             ``None`` — экран не подключён, работает прежний ответ.
         message: Сообщение команды ``/start``.
         uid: Идентификатор пользователя строкой.
-        user_data: Загруженные данные пользователя.
+        user_data: Загруженные данные пользователя (пациенты и мониторинг).
+        db: Менеджер БД для счётчика избранного и ближайшей записи.
 
     Returns:
-        ``True`` — экран пересоздан; ``False`` — нужен прежний ответ с
+        ``True`` — экран обеспечен; ``False`` — нужен прежний ответ с
         приветствием (экран выключен или недоступен).
     """
     if screen_service is None or message.from_user is None:
         return False
     chat_id = message.from_user.id
-    # Снимаем запись и прежнее сообщение: иначе экран размножится на каждый /start.
-    # Сброс выполняется и при выключенном экране — иначе старая запись осталась бы
-    # ссылаться на удалённое/устаревшее сообщение после повторного включения.
-    await screen_service.discard_screen(chat_id)
     if not settings.SCREEN_ENABLED:
+        # Точка отката: запись снимается, чтобы не ссылаться на устаревшее
+        # сообщение после повторного включения экрана.
+        await screen_service.discard_screen(chat_id)
         return False
-    items = build_screen_items(user_data["patients"], user_data["monitoring"])
-    await screen_service.update_screen(chat_id, chat_id, items)
+    patients = user_data["patients"]
+    items = build_screen_items(patients, user_data["monitoring"])
+    context = ScreenContext(
+        items=tuple(items),
+        patients_count=len(patients),
+        favorites_count=await db.count_favorites(uid),
+        monitored_pairs_count=len(items),
+        nearest_booking=await nearest_booking_summary(db, uid, time.time()),
+        is_new_user=not patients,
+    )
+    await screen_service.ensure_screen(chat_id, chat_id, context)
     return True
 
 
@@ -257,9 +281,10 @@ async def cmd_start(
     """Команда /start — вход в приложение и (пере)создание единого экрана.
 
     Прерывает незавершённый FSM-сценарий и очищает прежние отслеживаемые
-    сообщения бота. При ``SCREEN_ENABLED=true`` запись экрана сбрасывается и
-    экран тихо создаётся заново по текущему мониторингу; при выключенном
-    экране отправляется прежнее приветствие со сводкой и кнопкой приложения.
+    сообщения бота. При ``SCREEN_ENABLED=true`` экран не сбрасывается, а
+    обеспечивается через ``ensure_screen``: живое сообщение сохраняет
+    ``msg_id`` и ``last_seen_ts``, удалённое — восстанавливается без звука.
+    При выключенном экране отправляется прежнее приветствие со сводкой.
     """
     if state is not None:
         await state.clear()
@@ -271,7 +296,7 @@ async def cmd_start(
     await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
     await db.update_user(uid, {"last_messages": {}})
 
-    if await _restart_screen(screen_service, message, uid, user_data):
+    if await _restart_screen(screen_service, message, uid, user_data, db):
         return
 
     await message.answer(

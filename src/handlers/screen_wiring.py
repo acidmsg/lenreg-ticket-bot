@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from typing import Any
 
 from aiogram import Bot
 
@@ -23,7 +24,8 @@ from src.database.types import ScreenRecord
 from src.handlers.screen_transport import TelegramScreenTransport
 from src.keyboards.inline import get_screen_keyboard
 from src.services.screen_port import ScreenStore, StoredScreen
-from src.services.screen_service import ScreenService
+from src.services.screen_render import RenderedScreen
+from src.services.screen_service import ScreenService, ScreenServiceOptions
 from src.services.telegram_health import telegram_health
 
 
@@ -38,6 +40,11 @@ def _to_stored(record: ScreenRecord) -> StoredScreen:
         render_hash=record["render_hash"],
         last_seen_ts=record["last_seen_ts"],
         updated_at=record["updated_at"],
+        last_check_at=record["last_check_at"],
+        check_count=record["check_count"],
+        error_count=record["error_count"],
+        last_event_at=record["last_event_at"],
+        new_events_count=record["new_events_count"],
     )
 
 
@@ -52,6 +59,11 @@ def _to_record(screen: StoredScreen) -> ScreenRecord:
         "render_hash": screen.render_hash,
         "last_seen_ts": screen.last_seen_ts,
         "updated_at": screen.updated_at,
+        "last_check_at": screen.last_check_at,
+        "check_count": screen.check_count,
+        "error_count": screen.error_count,
+        "last_event_at": screen.last_event_at,
+        "new_events_count": screen.new_events_count,
     }
 
 
@@ -102,13 +114,25 @@ def build_screen_service(
     Returns:
         Готовый :class:`~src.services.screen_service.ScreenService`, у которого
         счётчики исходов пишутся в общую телеметрию Telegram-шлюза, а
-        ``reply_markup`` собирает :func:`src.keyboards.inline.get_screen_keyboard`.
+        ``reply_markup`` собирает :func:`src.keyboards.inline.get_screen_keyboard`
+        по состоянию :class:`~src.services.screen_render.RenderedScreen`.
+
+    Билдер оборачивается явной функцией: ``get_screen_keyboard`` принимает
+    рендер целиком, а сервис передаёт его по контракту
+    ``Callable[[RenderedScreen], Any]``.
     """
     store: ScreenStore = DatabaseScreenStore(db)
+
+    def build_keyboard(rendered: RenderedScreen) -> Any:
+        """Собирает клавиатуру S2 по состоянию рендера."""
+        return get_screen_keyboard(rendered)
+
     return ScreenService(
         store=store,
         transport=TelegramScreenTransport(bot),
         clock=clock,
-        on_outcome=telegram_health.record_screen_outcome,
-        keyboard_builder=get_screen_keyboard,
+        options=ScreenServiceOptions(
+            on_outcome=telegram_health.record_screen_outcome,
+            keyboard_builder=build_keyboard,
+        ),
     )

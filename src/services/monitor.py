@@ -1,8 +1,9 @@
 import asyncio
 import json
 import random
-from collections.abc import Mapping
-from datetime import date, time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import date, datetime, time
 from typing import NamedTuple
 
 from loguru import logger
@@ -14,8 +15,14 @@ from src.database.manager import DatabaseManager
 from src.database.types import MonitoringEntry, PatientInfo, UserData
 from src.i18n import _, resolve_language, use_language
 from src.services.notification_port import NotificationPort
-from src.services.screen_collect import PairState, build_screen_items, parse_id
+from src.services.screen_collect import (
+    PairState,
+    build_screen_items,
+    nearest_booking_summary,
+    parse_id,
+)
 from src.services.screen_port import ScreenServicePort
+from src.services.screen_render import ScreenContext, ScreenItem
 from src.utils.cache import get_cache_key, swap_cache_key
 from src.utils.helpers import (
     format_notification_text,
@@ -23,6 +30,27 @@ from src.utils.helpers import (
     shorten_fio,
     shorten_specialty,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class PairCheckResult:
+    """Итог проверки одной пары: состояние экрана и признак сбоя API.
+
+    Ошибка запроса слотов не является исключением (``_fetch_slots`` возвращает
+    ``None``), поэтому она передаётся отдельным флагом: по нему монитор считает
+    ``iter_errors`` итерации и доступность портала для экрана.
+    """
+
+    state: PairState | None = None
+    """Состояние пары для экрана; ``None`` — показывать нечего."""
+
+    api_failed: bool = False
+    """``True`` — запрос слотов пары завершился ошибкой."""
+
+
+def _now_ts() -> int:
+    """Текущее Unix-время в секундах — метка проверки для экрана."""
+    return int(datetime.now().timestamp())
 
 
 def _parse_specific_dates(monitoring_entry: MonitoringEntry) -> list[str]:
@@ -579,7 +607,7 @@ async def _check_single_doctor(
     *,
     initial_sync: bool = False,
     notify_via_port: bool = True,
-) -> PairState | None:
+) -> PairCheckResult:
     """Проверяет слоты одного врача: кэш, классификация, уведомление или состояние.
 
     Полный цикл: jitter → извлечение данных → API-запрос → проверка пустых
@@ -594,8 +622,10 @@ async def _check_single_doctor(
         initial_sync: подавлять события первого цикла (кэш только заполняется).
 
     Returns:
-        :class:`~src.services.screen_collect.PairState` в режиме экрана либо
-        ``None`` (нет данных, событий, отправлено уведомление и т.п.).
+        :class:`PairCheckResult` с состоянием пары в режиме экрана либо с
+        пустым состоянием (нет данных, событий, отправлено уведомление и т.п.).
+        Флаг ``api_failed=True`` выставляется только при ошибке запроса слотов:
+        по нему считается ``iter_errors`` итерации.
     """
     await _apply_jitter()
 
@@ -616,7 +646,7 @@ async def _check_single_doctor(
 
     if slots_result is None:
         logger.warning(f"API error for {d_id}, {p_id}. Skipping.")
-        return None
+        return PairCheckResult(api_failed=True)
 
     slots = slots_result.formatted
     cache_key = f"{uid}_{p_id}_{d_id}"
@@ -625,7 +655,7 @@ async def _check_single_doctor(
     if not await _check_empty_slots_protection(
         slots, cache_key, d_id, p_id, empty_counts_lock, empty_counts
     ):
-        return None
+        return PairCheckResult()
 
     # swap_cache_key использует Redis GETSET — атомарно на уровне Redis.
     old_slots_data = await swap_cache_key(cache_key, slots if slots else "NONE")
@@ -633,7 +663,11 @@ async def _check_single_doctor(
 
     if result is None:
         # События нет: пара всё равно остаётся в сводке экрана (без маркера).
-        return PairState(p_id=p_id, d_id=d_id, has_new_events=False, slots=tuple(slots))
+        return PairCheckResult(
+            state=PairState(
+                p_id=p_id, d_id=d_id, has_new_events=False, slots=tuple(slots)
+            )
+        )
 
     header, display_slots, notify_type = result
     filtered = _filter_pair_slots(d_info, slots, display_slots)
@@ -643,7 +677,7 @@ async def _check_single_doctor(
             d_id,
             p_id,
         )
-        return None
+        return PairCheckResult()
     slots, display_slots = filtered
 
     if initial_sync:
@@ -652,7 +686,7 @@ async def _check_single_doctor(
             d_id,
             p_id,
         )
-        return None
+        return PairCheckResult()
 
     if notify_via_port:
         await _notify_pair(
@@ -669,14 +703,16 @@ async def _check_single_doctor(
             slots,
             notify_type,
         )
-        return None
+        return PairCheckResult()
 
-    return PairState(
-        p_id=p_id,
-        d_id=d_id,
-        has_new_events=True,
-        display_slots=None if display_slots is None else tuple(display_slots),
-        slots=tuple(slots),
+    return PairCheckResult(
+        state=PairState(
+            p_id=p_id,
+            d_id=d_id,
+            has_new_events=True,
+            display_slots=None if display_slots is None else tuple(display_slots),
+            slots=tuple(slots),
+        )
     )
 
 
@@ -716,15 +752,17 @@ async def _run_patient_doctor_tasks(
     *,
     initial_sync: bool = False,
     notify_via_port: bool = True,
-) -> list[PairState]:
+) -> tuple[list[PairState], int]:
     """Собирает и параллельно запускает проверку всех врачей одного пациента.
 
     Использует ``asyncio.gather()`` с ``return_exceptions=True`` — ошибки
     в отдельных задачах не прерывают проверку остальных врачей.
 
     Returns:
-        Состояния пар в режиме единого экрана (``notify_via_port=False``);
-        в прежнем режиме список пуст — уведомления отправлены внутри задач.
+        Пару ``(состояния, ошибки)``: состояния пар в режиме единого экрана
+        (``notify_via_port=False``; в прежнем режиме список пуст — уведомления
+        отправлены внутри задач) и число пар, чья проверка завершилась ошибкой
+        (сбой запроса слотов либо исключение задачи).
     """
     doctor_tasks = []
     for d_id, d_info in doctors.items():
@@ -748,16 +786,21 @@ async def _run_patient_doctor_tasks(
 
     results = await asyncio.gather(*doctor_tasks, return_exceptions=True)
     states: list[PairState] = []
+    errors = 0
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
+            errors += 1
             logger.opt(exception=True).error(
                 "Doctor task {} failed: {}",
                 i,
                 result,
             )
-        elif result is not None:
-            states.append(result)
-    return states
+            continue
+        if result.state is not None:
+            states.append(result.state)
+        elif result.api_failed:
+            errors += 1
+    return states, errors
 
 
 async def _fill_clinic_names(
@@ -780,32 +823,98 @@ async def _fill_clinic_names(
             cache[clinic_id] = await db.get_clinic_name(clinic_id) or ""
 
 
+@dataclass(frozen=True, slots=True)
+class IterationStats:
+    """Счётчики одной итерации мониторинга по одному пользователю."""
+
+    checked_at: int
+    """Unix-время проверки пар (строка «Проверено …» на экране)."""
+
+    iter_errors: int = 0
+    """Сколько пар завершились ошибкой запроса слотов."""
+
+    event_count: int = 0
+    """Сколько пар дали новые события."""
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenBatch:
+    """Данные текущей итерации, нужные для сборки экрана пользователя.
+
+    Собраны в одну структуру, чтобы обновление экрана не разрасталось
+    списком аргументов (``PLR0913``, максимум 5 параметров).
+    """
+
+    stats: IterationStats
+    """Счётчики итерации."""
+
+    states: tuple[PairState, ...] = ()
+    """Состояния пар, вернувшиеся из проверки врачей."""
+
+    clinic_names: dict[str, str] = field(default_factory=dict)
+    """Кэш названий клиник; общий на итерацию и дополняется по мере надобности."""
+
+
+async def _build_screen_context(
+    db: DatabaseManager,
+    uid: str,
+    user_info: UserData,
+    items: Sequence[ScreenItem],
+    batch: ScreenBatch,
+) -> ScreenContext:
+    """Собирает полное состояние экрана из локальных данных пользователя.
+
+    Внешний API не вызывается: пары приходят из итерации мониторинга, пациенты —
+    из уже загруженного кэша, избранное и ближайшая запись — одним запросом
+    каждая. ``api_available`` отражает только текущую итерацию: ``True``, когда
+    ни одна пара не завершилась ошибкой запроса слотов.
+    """
+    stats = batch.stats
+    monitoring = user_info.get("monitoring", {})
+    return ScreenContext(
+        items=tuple(items),
+        patients_count=len(user_info.get("patients", {})),
+        favorites_count=await db.count_favorites(uid),
+        monitored_pairs_count=sum(len(doctors) for doctors in monitoring.values()),
+        nearest_booking=await nearest_booking_summary(db, uid, stats.checked_at),
+        last_check_at=stats.checked_at,
+        api_available=stats.iter_errors == 0,
+        iter_errors=stats.iter_errors,
+        event_count=stats.event_count,
+        now=stats.checked_at,
+    )
+
+
 async def _update_user_screen(
     screen_service: ScreenServicePort,
     db: DatabaseManager,
     uid: str,
     user_info: UserData,
-    monitoring: Mapping[str, Mapping[str, MonitoringEntry | str]],
-    states: list[PairState],
-    clinic_names: dict[str, str],
+    batch: ScreenBatch,
 ) -> None:
     """Обновляет единый экран пользователя одним вызовом за итерацию.
+
+    Экран получает полное состояние (:class:`ScreenContext`): пары со строками
+    слотов, счётчики пациентов и избранного, ближайшую запись, время проверки,
+    доступность портала и число ошибок итерации.
 
     Ошибка экрана не прерывает итерацию мониторинга: она логируется на уровне
     ERROR, остальные пользователи обрабатываются как обычно.
     """
     chat_id = parse_id(uid)
+    monitoring = user_info.get("monitoring", {})
     try:
         recipient_lang = resolve_language(await db.get_user_language(uid))
-        await _fill_clinic_names(db, monitoring, clinic_names)
+        await _fill_clinic_names(db, monitoring, batch.clinic_names)
         with use_language(recipient_lang):
             items = build_screen_items(
                 user_info.get("patients", {}),
                 monitoring,
-                states=states,
-                clinic_names=clinic_names,
+                states=batch.states,
+                clinic_names=batch.clinic_names,
             )
-            await screen_service.update_screen(chat_id, chat_id, items)
+            context = await _build_screen_context(db, uid, user_info, items, batch)
+            await screen_service.ensure_screen(chat_id, chat_id, context)
     except Exception:
         logger.opt(exception=True).error(
             "Не удалось обновить экран чата uid={} — итерация продолжается", uid
@@ -856,6 +965,7 @@ async def _run_monitoring_iteration(
             continue
         monitoring = u_info.get("monitoring", {})
         states: list[PairState] = []
+        iter_errors = 0
         for p_id, doctors in monitoring.items():
             p_info = u_info["patients"].get(p_id)
             if p_info is None:
@@ -867,36 +977,37 @@ async def _run_monitoring_iteration(
                 )
                 continue
 
-            states.extend(
-                await _run_patient_doctor_tasks(
-                    semaphore=semaphore,
-                    api=api,
-                    uid=uid,
-                    p_id=p_id,
-                    doctors=doctors,
-                    p_info=p_info,
-                    empty_counts_lock=empty_counts_lock,
-                    empty_counts=empty_counts,
-                    notifier=notifier,
-                    db=db,
-                    slots_cache=slots_cache,
-                    initial_sync=initial_sync,
-                    notify_via_port=not screen_mode,
-                )
+            patient_states, patient_errors = await _run_patient_doctor_tasks(
+                semaphore=semaphore,
+                api=api,
+                uid=uid,
+                p_id=p_id,
+                doctors=doctors,
+                p_info=p_info,
+                empty_counts_lock=empty_counts_lock,
+                empty_counts=empty_counts,
+                notifier=notifier,
+                db=db,
+                slots_cache=slots_cache,
+                initial_sync=initial_sync,
+                notify_via_port=not screen_mode,
             )
+            states.extend(patient_states)
+            iter_errors += patient_errors
 
         # Экран обновляется один раз на пользователя; пользователи без
         # мониторинга экран не получают (его удалит TTL-ветка очистки).
         if screen_service is not None and screen_mode and any(monitoring.values()):
-            await _update_user_screen(
-                screen_service,
-                db,
-                uid,
-                u_info,
-                monitoring,
-                states,
-                clinic_names,
+            batch = ScreenBatch(
+                stats=IterationStats(
+                    checked_at=_now_ts(),
+                    iter_errors=iter_errors,
+                    event_count=sum(1 for state in states if state.has_new_events),
+                ),
+                states=tuple(states),
+                clinic_names=clinic_names,
             )
+            await _update_user_screen(screen_service, db, uid, u_info, batch)
 
 
 async def monitor_loop(

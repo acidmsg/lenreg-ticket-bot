@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from src.services.screen_render import ScreenItem
+from src.services.screen_render import ScreenContext, ScreenItem
 
 # Вид экрана мониторинга: на чат допускается не более одного такого экрана.
 KIND_MONITOR = "monitor"
@@ -49,6 +49,21 @@ class StoredScreen:
     updated_at: int
     """Unix-время (секунды) последней записи — база TTL-выборки."""
 
+    last_check_at: int = 0
+    """Unix-время (секунды) последней итерации проверки пар."""
+
+    check_count: int = 0
+    """Число проверок пар с момента создания записи экрана."""
+
+    error_count: int = 0
+    """Число неуспешных проверок пар."""
+
+    last_event_at: int = 0
+    """Unix-время (секунды) последнего события, попавшего в экран."""
+
+    new_events_count: int = 0
+    """Сколько новых событий показано в экране с прошлого визита пользователя."""
+
 
 class ScreenStore(Protocol):
     """Хранилище экранов: минимум операций для сервиса обновления."""
@@ -77,6 +92,12 @@ class ScreenServicePort(Protocol):
         self, uid: int, chat_id: int, items: list[ScreenItem]
     ) -> object:
         """Применяет состояние экрана к чату и возвращает исход операции."""
+        ...
+
+    async def ensure_screen(
+        self, uid: int, chat_id: int, context: ScreenContext
+    ) -> object:
+        """Гарантирует живой экран: отправка, проверка живости или замена."""
         ...
 
     async def discard_screen(self, uid: int, kind: str = KIND_MONITOR) -> bool:

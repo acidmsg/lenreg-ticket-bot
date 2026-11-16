@@ -2,8 +2,10 @@
 
 Общий хелпер монитора и хендлера ``/start``: превращает сохранённые структуры
 пользователя (``patients`` + ``monitoring``) в список
-:class:`~src.services.screen_render.ScreenItem`. Модуль не выполняет ввода-вывода
-и не обращается к Telegram, поэтому одинаково пригоден в фоне и в хендлере.
+:class:`~src.services.screen_render.ScreenItem` и сводит ближайшую запись к
+:class:`~src.services.screen_render.BookingSummary`. Внешний API и Telegram
+здесь не используются: единственные источники — структуры пользователя и
+локальная БД, поэтому модуль одинаково пригоден в фоне и в хендлере.
 
 Строки слотов приходят снаружи готовыми (:func:`slot_lines` вызывается в
 контексте языка пользователя): рендерер не форматирует слоты, а сборщик не
@@ -16,9 +18,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from src.config import settings
-from src.database.types import MonitoringEntry, PatientInfo
+from src.database.manager import DatabaseManager
+from src.database.types import BookingEntry, MonitoringEntry, PatientInfo
 from src.i18n import _
-from src.services.screen_render import ScreenItem
+from src.services.screen_render import BookingSummary, ScreenItem
 from src.utils.helpers import format_slots, shorten_fio
 
 
@@ -75,6 +78,29 @@ def slot_lines(state: PairState) -> tuple[str, ...]:
             detail_threshold=settings.SLOT_DETAIL_THRESHOLD,
             compact_threshold=settings.SLOT_COMPACT_THRESHOLD,
         )
+    )
+
+
+async def nearest_booking_summary(
+    db: DatabaseManager, uid: str, now_ts: float
+) -> BookingSummary | None:
+    """Ближайшая активная запись пользователя для блока «Ближайшая запись».
+
+    Читает локальную БД (``bookings``): внешний портал не опрашивается,
+    прошедшие приёмы отброшены, порядок — по дате и времени приёма.
+    """
+    upcoming = await db.list_upcoming_bookings(uid, now_ts, limit=1)
+    return booking_summary(upcoming[0]) if upcoming else None
+
+
+def booking_summary(booking: BookingEntry) -> BookingSummary:
+    """Сводит запись из БД к данным блока «Ближайшая запись» (дизайн §7.1)."""
+    return BookingSummary(
+        slot_date=str(booking.get("slot_date", "")),
+        slot_time=str(booking.get("slot_time", "")),
+        doctor_name=shorten_fio(str(booking.get("doctor_name", ""))),
+        clinic_name=str(booking.get("clinic_name", "")),
+        patient_name=str(booking.get("patient_name", "")),
     )
 
 

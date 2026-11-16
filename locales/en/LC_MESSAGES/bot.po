@@ -295,8 +295,124 @@ msgid "monitoring-reset-error"
 msgstr "❌ Failed to reset monitoring: {reason}"
 
 #: src/services/screen_render.py
-msgid "screen-title"
-msgstr "📊 Monitoring summary"
+msgid "screen-v2-title"
+msgstr "📊 Monitoring screen"
+
+#: src/services/screen_render.py
+msgid "screen-v2-status"
+msgstr "Checked: {ago} · next run ~{eta}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-never-checked"
+msgstr "No check performed yet"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-now"
+msgstr "just now"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-minutes"
+msgstr "{minutes} min ago"
+
+#: src/services/screen_render.py
+msgid "screen-v2-ago-hours"
+msgstr "{hours} h ago"
+
+#: src/services/screen_render.py
+msgid "screen-v2-eta-minutes"
+msgstr "{minutes} min"
+
+#: src/services/screen_render.py
+msgid "screen-v2-api-ok"
+msgstr "Portal API: available"
+
+#: src/services/screen_render.py
+msgid "screen-v2-api-down"
+msgstr "Portal is down — retry at {time}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-check-errors"
+msgstr "⚠️ Check errors: {count} — data may be stale"
+
+#: src/services/screen_render.py
+msgid "screen-v2-pairs"
+msgstr "Tracked pairs: {count} · patients: {patients}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-new-header"
+msgstr "🆕 New tickets ({count})"
+
+#: src/services/screen_render.py
+msgid "screen-v2-doctor-row"
+msgstr "{marker} {doctor} — {slots}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-doctor-no-slots"
+msgstr "no tickets"
+
+#: src/services/screen_render.py
+msgid "screen-v2-has-slots"
+msgstr "tickets available"
+
+#: src/services/screen_render.py
+msgid "screen-v2-data-pending"
+msgstr "data will update after the next check"
+
+#: src/services/screen_render.py
+msgid "screen-v2-more-pairs"
+msgstr "… {count} more pairs"
+
+#: src/services/screen_render.py
+msgid "screen-v2-bookings-header"
+msgstr "📅 Nearest appointment"
+
+#: src/services/screen_render.py
+msgid "screen-v2-booking-row"
+msgstr "{date} {time} · {doctor} · {patient}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-context"
+msgstr "👥 Patients: {patients} · favorite clinics: {favorites}"
+
+#: src/services/screen_render.py
+msgid "screen-v2-footer-hint"
+msgstr "Open the app — tickets, filters, booking."
+
+#: src/services/screen_render.py
+msgid "screen-v2-empty-monitoring"
+msgstr "Patients added, but no doctor is tracked yet."
+
+#: src/services/screen_render.py
+msgid "screen-v2-empty-slots"
+msgstr "No free tickets right now — still watching."
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-title"
+msgstr "👋 Welcome to LenReg Tickets"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-body"
+msgstr "I check free tickets in clinics and notify you when they appear. This screen replaces a stream of messages: the current summary is always here."
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-steps-header"
+msgstr "What to do:"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-1"
+msgstr "Add a patient — full name and birth date"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-2"
+msgstr "Choose a clinic and a doctor"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-step-3"
+msgstr "Enable tracking — this screen will update itself"
+
+#: src/services/screen_render.py
+msgid "screen-v2-onboarding-footer"
+msgstr "Checks run every {minutes} minutes."
 
 #: src/services/screen_render.py
 msgid "screen-patient-header"
@@ -314,6 +430,22 @@ msgstr "•"
 msgid "screen-slot-indent"
 msgstr "   ─ "
 
-#: src/services/screen_render.py
-msgid "screen-more-events"
-msgstr "… and {count} more events"
+#: src/keyboards/inline.py
+msgid "btn-screen-add-patient"
+msgstr "➕ Add a patient"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-add-doctor"
+msgstr "➕ Choose a doctor"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-slots"
+msgstr "📆 Tickets: {doctor}"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-bookings"
+msgstr "📆 My appointments"
+
+#: src/keyboards/inline.py
+msgid "btn-screen-open-app"
+msgstr "🌐 Open the app"

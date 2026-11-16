@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 import aiosqlite
@@ -101,6 +102,14 @@ class Database:
     async def get_user_patients(self, uid: str) -> dict[str, PatientInfo]:
         """Возвращает словарь пациентов пользователя."""
         return await self.users.get_user_patients(uid)
+
+    async def count_patients(self, uid: str) -> int:
+        """Число пациентов пользователя (делегирует в репозиторий)."""
+        return await self.users.count_patients(uid)
+
+    async def count_favorites(self, uid: str) -> int:
+        """Число избранных клиник аккаунта (делегирует в репозиторий)."""
+        return await self.favorites.count_favorites(uid)
 
     async def add_patient(
         self,
@@ -636,6 +645,35 @@ class Database:
         # Ближайшие приёмы — сверху; записи без расписания уходят в конец.
         return _sorted_by_appointment(bookings)
 
+    async def list_upcoming_bookings(
+        self, uid: str, now_ts: float, limit: int = 3
+    ) -> list[BookingEntry]:
+        """Возвращает ближайшие активные записи пользователя.
+
+        Отбор идёт по расписанию приёма, а не по времени создания записи:
+        сортировка — по ``slot_date``, затем ``slot_time`` (её выполняет
+        :func:`_sorted_by_appointment`), фильтр — ``slot_date >= сегодня``.
+        Записи без разбираемой даты в выборку не попадают: прошёл приём или
+        нет — по ним определить нельзя.
+
+        Args:
+            uid: Идентификатор пользователя.
+            now_ts: Текущее Unix-время (от него считается «сегодня»).
+            limit: Максимальное число записей; ``0`` и меньше — пустой список.
+
+        Returns:
+            Записи в порядке приближения приёма (может быть пустым).
+        """
+        if limit <= 0:
+            return []
+        today = datetime.fromtimestamp(now_ts).date()
+        upcoming = [
+            booking
+            for booking in await self.get_user_bookings(uid)
+            if _is_upcoming_booking(booking, today)
+        ]
+        return upcoming[:limit]
+
     async def get_user_bookings_archive(self, uid: str) -> list[BookingEntry]:
         """Возвращает архивные записи пользователя (сортировка по created_at DESC)."""
         c = self._conn.conn
@@ -779,6 +817,24 @@ def _appointment_key(booking: BookingEntry) -> tuple[int, str]:
         return (1, "")
     day, month, year = parts
     return (0, f"{year}{month}{day}{time}")
+
+
+def _parse_slot_date(value: str) -> date | None:
+    """Разбирает дату приёма ``ДД.ММ.ГГГГ``; ``None`` — формат неизвестен."""
+    parts = str(value or "").strip().split(".")
+    if len(parts) != 3 or not all(parts):
+        return None
+    day, month, year = parts
+    try:
+        return date(int(year), int(month), int(day))
+    except ValueError:
+        return None
+
+
+def _is_upcoming_booking(booking: BookingEntry, today: date) -> bool:
+    """Приём ещё не прошёл: дата записи не раньше ``today``."""
+    slot_date = _parse_slot_date(str(booking.get("slot_date") or ""))
+    return slot_date is not None and slot_date >= today
 
 
 def _sorted_by_appointment(

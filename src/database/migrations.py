@@ -646,6 +646,38 @@ async def migrate_v24_user_chat_screen(db: DatabaseConnection) -> None:
     )
 
 
+async def migrate_v25_screen_check_stats(db: DatabaseConnection) -> None:
+    """Счётчики проверок и событий экрана чата (вариант B мастер-сообщения).
+
+    Экран v2 показывает «проверено N минут назад» и счётчики состояния, для
+    которых нужны собственные поля записи:
+
+    - ``last_check_at`` — время последней итерации проверки пар;
+    - ``check_count`` — число проверок с момента создания записи;
+    - ``error_count`` — число неуспешных проверок;
+    - ``last_event_at`` — время последнего события, попавшего в экран;
+    - ``new_events_count`` — сколько новых событий показано с прошлого визита.
+
+    SQLite не поддерживает ``ALTER TABLE ... ADD COLUMN IF NOT EXISTS``, поэтому
+    каркас :func:`add_missing_columns` читает ``PRAGMA table_info`` и добавляет
+    только отсутствующие колонки. Повторный прогон миграции ничего не меняет и
+    не падает.
+    """
+    await add_missing_columns(
+        db,
+        "user_chat_screen",
+        {
+            "last_check_at": "INTEGER NOT NULL DEFAULT 0",
+            "check_count": "INTEGER NOT NULL DEFAULT 0",
+            "error_count": "INTEGER NOT NULL DEFAULT 0",
+            "last_event_at": "INTEGER NOT NULL DEFAULT 0",
+            "new_events_count": "INTEGER NOT NULL DEFAULT 0",
+        },
+        version=25,
+        message="счётчики проверок экрана (user_chat_screen)",
+    )
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -668,4 +700,5 @@ MIGRATIONS = [
     (22, migrate_v22_user_language),
     (23, migrate_v23_clinic_slot_scans),
     (24, migrate_v24_user_chat_screen),
+    (25, migrate_v25_screen_check_stats),
 ]
