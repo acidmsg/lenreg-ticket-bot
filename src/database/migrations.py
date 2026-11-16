@@ -608,6 +608,44 @@ async def migrate_v23_clinic_slot_scans(db: DatabaseConnection) -> None:
     )
 
 
+_USER_CHAT_SCREEN_DDL = """
+CREATE TABLE IF NOT EXISTS user_chat_screen (
+    uid          INTEGER NOT NULL,
+    kind         TEXT NOT NULL,
+    chat_id      INTEGER NOT NULL,
+    msg_id       INTEGER NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'text',
+    render_hash  TEXT NOT NULL DEFAULT '',
+    last_seen_ts INTEGER NOT NULL DEFAULT 0,
+    updated_at   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (uid, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_user_chat_screen_chat_id
+    ON user_chat_screen (chat_id);
+CREATE INDEX IF NOT EXISTS idx_user_chat_screen_updated_at
+    ON user_chat_screen (updated_at);
+"""
+
+
+async def migrate_v24_user_chat_screen(db: DatabaseConnection) -> None:
+    """Экран чата: одно сообщение на пользователя и вид экрана.
+
+    ``user_chat_screen`` хранит идентификатор единственного сообщения-экрана
+    (``kind = 'monitor'``), ``render_hash`` последнего рендера для
+    дедупликации и ``updated_at`` для TTL-выборки. Таблица не связана с
+    ``user_last_messages``: ключ ``(uid, kind)`` не разбирается
+    ``update_user()`` и не перезаписывается массово.
+
+    Миграция идемпотентна: ``CREATE TABLE/INDEX IF NOT EXISTS``.
+    """
+    await run_ddl_migration(
+        db,
+        _USER_CHAT_SCREEN_DDL,
+        version=24,
+        message="создана таблица user_chat_screen (экран чата)",
+    )
+
+
 # Упорядоченный список миграций: (version, async_callable)
 MIGRATIONS = [
     (1, migrate_v1_initial_schema),
@@ -629,4 +667,5 @@ MIGRATIONS = [
     (21, migrate_v21_naming_constitution),
     (22, migrate_v22_user_language),
     (23, migrate_v23_clinic_slot_scans),
+    (24, migrate_v24_user_chat_screen),
 ]

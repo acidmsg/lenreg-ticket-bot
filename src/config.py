@@ -224,6 +224,23 @@ class Settings(BaseSettings):
     MESSAGE_TTL_SECONDS: int = 604800
     CLEANUP_INTERVAL: int = 3600  # Проверять каждые 1 час
 
+    # === Единый экран чата (single screen message) ===
+    # Включение экрана в боевом пути мониторинга. False — точка отката на
+    # прежнюю схему: отдельное уведомление на каждую пару (пациент, врач),
+    # таблица ``user_chat_screen`` не читается и не пишется.
+    SCREEN_ENABLED: bool = True
+    # Максимум врачей в одном экране: остальные сворачиваются в «ещё N врачей».
+    SCREEN_MAX_DOCTORS: int = 12
+    # Максимум строк событий в экране: читаемость важнее полноты.
+    SCREEN_MAX_LINES: int = 40
+    # Жёсткий лимит текста Telegram (sendMessage).
+    SCREEN_TEXT_LIMIT: int = 4096
+    # Мягкий лимит: отсечение с хвостом «ещё N событий» до жёсткого лимита.
+    SCREEN_TEXT_SOFT_LIMIT: int = 3500
+    # Простой экрана без активного мониторинга, после которого запись удаляется
+    # планировщиком очистки (30 дней).
+    SCREEN_STALE_SECONDS: int = 2592000
+
     # === Error notifications (M2) ===
     # Enable/disable error notifications globally (synced to DB)
     ERROR_NOTIFY_ENABLED: bool = True

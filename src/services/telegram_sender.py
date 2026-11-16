@@ -7,9 +7,11 @@
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import aiolimiter
 from aiogram import Bot
@@ -159,3 +161,204 @@ async def send_telegram_message(
         return True
     finally:
         telegram_health.queue_exit()
+
+
+# ── Операции единого экрана чата ─────────────────────────────────────
+
+_ScreenResult = TypeVar("_ScreenResult")
+
+
+async def _run_with_retry(
+    chat_id: int,
+    action: str,
+    operation: Callable[[], Awaitable[_ScreenResult]],
+) -> _ScreenResult | None:
+    """Выполняет операцию Telegram под лимитером с одним повтором после 429.
+
+    Повторяет правила :func:`send_telegram_message` для операций экрана:
+    общий per-loop лимитер, ``TelegramRetryAfter`` → пауза и один retry,
+    прочие ``TelegramAPIError`` → WARNING и ``None`` (исключения не выходят за
+    пределы транспорта).
+    """
+    try:
+        async with _get_telegram_limiter():
+            try:
+                return await operation()
+            except tg_exceptions.TelegramRetryAfter as e:
+                logger.warning(
+                    "Telegram 429 ({}): retry after {:.1f}s for chat {}",
+                    action,
+                    e.retry_after,
+                    chat_id,
+                )
+                telegram_health.record_retry_after(e.retry_after)
+                await asyncio.sleep(e.retry_after)
+                return await operation()
+    except tg_exceptions.TelegramAPIError as e:
+        logger.opt(exception=True).warning(
+            "Telegram {} failed for chat {}: {}", action, chat_id, e
+        )
+        return None
+
+
+async def send_text(
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    reply_markup: Any = None,
+    disable_notification: bool = False,
+) -> int | None:
+    """Отправляет текстовое сообщение и возвращает ``message_id``.
+
+    Используется единым экраном чата: ``disable_notification`` включается для
+    отправок без новых событий (создание экрана, восстановление после
+    удаления сообщения пользователем).
+    """
+    message = await _run_with_retry(
+        chat_id,
+        "send_text",
+        lambda: bot.send_message(
+            chat_id,
+            text,
+            reply_markup=reply_markup,
+            disable_notification=disable_notification,
+        ),
+    )
+    if message is None:
+        return None
+    return message.message_id
+
+
+async def delete_message(bot: Bot, chat_id: int, message_id: int) -> bool:
+    """Удаляет сообщение; ошибка подавляется с WARNING, результат — флаг успеха."""
+    result = await _run_with_retry(
+        chat_id, "delete_message", lambda: bot.delete_message(chat_id, message_id)
+    )
+    return result is not None
+
+
+# ── Правка сообщения-экрана ──────────────────────────────────────────
+
+
+class EditOutcome(StrEnum):
+    """Исход правки сообщения-экрана через ``editMessageText``."""
+
+    EDITED = "edited"
+    """Текст успешно изменён."""
+
+    NOT_MODIFIED = "not_modified"
+    """Telegram отклонил правку: содержимое уже совпадает (штатный сценарий)."""
+
+    NOT_FOUND = "not_found"
+    """Сообщения нет (удалено пользователем) — нужен fallback на replace."""
+
+    CANNOT_EDIT = "cannot_edit"
+    """Сообщение нельзя править (тип вложения, нет текста) — нужен replace."""
+
+    FAILED = "failed"
+    """Прочая ошибка: сеть, права доступа, неизвестный 400."""
+
+
+# Маркеры ответа Telegram: сравнение идёт по вхождению в нижнем регистре,
+# поэтому формулировки бота и префикс «Bad Request:» не влияют на разбор.
+_NOT_MODIFIED_MARKERS: tuple[str, ...] = ("message is not modified",)
+_NOT_FOUND_MARKERS: tuple[str, ...] = ("message to edit not found",)
+_CANNOT_EDIT_MARKERS: tuple[str, ...] = (
+    "message can't be edited",
+    "message can not be edited",
+    "there is no text in the message to edit",
+)
+
+
+def _classify_bad_request(message: str) -> EditOutcome:
+    """Сопоставляет текст ``TelegramBadRequest`` с исходом правки.
+
+    Args:
+        message: Текст исключения ``TelegramBadRequest``.
+
+    Returns:
+        :class:`EditOutcome`; неизвестный текст — ``FAILED``.
+    """
+    text = message.lower()
+    if any(marker in text for marker in _NOT_MODIFIED_MARKERS):
+        return EditOutcome.NOT_MODIFIED
+    if any(marker in text for marker in _NOT_FOUND_MARKERS):
+        return EditOutcome.NOT_FOUND
+    if any(marker in text for marker in _CANNOT_EDIT_MARKERS):
+        return EditOutcome.CANNOT_EDIT
+    return EditOutcome.FAILED
+
+
+def _log_edit_rejection(
+    outcome: EditOutcome, chat_id: int, message_id: int, detail: str
+) -> None:
+    """Логирует отклонённую правку: штатные случаи — INFO, прочие — ERROR."""
+    if outcome is EditOutcome.NOT_MODIFIED:
+        logger.info("Экран уже актуален (chat_id={} msg_id={})", chat_id, message_id)
+    elif outcome is EditOutcome.NOT_FOUND:
+        logger.info(
+            "Сообщение-экран не найдено (chat_id={} msg_id={}): {}",
+            chat_id,
+            message_id,
+            detail,
+        )
+    elif outcome is EditOutcome.CANNOT_EDIT:
+        logger.warning(
+            "Экран нельзя отредактировать (chat_id={} msg_id={}): {}",
+            chat_id,
+            message_id,
+            detail,
+        )
+    else:
+        logger.error(
+            "Правка экрана отклонена (chat_id={} msg_id={}): {}",
+            chat_id,
+            message_id,
+            detail,
+        )
+
+
+async def edit_text(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    text: str,
+    reply_markup: Any = None,
+) -> EditOutcome:
+    """Правит текст сообщения-экрана и классифицирует ответ Telegram.
+
+    Общий per-loop лимитер и общий ретрай :func:`_run_with_retry` используются
+    как есть: обработка 429 не дублируется, повтор выполняется один раз.
+    ``TelegramBadRequest`` перехватывается внутри операции, поэтому наружу
+    выходит не исключение, а :class:`EditOutcome`.
+
+    Args:
+        bot: Экземпляр Telegram-бота.
+        chat_id: Чат, в котором живёт сообщение-экран.
+        message_id: Идентификатор правимого сообщения.
+        text: Новый текст экрана.
+        reply_markup: Клавиатура экрана (``None`` — оставить прежнюю).
+
+    Returns:
+        Исход правки; ``FAILED`` при сетевой ошибке, ошибке прав доступа или
+        неизвестном 400.
+    """
+
+    async def _edit() -> EditOutcome:
+        try:
+            await bot.edit_message_text(
+                text=text,
+                chat_id=chat_id,
+                message_id=message_id,
+                reply_markup=reply_markup,
+            )
+        except tg_exceptions.TelegramBadRequest as exc:
+            outcome = _classify_bad_request(str(exc))
+            _log_edit_rejection(outcome, chat_id, message_id, str(exc))
+            return outcome
+        return EditOutcome.EDITED
+
+    outcome = await _run_with_retry(chat_id, "edit_text", _edit)
+    if outcome is None:
+        return EditOutcome.FAILED
+    return outcome

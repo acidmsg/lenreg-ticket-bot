@@ -5,12 +5,18 @@ Mini App. Кнопки навигации, выбора пациентов и з
 полностью живут в приложении.
 """
 
+from collections.abc import Sequence
+
 from aiogram.types import InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.config import settings
 from src.i18n import _
 from src.utils.bot_identity import get_bot_username
+
+# Сколько deep-link кнопок максимум несёт экран чата: больше трёх кнопок
+# превращают сводку в список и ломают идею «одного действия» (дизайн §14.1).
+SCREEN_KEYBOARD_LIMIT = 3
 
 
 def _mini_app_available() -> bool:
@@ -61,6 +67,35 @@ def get_notification_keyboard(p_id: str, d_id: str) -> InlineKeyboardMarkup | No
         return None
     builder = InlineKeyboardBuilder()
     _add_open_app_button(builder, startapp=f"slots_{p_id}_{d_id}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_screen_keyboard(
+    items: Sequence[tuple[int, int]], *, limit: int = SCREEN_KEYBOARD_LIMIT
+) -> InlineKeyboardMarkup | None:
+    """Клавиатура единого экрана чата: deep-link'и на пары «пациент — врач».
+
+    Каждая кнопка ведёт на экран номерков конкретного врача — тот же payload
+    ``slots_<p_id>_<d_id>``, что и у уведомления. Число кнопок ограничено
+    ``limit``: экран остаётся сводкой, полный список живёт в приложении.
+
+    Args:
+        items: Пары ``(p_id, d_id)`` в порядке показа на экране.
+        limit: Максимальное число кнопок (по умолчанию три).
+
+    Returns:
+        InlineKeyboardMarkup с deep-link кнопками; при пустом ``items`` —
+        клавиатура входа в приложение; ``None``, если Mini App выключен или
+        URL не задан.
+    """
+    if not items:
+        return get_app_entry_keyboard()
+    if not _mini_app_available():
+        return None
+    builder = InlineKeyboardBuilder()
+    for p_id, d_id in items[:limit]:
+        _add_open_app_button(builder, startapp=f"slots_{p_id}_{d_id}")
     builder.adjust(1)
     return builder.as_markup()
 

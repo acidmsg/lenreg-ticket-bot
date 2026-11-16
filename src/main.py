@@ -25,6 +25,7 @@ from src.config import settings
 from src.database.database import Database
 from src.database.manager import DatabaseManager
 from src.handlers.notifications import TelegramNotifier
+from src.handlers.screen_wiring import build_screen_service
 from src.i18n import setup_i18n
 from src.middleware.activity import ActivityLogMiddleware
 from src.middleware.error_boundary import ErrorBoundaryMiddleware
@@ -53,6 +54,7 @@ from src.services.healthcheck import _healthcheck_iteration
 from src.services.healthcheck import metrics as health_metrics
 from src.services.metrics import prometheus_metrics
 from src.services.monitor import _monitor_iteration
+from src.services.screen_port import ScreenServicePort
 from src.services.telegram_health import check_bot_api
 from src.utils.bot_identity import resolve_bot_username
 from src.utils.logging import setup_logging
@@ -133,13 +135,22 @@ async def _telegram_health_iteration(bot: Bot) -> None:
 
 
 async def _start_background_tasks(
-    bot: Bot, api: ZdravClient, db: DatabaseManager, database: Database
+    bot: Bot,
+    api: ZdravClient,
+    db: DatabaseManager,
+    database: Database,
+    screen_service: ScreenServicePort | None = None,
 ) -> BackgroundTaskManager:
     """Запускает все фоновые задачи через BackgroundTaskManager.
 
     Вызывается ТОЛЬКО после успешной проверки связи с Telegram API,
     чтобы снизить нагрузку на IOCP в момент старта и избежать конкуренции
     с прокси-соединением.
+
+    Args:
+        screen_service: Сервис единого экрана чата; передаётся монитору и
+            очистке. Флаг ``SCREEN_ENABLED`` решает, используется ли он в
+            боевом пути (точка отката — False).
     """
     manager = BackgroundTaskManager()
     # Публикуем менеджер: дашборд, /status и Prometheus берут статус задач только отсюда
@@ -161,6 +172,7 @@ async def _start_background_tasks(
         api=api,
         db=db,
         state=monitor_state,
+        screen_service=screen_service,
     )
 
     # ── Discovery врачей ─────────────────────────────────────────────
@@ -238,6 +250,7 @@ async def _start_background_tasks(
         retry=RetryConfig(max_retries=3),
         bot=bot,
         db=db,
+        screen_service=screen_service,
     )
 
     # ── Детектор расхождения DNS (пиннинг IP API) ─────────────────────
@@ -873,13 +886,20 @@ async def main() -> None:
     session = await bootstrap_proxy()
     bot, dp = await bootstrap_bot(session, redis_client)
 
+    # Единый экран чата: собирается один раз на процесс (без модульных синглтонов)
+    # и внедряется в фоновые задачи и хендлер /start через start_polling.
+    # При SCREEN_ENABLED=false сервис не создаётся: таблица user_chat_screen
+    # не читается и не пишется ни мониторингом, ни /start, ни TTL-очисткой —
+    # это точка отката на прежнюю схему «уведомление на каждую пару».
+    screen_service = build_screen_service(bot, db) if settings.SCREEN_ENABLED else None
+
     # Регистрируем бот для уведомлений из веб-слоя (подтверждение записи).
     from src.web import notify
 
     notify.set_bot(bot)
 
     # Запуск фоновых задач (только после проверки связи с Telegram)
-    manager = await _start_background_tasks(bot, api, db, database)
+    manager = await _start_background_tasks(bot, api, db, database, screen_service)
 
     # Запуск веб-инфраструктуры (дашборд + метрики)
     dashboard_server, dashboard_task, metrics_runner = await bootstrap_web(db, api)
@@ -895,7 +915,7 @@ async def main() -> None:
             )
             await _wait_until_stopped()
         else:
-            await dp.start_polling(bot, db=db, api=api)
+            await dp.start_polling(bot, db=db, api=api, screen_service=screen_service)
     except asyncio.CancelledError:
         logger.info("Поллинг остановлен (cancelled)")
     except Exception as e:

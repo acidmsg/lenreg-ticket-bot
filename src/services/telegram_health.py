@@ -37,6 +37,17 @@ MODE_UNKNOWN = "unknown"
 MODE_POLLING = "polling"
 MODE_WEBHOOK = "webhook"
 
+# Исходы обновления экрана чата. Значения совпадают со строками
+# ``UpdateOutcome`` из ``src.services.screen_service``; строки продублированы
+# намеренно: телеметрия — нижний по отношению к сервису модуль, импорт сервиса
+# дал бы цикл (``screen_service`` → ``notification_port`` → ``telegram_sender``
+# → ``telegram_health``).
+SCREEN_OUTCOME_NOOP = "noop"
+SCREEN_OUTCOME_SENT = "sent"
+SCREEN_OUTCOME_REPLACED = "replaced"
+SCREEN_OUTCOME_EDITED = "edited"
+SCREEN_OUTCOME_FAILED = "failed"
+
 _MODE_LABELS = {
     MODE_UNKNOWN: "неизвестно",
     MODE_POLLING: "long polling",
@@ -62,6 +73,11 @@ class TelegramHealth:
         send_errors_total: Неудачных отправок уведомлений.
         retry_after_total: Срабатываний 429 (пауз по лимиту).
         last_retry_after: Длительность последней паузы по 429, секунды.
+        screen_noop: Обновлений экрана без обращения к Telegram (hash совпал).
+        screen_sent: Первых отправок экрана.
+        screen_replaced: Замен экрана (delete + send, доставляет push).
+        screen_edited: Тихих правок экрана.
+        screen_failed: Неудачных обновлений экрана.
     """
 
     mode: str = MODE_UNKNOWN
@@ -78,6 +94,12 @@ class TelegramHealth:
     send_errors_total: int = 0
     retry_after_total: int = 0
     last_retry_after: float = 0.0
+
+    screen_noop: int = 0
+    screen_sent: int = 0
+    screen_replaced: int = 0
+    screen_edited: int = 0
+    screen_failed: int = 0
 
     # ── Запись: очередь отправки ─────────────────────────────────
 
@@ -106,6 +128,27 @@ class TelegramHealth:
         """Пауза по лимиту Telegram (429): счётчик и длительность."""
         self.retry_after_total += 1
         self.last_retry_after = float(seconds)
+
+    # ── Запись: исходы обновления экрана чата ────────────────────
+
+    def record_screen_outcome(self, outcome: str) -> None:
+        """Считает исход обновления единого экрана чата.
+
+        Args:
+            outcome: Строковое значение ``UpdateOutcome`` сервиса экрана.
+                Неизвестное значение учитывается как ``screen_failed``, чтобы
+                рассинхронизация констант не теряла события молча.
+        """
+        if outcome == SCREEN_OUTCOME_NOOP:
+            self.screen_noop += 1
+        elif outcome == SCREEN_OUTCOME_SENT:
+            self.screen_sent += 1
+        elif outcome == SCREEN_OUTCOME_REPLACED:
+            self.screen_replaced += 1
+        elif outcome == SCREEN_OUTCOME_EDITED:
+            self.screen_edited += 1
+        else:
+            self.screen_failed += 1
 
     # ── Запись: проверка Bot API ─────────────────────────────────
 

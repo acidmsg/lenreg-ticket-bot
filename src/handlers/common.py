@@ -23,6 +23,8 @@ from src.i18n import _
 from src.keyboards.inline import get_app_entry_keyboard
 from src.services.doctor_discovery import _get_clinic_type_from_db, fetch_specialties
 from src.services.healthcheck import format_status_report
+from src.services.screen_collect import build_screen_items
+from src.services.screen_port import ScreenServicePort
 from src.utils.helpers import extract_msg_id, shorten_fio, shorten_specialty
 
 router = Router()
@@ -193,6 +195,44 @@ def _build_start_text(user_data: UserData) -> str:
     return _("start-greeting")
 
 
+async def _restart_screen(
+    screen_service: ScreenServicePort | None,
+    message: Message,
+    uid: str,
+    user_data: UserData,
+) -> bool:
+    """Сбрасывает прежний экран и тихо создаёт новый по текущему мониторингу.
+
+    Экран — единственное сообщение чата при ``SCREEN_ENABLED=true``, поэтому
+    приветствие не отправляется: вместо него приходит сводка. Создание идёт
+    без звука (``disable_notification=True`` выставляет сервис, так как новых
+    событий нет), чтобы каждая команда ``/start`` не спамила уведомлением.
+
+    Args:
+        screen_service: Сервис экрана (внедряется через ``start_polling``);
+            ``None`` — экран не подключён, работает прежний ответ.
+        message: Сообщение команды ``/start``.
+        uid: Идентификатор пользователя строкой.
+        user_data: Загруженные данные пользователя.
+
+    Returns:
+        ``True`` — экран пересоздан; ``False`` — нужен прежний ответ с
+        приветствием (экран выключен или недоступен).
+    """
+    if screen_service is None or message.from_user is None:
+        return False
+    chat_id = message.from_user.id
+    # Снимаем запись и прежнее сообщение: иначе экран размножится на каждый /start.
+    # Сброс выполняется и при выключенном экране — иначе старая запись осталась бы
+    # ссылаться на удалённое/устаревшее сообщение после повторного включения.
+    await screen_service.discard_screen(chat_id)
+    if not settings.SCREEN_ENABLED:
+        return False
+    items = build_screen_items(user_data["patients"], user_data["monitoring"])
+    await screen_service.update_screen(chat_id, chat_id, items)
+    return True
+
+
 # ── Хендлеры ──────────────────────────────────────────────────
 
 
@@ -212,11 +252,14 @@ async def cmd_start(
     db: DatabaseManager,
     bot: Bot,
     state: FSMContext | None = None,
+    screen_service: ScreenServicePort | None = None,
 ) -> None:
-    """Команда /start — приветствие, сводка мониторинга и вход в приложение.
+    """Команда /start — вход в приложение и (пере)создание единого экрана.
 
-    Прерывает незавершённый FSM-сценарий и очищает прежние сообщения бота,
-    чтобы чат оставался опрятным. Единственная кнопка — «Открыть в приложении».
+    Прерывает незавершённый FSM-сценарий и очищает прежние отслеживаемые
+    сообщения бота. При ``SCREEN_ENABLED=true`` запись экрана сбрасывается и
+    экран тихо создаётся заново по текущему мониторингу; при выключенном
+    экране отправляется прежнее приветствие со сводкой и кнопкой приложения.
     """
     if state is not None:
         await state.clear()
@@ -227,6 +270,9 @@ async def cmd_start(
     # Удаляем все предыдущие сообщения бота из чата
     await _delete_cleanup_msg_entries(bot, uid, "", user_data["last_messages"])
     await db.update_user(uid, {"last_messages": {}})
+
+    if await _restart_screen(screen_service, message, uid, user_data):
+        return
 
     await message.answer(
         _build_start_text(user_data),

@@ -43,6 +43,15 @@ bash <(curl -Ls https://raw.githubusercontent.com/acidmsg/lenreg-ticket-bot/main
 | `LOG_LEVEL`                 | Уровень логирования                                        | `INFO`                |
 | `API_PINNED_IP`             | Зафиксированный IP API-хоста (пиннинг через `extra_hosts`) | `185.65.149.54`       |
 | `DNS_WATCHDOG_INTERVAL_SEC` | Интервал проверки расхождения пиннинга и DNS, сек          | `1800.0`              |
+| `SCREEN_ENABLED`            | Единый экран чата вместо потока уведомлений                | `true`                |
+| `SCREEN_MAX_DOCTORS`        | Максимум врачей в одном экране                             | `12`                  |
+| `SCREEN_MAX_LINES`          | Максимум строк событий в экране                            | `40`                  |
+| `SCREEN_TEXT_LIMIT`         | Жёсткий лимит текста Telegram (символы)                    | `4096`                |
+| `SCREEN_TEXT_SOFT_LIMIT`    | Мягкий лимит с хвостом «ещё N событий»                     | `3500`                |
+| `SCREEN_STALE_SECONDS`      | Простой экрана без мониторинга до удаления, сек            | `2592000` (30 дней)   |
+
+`SCREEN_ENABLED=false` — точка отката: бот снова присылает отдельное уведомление на каждую
+пару «пациент — врач» и не использует таблицу `user_chat_screen`.
 
 Полный перечень — в [`.env.example`](.env.example).
 

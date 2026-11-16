@@ -24,6 +24,7 @@ from src.database.repo_doctors import DoctorRepository
 from src.database.repo_favorites import FavoriteRepository
 from src.database.repo_metrics import MetricsRepository
 from src.database.repo_monitoring import MonitoringRepository
+from src.database.repo_screens import ScreenRepository
 from src.database.repo_search import SearchRepository
 from src.database.repo_slots import SlotsRepository
 from src.database.repo_users import UserRepository
@@ -34,6 +35,7 @@ from src.database.types import (
     LastMessageEntry,
     MonitoringEntry,
     PatientInfo,
+    ScreenRecord,
     UserData,
 )
 
@@ -64,6 +66,7 @@ class Database:
         self.search = SearchRepository(self._conn)
         self.metrics = MetricsRepository(self._conn)
         self.slots = SlotsRepository(self._conn)
+        self.screens = ScreenRepository(self._conn)
 
     @property
     def conn(self) -> aiosqlite.Connection | None:
@@ -740,6 +743,26 @@ class Database:
             is_archived=row["is_archived"],
             status=row["status"],
         )
+
+    # ── Экран чата ──────────────────────────────────────────
+
+    async def get_screen(self, uid: int, kind: str) -> ScreenRecord | None:
+        """Возвращает запись экрана чата или None, если экрана нет."""
+        return await self.screens.get_screen(uid, kind)
+
+    async def upsert_screen(self, record: ScreenRecord) -> None:
+        """Создаёт или перезаписывает запись экрана чата."""
+        return await self.screens.upsert_screen(record)
+
+    async def delete_screen(self, uid: int, kind: str) -> None:
+        """Удаляет запись экрана чата; отсутствие записи не ошибка."""
+        return await self.screens.delete_screen(uid, kind)
+
+    async def list_stale_screens(
+        self, before_ts: int, kind: str | None = None
+    ) -> list[ScreenRecord]:
+        """Записи экранов с ``updated_at`` меньше порога (TTL-выборка)."""
+        return await self.screens.list_stale_screens(before_ts, kind)
 
 
 def _appointment_key(booking: BookingEntry) -> tuple[int, str]:

@@ -15,6 +15,7 @@ from src.database.types import (
     LastMessageEntry,
     MonitoringEntry,
     PatientInfo,
+    ScreenRecord,
     UserData,
     UserDataUpdate,
 )
@@ -222,6 +223,24 @@ class DatabaseManager:
             if isinstance(val, dict):
                 return val.get("msg_id")
             return None
+
+    # ── Экран чата ──────────────────────────────────────────
+
+    async def get_screen(self, uid: int, kind: str) -> ScreenRecord | None:
+        """Возвращает запись экрана чата без обращения к кэшу пользователя.
+
+        Экран живёт в отдельной таблице ``user_chat_screen`` и не участвует в
+        ``UserData``: массовая перезапись ``last_messages`` его не затрагивает.
+        """
+        return await self._db.get_screen(uid, kind)
+
+    async def set_screen(self, record: ScreenRecord) -> None:
+        """Создаёт или перезаписывает запись экрана чата."""
+        await self._db.upsert_screen(record)
+
+    async def drop_screen(self, uid: int, kind: str) -> None:
+        """Удаляет запись экрана чата; отсутствие записи не ошибка."""
+        await self._db.delete_screen(uid, kind)
 
     async def add_patient(self, uid: str, p_id: str, p_info: PatientInfo) -> None:
         uid = str(uid)

@@ -293,3 +293,27 @@ msgstr "Сбросить мониторинг пациента «{name}»? Вс�
 #: src/web/static/app/js/views/doctors.js
 msgid "monitoring-reset-error"
 msgstr "❌ Не удалось сбросить мониторинг: {reason}"
+
+#: src/services/screen_render.py
+msgid "screen-title"
+msgstr "📊 Сводка мониторинга"
+
+#: src/services/screen_render.py
+msgid "screen-patient-header"
+msgstr "👤 {name}"
+
+#: src/services/screen_render.py
+msgid "screen-new-marker"
+msgstr "🆕"
+
+#: src/services/screen_render.py
+msgid "screen-old-marker"
+msgstr "•"
+
+#: src/services/screen_render.py
+msgid "screen-slot-indent"
+msgstr "   ─ "
+
+#: src/services/screen_render.py
+msgid "screen-more-events"
+msgstr "… и ещё {count} событий"

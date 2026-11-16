@@ -293,3 +293,27 @@ msgstr "Reset monitoring for patient “{name}”? All their doctors will be unt
 #: src/web/static/app/js/views/doctors.js
 msgid "monitoring-reset-error"
 msgstr "❌ Failed to reset monitoring: {reason}"
+
+#: src/services/screen_render.py
+msgid "screen-title"
+msgstr "📊 Monitoring summary"
+
+#: src/services/screen_render.py
+msgid "screen-patient-header"
+msgstr "👤 {name}"
+
+#: src/services/screen_render.py
+msgid "screen-new-marker"
+msgstr "🆕"
+
+#: src/services/screen_render.py
+msgid "screen-old-marker"
+msgstr "•"
+
+#: src/services/screen_render.py
+msgid "screen-slot-indent"
+msgstr "   ─ "
+
+#: src/services/screen_render.py
+msgid "screen-more-events"
+msgstr "… and {count} more events"
